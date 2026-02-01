@@ -267,12 +267,13 @@ index 4fd7c8be9a..e5f6a7b8c9 100644
 +#include "AudioFingerprintManager.h"
 
  namespace mozilla {
-@@ -216,4 +217,13 @@ void AnalyserNode::GetFloatFrequencyData(const Float32Array& aArray) {
+@@ -216,4 +217,14 @@ void AnalyserNode::GetFloatFrequencyData(const Float32Array& aArray) {
      return;
    }
 
 +  // Apply audio fingerprint transformation to frequency data
-+  nsPIDOMWindowInner* global = GetParentObject();
++  AudioContext* context = GetParentObject();
++  nsPIDOMWindowInner* global = context ? context->GetParentObject() : nullptr;
 +  if (global) {
 +    uint32_t userContextId = AudioFingerprintManager::GetUserContextIdFromWindow(global);
 +    uint32_t seed = AudioFingerprintManager::GetSeed(userContextId);
@@ -281,12 +282,13 @@ index 4fd7c8be9a..e5f6a7b8c9 100644
 +    }
 +  }
    aArray.ProcessData([&](const Span<float>& aData, JS::AutoCheckCannotGC&&) {
-@@ -232,4 +243,13 @@ void AnalyserNode::GetByteFrequencyData(const Uint8Array& aArray) {
+@@ -232,4 +245,14 @@ void AnalyserNode::GetByteFrequencyData(const Uint8Array& aArray) {
      return;
    }
 
 +  // Apply audio fingerprint transformation to frequency data
-+  nsPIDOMWindowInner* global = GetParentObject();
++  AudioContext* context = GetParentObject();
++  nsPIDOMWindowInner* global = context ? context->GetParentObject() : nullptr;
 +  if (global) {
 +    uint32_t userContextId = AudioFingerprintManager::GetUserContextIdFromWindow(global);
 +    uint32_t seed = AudioFingerprintManager::GetSeed(userContextId);
@@ -295,12 +297,13 @@ index 4fd7c8be9a..e5f6a7b8c9 100644
 +    }
 +  }
    const double rangeScaleFactor = 1.0 / (mMaxDecibels - mMinDecibels);
-@@ -255,5 +275,14 @@ void AnalyserNode::GetFloatTimeDomainData(const Float32Array& aArray) {
+@@ -255,5 +279,15 @@ void AnalyserNode::GetFloatTimeDomainData(const Float32Array& aArray) {
      size_t length = std::min(aData.Length(), size_t(FftSize()));
 
      GetTimeDomainData(aData.Elements(), length);
 +    // Apply audio fingerprint transformation to time domain data
-+    nsPIDOMWindowInner* global = GetParentObject();
++    AudioContext* context = GetParentObject();
++    nsPIDOMWindowInner* global = context ? context->GetParentObject() : nullptr;
 +    if (global) {
 +      uint32_t userContextId = AudioFingerprintManager::GetUserContextIdFromWindow(global);
 +      uint32_t seed = AudioFingerprintManager::GetSeed(userContextId);
@@ -310,12 +313,13 @@ index 4fd7c8be9a..e5f6a7b8c9 100644
 +    }
    });
  }
-@@ -269,6 +298,15 @@ void AnalyserNode::GetByteTimeDomainData(const Uint8Array& aArray) {
- 
+@@ -269,6 +304,16 @@ void AnalyserNode::GetByteTimeDomainData(const Uint8Array& aArray) {
+
      GetTimeDomainData(tmpBuffer.Elements(), length);
- 
+
 +    // Apply audio fingerprint transformation before byte conversion
-+    nsPIDOMWindowInner* global = GetParentObject();
++    AudioContext* context = GetParentObject();
++    nsPIDOMWindowInner* global = context ? context->GetParentObject() : nullptr;
 +    if (global) {
 +      uint32_t userContextId = AudioFingerprintManager::GetUserContextIdFromWindow(global);
 +      uint32_t seed = AudioFingerprintManager::GetSeed(userContextId);
