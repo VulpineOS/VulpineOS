@@ -3,8 +3,9 @@ new file mode 100644
 index 0000000000..f47a35b2e3
 --- /dev/null
 +++ b/dom/base/AudioFingerprintManager.cpp
-@@ -0,0 +1,62 @@
+@@ -0,0 +1,63 @@
 +#include "AudioFingerprintManager.h"
++#include "RoverfoxStorageManager.h"
 +#include "nsGlobalWindowInner.h"
 +#include "xpcpublic.h"
 +#include <algorithm>
@@ -80,12 +81,11 @@ new file mode 100644
 index 0000000000..535ce3a6f9
 --- /dev/null
 +++ b/dom/base/AudioFingerprintManager.h
-@@ -0,0 +1,24 @@
+@@ -0,0 +1,23 @@
 +#ifndef mozilla_dom_AudioFingerprintManager_h
 +#define mozilla_dom_AudioFingerprintManager_h
 +
 +#include "nsString.h"
-+#include "RoverfoxStorageManager.h"
 +
 +namespace mozilla {
 +namespace dom {
