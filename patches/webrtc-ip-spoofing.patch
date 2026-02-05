@@ -840,10 +840,10 @@ index ca237977cd..abfc081ae7 100644
 +  // ipv4
 +  const char* ipv4Pattern = "(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)";
 +  std::string result = replaceIPAddresses(candidate, ipv4Pattern, userContextId);
-+  // ipv6
-+  const char* ipv6Pattern = "(?:[0-9A-Fa-f]{1,4}:){7}[0-9A-Fa-f]{1,4}";
++  // ipv6 - comprehensive pattern handles all formats including compressed (::1, fe80::, etc.)
++  const char* ipv6Pattern = "(?:(?:[0-9A-Fa-f]{1,4}:){7}[0-9A-Fa-f]{1,4}|(?:[0-9A-Fa-f]{1,4}:){1,7}:|(?:[0-9A-Fa-f]{1,4}:){1,6}:[0-9A-Fa-f]{1,4}|(?:[0-9A-Fa-f]{1,4}:){1,5}(?::[0-9A-Fa-f]{1,4}){1,2}|(?:[0-9A-Fa-f]{1,4}:){1,4}(?::[0-9A-Fa-f]{1,4}){1,3}|(?:[0-9A-Fa-f]{1,4}:){1,3}(?::[0-9A-Fa-f]{1,4}){1,4}|(?:[0-9A-Fa-f]{1,4}:){1,2}(?::[0-9A-Fa-f]{1,4}){1,5}|[0-9A-Fa-f]{1,4}:(?::[0-9A-Fa-f]{1,4}){1,6}|:(?::[0-9A-Fa-f]{1,4}){1,7}|::)";
 +  result = replaceIPAddresses(result, ipv6Pattern, userContextId);
-+  
++
 +  return result;
 +}
 +
@@ -922,8 +922,8 @@ index ca237977cd..abfc081ae7 100644
 +  // ipv4
 +  const char* ipv4Pattern = "(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)";
 +  processedSdp = replaceIPAddresses(processedSdp, ipv4Pattern, userContextId);
-+  // ipv6
-+  const char* ipv6Pattern = "(?:[0-9A-Fa-f]{1,4}:){7}[0-9A-Fa-f]{1,4}";
++  // ipv6 - comprehensive pattern handles all formats including compressed (::1, fe80::, etc.)
++  const char* ipv6Pattern = "(?:(?:[0-9A-Fa-f]{1,4}:){7}[0-9A-Fa-f]{1,4}|(?:[0-9A-Fa-f]{1,4}:){1,7}:|(?:[0-9A-Fa-f]{1,4}:){1,6}:[0-9A-Fa-f]{1,4}|(?:[0-9A-Fa-f]{1,4}:){1,5}(?::[0-9A-Fa-f]{1,4}){1,2}|(?:[0-9A-Fa-f]{1,4}:){1,4}(?::[0-9A-Fa-f]{1,4}){1,3}|(?:[0-9A-Fa-f]{1,4}:){1,3}(?::[0-9A-Fa-f]{1,4}){1,4}|(?:[0-9A-Fa-f]{1,4}:){1,2}(?::[0-9A-Fa-f]{1,4}){1,5}|[0-9A-Fa-f]{1,4}:(?::[0-9A-Fa-f]{1,4}){1,6}|:(?::[0-9A-Fa-f]{1,4}){1,7}|::)";
 +  processedSdp = replaceIPAddresses(processedSdp, ipv6Pattern, userContextId);
 +  
 +  if (processedSdp != originalSdp) {
