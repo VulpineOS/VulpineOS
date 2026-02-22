@@ -309,10 +309,12 @@ index 330a707789..4f87317dbb 100644
 +
 +  WebRTCIPManager::SetIPv4(userContextId, ipv4);
 +
-+  // Self-destruct: remove this function from the window object after first use
++  // Self-destruct: set to undefined first to bust IC/shape caches on ARM64.
 +  if (JSContext* cx = nsContentUtils::GetCurrentJSContext()) {
 +    JS::Rooted<JSObject*> global(cx, JS::CurrentGlobalOrNull(cx));
 +    if (global) {
++      JS::Rooted<JS::Value> undef(cx, JS::UndefinedValue());
++      JS_SetProperty(cx, global, "setWebRTCIPv4", undef);
 +      JS_DeleteProperty(cx, global, "setWebRTCIPv4");
 +    }
 +  }
@@ -326,10 +328,12 @@ index 330a707789..4f87317dbb 100644
 +
 +  WebRTCIPManager::SetIPv6(userContextId, ipv6);
 +
-+  // Self-destruct: remove this function from the window object after first use
++  // Self-destruct: set to undefined first to bust IC/shape caches on ARM64.
 +  if (JSContext* cx = nsContentUtils::GetCurrentJSContext()) {
 +    JS::Rooted<JSObject*> global(cx, JS::CurrentGlobalOrNull(cx));
 +    if (global) {
++      JS::Rooted<JS::Value> undef(cx, JS::UndefinedValue());
++      JS_SetProperty(cx, global, "setWebRTCIPv6", undef);
 +      JS_DeleteProperty(cx, global, "setWebRTCIPv6");
 +    }
 +  }
