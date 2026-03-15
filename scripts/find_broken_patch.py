@@ -33,19 +33,20 @@ from _mixin import find_src_dir, get_moz_target, list_patches, run, temp_cd
 
 def test_criteria(app_path: str) -> bool:
     """
-    Opens a test page, waits 5 seconds, then closes.
+    Opens a test page via Camoufox, waits 5 seconds, then closes.
     Always returns True — inspect results visually or externally.
     """
     import time
-    from playwright.sync_api import sync_playwright
+
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "pythonlib"))
+    from camoufox.sync_api import Camoufox
 
     binary = os.path.join(app_path, "Contents", "MacOS", "camoufox")
-    with sync_playwright() as p:
-        browser = p.firefox.launch(executable_path=binary)
+    with Camoufox(executable_path=binary, headless=True) as browser:
         page = browser.new_page()
         page.goto("https://bounty-nodejs.datashield.co/")
         time.sleep(5)
-        browser.close()
+        page.close()
     return True
 
 
