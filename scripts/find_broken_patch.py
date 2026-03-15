@@ -31,10 +31,28 @@ from _mixin import find_src_dir, get_moz_target, list_patches, run, temp_cd
 # USER-DEFINED TEST CRITERIA — edit this function
 # ---------------------------------------------------------------------------
 
+def load_proxy():
+    """Load proxy from .env file. Expects PROXY=user:pass@host:port"""
+    from dotenv import load_dotenv
+
+    load_dotenv()
+    proxy_str = os.environ.get("PROXY")
+    if not proxy_str:
+        return None
+
+    # Parse user:pass@host:port
+    if "@" in proxy_str:
+        creds, server = proxy_str.rsplit("@", 1)
+        user, password = creds.split(":", 1)
+        return {"server": f"http://{server}", "username": user, "password": password}
+    return {"server": f"http://{proxy_str}"}
+
+
 def test_criteria(app_path: str) -> bool:
     """
-    Opens a test page via Camoufox, waits 5 seconds, then closes.
-    Always returns True — inspect results visually or externally.
+    Opens the test page, waits 15 seconds, then checks for a leak indicator.
+    Returns True (pass) if no leak detected, False (fail) if leak detected.
+    A leak is indicated by the presence of "body > p > a" or the text "scraping".
     """
     import time
 
@@ -42,12 +60,27 @@ def test_criteria(app_path: str) -> bool:
     from camoufox.sync_api import Camoufox
 
     binary = os.path.join(app_path, "Contents", "MacOS", "camoufox")
-    with Camoufox(executable_path=binary, headless=False) as browser:
+    proxy = load_proxy()
+    if proxy:
+        print(f"  Using proxy: {proxy['server']}")
+
+    with Camoufox(executable_path=binary, headless=False, proxy=proxy, i_know_what_im_doing=True) as browser:
         page = browser.new_page()
         page.goto("https://bounty-nodejs.datashield.co/")
-        time.sleep(50)
+        time.sleep(15)
+
+        # Check for pass indicators
+        has_link = page.query_selector("body > p > a") is not None
+        has_scraping = "scraping" in (page.content() or "").lower()
+        passed = has_link or has_scraping
+
+        if passed:
+            print("  PASS: found 'body > p > a' or 'scraping' on page")
+        else:
+            print("  FAIL: page did not show expected content (bot detected)")
+
         page.close()
-    return True
+    return passed
 
 
 # ---------------------------------------------------------------------------
