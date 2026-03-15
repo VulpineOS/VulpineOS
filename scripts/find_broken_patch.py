@@ -125,10 +125,16 @@ def parse_upstream():
 
 
 BASELINE_PATCHES = {
+    "0-playwright.patch",
+    "1-leak-fixes.patch",
+    "anti-font-fingerprinting.patch",
+    "audio-fingerprint-manager.patch",
     "browser-init.patch",
+    "canvas-spoofing.patch",
     "chromeutil.patch",
     "config.patch",
     "fingerprint-injection.patch",
+    "font-list-spoofing.patch",
     "navigator-spoofing.patch",
     "network-patches.patch",
 }
@@ -338,11 +344,11 @@ def main():
     print()
 
     # ------------------------------------------------------------------
-    # Step 0: Build with ONLY playwright patches as sanity check.
-    # If this fails, the test criteria or playwright patches are broken.
+    # Step 0: Build with ONLY baseline patches as sanity check.
+    # If this fails, the test criteria or playwbaselineright patches are broken.
     # ------------------------------------------------------------------
     print("=" * 70)
-    print("Step 0: Building with ONLY playwright patches (sanity check)")
+    print("Step 0: Building with ONLY baseline patches (sanity check)")
     print("=" * 70)
 
     with temp_cd(abs_src_dir):
@@ -350,28 +356,28 @@ def main():
         write_mozconfig(args.target, args.arch)
 
         if not apply_patches(baseline_patches):
-            print("ERROR: Playwright patches failed to apply.")
+            print("ERROR: baseline patches failed to apply.")
             sys.exit(1)
 
         # Signal that patching is done
         open("_READY", "w").close()
 
         if not build():
-            print("ERROR: Playwright-only build failed.")
+            print("ERROR: baseline-only build failed.")
             sys.exit(1)
 
     # Package and extract
     app_path = package_and_extract(version, release, args.arch, label="round-0-sanity")
-    print(f"\nRunning test criteria against playwright-only build: {app_path}")
+    print(f"\nRunning test criteria against baseline-only build: {app_path}")
     passed = test_criteria(app_path)
     mark_result("round-0-sanity", args.arch, passed)
 
     if not passed:
-        print("FAIL — test criteria failed on playwright-only build.")
-        print("This means the test criteria or playwright patches are broken.")
+        print("FAIL — test criteria failed on baseline-only build.")
+        print("This means the test criteria or baseline patches are broken.")
         sys.exit(1)
 
-    print("PASS — playwright-only build passes. Proceeding with binary search.\n")
+    print("PASS — baseline-only build passes. Proceeding with binary search.\n")
 
     # ------------------------------------------------------------------
     # Binary search
