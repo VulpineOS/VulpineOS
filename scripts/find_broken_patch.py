@@ -97,14 +97,19 @@ BISECT_EXTRACT_DIR = "_bisect_extract"
 # ---------------------------------------------------------------------------
 
 def extract_zip(zip_path, dest_dir):
-    """Extract a zip file, preserving Unix file permissions."""
+    """Extract a zip file and ensure binaries are executable."""
+    import stat
+
     with zipfile.ZipFile(zip_path, "r") as zf:
         zf.extractall(dest_dir)
-        for info in zf.infolist():
-            if info.external_attr:
-                perm = info.external_attr >> 16
-                if perm:
-                    os.chmod(os.path.join(dest_dir, info.filename), perm)
+
+    # 7z-created zips don't store Unix permissions, so fix up executables
+    for root, _dirs, files in os.walk(dest_dir):
+        for f in files:
+            fp = os.path.join(root, f)
+            # Mark binaries and scripts as executable
+            if f in ("camoufox", "camoufox-bin", "firefox", "plugin-container") or f.endswith(".sh"):
+                os.chmod(fp, os.stat(fp).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
 def parse_upstream():
@@ -119,34 +124,46 @@ def parse_upstream():
     return vals["version"], vals["release"]
 
 
-def categorize_patches():
-    """Split patches into playwright (baseline) and searchable patches.
+BASELINE_PATCHES = {
+    "browser-init.patch",
+    "chromeutil.patch",
+    "navigator-spoofing.patch",
+    "network-patches.patch",
+}
 
-    Returns (playwright_patches, search_patches) where search_patches
+
+def categorize_patches():
+    """Split patches into baseline (always applied) and searchable patches.
+
+    Baseline includes playwright patches and foundation patches
+    (browser-init, chromeutil) needed for a functional browser.
+
+    Returns (baseline_patches, search_patches) where search_patches
     are ordered non-roverfox first, then roverfox.
     """
     all_patches = list_patches(root_dir="patches")
-    playwright = []
-    non_playwright = []
+    baseline = []
+    non_baseline = []
 
     for p in all_patches:
         parts = os.path.normpath(p).split(os.sep)
-        if "playwright" in parts:
-            playwright.append(p)
+        basename = os.path.basename(p)
+        if "playwright" in parts or basename in BASELINE_PATCHES:
+            baseline.append(p)
         else:
-            non_playwright.append(p)
+            non_baseline.append(p)
 
-    # Order non-playwright: non-roverfox first, then roverfox
+    # Order search patches: non-roverfox first, then roverfox
     non_roverfox = []
     roverfox = []
-    for p in non_playwright:
+    for p in non_baseline:
         parts = os.path.normpath(p).split(os.sep)
         if "roverfox" in parts:
             roverfox.append(p)
         else:
             non_roverfox.append(p)
 
-    return playwright, non_roverfox + roverfox
+    return baseline, non_roverfox + roverfox
 
 
 def write_mozconfig(target, arch):
@@ -304,13 +321,13 @@ def main():
     src_dir = find_src_dir(".", version, release)
     abs_src_dir = os.path.abspath(src_dir)
 
-    playwright_patches, search_patches = categorize_patches()
+    baseline_patches, search_patches = categorize_patches()
 
     total = len(search_patches)
     iterations = math.ceil(math.log2(total)) if total > 1 else 1
 
-    print(f"Playwright patches (always applied):")
-    for p in playwright_patches:
+    print(f"Baseline patches (always applied):")
+    for p in baseline_patches:
         print(f"  {p}")
 
     print(f"\nSearch patches ({total} total, ~{iterations} iterations):")
@@ -330,7 +347,7 @@ def main():
         reset_source(version, release)
         write_mozconfig(args.target, args.arch)
 
-        if not apply_patches(playwright_patches):
+        if not apply_patches(baseline_patches):
             print("ERROR: Playwright patches failed to apply.")
             sys.exit(1)
 
@@ -373,7 +390,7 @@ def main():
             reset_source(version, release)
             write_mozconfig(args.target, args.arch)
 
-            all_to_apply = playwright_patches + search_patches[: mid + 1]
+            all_to_apply = baseline_patches + search_patches[: mid + 1]
             if not apply_patches(all_to_apply):
                 print("ERROR: Patches failed to apply. Cannot continue binary search.")
                 sys.exit(1)
