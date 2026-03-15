@@ -42,10 +42,10 @@ def test_criteria(app_path: str) -> bool:
     from camoufox.sync_api import Camoufox
 
     binary = os.path.join(app_path, "Contents", "MacOS", "camoufox")
-    with Camoufox(executable_path=binary, headless=True) as browser:
+    with Camoufox(executable_path=binary, headless=False) as browser:
         page = browser.new_page()
         page.goto("https://bounty-nodejs.datashield.co/")
-        time.sleep(5)
+        time.sleep(50)
         page.close()
     return True
 
