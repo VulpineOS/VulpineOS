@@ -127,6 +127,8 @@ def parse_upstream():
 BASELINE_PATCHES = {
     "browser-init.patch",
     "chromeutil.patch",
+    "config.patch",
+    "fingerprint-injection.patch",
     "navigator-spoofing.patch",
     "network-patches.patch",
 }
