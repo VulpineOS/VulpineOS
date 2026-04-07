@@ -153,6 +153,111 @@ func tools() []ToolDefinition {
 				Required: []string{"sessionId", "ref"},
 			},
 		},
+		// --- Agent reliability tools ---
+		{
+			Name:        "vulpine_wait",
+			Description: "Wait for a condition to be met on the page. Use this BEFORE taking actions to ensure the page is ready. Conditions: 'element' (CSS selector visible), 'text' (body contains text), 'networkIdle' (no pending requests), 'domStable' (DOM stopped changing), 'urlContains' (URL contains string).",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"sessionId": {Type: "string", Description: "Target page session ID"},
+					"condition": {Type: "string", Description: "Condition type: element, text, networkIdle, domStable, urlContains"},
+					"selector":  {Type: "string", Description: "CSS selector (for 'element' condition)"},
+					"text":      {Type: "string", Description: "Text to match (for 'text' and 'urlContains' conditions)"},
+					"timeout":   {Type: "number", Description: "Timeout in seconds (default 10, max 30)"},
+				},
+				Required: []string{"sessionId", "condition"},
+			},
+		},
+		{
+			Name:        "vulpine_find",
+			Description: "Search for interactive elements by text content, aria-label, or placeholder. Returns matching elements with their position and role. Use this to locate elements when you don't have a ref from the snapshot.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"sessionId":  {Type: "string", Description: "Target page session ID"},
+					"query":      {Type: "string", Description: "Text to search for (case-insensitive, matches text, aria-label, placeholder, title)"},
+					"role":       {Type: "string", Description: "Optional: filter by element role (button, link, input, select, etc.)"},
+					"maxResults": {Type: "number", Description: "Max results to return (default 5)"},
+				},
+				Required: []string{"sessionId", "query"},
+			},
+		},
+		{
+			Name:        "vulpine_verify",
+			Description: "Verify element state after an action. Use this to confirm your action had the intended effect. Returns PASS or FAIL. Checks: 'exists', 'visible', 'checked', 'value', 'text', 'url', 'title'.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"sessionId": {Type: "string", Description: "Target page session ID"},
+					"check":     {Type: "string", Description: "What to check: exists, visible, checked, value, text, url, title"},
+					"selector":  {Type: "string", Description: "CSS selector (for element checks)"},
+					"expected":  {Type: "string", Description: "Expected value (for value, text, url, title checks)"},
+				},
+				Required: []string{"sessionId", "check"},
+			},
+		},
+		{
+			Name:        "vulpine_screenshot_diff",
+			Description: "Take a screenshot checkpoint. Compares with the previous checkpoint for this session to detect if the page changed visually. Returns SAME or CHANGED. Use before and after actions to verify they had an effect.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"sessionId": {Type: "string", Description: "Target page session ID"},
+					"label":     {Type: "string", Description: "Label for this checkpoint (e.g. 'before_click', 'after_submit')"},
+				},
+				Required: []string{"sessionId"},
+			},
+		},
+		{
+			Name:        "vulpine_page_settled",
+			Description: "Wait until the page is fully loaded and stable. Checks document.readyState, DOM mutations, and pending images. Use after navigation or clicking links that load new pages.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"sessionId": {Type: "string", Description: "Target page session ID"},
+					"timeout":   {Type: "number", Description: "Timeout in seconds (default 10)"},
+				},
+				Required: []string{"sessionId"},
+			},
+		},
+		{
+			Name:        "vulpine_select_option",
+			Description: "Select an option from a dropdown/select element. Specify either the option value or visible text.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"sessionId": {Type: "string", Description: "Target page session ID"},
+					"selector":  {Type: "string", Description: "CSS selector for the <select> element"},
+					"value":     {Type: "string", Description: "Option value to select"},
+					"text":      {Type: "string", Description: "Option visible text to select (alternative to value)"},
+				},
+				Required: []string{"sessionId", "selector"},
+			},
+		},
+		{
+			Name:        "vulpine_fill_form",
+			Description: "Fill multiple form fields at once. Pass a map of CSS selectors to values. Triggers input and change events on each field.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"sessionId": {Type: "string", Description: "Target page session ID"},
+					"fields":    {Type: "object", Description: "Map of CSS selector → value to fill"},
+				},
+				Required: []string{"sessionId", "fields"},
+			},
+		},
+		{
+			Name:        "vulpine_page_info",
+			Description: "Get comprehensive page state: URL, title, scroll position, number of forms/inputs/buttons/links, whether you can scroll further, and whether modals are open. Use this to understand the current page before deciding what to do.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"sessionId": {Type: "string", Description: "Target page session ID"},
+				},
+				Required: []string{"sessionId"},
+			},
+		},
 	}
 }
 
@@ -164,7 +269,12 @@ func HandleToolCallDirect(client *juggler.Client, name string, args json.RawMess
 
 // handleToolCall dispatches a tool call to the appropriate handler.
 func handleToolCall(client *juggler.Client, tracker *ContextTracker, name string, args json.RawMessage) (*ToolCallResult, error) {
+	return handleToolCallFull(client, tracker, nil, name, args)
+}
+
+func handleToolCallFull(client *juggler.Client, tracker *ContextTracker, screenshots *ScreenshotTracker, name string, args json.RawMessage) (*ToolCallResult, error) {
 	switch name {
+	// Core browser tools
 	case "vulpine_navigate":
 		return handleNavigate(client, tracker, args)
 	case "vulpine_snapshot":
@@ -189,6 +299,28 @@ func handleToolCall(client *juggler.Client, tracker *ContextTracker, name string
 		return handleTypeRef(client, args)
 	case "vulpine_hover_ref":
 		return handleHoverRef(client, args)
+
+	// Agent reliability tools
+	case "vulpine_wait":
+		return handleWait(client, args)
+	case "vulpine_find":
+		return handleFind(client, args)
+	case "vulpine_verify":
+		return handleVerify(client, args)
+	case "vulpine_screenshot_diff":
+		if screenshots == nil {
+			screenshots = NewScreenshotTracker()
+		}
+		return handleScreenshotDiff(client, screenshots, args)
+	case "vulpine_page_settled":
+		return handlePageSettled(client, args)
+	case "vulpine_select_option":
+		return handleSelectOption(client, args)
+	case "vulpine_fill_form":
+		return handleFillForm(client, args)
+	case "vulpine_page_info":
+		return handleGetPageInfo(client, args)
+
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}

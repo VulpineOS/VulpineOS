@@ -6,8 +6,8 @@ import (
 
 func TestToolDefinitions(t *testing.T) {
 	toolList := tools()
-	if len(toolList) != 12 {
-		t.Errorf("expected 12 tools, got %d", len(toolList))
+	if len(toolList) != 20 {
+		t.Errorf("expected 20 tools, got %d", len(toolList))
 	}
 
 	expectedNames := map[string]bool{
@@ -22,7 +22,15 @@ func TestToolDefinitions(t *testing.T) {
 		"vulpine_get_ax_tree":   false,
 		"vulpine_click_ref":     false,
 		"vulpine_type_ref":      false,
-		"vulpine_hover_ref":     false,
+		"vulpine_hover_ref":       false,
+		"vulpine_wait":            false,
+		"vulpine_find":            false,
+		"vulpine_verify":          false,
+		"vulpine_screenshot_diff": false,
+		"vulpine_page_settled":    false,
+		"vulpine_select_option":   false,
+		"vulpine_fill_form":       false,
+		"vulpine_page_info":       false,
 	}
 
 	for _, tool := range toolList {
@@ -180,8 +188,8 @@ func TestToolsListResponse(t *testing.T) {
 	if !ok {
 		t.Fatalf("result is not ToolsListResult, got %T", resp.Result)
 	}
-	if len(result.Tools) != 12 {
-		t.Errorf("expected 12 tools, got %d", len(result.Tools))
+	if len(result.Tools) != 20 {
+		t.Errorf("expected 20 tools, got %d", len(result.Tools))
 	}
 }
 
