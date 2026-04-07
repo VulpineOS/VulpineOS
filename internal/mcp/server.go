@@ -22,6 +22,7 @@ type Server struct {
 	client      *juggler.Client
 	tracker     *ContextTracker
 	screenshots *ScreenshotTracker
+	loops       *LoopDetector
 	reader      *bufio.Reader
 	writer      io.Writer
 }
@@ -32,6 +33,7 @@ func NewServer(client *juggler.Client) *Server {
 		client:      client,
 		tracker:     NewContextTracker(client),
 		screenshots: NewScreenshotTracker(),
+		loops:       NewLoopDetector(3),
 		reader:      bufio.NewReader(os.Stdin),
 		writer:      os.Stdout,
 	}
@@ -121,6 +123,21 @@ func (s *Server) handleToolsCall(req *Request) *Response {
 			ID:      req.ID,
 			Error:   &RPCError{Code: -32602, Message: "Invalid params: " + err.Error()},
 		}
+	}
+
+	// Check for action loops before executing
+	if warning := s.loops.Check("default", params.Name, string(params.Arguments)); warning != "" {
+		log.Printf("mcp: loop detected: %s", params.Name)
+		return &Response{
+			JSONRPC: "2.0",
+			ID:      req.ID,
+			Result:  textResult(warning),
+		}
+	}
+
+	// Reset loop history on navigation (new page = fresh context)
+	if params.Name == "vulpine_navigate" {
+		s.loops.Reset("default")
 	}
 
 	result, err := handleToolCallFull(s.client, s.tracker, s.screenshots, params.Name, params.Arguments)
