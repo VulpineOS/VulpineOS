@@ -16,12 +16,26 @@ var ErrUnavailable = errors.New("extensions: feature unavailable")
 type CredentialProvider interface {
 	// Lookup returns a credential matching siteURL, or nil if none.
 	Lookup(ctx context.Context, siteURL string) (*Credential, error)
+	// Fill writes the credential's value into the targeted form field.
+	// The provider owns the actual injection mechanism so plaintext never
+	// crosses this interface boundary.
+	Fill(ctx context.Context, credID string, target FillTarget) error
 	// GenerateCode returns the current TOTP code for a credential, if it has a TOTP secret.
 	GenerateCode(ctx context.Context, credID string) (string, error)
 	// List returns all credentials for the active citizen, or empty if none.
 	List(ctx context.Context) ([]Credential, error)
 	// Available reports whether the provider has a real backing implementation.
 	Available() bool
+}
+
+// FillTarget describes where a credential field should be injected. It
+// names a browser page, an optional frame, a CSS selector identifying the
+// target field, and whether the username or password slot is being filled.
+type FillTarget struct {
+	PageID   string // browser page identifier
+	FrameID  string // optional frame identifier
+	Selector string // CSS selector identifying the target field
+	Field    string // "username" or "password"
 }
 
 // Credential is the public metadata view of a stored credential. The
@@ -43,6 +57,10 @@ type noopCredentialProvider struct{}
 
 func (noopCredentialProvider) Lookup(ctx context.Context, siteURL string) (*Credential, error) {
 	return nil, ErrUnavailable
+}
+
+func (noopCredentialProvider) Fill(ctx context.Context, credID string, target FillTarget) error {
+	return ErrUnavailable
 }
 
 func (noopCredentialProvider) GenerateCode(ctx context.Context, credID string) (string, error) {
