@@ -301,6 +301,7 @@ export class PageAgent {
         getContentQuads: this._getContentQuads.bind(this),
         getFullAXTree: this._getFullAXTree.bind(this),
         getOptimizedDOM: this._getOptimizedDOM.bind(this),
+        getShadowDOM: this._getShadowDOM.bind(this),
         resolveRef: this._resolveRef.bind(this),
         focusByRef: this._focusByRef.bind(this),
         insertText: this._insertText.bind(this),
@@ -1092,6 +1093,55 @@ export class PageAgent {
       el.scrollIntoView({ block: 'center', inline: 'center' });
     el.focus();
     return { focused: true };
+  }
+
+  // VulpineOS: Shadow DOM traversal — walks shadow roots recursively
+  _getShadowDOM({ frameId, objectId, maxDepth = 5 }) {
+    const frame = this._frameTree.frame(frameId);
+    if (!frame)
+      throw new Error('frame not found: ' + frameId);
+    const unsafeObject = this._runtime._findObject(objectId);
+    if (!unsafeObject)
+      throw new Error('object not found: ' + objectId);
+    const element = unsafeObject;
+
+    function walkShadow(node, depth) {
+      if (depth > maxDepth) return null;
+      const result = {
+        tag: node.tagName ? node.tagName.toLowerCase() : '#text',
+        text: node.nodeType === 3 ? node.textContent.trim() : undefined,
+        children: [],
+      };
+      if (node.nodeType === 1) {
+        // Collect attributes
+        const attrs = {};
+        for (const attr of node.attributes || []) {
+          if (['id', 'class', 'role', 'aria-label', 'type', 'name', 'value', 'href', 'src', 'placeholder'].includes(attr.name)) {
+            attrs[attr.name] = attr.value;
+          }
+        }
+        if (Object.keys(attrs).length > 0) result.attrs = attrs;
+        // Check for shadow root
+        if (node.shadowRoot) {
+          result.shadowRoot = [];
+          for (const child of node.shadowRoot.childNodes) {
+            const c = walkShadow(child, depth + 1);
+            if (c) result.shadowRoot.push(c);
+          }
+        }
+        // Regular children
+        for (const child of node.childNodes) {
+          const c = walkShadow(child, depth + 1);
+          if (c) result.children.push(c);
+        }
+      }
+      // Skip empty text nodes
+      if (result.tag === '#text' && (!result.text || result.text === ''))
+        return null;
+      return result;
+    }
+
+    return { nodes: walkShadow(element, 0) };
   }
 }
 
