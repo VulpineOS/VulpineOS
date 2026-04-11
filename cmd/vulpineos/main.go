@@ -82,24 +82,6 @@ func main() {
 	}
 }
 
-// printExtensionStatus writes a human-readable summary of the
-// currently-registered extension providers. Operators can run this to
-// quickly confirm which optional features are wired into the running
-// build.
-func printExtensionStatus(w *os.File) {
-	fmt.Fprintln(w, "VulpineOS extension providers:")
-	fmt.Fprintf(w, "  Credentials: %s\n", extensionAvailabilityString(extensions.Registry.Credentials != nil && extensions.Registry.Credentials.Available()))
-	fmt.Fprintf(w, "  Audio:       %s\n", extensionAvailabilityString(extensions.Registry.Audio != nil && extensions.Registry.Audio.Available()))
-	fmt.Fprintf(w, "  Mobile:      %s\n", extensionAvailabilityString(extensions.Registry.Mobile != nil && extensions.Registry.Mobile.Available()))
-}
-
-func extensionAvailabilityString(available bool) string {
-	if available {
-		return "available"
-	}
-	return "unavailable"
-}
-
 // runMCPServer runs as an MCP stdio server for OpenClaw integration.
 // It connects to a running VulpineOS kernel and translates MCP tool calls to Juggler protocol.
 func runMCPServer(binaryPath string, headless bool, profileDir string) error {

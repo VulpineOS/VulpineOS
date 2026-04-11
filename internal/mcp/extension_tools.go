@@ -170,7 +170,7 @@ func handleGetCredential(args json.RawMessage) *ToolCallResult {
 	if err := json.Unmarshal(args, &p); err != nil {
 		return errorResult(err)
 	}
-	provider := extensions.Registry.Credentials
+	provider := extensions.Registry.Credentials()
 	if provider == nil || !provider.Available() {
 		return errorResult(fmt.Errorf("credential provider unavailable"))
 	}
@@ -203,7 +203,7 @@ func handleAutofill(args json.RawMessage) *ToolCallResult {
 	if err := json.Unmarshal(args, &p); err != nil {
 		return errorResult(err)
 	}
-	provider := extensions.Registry.Credentials
+	provider := extensions.Registry.Credentials()
 	if provider == nil || !provider.Available() {
 		return errorResult(fmt.Errorf("credential provider unavailable"))
 	}
@@ -243,7 +243,7 @@ func handleStartAudioCapture(args json.RawMessage) *ToolCallResult {
 	if err := json.Unmarshal(args, &p); err != nil {
 		return errorResult(err)
 	}
-	cap := extensions.Registry.Audio
+	cap := extensions.Registry.Audio()
 	if cap == nil || !cap.Available() {
 		return errorResult(fmt.Errorf("audio capture unavailable"))
 	}
@@ -265,7 +265,7 @@ func handleStopAudioCapture(args json.RawMessage) *ToolCallResult {
 	if err := json.Unmarshal(args, &p); err != nil {
 		return errorResult(err)
 	}
-	cap := extensions.Registry.Audio
+	cap := extensions.Registry.Audio()
 	if cap == nil || !cap.Available() {
 		return errorResult(fmt.Errorf("audio capture unavailable"))
 	}
@@ -286,7 +286,7 @@ func handleReadAudioChunk(args json.RawMessage) *ToolCallResult {
 	if p.MaxBytes <= 0 {
 		p.MaxBytes = 65536
 	}
-	cap := extensions.Registry.Audio
+	cap := extensions.Registry.Audio()
 	if cap == nil || !cap.Available() {
 		return errorResult(fmt.Errorf("audio capture unavailable"))
 	}
@@ -303,7 +303,7 @@ func handleReadAudioChunk(args json.RawMessage) *ToolCallResult {
 }
 
 func handleListMobileDevices(args json.RawMessage) *ToolCallResult {
-	m := extensions.Registry.Mobile
+	m := extensions.Registry.Mobile()
 	if m == nil || !m.Available() {
 		return errorResult(fmt.Errorf("mobile bridge unavailable"))
 	}
