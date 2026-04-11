@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"context"
 	"testing"
 )
 
@@ -139,7 +140,7 @@ func TestToolDefinitionsRequiredFields(t *testing.T) {
 }
 
 func TestHandleToolCallUnknown(t *testing.T) {
-	_, err := handleToolCall(nil, nil, "nonexistent_tool", nil)
+	_, err := handleToolCall(context.Background(), nil, nil, "nonexistent_tool", nil)
 	if err == nil {
 		t.Fatal("expected error for unknown tool")
 	}

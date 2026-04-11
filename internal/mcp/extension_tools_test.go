@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -39,7 +40,7 @@ func runExtTool(t *testing.T, name string, args map[string]interface{}) *ToolCal
 	if err != nil {
 		t.Fatalf("marshal args: %v", err)
 	}
-	res, ok := handleExtensionTool(nil, name, raw)
+	res, ok := handleExtensionTool(context.Background(), nil, name, raw)
 	if !ok {
 		t.Fatalf("handleExtensionTool: %q not dispatched", name)
 	}

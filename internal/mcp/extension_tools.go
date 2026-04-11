@@ -116,25 +116,27 @@ func extensionTools() []ToolDefinition {
 
 // handleExtensionTool dispatches an extension-backed tool call. Returns
 // (nil, false) if the name is not recognized so the caller can fall
-// through to other handlers.
-func handleExtensionTool(client *juggler.Client, name string, args json.RawMessage) (*ToolCallResult, bool) {
+// through to other handlers. The ctx argument is threaded through to
+// every provider method so call-scoped deadlines, cancellation, and
+// test sentinels propagate into extension backends.
+func handleExtensionTool(ctx context.Context, client *juggler.Client, name string, args json.RawMessage) (*ToolCallResult, bool) {
 	switch name {
 	case "vulpine_annotated_screenshot":
-		return handleAnnotatedScreenshot(client, args), true
+		return handleAnnotatedScreenshot(ctx, client, args), true
 	case "vulpine_get_credential":
-		return handleGetCredential(args), true
+		return handleGetCredential(ctx, args), true
 	case "vulpine_autofill":
-		return handleAutofill(args), true
+		return handleAutofill(ctx, client, args), true
 	case "vulpine_start_audio_capture":
-		return handleStartAudioCapture(args), true
+		return handleStartAudioCapture(ctx, args), true
 	case "vulpine_stop_audio_capture":
-		return handleStopAudioCapture(args), true
+		return handleStopAudioCapture(ctx, args), true
 	case "vulpine_read_audio_chunk":
-		return handleReadAudioChunk(args), true
+		return handleReadAudioChunk(ctx, args), true
 	case "vulpine_list_mobile_devices":
-		return handleListMobileDevices(args), true
+		return handleListMobileDevices(ctx, args), true
 	case "vulpine_click_label":
-		return handleClickLabel(client, args), true
+		return handleClickLabel(ctx, client, args), true
 	}
 	return nil, false
 }
@@ -147,7 +149,7 @@ func handleExtensionTool(client *juggler.Client, name string, args json.RawMessa
 // found" from a backend that doesn't implement the protocol yet) it
 // falls back to a plain Page.screenshot so the tool degrades
 // gracefully.
-func handleAnnotatedScreenshot(client *juggler.Client, args json.RawMessage) *ToolCallResult {
+func handleAnnotatedScreenshot(ctx context.Context, client *juggler.Client, args json.RawMessage) *ToolCallResult {
 	var p struct {
 		SessionID   string `json:"sessionId"`
 		Format      string `json:"format"`
@@ -161,7 +163,7 @@ func handleAnnotatedScreenshot(client *juggler.Client, args json.RawMessage) *To
 	}
 
 	// Attempt the real annotated screenshot binding first.
-	if img, elements, err := client.GetAnnotatedScreenshot(context.Background(), p.SessionID, p.Format, p.MaxElements); err == nil {
+	if img, elements, err := client.GetAnnotatedScreenshot(ctx, p.SessionID, p.Format, p.MaxElements); err == nil {
 		globalLabels.Set(p.SessionID, elements)
 		b64 := base64.StdEncoding.EncodeToString(img)
 		elementsJSON, _ := json.Marshal(elements)
@@ -200,7 +202,8 @@ func handleAnnotatedScreenshot(client *juggler.Client, args json.RawMessage) *To
 // and clicks it via Page.click. Returns an error when the label is
 // unknown (e.g. no annotated screenshot has been taken in this session
 // yet) or when the underlying click call fails.
-func handleClickLabel(client *juggler.Client, args json.RawMessage) *ToolCallResult {
+func handleClickLabel(ctx context.Context, client *juggler.Client, args json.RawMessage) *ToolCallResult {
+	_ = ctx // reserved for future cancellation of Page.click
 	var p struct {
 		SessionID string `json:"session_id"`
 		Label     string `json:"label"`
@@ -226,7 +229,7 @@ func handleClickLabel(client *juggler.Client, args json.RawMessage) *ToolCallRes
 	return textResult(fmt.Sprintf("clicked label %s (objectId=%s)", p.Label, objectID))
 }
 
-func handleGetCredential(args json.RawMessage) *ToolCallResult {
+func handleGetCredential(ctx context.Context, args json.RawMessage) *ToolCallResult {
 	var p struct {
 		SiteURL string `json:"site_url"`
 	}
@@ -237,7 +240,7 @@ func handleGetCredential(args json.RawMessage) *ToolCallResult {
 	if provider == nil || !provider.Available() {
 		return errorResult(fmt.Errorf("credential provider unavailable"))
 	}
-	cred, err := provider.Lookup(context.Background(), p.SiteURL)
+	cred, err := provider.Lookup(ctx, p.SiteURL)
 	if err != nil {
 		return errorResult(err)
 	}
@@ -255,7 +258,8 @@ func handleGetCredential(args json.RawMessage) *ToolCallResult {
 	return textResult(string(b))
 }
 
-func handleAutofill(args json.RawMessage) *ToolCallResult {
+func handleAutofill(ctx context.Context, client *juggler.Client, args json.RawMessage) *ToolCallResult {
+	_ = client // reserved for selector-value fallback path
 	var p struct {
 		SiteURL          string `json:"site_url"`
 		PageID           string `json:"page_id"`
@@ -270,7 +274,6 @@ func handleAutofill(args json.RawMessage) *ToolCallResult {
 	if provider == nil || !provider.Available() {
 		return errorResult(fmt.Errorf("credential provider unavailable"))
 	}
-	ctx := context.Background()
 	cred, err := provider.Lookup(ctx, p.SiteURL)
 	if err != nil {
 		return errorResult(err)
@@ -297,7 +300,7 @@ func handleAutofill(args json.RawMessage) *ToolCallResult {
 	return textResult(fmt.Sprintf("autofilled credential %s", cred.ID))
 }
 
-func handleStartAudioCapture(args json.RawMessage) *ToolCallResult {
+func handleStartAudioCapture(ctx context.Context, args json.RawMessage) *ToolCallResult {
 	var p struct {
 		Format     string `json:"format"`
 		SampleRate int    `json:"sample_rate"`
@@ -322,7 +325,7 @@ func handleStartAudioCapture(args json.RawMessage) *ToolCallResult {
 	if cap == nil || !cap.Available() {
 		return errorResult(fmt.Errorf("audio capture unavailable"))
 	}
-	handle, err := cap.Start(context.Background(), extensions.CaptureRequest{
+	handle, err := cap.Start(ctx, extensions.CaptureRequest{
 		Format:     p.Format,
 		SampleRate: p.SampleRate,
 		Channels:   p.Channels,
@@ -333,7 +336,7 @@ func handleStartAudioCapture(args json.RawMessage) *ToolCallResult {
 	return textResult(fmt.Sprintf(`{"handle_id":%q,"format":%q}`, handle.ID, handle.Format))
 }
 
-func handleStopAudioCapture(args json.RawMessage) *ToolCallResult {
+func handleStopAudioCapture(ctx context.Context, args json.RawMessage) *ToolCallResult {
 	var p struct {
 		HandleID string `json:"handle_id"`
 	}
@@ -344,13 +347,13 @@ func handleStopAudioCapture(args json.RawMessage) *ToolCallResult {
 	if cap == nil || !cap.Available() {
 		return errorResult(fmt.Errorf("audio capture unavailable"))
 	}
-	if err := cap.Stop(context.Background(), p.HandleID); err != nil {
+	if err := cap.Stop(ctx, p.HandleID); err != nil {
 		return errorResult(err)
 	}
 	return textResult("stopped")
 }
 
-func handleReadAudioChunk(args json.RawMessage) *ToolCallResult {
+func handleReadAudioChunk(ctx context.Context, args json.RawMessage) *ToolCallResult {
 	var p struct {
 		HandleID string `json:"handle_id"`
 		MaxBytes int    `json:"max_bytes"`
@@ -365,7 +368,7 @@ func handleReadAudioChunk(args json.RawMessage) *ToolCallResult {
 	if cap == nil || !cap.Available() {
 		return errorResult(fmt.Errorf("audio capture unavailable"))
 	}
-	chunk, eof, err := cap.Read(context.Background(), p.HandleID, p.MaxBytes)
+	chunk, eof, err := cap.Read(ctx, p.HandleID, p.MaxBytes)
 	if err != nil {
 		return errorResult(err)
 	}
@@ -377,12 +380,13 @@ func handleReadAudioChunk(args json.RawMessage) *ToolCallResult {
 	return textResult(string(b))
 }
 
-func handleListMobileDevices(args json.RawMessage) *ToolCallResult {
+func handleListMobileDevices(ctx context.Context, args json.RawMessage) *ToolCallResult {
+	_ = args
 	m := extensions.Registry.Mobile()
 	if m == nil || !m.Available() {
 		return errorResult(fmt.Errorf("mobile bridge unavailable"))
 	}
-	devices, err := m.ListDevices(context.Background())
+	devices, err := m.ListDevices(ctx)
 	if err != nil {
 		return errorResult(err)
 	}

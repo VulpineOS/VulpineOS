@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -140,7 +141,7 @@ func (s *Server) handleToolsCall(req *Request) *Response {
 		s.loops.Reset("default")
 	}
 
-	result, err := handleToolCallFull(s.client, s.tracker, s.screenshots, params.Name, params.Arguments)
+	result, err := handleToolCallFull(context.Background(), s.client, s.tracker, s.screenshots, params.Name, params.Arguments)
 	if err != nil {
 		return &Response{
 			JSONRPC: "2.0",

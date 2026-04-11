@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -66,7 +67,7 @@ func TestVulpineClickLabelUnavailable(t *testing.T) {
 		"session_id": "no-such-session",
 		"label":      "@1",
 	})
-	res, ok := handleExtensionTool(nil, "vulpine_click_label", args)
+	res, ok := handleExtensionTool(context.Background(), nil, "vulpine_click_label", args)
 	if !ok {
 		t.Fatal("vulpine_click_label not dispatched")
 	}

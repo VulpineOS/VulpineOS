@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -353,17 +354,24 @@ func humanTools() []ToolDefinition {
 
 // HandleToolCallDirect dispatches a tool call directly (for testing).
 func HandleToolCallDirect(client *juggler.Client, name string, args json.RawMessage) (*ToolCallResult, error) {
+	return HandleToolCallDirectCtx(context.Background(), client, name, args)
+}
+
+// HandleToolCallDirectCtx dispatches a tool call directly with an
+// explicit context, for tests and callers that want to pass through a
+// per-call deadline or sentinel value into extension handlers.
+func HandleToolCallDirectCtx(ctx context.Context, client *juggler.Client, name string, args json.RawMessage) (*ToolCallResult, error) {
 	tracker := NewContextTracker(client)
-	return handleToolCall(client, tracker, name, args)
+	return handleToolCall(ctx, client, tracker, name, args)
 }
 
 // handleToolCall dispatches a tool call to the appropriate handler.
-func handleToolCall(client *juggler.Client, tracker *ContextTracker, name string, args json.RawMessage) (*ToolCallResult, error) {
-	return handleToolCallFull(client, tracker, nil, name, args)
+func handleToolCall(ctx context.Context, client *juggler.Client, tracker *ContextTracker, name string, args json.RawMessage) (*ToolCallResult, error) {
+	return handleToolCallFull(ctx, client, tracker, nil, name, args)
 }
 
-func handleToolCallFull(client *juggler.Client, tracker *ContextTracker, screenshots *ScreenshotTracker, name string, args json.RawMessage) (*ToolCallResult, error) {
-	if res, ok := handleExtensionTool(client, name, args); ok {
+func handleToolCallFull(ctx context.Context, client *juggler.Client, tracker *ContextTracker, screenshots *ScreenshotTracker, name string, args json.RawMessage) (*ToolCallResult, error) {
+	if res, ok := handleExtensionTool(ctx, client, name, args); ok {
 		return res, nil
 	}
 	switch name {
