@@ -92,6 +92,18 @@ func extensionTools() []ToolDefinition {
 			},
 		},
 		{
+			Name:        "vulpine_click_label",
+			Description: "Click an element previously labeled by vulpine_annotated_screenshot. The label is the `@N` identifier (or backend-supplied name) returned alongside the annotated PNG. Requires a prior annotated screenshot in the same session.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"session_id": {Type: "string", Description: "Target page session ID"},
+					"label":      {Type: "string", Description: "Label identifier (e.g. @3)"},
+				},
+				Required: []string{"session_id", "label"},
+			},
+		},
+		{
 			Name:        "vulpine_list_mobile_devices",
 			Description: "List mobile devices visible to the registered mobile bridge provider. Returns an empty list / unavailable error when no provider is registered.",
 			InputSchema: InputSchema{
@@ -121,13 +133,20 @@ func handleExtensionTool(client *juggler.Client, name string, args json.RawMessa
 		return handleReadAudioChunk(args), true
 	case "vulpine_list_mobile_devices":
 		return handleListMobileDevices(args), true
+	case "vulpine_click_label":
+		return handleClickLabel(client, args), true
 	}
 	return nil, false
 }
 
-// handleAnnotatedScreenshot captures a PNG screenshot via Juggler and
-// returns it to the caller as base64. TODO: future: integrate
-// vulpine-mark labeling overlay when extension provider available.
+// handleAnnotatedScreenshot first tries the Juggler binding
+// Page.getAnnotatedScreenshot, which returns the PNG plus a structured
+// element list. On success the element list is stashed into the
+// per-session label index so that vulpine_click_label can look up an
+// objectID by label afterwards. On any failure (including "method not
+// found" from a backend that doesn't implement the protocol yet) it
+// falls back to a plain Page.screenshot so the tool degrades
+// gracefully.
 func handleAnnotatedScreenshot(client *juggler.Client, args json.RawMessage) *ToolCallResult {
 	var p struct {
 		SessionID   string `json:"sessionId"`
@@ -141,6 +160,20 @@ func handleAnnotatedScreenshot(client *juggler.Client, args json.RawMessage) *To
 		return errorResult(fmt.Errorf("annotated screenshot: juggler client unavailable"))
 	}
 
+	// Attempt the real annotated screenshot binding first.
+	if img, elements, err := client.GetAnnotatedScreenshot(context.Background(), p.SessionID, p.Format, p.MaxElements); err == nil {
+		globalLabels.Set(p.SessionID, elements)
+		b64 := base64.StdEncoding.EncodeToString(img)
+		elementsJSON, _ := json.Marshal(elements)
+		return &ToolCallResult{
+			Content: []ContentBlock{
+				{Type: "image", Data: b64, MimeType: "image/png"},
+				{Type: "text", Text: string(elementsJSON)},
+			},
+		}
+	}
+
+	// Fallback: plain Page.screenshot.
 	result, err := client.Call(p.SessionID, "Page.screenshot", map[string]interface{}{
 		"mimeType": "image/png",
 		"clip":     map[string]interface{}{"x": 0, "y": 0, "width": 1280, "height": 720},
@@ -161,6 +194,36 @@ func handleAnnotatedScreenshot(client *juggler.Client, args json.RawMessage) *To
 			MimeType: "image/png",
 		}},
 	}
+}
+
+// handleClickLabel looks up an objectID in the per-session label index
+// and clicks it via Page.click. Returns an error when the label is
+// unknown (e.g. no annotated screenshot has been taken in this session
+// yet) or when the underlying click call fails.
+func handleClickLabel(client *juggler.Client, args json.RawMessage) *ToolCallResult {
+	var p struct {
+		SessionID string `json:"session_id"`
+		Label     string `json:"label"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil {
+		return errorResult(err)
+	}
+	if client == nil {
+		return errorResult(fmt.Errorf("click_label: juggler client unavailable"))
+	}
+	if p.SessionID == "" || p.Label == "" {
+		return errorResult(fmt.Errorf("click_label: session_id and label are required"))
+	}
+	objectID, ok := globalLabels.Get(p.SessionID, p.Label)
+	if !ok {
+		return errorResult(fmt.Errorf("click_label: label %q not found for session %q (take an annotated screenshot first)", p.Label, p.SessionID))
+	}
+	if _, err := client.Call(p.SessionID, "Page.click", map[string]interface{}{
+		"objectId": objectID,
+	}); err != nil {
+		return errorResult(fmt.Errorf("click_label: Page.click %q: %w", objectID, err))
+	}
+	return textResult(fmt.Sprintf("clicked label %s (objectId=%s)", p.Label, objectID))
 }
 
 func handleGetCredential(args json.RawMessage) *ToolCallResult {

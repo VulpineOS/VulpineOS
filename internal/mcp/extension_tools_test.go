@@ -17,6 +17,7 @@ func TestExtensionToolsRegistered(t *testing.T) {
 		"vulpine_stop_audio_capture",
 		"vulpine_read_audio_chunk",
 		"vulpine_list_mobile_devices",
+		"vulpine_click_label",
 	}
 	got := map[string]bool{}
 	for _, tool := range tools() {
