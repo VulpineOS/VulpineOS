@@ -739,7 +739,39 @@ export class PageHandler {
   }
 
   async ['Page.getAnnotatedScreenshot'](options) {
-    return await this._contentPage.send('getAnnotatedScreenshot', options);
+    // Content process enumerates visible interactive elements and
+    // mints durable objectIds via rawValueToRemoteObject. Image
+    // capture stays on the browser process because drawSnapshot and
+    // the canvas toDataURL path are not available in content.
+    const { elements = [] } = await this._contentPage.send('getAnnotatedScreenshot', options || {}) || {};
+
+    // Reuse Page.screenshot semantics for the viewport capture.
+    // omitDeviceScaleFactor=true keeps CSS pixel coordinates in the
+    // element list consistent with the captured image.
+    const win = this._pageTarget._window;
+    const clip = {
+      x: 0,
+      y: 0,
+      width: win && win.innerWidth ? win.innerWidth : 1280,
+      height: win && win.innerHeight ? win.innerHeight : 720,
+    };
+    const mimeType = (options && options.format === 'jpeg') ? 'image/jpeg' : 'image/png';
+    let image = '';
+    try {
+      const shot = await this['Page.screenshot']({
+        mimeType,
+        clip,
+        omitDeviceScaleFactor: true,
+        quality: 80,
+      });
+      image = shot.data || '';
+    } catch (e) {
+      // Degrade gracefully: return the element list even if image
+      // capture fails. The MCP layer's fallback path will notice
+      // the empty image and re-try via plain Page.screenshot.
+      image = '';
+    }
+    return { image, elements };
   }
 
   async ['Page.resolveRef'](params) {
