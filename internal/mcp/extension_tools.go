@@ -258,9 +258,11 @@ func handleGetCredential(ctx context.Context, args json.RawMessage) *ToolCallRes
 		return errorResult(err)
 	}
 	if cred == nil {
-		return textResult("{}")
+		b, _ := json.Marshal(map[string]interface{}{"found": false})
+		return textResult(string(b))
 	}
 	meta := map[string]interface{}{
+		"found":    true,
 		"id":       cred.ID,
 		"site":     cred.Site,
 		"username": cred.Username,
