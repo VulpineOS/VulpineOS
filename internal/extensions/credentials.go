@@ -3,7 +3,15 @@ package extensions
 import (
 	"context"
 	"errors"
+	"fmt"
 )
+
+// ValidFillFields is the set of accepted FillTarget.Field values. Any
+// other value is rejected by FillTarget.Validate.
+var ValidFillFields = map[string]bool{
+	"username": true,
+	"password": true,
+}
 
 // ErrUnavailable is returned by default provider stubs to indicate that
 // the feature has no backing implementation in this build.
@@ -38,6 +46,20 @@ type FillTarget struct {
 	Field    string // "username" or "password"
 }
 
+// Validate checks that the FillTarget has a recognized Field value. It
+// is called by provider implementations at the top of Fill so callers
+// fail fast on typos rather than silently injecting into an unintended
+// slot.
+func (t FillTarget) Validate() error {
+	if t.Field == "" {
+		return fmt.Errorf("extensions: FillTarget.Field is required")
+	}
+	if !ValidFillFields[t.Field] {
+		return fmt.Errorf("extensions: FillTarget.Field %q is not one of username/password", t.Field)
+	}
+	return nil
+}
+
 // Credential is the public metadata view of a stored credential. The
 // password itself is never exposed via this interface.
 type Credential struct {
@@ -60,6 +82,9 @@ func (noopCredentialProvider) Lookup(ctx context.Context, siteURL string) (*Cred
 }
 
 func (noopCredentialProvider) Fill(ctx context.Context, credID string, target FillTarget) error {
+	if err := target.Validate(); err != nil {
+		return err
+	}
 	return ErrUnavailable
 }
 
