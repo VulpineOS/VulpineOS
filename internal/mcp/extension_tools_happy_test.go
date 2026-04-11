@@ -1,0 +1,151 @@
+package mcp
+
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+
+	"vulpineos/internal/extensions"
+	"vulpineos/internal/extensions/extensionstest"
+)
+
+// withFakeCredentials installs a fake credential provider for the
+// duration of the test and returns the fake so assertions can inspect
+// recorded calls.
+func withFakeCredentials(t *testing.T, fake *extensionstest.FakeCredentialProvider) *extensionstest.FakeCredentialProvider {
+	t.Helper()
+	original := extensions.Registry.Credentials()
+	t.Cleanup(func() { extensions.Registry.SetCredentials(original) })
+	extensions.Registry.SetCredentials(fake)
+	return fake
+}
+
+func withFakeAudio(t *testing.T, fake *extensionstest.FakeAudioCapturer) *extensionstest.FakeAudioCapturer {
+	t.Helper()
+	original := extensions.Registry.Audio()
+	t.Cleanup(func() { extensions.Registry.SetAudio(original) })
+	extensions.Registry.SetAudio(fake)
+	return fake
+}
+
+func withFakeMobile(t *testing.T, fake *extensionstest.FakeMobileBridge) *extensionstest.FakeMobileBridge {
+	t.Helper()
+	original := extensions.Registry.Mobile()
+	t.Cleanup(func() { extensions.Registry.SetMobile(original) })
+	extensions.Registry.SetMobile(fake)
+	return fake
+}
+
+func TestGetCredentialReturnsCredJSON(t *testing.T) {
+	withFakeCredentials(t, &extensionstest.FakeCredentialProvider{
+		AvailableFlag: true,
+		Cred: extensions.Credential{
+			ID:       "cred-1",
+			Site:     "https://example.com",
+			Username: "alice",
+			HasTOTP:  true,
+			Notes:    "main",
+		},
+	})
+	res := runExtTool(t, "vulpine_get_credential", map[string]interface{}{
+		"site_url": "https://example.com",
+	})
+	if res.IsError {
+		t.Fatalf("unexpected error: %+v", res)
+	}
+	body := res.Content[0].Text
+	var parsed map[string]interface{}
+	if err := json.Unmarshal([]byte(body), &parsed); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if parsed["id"] != "cred-1" {
+		t.Errorf("id = %v, want cred-1", parsed["id"])
+	}
+	if parsed["username"] != "alice" {
+		t.Errorf("username = %v, want alice", parsed["username"])
+	}
+	if parsed["hasTOTP"] != true {
+		t.Errorf("hasTOTP = %v, want true", parsed["hasTOTP"])
+	}
+	// Password must never appear in the tool boundary.
+	if strings.Contains(strings.ToLower(body), "password") {
+		t.Errorf("credential JSON leaked password-like field: %q", body)
+	}
+}
+
+func TestAutofillCallsFillTwice(t *testing.T) {
+	fake := withFakeCredentials(t, &extensionstest.FakeCredentialProvider{
+		AvailableFlag: true,
+		Cred: extensions.Credential{
+			ID:       "cred-1",
+			Site:     "https://example.com",
+			Username: "alice",
+		},
+	})
+	res := runExtTool(t, "vulpine_autofill", map[string]interface{}{
+		"site_url":          "https://example.com",
+		"page_id":           "p1",
+		"frame_id":          "f1",
+		"username_selector": "#user",
+		"password_selector": "#pass",
+	})
+	if res.IsError {
+		t.Fatalf("unexpected error: %+v", res)
+	}
+	calls := fake.RecordedFills()
+	if len(calls) != 2 {
+		t.Fatalf("expected 2 Fill calls, got %d", len(calls))
+	}
+	if calls[0].Target.Field != "username" || calls[0].Target.Selector != "#user" {
+		t.Errorf("first call = %+v, want username/#user", calls[0])
+	}
+	if calls[1].Target.Field != "password" || calls[1].Target.Selector != "#pass" {
+		t.Errorf("second call = %+v, want password/#pass", calls[1])
+	}
+	if calls[0].CredID != "cred-1" || calls[1].CredID != "cred-1" {
+		t.Errorf("Fill called with wrong credID: %+v", calls)
+	}
+}
+
+func TestStartAudioCaptureAppliesDefaults(t *testing.T) {
+	fake := withFakeAudio(t, &extensionstest.FakeAudioCapturer{
+		AvailableFlag: true,
+		Handle:        extensions.CaptureHandle{ID: "h1", Format: "pcm"},
+	})
+	// Empty request — handler must apply format=pcm, sampleRate=16000,
+	// channels=1 before calling Start.
+	res := runExtTool(t, "vulpine_start_audio_capture", map[string]interface{}{})
+	if res.IsError {
+		t.Fatalf("unexpected error: %+v", res)
+	}
+	req := fake.LastStartRequest()
+	if req.Format != "pcm" {
+		t.Errorf("format = %q, want pcm", req.Format)
+	}
+	if req.SampleRate != 16000 {
+		t.Errorf("sampleRate = %d, want 16000", req.SampleRate)
+	}
+	if req.Channels != 1 {
+		t.Errorf("channels = %d, want 1", req.Channels)
+	}
+}
+
+func TestListMobileDevicesReturnsList(t *testing.T) {
+	withFakeMobile(t, &extensionstest.FakeMobileBridge{
+		AvailableFlag: true,
+		Devices: []extensions.MobileDevice{
+			{UDID: "ABC123", Name: "Test Phone", Platform: "android", Model: "Pixel 8"},
+		},
+	})
+	res := runExtTool(t, "vulpine_list_mobile_devices", map[string]interface{}{})
+	if res.IsError {
+		t.Fatalf("unexpected error: %+v", res)
+	}
+	body := res.Content[0].Text
+	if !strings.Contains(body, "ABC123") {
+		t.Errorf("expected body to contain UDID, got %q", body)
+	}
+	if !strings.Contains(body, "Pixel 8") {
+		t.Errorf("expected body to contain model, got %q", body)
+	}
+}
