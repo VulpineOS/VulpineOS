@@ -12,6 +12,7 @@ import (
 // tools returns the list of VulpineOS browser tools available via MCP.
 func tools() []ToolDefinition {
 	base := baseTools()
+	base = append(base, humanTools()...)
 	return append(base, extensionTools()...)
 }
 
@@ -305,6 +306,51 @@ func baseTools() []ToolDefinition {
 	}
 }
 
+// humanTools returns tool definitions for human-like interactions.
+func humanTools() []ToolDefinition {
+	return []ToolDefinition{
+		{
+			Name:        "vulpine_human_click",
+			Description: "Move mouse naturally to coordinates and click. Generates bezier curve path with overshoot and micro-jitter.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"sessionId": {Type: "string", Description: "Target page session ID"},
+					"x":         {Type: "number", Description: "X coordinate to click"},
+					"y":         {Type: "number", Description: "Y coordinate to click"},
+					"speed":     {Type: "string", Description: "Movement speed: slow, normal, fast (default: normal)"},
+				},
+				Required: []string{"sessionId", "x", "y"},
+			},
+		},
+		{
+			Name:        "vulpine_human_type",
+			Description: "Type text with realistic human cadence. Variable inter-key intervals, occasional pauses.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"sessionId": {Type: "string", Description: "Target page session ID"},
+					"text":      {Type: "string", Description: "Text to type"},
+					"wpm":       {Type: "number", Description: "Words per minute (default: 60)"},
+				},
+				Required: []string{"sessionId", "text"},
+			},
+		},
+		{
+			Name:        "vulpine_human_scroll",
+			Description: "Scroll with realistic inertial decay.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"sessionId": {Type: "string", Description: "Target page session ID"},
+					"deltaY":    {Type: "number", Description: "Total scroll amount in pixels (positive = down)"},
+				},
+				Required: []string{"sessionId", "deltaY"},
+			},
+		},
+	}
+}
+
 // HandleToolCallDirect dispatches a tool call directly (for testing).
 func HandleToolCallDirect(client *juggler.Client, name string, args json.RawMessage) (*ToolCallResult, error) {
 	tracker := NewContextTracker(client)
@@ -373,6 +419,14 @@ func handleToolCallFull(client *juggler.Client, tracker *ContextTracker, screens
 		return handleClearInput(client, args)
 	case "vulpine_get_form_errors":
 		return handleGetFormErrors(client, args)
+
+	// Human-like interaction tools
+	case "vulpine_human_click":
+		return handleHumanClick(client, args)
+	case "vulpine_human_type":
+		return handleHumanType(client, args)
+	case "vulpine_human_scroll":
+		return handleHumanScroll(client, args)
 
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
