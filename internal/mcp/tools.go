@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"vulpineos/internal/juggler"
+	"vulpineos/internal/tokenopt"
 )
 
 // tools returns the list of VulpineOS browser tools available via MCP.
@@ -439,6 +440,21 @@ func handleSnapshot(client *juggler.Client, args json.RawMessage) (*ToolCallResu
 	result, err := client.Call(p.SessionID, "Page.getOptimizedDOM", params)
 	if err != nil {
 		return errorResult(err), nil
+	}
+
+	// Apply viewport pruning to reduce token count when requested
+	if p.ViewportOnly {
+		var snapshot map[string]interface{}
+		if err := json.Unmarshal(result, &snapshot); err == nil {
+			if nodes, ok := snapshot["nodes"].([]interface{}); ok {
+				pruner := tokenopt.NewViewportPruner(1280, 720)
+				snapshot["nodes"] = pruner.Prune(nodes)
+				if pruned, err := json.Marshal(snapshot); err == nil {
+					return textResult(string(pruned)), nil
+				}
+			}
+		}
+		// Fall through to raw result if parsing/pruning fails
 	}
 
 	return textResult(string(result)), nil
