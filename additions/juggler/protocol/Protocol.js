@@ -579,6 +579,35 @@ const Browser = {
         base64body: t.Optional(t.String),
       },
     },
+    'startAudioCapture': {
+      params: {
+        format: t.Optional(t.String),
+        sampleRate: t.Optional(t.Number),
+        channels: t.Optional(t.Number),
+      },
+      returns: {
+        captureId: t.String,
+      },
+    },
+    'stopAudioCapture': {
+      params: {
+        captureId: t.String,
+      },
+      returns: {
+        durationMs: t.Number,
+        bytesRecorded: t.Number,
+      },
+    },
+    'getAudioChunk': {
+      params: {
+        captureId: t.String,
+        maxBytes: t.Optional(t.Number),
+      },
+      returns: {
+        data: t.String,
+        eof: t.Boolean,
+      },
+    },
   },
 };
 
@@ -997,6 +1026,16 @@ const Page = {
       returns: {
         data: t.String,
       }
+    },
+    'getAnnotatedScreenshot': {
+      params: {
+        format: t.Optional(t.String),
+        maxElements: t.Optional(t.Number),
+      },
+      returns: {
+        image: t.String,
+        elements: t.Array(t.Any),
+      },
     },
     'printToPDF': {
       params: {
