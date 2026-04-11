@@ -15,6 +15,7 @@ import (
 	"vulpineos/internal/agentbus"
 	"vulpineos/internal/config"
 	"vulpineos/internal/costtrack"
+	"vulpineos/internal/extensions"
 	"vulpineos/internal/foxbridge"
 	"vulpineos/internal/juggler"
 	"vulpineos/internal/kernel"
@@ -51,6 +52,11 @@ func main() {
 		_          = mcpConnect // M4 remote MCP — future use
 	)
 	flag.Parse()
+
+	// Initialize the extension registry. On the public build this is a
+	// no-op; alternate builds may register providers via build-tagged
+	// init() functions that run before this call.
+	extensions.Init()
 
 	var err error
 	switch {
