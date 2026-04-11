@@ -64,6 +64,51 @@ func assertUnavailable(t *testing.T, res *ToolCallResult, wantSubstr string) {
 	}
 }
 
+// TestExtensionTools_NilArgsAccepted ensures every extension handler
+// tolerates both a nil args payload and a literal JSON null, because
+// some MCP clients omit the arguments field entirely or serialize it
+// as null for zero-arg tools. The handler should route to the normal
+// "unavailable" path (which is what the default stub providers
+// return) rather than reporting a parse error up the JSON-RPC stack.
+func TestExtensionTools_NilArgsAccepted(t *testing.T) {
+	type kase struct {
+		name      string
+		args      json.RawMessage
+		wantParse bool // true if we expect to see a parse error leak through
+	}
+	names := []string{
+		"vulpine_annotated_screenshot",
+		"vulpine_get_credential",
+		"vulpine_autofill",
+		"vulpine_start_audio_capture",
+		"vulpine_stop_audio_capture",
+		"vulpine_read_audio_chunk",
+		"vulpine_list_mobile_devices",
+		"vulpine_click_label",
+	}
+	inputs := []json.RawMessage{nil, json.RawMessage("null")}
+	for _, n := range names {
+		for _, in := range inputs {
+			res, ok := handleExtensionTool(context.Background(), nil, n, in)
+			if !ok {
+				t.Errorf("%s: not dispatched", n)
+				continue
+			}
+			if res == nil {
+				t.Errorf("%s: nil result", n)
+				continue
+			}
+			if len(res.Content) > 0 {
+				txt := res.Content[0].Text
+				if strings.Contains(txt, "unexpected end of JSON") ||
+					strings.Contains(txt, "cannot unmarshal") {
+					t.Errorf("%s args=%q: parse error leaked: %q", n, string(in), txt)
+				}
+			}
+		}
+	}
+}
+
 func TestGetCredentialUnavailable(t *testing.T) {
 	res := runExtTool(t, "vulpine_get_credential", map[string]interface{}{
 		"site_url": "https://example.com",
