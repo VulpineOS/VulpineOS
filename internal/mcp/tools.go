@@ -4,17 +4,29 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"vulpineos/internal/juggler"
 	"vulpineos/internal/tokenopt"
 )
 
+var (
+	toolsOnce   sync.Once
+	toolsCached []ToolDefinition
+)
+
 // tools returns the list of VulpineOS browser tools available via MCP.
+// The result is computed exactly once per process and cached. Callers
+// must treat the returned slice as read-only; mutating it will affect
+// every subsequent tools/list response.
 func tools() []ToolDefinition {
-	base := baseTools()
-	base = append(base, humanTools()...)
-	return append(base, extensionTools()...)
+	toolsOnce.Do(func() {
+		base := baseTools()
+		base = append(base, humanTools()...)
+		toolsCached = append(base, extensionTools()...)
+	})
+	return toolsCached
 }
 
 // baseTools returns the core browser tool definitions.
