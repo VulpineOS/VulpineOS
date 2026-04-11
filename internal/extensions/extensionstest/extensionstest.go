@@ -16,13 +16,18 @@ import (
 // canned credential. FillCalls records every Fill invocation so tests
 // can assert on the exact sequence of username/password writes. If
 // FillFn is non-nil it is called in place of the default stub.
+//
+// All fields that might be mutated during a test are guarded by mu.
+// Prefer the Set* helpers when changing fields from a goroutine that
+// is not the one constructing the fake; the helpers take the write
+// lock on your behalf. All read methods acquire a read lock.
 type FakeCredentialProvider struct {
+	mu            sync.RWMutex
 	Cred          extensions.Credential
 	TOTP          string
 	AvailableFlag bool
 	FillFn        func(ctx context.Context, credID string, target extensions.FillTarget) error
 
-	mu        sync.Mutex
 	FillCalls []FillCall
 }
 
@@ -32,8 +37,33 @@ type FillCall struct {
 	Target extensions.FillTarget
 }
 
+// SetCred swaps the canned credential under the write lock. This is
+// the recommended way to mutate the fake from a test goroutine that
+// races with Lookup/List/Fill.
+func (f *FakeCredentialProvider) SetCred(c extensions.Credential) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.Cred = c
+}
+
+// SetAvailable toggles AvailableFlag under the write lock.
+func (f *FakeCredentialProvider) SetAvailable(v bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.AvailableFlag = v
+}
+
+// SetTOTP overwrites the canned TOTP under the write lock.
+func (f *FakeCredentialProvider) SetTOTP(v string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.TOTP = v
+}
+
 // Lookup always returns the canned credential as a copy.
 func (f *FakeCredentialProvider) Lookup(ctx context.Context, siteURL string) (*extensions.Credential, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
 	c := f.Cred
 	return &c, nil
 }
@@ -47,34 +77,44 @@ func (f *FakeCredentialProvider) Fill(ctx context.Context, credID string, target
 	}
 	f.mu.Lock()
 	f.FillCalls = append(f.FillCalls, FillCall{CredID: credID, Target: target})
+	fn := f.FillFn
 	f.mu.Unlock()
-	if f.FillFn != nil {
-		return f.FillFn(ctx, credID, target)
+	if fn != nil {
+		return fn(ctx, credID, target)
 	}
 	return nil
 }
 
 // GenerateCode returns TOTP if non-empty, otherwise "000000".
 func (f *FakeCredentialProvider) GenerateCode(ctx context.Context, credID string) (string, error) {
-	if f.TOTP != "" {
-		return f.TOTP, nil
+	f.mu.RLock()
+	totp := f.TOTP
+	f.mu.RUnlock()
+	if totp != "" {
+		return totp, nil
 	}
 	return "000000", nil
 }
 
 // List returns a single-element slice containing the canned credential.
 func (f *FakeCredentialProvider) List(ctx context.Context) ([]extensions.Credential, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
 	return []extensions.Credential{f.Cred}, nil
 }
 
 // Available reports AvailableFlag.
-func (f *FakeCredentialProvider) Available() bool { return f.AvailableFlag }
+func (f *FakeCredentialProvider) Available() bool {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	return f.AvailableFlag
+}
 
 // RecordedFills returns a snapshot copy of FillCalls, safe for assertion
 // from the test goroutine.
 func (f *FakeCredentialProvider) RecordedFills() []FillCall {
-	f.mu.Lock()
-	defer f.mu.Unlock()
+	f.mu.RLock()
+	defer f.mu.RUnlock()
 	out := make([]FillCall, len(f.FillCalls))
 	copy(out, f.FillCalls)
 	return out
@@ -84,23 +124,45 @@ func (f *FakeCredentialProvider) RecordedFills() []FillCall {
 // and returns canned handles. StartReq is updated on every Start call
 // so tests can assert that defaults were applied.
 type FakeAudioCapturer struct {
+	mu            sync.RWMutex
 	AvailableFlag bool
 	Handle        extensions.CaptureHandle
 	Chunk         []byte
 	EOF           bool
 
-	mu       sync.Mutex
 	StartReq extensions.CaptureRequest
 	StopID   string
 	ReadID   string
+}
+
+// SetAvailable toggles AvailableFlag under the write lock.
+func (f *FakeAudioCapturer) SetAvailable(v bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.AvailableFlag = v
+}
+
+// SetHandle swaps the canned handle under the write lock.
+func (f *FakeAudioCapturer) SetHandle(h extensions.CaptureHandle) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.Handle = h
+}
+
+// SetChunk swaps the canned chunk/EOF pair under the write lock.
+func (f *FakeAudioCapturer) SetChunk(chunk []byte, eof bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.Chunk = chunk
+	f.EOF = eof
 }
 
 // Start records the request and returns the canned handle.
 func (f *FakeAudioCapturer) Start(ctx context.Context, req extensions.CaptureRequest) (*extensions.CaptureHandle, error) {
 	f.mu.Lock()
 	f.StartReq = req
-	f.mu.Unlock()
 	h := f.Handle
+	f.mu.Unlock()
 	return &h, nil
 }
 
@@ -116,37 +178,77 @@ func (f *FakeAudioCapturer) Stop(ctx context.Context, handleID string) error {
 func (f *FakeAudioCapturer) Read(ctx context.Context, handleID string, maxBytes int) ([]byte, bool, error) {
 	f.mu.Lock()
 	f.ReadID = handleID
+	chunk := f.Chunk
+	eof := f.EOF
 	f.mu.Unlock()
-	return f.Chunk, f.EOF, nil
+	return chunk, eof, nil
 }
 
 // Available reports AvailableFlag.
-func (f *FakeAudioCapturer) Available() bool { return f.AvailableFlag }
+func (f *FakeAudioCapturer) Available() bool {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	return f.AvailableFlag
+}
 
 // LastStartRequest returns the most recent CaptureRequest seen by Start.
 func (f *FakeAudioCapturer) LastStartRequest() extensions.CaptureRequest {
-	f.mu.Lock()
-	defer f.mu.Unlock()
+	f.mu.RLock()
+	defer f.mu.RUnlock()
 	return f.StartReq
 }
 
-// FakeMobileBridge is a MobileBridge that returns canned devices.
+// FakeMobileBridge is a MobileBridge that returns canned devices. All
+// fields are guarded by mu so tests can mutate the fake from
+// concurrent goroutines without data races under -race.
 type FakeMobileBridge struct {
+	mu            sync.RWMutex
 	AvailableFlag bool
 	Devices       []extensions.MobileDevice
 	Session       extensions.MobileSession
 }
 
-// ListDevices returns the canned device slice.
+// SetAvailable toggles AvailableFlag under the write lock.
+func (f *FakeMobileBridge) SetAvailable(v bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.AvailableFlag = v
+}
+
+// SetDevices replaces the canned device slice under the write lock.
+func (f *FakeMobileBridge) SetDevices(d []extensions.MobileDevice) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.Devices = d
+}
+
+// SetSession replaces the canned session under the write lock.
+func (f *FakeMobileBridge) SetSession(s extensions.MobileSession) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.Session = s
+}
+
+// ListDevices returns a copy of the canned device slice.
 func (f *FakeMobileBridge) ListDevices(ctx context.Context) ([]extensions.MobileDevice, error) {
-	return f.Devices, nil
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make([]extensions.MobileDevice, len(f.Devices))
+	copy(out, f.Devices)
+	return out, nil
 }
 
 // Connect returns the canned session.
 func (f *FakeMobileBridge) Connect(ctx context.Context, udid string) (*extensions.MobileSession, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
 	s := f.Session
 	return &s, nil
 }
 
 // Available reports AvailableFlag.
-func (f *FakeMobileBridge) Available() bool { return f.AvailableFlag }
+func (f *FakeMobileBridge) Available() bool {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	return f.AvailableFlag
+}
