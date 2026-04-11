@@ -1102,7 +1102,7 @@ export class PageAgent {
     const frame = this._frameTree.frame(frameId);
     if (!frame)
       throw new Error('frame not found: ' + frameId);
-    const unsafeObject = this._runtime._findObject(objectId);
+    const unsafeObject = frame.unsafeObject(objectId);
     if (!unsafeObject)
       throw new Error('object not found: ' + objectId);
     const element = unsafeObject;
@@ -1131,7 +1131,7 @@ export class PageAgent {
     const frame = this._frameTree.frame(frameId);
     if (!frame)
       throw new Error('frame not found: ' + frameId);
-    const unsafeObject = this._runtime._findObject(objectId);
+    const unsafeObject = frame.unsafeObject(objectId);
     if (!unsafeObject)
       throw new Error('object not found: ' + objectId);
     const element = unsafeObject;
