@@ -1095,6 +1095,17 @@ const Page = {
         nodes: t.Any,
       },
     },
+    'secureSetInputValue': {
+      params: {
+        frameId: t.String,
+        objectId: t.String,
+        value: t.String,
+      },
+      returns: {
+        injected: t.Boolean,
+        method: t.String,
+      },
+    },
     'insertText': {
       params: {
         text: t.String,
