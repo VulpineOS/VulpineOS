@@ -305,6 +305,7 @@ export class PageAgent {
         resolveRef: this._resolveRef.bind(this),
         focusByRef: this._focusByRef.bind(this),
         secureSetInputValue: this._secureSetInputValue.bind(this),
+        getAnnotatedScreenshot: this._getAnnotatedScreenshot.bind(this),
         insertText: this._insertText.bind(this),
         scrollIntoViewIfNeeded: this._scrollIntoViewIfNeeded.bind(this),
         setFileInputFiles: this._setFileInputFiles.bind(this),
@@ -1173,6 +1174,195 @@ export class PageAgent {
     }
 
     return { nodes: walkShadow(element, 0) };
+  }
+
+  // VulpineOS: Enumerate visible interactive elements in the main frame
+  // and return them with durable Juggler objectIds so the MCP layer can
+  // drive clicks by label without a separate Runtime.evaluate round
+  // trip. This is the content-side half of Page.getAnnotatedScreenshot;
+  // image capture is handled by the browser-process PageHandler which
+  // merges this element list into the screenshot response.
+  //
+  // Returns { elements: [{ label, role, text, x, y, width, height,
+  // objectId, confidence }, ...] }. Scope is limited to the main frame
+  // for now — iframe traversal is deferred.
+  _getAnnotatedScreenshot({ format, maxElements } = {}) {
+    const cap = Number.isFinite(maxElements) && maxElements > 0 ? maxElements : 50;
+    const mainFrame = this._frameTree.mainFrame();
+    const domWindow = mainFrame.domWindow();
+    const document = domWindow.document;
+    if (!document) {
+      return { elements: [] };
+    }
+    const vw = domWindow.innerWidth;
+    const vh = domWindow.innerHeight;
+
+    const SELECTOR = [
+      'a[href]',
+      'button',
+      'input:not([type="hidden"])',
+      'select',
+      'textarea',
+      '[role="button"]',
+      '[role="link"]',
+      '[role="checkbox"]',
+      '[role="menuitem"]',
+      '[role="tab"]',
+      '[role="radio"]',
+      '[role="switch"]',
+      '[contenteditable="true"]',
+      '[tabindex]:not([tabindex="-1"])',
+      '[onclick]',
+    ].join(',');
+
+    function isVisible(el, rect, style) {
+      if (rect.width < 4 || rect.height < 4) return false;
+      if (style.display === 'none') return false;
+      if (style.visibility === 'hidden' || style.visibility === 'collapse') return false;
+      if (parseFloat(style.opacity || '1') < 0.05) return false;
+      if (rect.bottom < 0 || rect.right < 0) return false;
+      if (rect.left > vw || rect.top > vh) return false;
+      if (el.getAttribute && el.getAttribute('aria-hidden') === 'true') return false;
+      return true;
+    }
+
+    function isOccluded(el, rect) {
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      if (cx < 0 || cy < 0 || cx > vw || cy > vh) return false;
+      let hit = null;
+      try { hit = document.elementFromPoint(cx, cy); } catch (e) { return false; }
+      if (!hit) return false;
+      if (hit === el) return false;
+      if (el.contains && el.contains(hit)) return false;
+      if (hit.contains && hit.contains(el)) return false;
+      return true;
+    }
+
+    function isInClippedOverflow(el, rect) {
+      let p = el.parentElement;
+      while (p) {
+        const ps = domWindow.getComputedStyle(p);
+        const ov = (ps.overflow || '') + (ps.overflowX || '') + (ps.overflowY || '');
+        if (/hidden|clip|scroll|auto/.test(ov)) {
+          const pr = p.getBoundingClientRect();
+          const cx = rect.left + rect.width / 2;
+          const cy = rect.top + rect.height / 2;
+          if (cx < pr.left || cx > pr.right || cy < pr.top || cy > pr.bottom) {
+            return true;
+          }
+        }
+        p = p.parentElement;
+      }
+      return false;
+    }
+
+    function confidenceFor(el, rect, hasName, occluded, clipped) {
+      let s = 0;
+      if (hasName) s += 0.3;
+      if (el.getAttribute && el.getAttribute('aria-label')) s += 0.2;
+      if (rect.width * rect.height > 100) s += 0.2;
+      if (!occluded) s += 0.2;
+      if (!clipped) s += 0.1;
+      if (s > 1) s = 1;
+      if (s < 0) s = 0;
+      return s;
+    }
+
+    function classify(el) {
+      const tag = el.tagName ? el.tagName.toLowerCase() : '';
+      const role = (el.getAttribute && el.getAttribute('role')) || '';
+      if (role) return { tag, role };
+      if (tag === 'a') return { tag, role: 'link' };
+      if (tag === 'button') return { tag, role: 'button' };
+      if (tag === 'select') return { tag, role: 'select' };
+      if (tag === 'textarea') return { tag, role: 'textarea' };
+      if (tag === 'input') {
+        const t = (el.type || 'text').toLowerCase();
+        if (t === 'submit' || t === 'button' || t === 'reset') return { tag, role: 'button' };
+        if (t === 'checkbox') return { tag, role: 'checkbox' };
+        if (t === 'radio') return { tag, role: 'radio' };
+        return { tag, role: 'input' };
+      }
+      return { tag, role: tag };
+    }
+
+    function nameOf(el) {
+      const aria = el.getAttribute && el.getAttribute('aria-label');
+      if (aria) return aria.trim();
+      const labelledBy = el.getAttribute && el.getAttribute('aria-labelledby');
+      if (labelledBy) {
+        const ref = document.getElementById(labelledBy);
+        if (ref && ref.textContent) return ref.textContent.trim();
+      }
+      if (el.placeholder) return el.placeholder.trim();
+      if (el.value && (el.tagName === 'INPUT' || el.tagName === 'BUTTON')) return String(el.value).trim();
+      if (el.alt) return el.alt.trim();
+      if (el.title) return el.title.trim();
+      const text = (el.innerText || el.textContent || '').trim().replace(/\s+/g, ' ');
+      return text;
+    }
+
+    const executionContext = mainFrame.mainExecutionContext();
+    const elements = [];
+    let candidates;
+    try {
+      candidates = document.querySelectorAll(SELECTOR);
+    } catch (e) {
+      return { elements: [] };
+    }
+
+    const seen = new Set();
+    let idx = 0;
+    for (const el of candidates) {
+      if (elements.length >= cap) break;
+      if (seen.has(el)) continue;
+      seen.add(el);
+      let rect, style;
+      try {
+        rect = el.getBoundingClientRect();
+        style = domWindow.getComputedStyle(el);
+      } catch (e) {
+        continue;
+      }
+      if (!isVisible(el, rect, style)) continue;
+      const occluded = isOccluded(el, rect);
+      if (occluded) continue;
+      const { tag, role } = classify(el);
+      let text = nameOf(el);
+      if (text.length > 80) text = text.slice(0, 77) + '...';
+      const clipped = isInClippedOverflow(el, rect);
+      const conf = confidenceFor(el, rect, text.length > 0, occluded, clipped);
+
+      // Create a durable handle: rawValueToRemoteObject stores the
+      // element in the execution context's remote-object table and
+      // returns an objectId that Page.click({objectId}) will accept
+      // for the lifetime of the frame.
+      let objectId = '';
+      try {
+        const remote = executionContext.rawValueToRemoteObject(el);
+        if (remote && remote.objectId) objectId = remote.objectId;
+      } catch (e) {
+        continue;
+      }
+      if (!objectId) continue;
+
+      idx += 1;
+      elements.push({
+        label: '@' + idx,
+        role,
+        tag,
+        text,
+        x: rect.left,
+        y: rect.top,
+        width: rect.width,
+        height: rect.height,
+        objectId,
+        confidence: conf,
+      });
+    }
+
+    return { elements };
   }
 }
 
