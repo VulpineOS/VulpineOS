@@ -479,6 +479,12 @@ func handleNavigate(client *juggler.Client, tracker *ContextTracker, args json.R
 		return errorResult(err), nil
 	}
 
+	// Navigation invalidates every objectID captured by the previous
+	// page's annotated screenshot. Drop any label mappings for this
+	// session so vulpine_click_label fails fast instead of clicking a
+	// stale handle that now points nowhere.
+	globalLabels.Clear(p.SessionID)
+
 	return textResult(fmt.Sprintf("Navigated to %s", p.URL)), nil
 }
 

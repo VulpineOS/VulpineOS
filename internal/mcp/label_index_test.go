@@ -3,9 +3,34 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"os"
 	"strings"
 	"testing"
+	"time"
 )
+
+// navigateHandlerClearsLabels inspects tools.go to confirm the
+// navigate handler contains the globalLabels.Clear hook. This is a
+// source-level assertion so the test survives even when we can't
+// actually drive a live juggler client.
+func navigateHandlerClearsLabels() bool {
+	data, err := os.ReadFile("tools.go")
+	if err != nil {
+		return false
+	}
+	src := string(data)
+	idx := strings.Index(src, "func handleNavigate(")
+	if idx < 0 {
+		return false
+	}
+	end := strings.Index(src[idx:], "\nfunc ")
+	if end < 0 {
+		end = len(src) - idx
+	}
+	body := src[idx : idx+end]
+	return strings.Contains(body, "globalLabels.Clear(")
+}
 
 func TestLabelIndexSetGet(t *testing.T) {
 	idx := &labelIndex{sessions: map[string]map[string]string{}}
@@ -78,5 +103,70 @@ func TestVulpineClickLabelUnavailable(t *testing.T) {
 	// nil client hits the client==nil branch first.
 	if !strings.Contains(text, "juggler client unavailable") {
 		t.Errorf("unexpected error text: %q", text)
+	}
+}
+
+// TestLabelIndex_LRUEvictsOldest verifies that when the session count
+// grows past MaxLabelSessions, the least recently accessed session is
+// dropped. Without the cap labelIndex would leak one map per distinct
+// session forever.
+func TestLabelIndex_LRUEvictsOldest(t *testing.T) {
+	idx := &labelIndex{
+		sessions:   map[string]map[string]string{},
+		lastAccess: map[string]time.Time{},
+	}
+	// Fill past the cap. Each Set touches its session, so the
+	// earliest-inserted (and never re-touched) session is the oldest.
+	for i := 0; i < MaxLabelSessions+5; i++ {
+		idx.Set(fmt.Sprintf("sess-%d", i), []map[string]interface{}{
+			{"label": "@1", "objectId": fmt.Sprintf("obj-%d", i)},
+		})
+		// Nudge time forward slightly so ordering is deterministic
+		// even on fast machines where two successive time.Now()
+		// samples could land in the same tick.
+		time.Sleep(time.Millisecond)
+	}
+	if got := idx.Len(); got != MaxLabelSessions {
+		t.Fatalf("Len after overflow = %d, want %d", got, MaxLabelSessions)
+	}
+	// The first five sessions should have been evicted.
+	for i := 0; i < 5; i++ {
+		if _, ok := idx.Get(fmt.Sprintf("sess-%d", i), "@1"); ok {
+			t.Errorf("sess-%d should have been evicted", i)
+		}
+	}
+	// Newer sessions should still be resolvable.
+	if _, ok := idx.Get(fmt.Sprintf("sess-%d", MaxLabelSessions+4), "@1"); !ok {
+		t.Error("most recent session unexpectedly missing")
+	}
+}
+
+// TestLabelIndex_ClearOnNavigate verifies that vulpine_navigate
+// clears the label index for the affected session so that a
+// follow-up vulpine_click_label does not resolve a stale objectID.
+// We can't easily drive handleNavigate without a real juggler client,
+// so this test exercises the observable contract: after a navigate,
+// Get must return ok=false for previously-set labels.
+func TestLabelIndex_ClearOnNavigate(t *testing.T) {
+	globalLabels.Set("nav-sess", []map[string]interface{}{
+		{"label": "@1", "objectId": "obj-pre-nav"},
+	})
+	if _, ok := globalLabels.Get("nav-sess", "@1"); !ok {
+		t.Fatal("precondition: label should be present before navigate")
+	}
+	// The production handler calls globalLabels.Clear after a
+	// successful Page.navigate. Reproduce that effect directly so we
+	// can assert the post-navigate state contract without spinning
+	// up Firefox.
+	globalLabels.Clear("nav-sess")
+	if _, ok := globalLabels.Get("nav-sess", "@1"); ok {
+		t.Error("label should be cleared after navigate")
+	}
+
+	// Sanity: the navigate handler source file must contain the
+	// Clear call. This catches accidental regressions where someone
+	// removes the hook but leaves this test's "shadow" call intact.
+	if !navigateHandlerClearsLabels() {
+		t.Error("handleNavigate must call globalLabels.Clear")
 	}
 }
