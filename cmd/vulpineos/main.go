@@ -50,6 +50,7 @@ func main() {
 		mcpServer  = flag.Bool("mcp-server", false, "Run as MCP stdio server (used by OpenClaw)")
 		mcpConnect = flag.String("mcp-connect", "", "WebSocket URL to connect MCP server to remote kernel")
 		_          = mcpConnect // M4 remote MCP — future use
+		listExt    = flag.Bool("list-extensions", false, "Print the status of optional extension providers and exit")
 	)
 	flag.Parse()
 
@@ -57,6 +58,11 @@ func main() {
 	// no-op; alternate builds may register providers via build-tagged
 	// init() functions that run before this call.
 	extensions.Init()
+
+	if *listExt {
+		printExtensionStatus(os.Stdout)
+		return
+	}
 
 	var err error
 	switch {
@@ -74,6 +80,24 @@ func main() {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+// printExtensionStatus writes a human-readable summary of the
+// currently-registered extension providers. Operators can run this to
+// quickly confirm which optional features are wired into the running
+// build.
+func printExtensionStatus(w *os.File) {
+	fmt.Fprintln(w, "VulpineOS extension providers:")
+	fmt.Fprintf(w, "  Credentials: %s\n", extensionAvailabilityString(extensions.Registry.Credentials != nil && extensions.Registry.Credentials.Available()))
+	fmt.Fprintf(w, "  Audio:       %s\n", extensionAvailabilityString(extensions.Registry.Audio != nil && extensions.Registry.Audio.Available()))
+	fmt.Fprintf(w, "  Mobile:      %s\n", extensionAvailabilityString(extensions.Registry.Mobile != nil && extensions.Registry.Mobile.Available()))
+}
+
+func extensionAvailabilityString(available bool) string {
+	if available {
+		return "available"
+	}
+	return "unavailable"
 }
 
 // runMCPServer runs as an MCP stdio server for OpenClaw integration.
