@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -8,6 +9,54 @@ import (
 	"vulpineos/internal/extensions"
 	"vulpineos/internal/extensions/extensionstest"
 )
+
+// ctxKey is a private test sentinel type used by
+// TestHandleAutofillThreadsContext to verify that handleAutofill
+// passes a real per-call context into the credential provider's Fill
+// method instead of dropping it for context.Background().
+type ctxKey struct{ name string }
+
+func TestHandleAutofillThreadsContext(t *testing.T) {
+	sentinel := &ctxKey{name: "autofill-ctx"}
+	var seen context.Context
+	fake := withFakeCredentials(t, &extensionstest.FakeCredentialProvider{
+		AvailableFlag: true,
+		Cred: extensions.Credential{
+			ID:       "cred-ctx",
+			Site:     "https://example.com",
+			Username: "alice",
+		},
+		FillFn: func(ctx context.Context, credID string, target extensions.FillTarget) error {
+			if seen == nil {
+				seen = ctx
+			}
+			return nil
+		},
+	})
+	_ = fake
+
+	ctx := context.WithValue(context.Background(), sentinel, "present")
+	args, _ := json.Marshal(map[string]interface{}{
+		"site_url":          "https://example.com",
+		"page_id":           "p1",
+		"frame_id":          "f1",
+		"username_selector": "#user",
+		"password_selector": "#pass",
+	})
+	res, ok := handleExtensionTool(ctx, nil, "vulpine_autofill", args)
+	if !ok {
+		t.Fatal("autofill not dispatched")
+	}
+	if res.IsError {
+		t.Fatalf("unexpected error result: %+v", res)
+	}
+	if seen == nil {
+		t.Fatal("Fill was never called")
+	}
+	if got, _ := seen.Value(sentinel).(string); got != "present" {
+		t.Errorf("sentinel not visible inside Fill: got %q", got)
+	}
+}
 
 // withFakeCredentials installs a fake credential provider for the
 // duration of the test and returns the fake so assertions can inspect

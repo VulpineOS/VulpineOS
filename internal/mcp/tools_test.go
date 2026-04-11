@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -146,7 +147,7 @@ func TestErrorResult(t *testing.T) {
 }
 
 func TestHandleToolCallUnknownTool(t *testing.T) {
-	_, err := handleToolCall(nil, nil, "vulpine_nonexistent", nil)
+	_, err := handleToolCall(context.Background(), nil, nil,"vulpine_nonexistent", nil)
 	if err == nil {
 		t.Fatal("expected error for unknown tool")
 	}
@@ -163,7 +164,7 @@ func TestHandleToolCallBadJSON(t *testing.T) {
 	}
 	for _, name := range toolNames {
 		t.Run(name, func(t *testing.T) {
-			result, err := handleToolCall(nil, nil, name, badJSON)
+			result, err := handleToolCall(context.Background(), nil, nil,name, badJSON)
 			// Should return a result (not a Go error) with IsError=true
 			if err != nil {
 				t.Fatalf("unexpected Go error: %v", err)
