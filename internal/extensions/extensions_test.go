@@ -3,23 +3,24 @@ package extensions
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 )
 
 func TestRegistryDefaultsNonNil(t *testing.T) {
-	if Registry.Credentials == nil {
-		t.Fatal("Registry.Credentials is nil")
+	if Registry.Credentials() == nil {
+		t.Fatal("Registry.Credentials() is nil")
 	}
-	if Registry.Audio == nil {
-		t.Fatal("Registry.Audio is nil")
+	if Registry.Audio() == nil {
+		t.Fatal("Registry.Audio() is nil")
 	}
-	if Registry.Mobile == nil {
-		t.Fatal("Registry.Mobile is nil")
+	if Registry.Mobile() == nil {
+		t.Fatal("Registry.Mobile() is nil")
 	}
 }
 
 func TestDefaultCredentialProviderUnavailable(t *testing.T) {
-	p := Registry.Credentials
+	p := Registry.Credentials()
 	if p.Available() {
 		t.Fatal("default CredentialProvider should report Available() == false")
 	}
@@ -40,7 +41,7 @@ func TestDefaultCredentialProviderUnavailable(t *testing.T) {
 }
 
 func TestDefaultAudioCapturerUnavailable(t *testing.T) {
-	a := Registry.Audio
+	a := Registry.Audio()
 	if a.Available() {
 		t.Fatal("default AudioCapturer should report Available() == false")
 	}
@@ -58,7 +59,7 @@ func TestDefaultAudioCapturerUnavailable(t *testing.T) {
 }
 
 func TestDefaultMobileBridgeUnavailable(t *testing.T) {
-	m := Registry.Mobile
+	m := Registry.Mobile()
 	if m.Available() {
 		t.Fatal("default MobileBridge should report Available() == false")
 	}
@@ -70,4 +71,26 @@ func TestDefaultMobileBridgeUnavailable(t *testing.T) {
 	if _, err := m.Connect(ctx, "udid"); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("Connect: expected ErrUnavailable, got %v", err)
 	}
+}
+
+// TestRegistryConcurrentSetGet runs many goroutines that race on
+// setters and readers; the test must pass under `go test -race`.
+func TestRegistryConcurrentSetGet(t *testing.T) {
+	original := Registry.Credentials()
+	t.Cleanup(func() { Registry.SetCredentials(original) })
+
+	var wg sync.WaitGroup
+	const N = 100
+	for i := 0; i < N; i++ {
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			Registry.SetCredentials(defaultCredentialProvider)
+		}()
+		go func() {
+			defer wg.Done()
+			_ = Registry.Credentials().Available()
+		}()
+	}
+	wg.Wait()
 }

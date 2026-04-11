@@ -73,9 +73,9 @@ func (f *fakeCredentialProvider) Available() bool { return true }
 // global registry and verifies that the MCP tool vulpine_get_credential
 // returns its metadata. Registry state is restored in cleanup.
 func TestMCPGetCredentialWithFakeProvider(t *testing.T) {
-	original := extensions.Registry.Credentials
+	original := extensions.Registry.Credentials()
 	t.Cleanup(func() {
-		extensions.Registry.Credentials = original
+		extensions.Registry.SetCredentials(original)
 	})
 
 	fake := &fakeCredentialProvider{
@@ -87,7 +87,7 @@ func TestMCPGetCredentialWithFakeProvider(t *testing.T) {
 			Notes:    "test account",
 		},
 	}
-	extensions.Registry.Credentials = fake
+	extensions.Registry.SetCredentials(fake)
 
 	args, err := json.Marshal(map[string]interface{}{
 		"site_url": "https://example.com",
@@ -133,7 +133,7 @@ func TestMCPGetCredentialWithFakeProvider(t *testing.T) {
 // previous test's t.Cleanup fires, the default unavailable provider is
 // back in place — a regression guard against cross-test leakage.
 func TestMCPGetCredentialRestoresAfterCleanup(t *testing.T) {
-	if extensions.Registry.Credentials.Available() {
+	if extensions.Registry.Credentials().Available() {
 		t.Fatal("expected default credential provider to report Available()==false; registry leaked between tests")
 	}
 	args, _ := json.Marshal(map[string]interface{}{"site_url": "https://example.com"})
