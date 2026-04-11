@@ -28,6 +28,9 @@ func TestDefaultCredentialProviderUnavailable(t *testing.T) {
 	if _, err := p.Lookup(ctx, "https://example.com"); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("Lookup: expected ErrUnavailable, got %v", err)
 	}
+	if err := p.Fill(ctx, "id", FillTarget{PageID: "p", Selector: "#user", Field: "username"}); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("Fill: expected ErrUnavailable, got %v", err)
+	}
 	if _, err := p.GenerateCode(ctx, "id"); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("GenerateCode: expected ErrUnavailable, got %v", err)
 	}
