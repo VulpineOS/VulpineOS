@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -9,6 +10,18 @@ import (
 	"vulpineos/internal/extensions"
 	"vulpineos/internal/juggler"
 )
+
+// normalizeArgs replaces nil / "null" raw JSON with an empty object so
+// json.Unmarshal into a struct pointer succeeds for callers that pass
+// no arguments at all. Some MCP clients serialize absent tool args as
+// a JSON null literal; others send nothing. Both should be treated as
+// "empty object" by tolerant handlers.
+func normalizeArgs(args json.RawMessage) json.RawMessage {
+	if len(args) == 0 || bytes.Equal(args, []byte("null")) {
+		return json.RawMessage("{}")
+	}
+	return args
+}
 
 // extensionTools returns the MCP tool definitions backed by the
 // extensions package (credentials, audio capture, mobile bridge, and
@@ -155,7 +168,7 @@ func handleAnnotatedScreenshot(ctx context.Context, client *juggler.Client, args
 		Format      string `json:"format"`
 		MaxElements int    `json:"maxElements"`
 	}
-	if err := json.Unmarshal(args, &p); err != nil {
+	if err := json.Unmarshal(normalizeArgs(args), &p); err != nil {
 		return errorResult(err)
 	}
 	if client == nil {
@@ -208,7 +221,7 @@ func handleClickLabel(ctx context.Context, client *juggler.Client, args json.Raw
 		SessionID string `json:"session_id"`
 		Label     string `json:"label"`
 	}
-	if err := json.Unmarshal(args, &p); err != nil {
+	if err := json.Unmarshal(normalizeArgs(args), &p); err != nil {
 		return errorResult(err)
 	}
 	if client == nil {
@@ -233,7 +246,7 @@ func handleGetCredential(ctx context.Context, args json.RawMessage) *ToolCallRes
 	var p struct {
 		SiteURL string `json:"site_url"`
 	}
-	if err := json.Unmarshal(args, &p); err != nil {
+	if err := json.Unmarshal(normalizeArgs(args), &p); err != nil {
 		return errorResult(err)
 	}
 	provider := extensions.Registry.Credentials()
@@ -267,7 +280,7 @@ func handleAutofill(ctx context.Context, client *juggler.Client, args json.RawMe
 		UsernameSelector string `json:"username_selector"`
 		PasswordSelector string `json:"password_selector"`
 	}
-	if err := json.Unmarshal(args, &p); err != nil {
+	if err := json.Unmarshal(normalizeArgs(args), &p); err != nil {
 		return errorResult(err)
 	}
 	provider := extensions.Registry.Credentials()
@@ -306,7 +319,7 @@ func handleStartAudioCapture(ctx context.Context, args json.RawMessage) *ToolCal
 		SampleRate int    `json:"sample_rate"`
 		Channels   int    `json:"channels"`
 	}
-	if err := json.Unmarshal(args, &p); err != nil {
+	if err := json.Unmarshal(normalizeArgs(args), &p); err != nil {
 		return errorResult(err)
 	}
 	// Apply defaults for unset fields. 16kHz mono PCM is a reasonable
@@ -340,7 +353,7 @@ func handleStopAudioCapture(ctx context.Context, args json.RawMessage) *ToolCall
 	var p struct {
 		HandleID string `json:"handle_id"`
 	}
-	if err := json.Unmarshal(args, &p); err != nil {
+	if err := json.Unmarshal(normalizeArgs(args), &p); err != nil {
 		return errorResult(err)
 	}
 	cap := extensions.Registry.Audio()
@@ -358,7 +371,7 @@ func handleReadAudioChunk(ctx context.Context, args json.RawMessage) *ToolCallRe
 		HandleID string `json:"handle_id"`
 		MaxBytes int    `json:"max_bytes"`
 	}
-	if err := json.Unmarshal(args, &p); err != nil {
+	if err := json.Unmarshal(normalizeArgs(args), &p); err != nil {
 		return errorResult(err)
 	}
 	if p.MaxBytes <= 0 {
