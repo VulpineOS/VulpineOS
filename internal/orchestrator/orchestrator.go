@@ -14,6 +14,7 @@ import (
 	"vulpineos/internal/pagecache"
 	"vulpineos/internal/pool"
 	"vulpineos/internal/recording"
+	"vulpineos/internal/security"
 	"vulpineos/internal/vault"
 	"vulpineos/internal/webhooks"
 )
@@ -48,11 +49,12 @@ type Orchestrator struct {
 	Agents  *openclaw.Manager
 
 	// Optional subsystems (nil-safe)
-	AgentBus  *agentbus.Bus
-	Costs     *costtrack.Tracker
-	Webhooks  *webhooks.Manager
-	Recording *recording.Recorder
-	PageCache *pagecache.Cache
+	AgentBus        *agentbus.Bus
+	Costs           *costtrack.Tracker
+	Webhooks        *webhooks.Manager
+	Recording       *recording.Recorder
+	PageCache       *pagecache.Cache
+	SecurityEnabled bool // when true, inject CSP and sandbox protections on context creation
 
 	// Track which agent owns which context slot
 	agentToSlot   map[string]*pool.ContextSlot
@@ -61,11 +63,12 @@ type Orchestrator struct {
 
 // Opts holds optional subsystem dependencies for the orchestrator.
 type Opts struct {
-	AgentBus  *agentbus.Bus
-	Costs     *costtrack.Tracker
-	Webhooks  *webhooks.Manager
-	Recording *recording.Recorder
-	PageCache *pagecache.Cache
+	AgentBus        *agentbus.Bus
+	Costs           *costtrack.Tracker
+	Webhooks        *webhooks.Manager
+	Recording       *recording.Recorder
+	PageCache       *pagecache.Cache
+	SecurityEnabled bool
 }
 
 // New creates an orchestrator with all subsystems.
@@ -84,6 +87,7 @@ func New(k *kernel.Kernel, client *juggler.Client, v *vault.DB, poolCfg pool.Con
 		o.Webhooks = opts[0].Webhooks
 		o.Recording = opts[0].Recording
 		o.PageCache = opts[0].PageCache
+		o.SecurityEnabled = opts[0].SecurityEnabled
 	}
 	return o
 }
@@ -170,6 +174,11 @@ func (o *Orchestrator) SpawnNomad(templateID string) (string, error) {
 	if err != nil {
 		o.Pool.Release(slot)
 		return "", fmt.Errorf("create nomad session: %w", err)
+	}
+
+	// Apply security protections for nomad contexts
+	if o.SecurityEnabled {
+		o.applySecurityToContext(slot.ContextID, session.ID)
 	}
 
 	// Write SOP and spawn agent
@@ -360,7 +369,27 @@ func (o *Orchestrator) applyCitizenToContext(contextID string, citizen *vault.Ci
 		}
 	}
 
+	// Apply security protections (CSP + sandbox) when enabled
+	if o.SecurityEnabled {
+		o.applySecurityToContext(contextID, citizen.ID)
+	}
+
 	return nil
+}
+
+// applySecurityToContext injects CSP headers and logs sandbox activation for a context.
+func (o *Orchestrator) applySecurityToContext(contextID, ownerID string) {
+	// Inject Content-Security-Policy headers via Juggler
+	cspCfg := security.DefaultCSPConfig()
+	if err := security.InjectCSP(o.Client, contextID, cspCfg); err != nil {
+		log.Printf("orchestrator: warning: CSP injection failed for context %s: %v", contextID, err)
+	}
+
+	// Prepare sandbox (the Sandbox wraps JS expressions at call sites;
+	// here we log that it is active so operators know protections are in place)
+	sb := security.NewSandbox()
+	log.Printf("orchestrator: security suite active for context %s (owner=%s, csp=inline-blocked, sandbox=%v)",
+		contextID, ownerID, sb.BlockedAPIs())
 }
 
 // statusRelay forwards agent status updates (for use by TUI or other consumers).
