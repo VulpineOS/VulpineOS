@@ -346,7 +346,14 @@ func handleStartAudioCapture(ctx context.Context, args json.RawMessage) *ToolCal
 	if err != nil {
 		return errorResult(err)
 	}
-	return textResult(fmt.Sprintf(`{"handle_id":%q,"format":%q}`, handle.ID, handle.Format))
+	payload, err := json.Marshal(map[string]interface{}{
+		"handle_id": handle.ID,
+		"format":    handle.Format,
+	})
+	if err != nil {
+		return errorResult(fmt.Errorf("marshal start audio response: %w", err))
+	}
+	return textResult(string(payload))
 }
 
 func handleStopAudioCapture(ctx context.Context, args json.RawMessage) *ToolCallResult {
