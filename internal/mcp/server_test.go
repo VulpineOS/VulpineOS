@@ -6,8 +6,8 @@ import (
 
 func TestToolDefinitions(t *testing.T) {
 	toolList := tools()
-	if len(toolList) != 30 {
-		t.Errorf("expected 30 tools, got %d", len(toolList))
+	if len(toolList) != 33 {
+		t.Errorf("expected 33 tools, got %d", len(toolList))
 	}
 
 	expectedNames := map[string]bool{
@@ -41,6 +41,9 @@ func TestToolDefinitions(t *testing.T) {
 		"vulpine_stop_audio_capture":   false,
 		"vulpine_read_audio_chunk":     false,
 		"vulpine_list_mobile_devices":  false,
+		"vulpine_human_click":          false,
+		"vulpine_human_type":           false,
+		"vulpine_human_scroll":         false,
 	}
 
 	for _, tool := range toolList {
@@ -198,8 +201,8 @@ func TestToolsListResponse(t *testing.T) {
 	if !ok {
 		t.Fatalf("result is not ToolsListResult, got %T", resp.Result)
 	}
-	if len(result.Tools) != 30 {
-		t.Errorf("expected 30 tools, got %d", len(result.Tools))
+	if len(result.Tools) != 33 {
+		t.Errorf("expected 33 tools, got %d", len(result.Tools))
 	}
 }
 
