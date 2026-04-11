@@ -16,6 +16,45 @@ import (
 // method instead of dropping it for context.Background().
 type ctxKey struct{ name string }
 
+// missingCredProvider is a CredentialProvider whose Lookup always
+// returns (nil, nil). Used to exercise the "no match" branch of
+// handleGetCredential, which must now return {"found":false}.
+type missingCredProvider struct{}
+
+func (missingCredProvider) Available() bool { return true }
+func (missingCredProvider) Lookup(_ context.Context, _ string) (*extensions.Credential, error) {
+	return nil, nil
+}
+func (missingCredProvider) Fill(_ context.Context, _ string, _ extensions.FillTarget) error {
+	return nil
+}
+func (missingCredProvider) GenerateCode(_ context.Context, _ string) (string, error) {
+	return "", nil
+}
+func (missingCredProvider) List(_ context.Context) ([]extensions.Credential, error) {
+	return nil, nil
+}
+
+func TestGetCredentialMissReturnsFoundFalse(t *testing.T) {
+	original := extensions.Registry.Credentials()
+	t.Cleanup(func() { extensions.Registry.SetCredentials(original) })
+	extensions.Registry.SetCredentials(missingCredProvider{})
+
+	res := runExtTool(t, "vulpine_get_credential", map[string]interface{}{
+		"site_url": "https://no-such-site.example",
+	})
+	if res.IsError {
+		t.Fatalf("unexpected error: %+v", res)
+	}
+	var parsed map[string]interface{}
+	if err := json.Unmarshal([]byte(res.Content[0].Text), &parsed); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if found, ok := parsed["found"].(bool); !ok || found {
+		t.Errorf("expected {\"found\":false}, got %q", res.Content[0].Text)
+	}
+}
+
 func TestHandleAutofillThreadsContext(t *testing.T) {
 	sentinel := &ctxKey{name: "autofill-ctx"}
 	var seen context.Context
