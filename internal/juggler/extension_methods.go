@@ -7,6 +7,51 @@ import (
 	"fmt"
 )
 
+// SecureSetInputValueBySelector is a convenience helper that resolves a CSS
+// selector to a Runtime objectId via Runtime.evaluate, then dispatches
+// Page.secureSetInputValue with the objectId. Useful for callers that have
+// a CSS selector rather than a pre-resolved objectId.
+//
+// Wire sequence:
+//  1. Runtime.evaluate with expression document.querySelector(<selector>)
+//     against frameID, returnByValue=false. Response shape:
+//     {"result":{"objectId":"..."}} or {"result":{"subtype":"null"}}.
+//  2. SecureSetInputValue(ctx, sessionID, frameID, objectId, value).
+//
+// Errors are wrapped: "selector %q not found" on a null match,
+// "Runtime.evaluate failed: %w" on any protocol error from the resolve step.
+func (c *Client) SecureSetInputValueBySelector(ctx context.Context, sessionID, frameID, selector, value string) error {
+	selectorJSON, err := json.Marshal(selector)
+	if err != nil {
+		return fmt.Errorf("marshal selector: %w", err)
+	}
+	params := map[string]interface{}{
+		"expression":     fmt.Sprintf("document.querySelector(%s)", string(selectorJSON)),
+		"frameId":        frameID,
+		"returnByValue":  false,
+	}
+	raw, err := c.CallWithContext(ctx, sessionID, "Runtime.evaluate", params)
+	if err != nil {
+		return fmt.Errorf("Runtime.evaluate failed: %w", err)
+	}
+	var resp struct {
+		Result struct {
+			ObjectID string `json:"objectId"`
+			Subtype  string `json:"subtype"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(raw, &resp); err != nil {
+		return fmt.Errorf("Runtime.evaluate failed: decode response: %w", err)
+	}
+	if resp.Result.ObjectID == "" || resp.Result.Subtype == "null" {
+		return fmt.Errorf("selector %q not found", selector)
+	}
+	if _, _, err := c.SecureSetInputValue(ctx, sessionID, frameID, resp.Result.ObjectID, value); err != nil {
+		return err
+	}
+	return nil
+}
+
 // SecureSetInputValue invokes Page.secureSetInputValue on the given page
 // session, writing the value into the element identified by objectId
 // inside the given frame. The protocol-level handler does not fire

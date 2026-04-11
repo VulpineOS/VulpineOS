@@ -120,6 +120,103 @@ func TestSecureSetInputValue_ProtocolError(t *testing.T) {
 	}
 }
 
+func TestSecureSetInputValueBySelector_HappyPath(t *testing.T) {
+	mt := newMemTransport()
+	r := newRouteResponder(t, mt)
+	r.on("Runtime.evaluate", func(req *Message) *Message {
+		var p struct {
+			Expression    string `json:"expression"`
+			FrameID       string `json:"frameId"`
+			ReturnByValue bool   `json:"returnByValue"`
+		}
+		if err := json.Unmarshal(req.Params, &p); err != nil {
+			t.Errorf("unmarshal evaluate params: %v", err)
+		}
+		if !strings.Contains(p.Expression, `document.querySelector("#user")`) {
+			t.Errorf("expression missing selector: %q", p.Expression)
+		}
+		if p.FrameID != "frame-1" {
+			t.Errorf("expected frameId=frame-1, got %q", p.FrameID)
+		}
+		if p.ReturnByValue {
+			t.Errorf("expected returnByValue=false")
+		}
+		return okResult(t, map[string]interface{}{
+			"result": map[string]interface{}{"objectId": "obj-77"},
+		})
+	})
+	r.on("Page.secureSetInputValue", func(req *Message) *Message {
+		var p struct {
+			FrameID  string `json:"frameId"`
+			ObjectID string `json:"objectId"`
+			Value    string `json:"value"`
+		}
+		if err := json.Unmarshal(req.Params, &p); err != nil {
+			t.Errorf("unmarshal secure params: %v", err)
+		}
+		if p.ObjectID != "obj-77" || p.Value != "s3cret" || p.FrameID != "frame-1" {
+			t.Errorf("unexpected params: %+v", p)
+		}
+		return okResult(t, map[string]interface{}{"injected": true, "method": "native-setter"})
+	})
+	r.run()
+
+	c := NewClient(mt)
+	defer c.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := c.SecureSetInputValueBySelector(ctx, "sess-1", "frame-1", "#user", "s3cret"); err != nil {
+		t.Fatalf("SecureSetInputValueBySelector: %v", err)
+	}
+}
+
+func TestSecureSetInputValueBySelector_NotFound(t *testing.T) {
+	mt := newMemTransport()
+	r := newRouteResponder(t, mt)
+	r.on("Runtime.evaluate", func(req *Message) *Message {
+		return okResult(t, map[string]interface{}{
+			"result": map[string]interface{}{"subtype": "null"},
+		})
+	})
+	r.run()
+
+	c := NewClient(mt)
+	defer c.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	err := c.SecureSetInputValueBySelector(ctx, "sess-1", "frame-1", "#missing", "x")
+	if err == nil {
+		t.Fatal("expected not-found error, got nil")
+	}
+	if !strings.Contains(err.Error(), `selector "#missing" not found`) {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestSecureSetInputValueBySelector_EvaluateError(t *testing.T) {
+	mt := newMemTransport()
+	r := newRouteResponder(t, mt)
+	r.on("Runtime.evaluate", func(req *Message) *Message {
+		return &Message{Error: testErr("execution context destroyed")}
+	})
+	r.run()
+
+	c := NewClient(mt)
+	defer c.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	err := c.SecureSetInputValueBySelector(ctx, "s", "f", "#user", "v")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "Runtime.evaluate failed") {
+		t.Errorf("expected wrapped Runtime.evaluate error, got: %v", err)
+	}
+}
+
 func TestStartAudioCapture_HappyPath(t *testing.T) {
 	mt := newMemTransport()
 	r := newRouteResponder(t, mt)
