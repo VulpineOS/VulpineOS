@@ -2,10 +2,91 @@ package mcp
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"strings"
+	"sync"
 	"testing"
+
+	"vulpineos/internal/juggler"
 )
+
+// routedTransport is a minimal in-process juggler.Transport for tests.
+// Each outgoing request is dispatched to the handler registered for
+// its method; the handler returns the Result/Error that should be fed
+// back to the client. This lets us drive mcp handlers that talk to a
+// real juggler.Client without spinning up Firefox.
+type routedTransport struct {
+	mu       sync.Mutex
+	handlers map[string]func(req *juggler.Message) *juggler.Message
+	incoming chan *juggler.Message
+	closed   chan struct{}
+	once     sync.Once
+}
+
+func newRoutedTransport() *routedTransport {
+	return &routedTransport{
+		handlers: map[string]func(req *juggler.Message) *juggler.Message{},
+		incoming: make(chan *juggler.Message, 64),
+		closed:   make(chan struct{}),
+	}
+}
+
+func (r *routedTransport) on(method string, fn func(req *juggler.Message) *juggler.Message) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.handlers[method] = fn
+}
+
+func (r *routedTransport) Send(msg *juggler.Message) error {
+	select {
+	case <-r.closed:
+		return fmt.Errorf("transport closed")
+	default:
+	}
+	r.mu.Lock()
+	fn, ok := r.handlers[msg.Method]
+	r.mu.Unlock()
+	var resp *juggler.Message
+	if ok {
+		resp = fn(msg)
+	} else {
+		resp = &juggler.Message{Error: &juggler.Error{Message: "no handler for " + msg.Method}}
+	}
+	if resp == nil {
+		return nil
+	}
+	resp.ID = msg.ID
+	select {
+	case r.incoming <- resp:
+	case <-r.closed:
+	}
+	return nil
+}
+
+func (r *routedTransport) Receive() (*juggler.Message, error) {
+	select {
+	case <-r.closed:
+		return nil, fmt.Errorf("transport closed")
+	case m := <-r.incoming:
+		return m, nil
+	}
+}
+
+func (r *routedTransport) Close() error {
+	r.once.Do(func() { close(r.closed) })
+	return nil
+}
+
+func okResultMessage(t *testing.T, v interface{}) *juggler.Message {
+	t.Helper()
+	raw, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("marshal result: %v", err)
+	}
+	return &juggler.Message{Result: raw}
+}
 
 // TestExtensionToolsRegistered verifies that the tools() list exposes
 // every extension-backed tool by name so the MCP server advertises them.
@@ -153,6 +234,66 @@ func TestReadAudioChunkUnavailable(t *testing.T) {
 func TestListMobileDevicesUnavailable(t *testing.T) {
 	res := runExtTool(t, "vulpine_list_mobile_devices", map[string]interface{}{})
 	assertUnavailable(t, res, "mobile bridge unavailable")
+}
+
+// TestHandleAnnotatedScreenshot_FallbackToPageScreenshot verifies the
+// fallback path: when Page.getAnnotatedScreenshot errors, the handler
+// must degrade to a plain Page.screenshot capture, return exactly one
+// image content block (no element text block), and leave the
+// per-session label index untouched so stale click_label attempts
+// fail instead of resolving to random objectIDs from a prior page.
+func TestHandleAnnotatedScreenshot_FallbackToPageScreenshot(t *testing.T) {
+	const sessionID = "fallback-sess"
+	// Make sure there are no stale labels for this session from
+	// any previously-run test.
+	globalLabels.Clear(sessionID)
+
+	rt := newRoutedTransport()
+	rt.on("Page.getAnnotatedScreenshot", func(req *juggler.Message) *juggler.Message {
+		return &juggler.Message{Error: &juggler.Error{Message: "method not implemented"}}
+	})
+	fakePNG := []byte("fake-png-bytes")
+	rt.on("Page.screenshot", func(req *juggler.Message) *juggler.Message {
+		return okResultMessage(t, map[string]interface{}{
+			"data": base64.StdEncoding.EncodeToString(fakePNG),
+		})
+	})
+	client := juggler.NewClient(rt)
+	defer client.Close()
+
+	args, _ := json.Marshal(map[string]interface{}{"sessionId": sessionID})
+	res, ok := handleExtensionTool(context.Background(), client, "vulpine_annotated_screenshot", args)
+	if !ok {
+		t.Fatal("vulpine_annotated_screenshot not dispatched")
+	}
+	if res == nil {
+		t.Fatal("nil result")
+	}
+	if res.IsError {
+		t.Fatalf("fallback path should succeed, got error: %+v", res.Content)
+	}
+	if len(res.Content) != 1 {
+		t.Fatalf("fallback should return exactly 1 content block, got %d: %+v", len(res.Content), res.Content)
+	}
+	if res.Content[0].Type != "image" {
+		t.Errorf("want image content block, got type=%q", res.Content[0].Type)
+	}
+	if res.Content[0].MimeType != "image/png" {
+		t.Errorf("want image/png, got %q", res.Content[0].MimeType)
+	}
+	// Decode and compare to ensure the fallback returned the
+	// Page.screenshot payload, not something stale.
+	decoded, err := base64.StdEncoding.DecodeString(res.Content[0].Data)
+	if err != nil {
+		t.Fatalf("decode fallback image: %v", err)
+	}
+	if string(decoded) != string(fakePNG) {
+		t.Errorf("fallback image mismatch: got %q want %q", decoded, fakePNG)
+	}
+	// Label index must NOT have been populated on the fallback path.
+	if _, ok := globalLabels.Get(sessionID, "@1"); ok {
+		t.Error("fallback path must not populate label index")
+	}
 }
 
 // TestAnnotatedScreenshotRequiresClient verifies the tool gracefully
