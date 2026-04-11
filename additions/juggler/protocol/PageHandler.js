@@ -738,6 +738,10 @@ export class PageHandler {
     return await this._contentPage.send('secureSetInputValue', options);
   }
 
+  async ['Page.getAnnotatedScreenshot'](options) {
+    return await this._contentPage.send('getAnnotatedScreenshot', options);
+  }
+
   async ['Page.resolveRef'](params) {
     return await this._contentPage.send('resolveRef', params);
   }
