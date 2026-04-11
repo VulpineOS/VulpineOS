@@ -11,6 +11,12 @@ import (
 
 // tools returns the list of VulpineOS browser tools available via MCP.
 func tools() []ToolDefinition {
+	base := baseTools()
+	return append(base, extensionTools()...)
+}
+
+// baseTools returns the core browser tool definitions.
+func baseTools() []ToolDefinition {
 	return []ToolDefinition{
 		{
 			Name:        "vulpine_navigate",
@@ -311,6 +317,9 @@ func handleToolCall(client *juggler.Client, tracker *ContextTracker, name string
 }
 
 func handleToolCallFull(client *juggler.Client, tracker *ContextTracker, screenshots *ScreenshotTracker, name string, args json.RawMessage) (*ToolCallResult, error) {
+	if res, ok := handleExtensionTool(client, name, args); ok {
+		return res, nil
+	}
 	switch name {
 	// Core browser tools
 	case "vulpine_navigate":
