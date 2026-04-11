@@ -3,22 +3,60 @@ package mcp
 import (
 	"fmt"
 	"sync"
+	"time"
 )
+
+// MaxLabelSessions is the upper bound on distinct session entries the
+// label index retains. When Set would exceed this cap the least
+// recently accessed session is evicted. This keeps long-lived
+// processes from accumulating stale objectID maps forever.
+const MaxLabelSessions = 256
 
 // labelIndex maps per-session human labels (e.g. "@3") to objectIDs
 // returned by Page.getAnnotatedScreenshot. It is populated on every
 // successful annotated screenshot capture so that agents can later
 // call vulpine_click_label to click an element by label rather than
-// juggling raw objectIDs.
+// juggling raw objectIDs. It is bounded to MaxLabelSessions entries
+// via an LRU policy on last access time.
 type labelIndex struct {
-	mu       sync.RWMutex
-	sessions map[string]map[string]string // sessionID -> label -> objectID
+	mu         sync.RWMutex
+	sessions   map[string]map[string]string // sessionID -> label -> objectID
+	lastAccess map[string]time.Time         // sessionID -> last touch time
+}
+
+// touchLocked updates the access time for sessionID. Caller must hold
+// the write lock.
+func (l *labelIndex) touchLocked(sessionID string) {
+	if l.lastAccess == nil {
+		l.lastAccess = map[string]time.Time{}
+	}
+	l.lastAccess[sessionID] = time.Now()
+}
+
+// evictOldestLocked drops the single least recently accessed session.
+// Caller must hold the write lock.
+func (l *labelIndex) evictOldestLocked() {
+	var oldestID string
+	var oldest time.Time
+	first := true
+	for id, t := range l.lastAccess {
+		if first || t.Before(oldest) {
+			oldest = t
+			oldestID = id
+			first = false
+		}
+	}
+	if oldestID != "" {
+		delete(l.sessions, oldestID)
+		delete(l.lastAccess, oldestID)
+	}
 }
 
 // Set replaces the label map for sessionID with the labels derived
 // from elements. Each element is expected to be a map with at least a
 // "label" (string) and "objectId" (string) field. Elements missing
-// either field are skipped.
+// either field are skipped. If the session count would exceed
+// MaxLabelSessions the least recently used session is evicted first.
 func (l *labelIndex) Set(sessionID string, elements []map[string]interface{}) {
 	next := map[string]string{}
 	for i, el := range elements {
@@ -33,19 +71,28 @@ func (l *labelIndex) Set(sessionID string, elements []map[string]interface{}) {
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if _, exists := l.sessions[sessionID]; !exists {
+		for len(l.sessions) >= MaxLabelSessions {
+			l.evictOldestLocked()
+		}
+	}
 	l.sessions[sessionID] = next
+	l.touchLocked(sessionID)
 }
 
 // Get returns the objectID mapped to label in sessionID, or ok=false
-// if no such label is known.
+// if no such label is known. Touches the session access time on hit.
 func (l *labelIndex) Get(sessionID, label string) (string, bool) {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	session, ok := l.sessions[sessionID]
 	if !ok {
 		return "", false
 	}
 	obj, ok := session[label]
+	if ok {
+		l.touchLocked(sessionID)
+	}
 	return obj, ok
 }
 
@@ -55,8 +102,20 @@ func (l *labelIndex) Clear(sessionID string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	delete(l.sessions, sessionID)
+	delete(l.lastAccess, sessionID)
+}
+
+// Len returns the current number of tracked sessions. Intended for
+// tests and metrics.
+func (l *labelIndex) Len() int {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return len(l.sessions)
 }
 
 // globalLabels is the process-wide label index shared between the
 // annotated screenshot tool and vulpine_click_label.
-var globalLabels = &labelIndex{sessions: map[string]map[string]string{}}
+var globalLabels = &labelIndex{
+	sessions:   map[string]map[string]string{},
+	lastAccess: map[string]time.Time{},
+}
