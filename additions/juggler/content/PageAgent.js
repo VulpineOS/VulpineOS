@@ -304,6 +304,7 @@ export class PageAgent {
         getShadowDOM: this._getShadowDOM.bind(this),
         resolveRef: this._resolveRef.bind(this),
         focusByRef: this._focusByRef.bind(this),
+        secureSetInputValue: this._secureSetInputValue.bind(this),
         insertText: this._insertText.bind(this),
         scrollIntoViewIfNeeded: this._scrollIntoViewIfNeeded.bind(this),
         setFileInputFiles: this._setFileInputFiles.bind(this),
@@ -1093,6 +1094,36 @@ export class PageAgent {
       el.scrollIntoView({ block: 'center', inline: 'center' });
     el.focus();
     return { focused: true };
+  }
+
+  // VulpineOS: Secure credential injection — sets input value at C++ level
+  // bypassing JavaScript input events. Page scripts cannot detect the injection.
+  _secureSetInputValue({ frameId, objectId, value }) {
+    const frame = this._frameTree.frame(frameId);
+    if (!frame)
+      throw new Error('frame not found: ' + frameId);
+    const unsafeObject = this._runtime._findObject(objectId);
+    if (!unsafeObject)
+      throw new Error('object not found: ' + objectId);
+    const element = unsafeObject;
+
+    // Try C++ secure injection first (requires engine-level secure input support)
+    if (element.secureSetValue) {
+      element.secureSetValue(value);
+      return { injected: true, method: 'engine' };
+    }
+
+    // Fallback: use SetUserInput which is available in chrome-privileged context
+    // This is less secure but works without the C++ patch
+    if (element.setUserInput) {
+      element.setUserInput(value);
+      return { injected: true, method: 'setUserInput' };
+    }
+
+    // Last resort: direct value set (not fully secure but functional)
+    element.value = value;
+    element.dispatchEvent(new Event('change', { bubbles: true }));
+    return { injected: true, method: 'direct' };
   }
 
   // VulpineOS: Shadow DOM traversal — walks shadow roots recursively
