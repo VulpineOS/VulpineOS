@@ -243,6 +243,18 @@ func handleStartAudioCapture(args json.RawMessage) *ToolCallResult {
 	if err := json.Unmarshal(args, &p); err != nil {
 		return errorResult(err)
 	}
+	// Apply defaults for unset fields. 16kHz mono PCM is a reasonable
+	// baseline for speech capture and keeps backend implementations
+	// from having to special-case zero values.
+	if p.Format == "" {
+		p.Format = "pcm"
+	}
+	if p.SampleRate == 0 {
+		p.SampleRate = 16000
+	}
+	if p.Channels == 0 {
+		p.Channels = 1
+	}
 	cap := extensions.Registry.Audio()
 	if cap == nil || !cap.Available() {
 		return errorResult(fmt.Errorf("audio capture unavailable"))
