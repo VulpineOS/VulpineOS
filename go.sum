@@ -1,7 +1,7 @@
 github.com/PopcornDev1/foxbridge v0.1.0 h1:JULMtUHHiwU7AFDDDW1l+ks58e12WMf5oTPDkwLsQGo=
 github.com/PopcornDev1/foxbridge v0.1.0/go.mod h1:gXjfnwtxyx1bFAiWYAzHusNBl1kWBvrS2dZk7VUCRWo=
-github.com/PopcornDev1/mobilebridge v0.0.0-20260412101554-6b94dd5c215a h1:ZSLzSxTMcOUMBqar9lWlHKiJtxPrhdzzP3WagfZn8nA=
-github.com/PopcornDev1/mobilebridge v0.0.0-20260412101554-6b94dd5c215a/go.mod h1:P5ScECDULbr0hoe3H9YiCJxmYRUeJaSQ4TQyYkaYJ10=
+github.com/PopcornDev1/mobilebridge v0.0.0-20260412201100-d8398d7afb7d h1:6ksLwAaC8P2W/0ZorL/lUbgxCSuK+sScEabfqvvUB8Y=
+github.com/PopcornDev1/mobilebridge v0.0.0-20260412201100-d8398d7afb7d/go.mod h1:P5ScECDULbr0hoe3H9YiCJxmYRUeJaSQ4TQyYkaYJ10=
 github.com/atotto/clipboard v0.1.4 h1:EH0zSVneZPSuFR11BlR9YppQTVDbh5+16AmcJi4g1z4=
 github.com/atotto/clipboard v0.1.4/go.mod h1:ZY9tmq7sm5xIbd9bOK4onWV4S6X0u6GY7Vn0Yu86PYI=
 github.com/aymanbagabas/go-osc52/v2 v2.0.1 h1:HwpRHbFMcZLEVr42D4p7XBqjyuxQH5SMiErDT4WkJ2k=
