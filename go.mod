@@ -4,7 +4,7 @@ go 1.26.1
 
 require (
 	github.com/PopcornDev1/foxbridge v0.1.0
-	github.com/PopcornDev1/mobilebridge v0.0.0-20260412101554-6b94dd5c215a
+	github.com/PopcornDev1/mobilebridge v0.0.0-20260412201100-d8398d7afb7d
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
