@@ -10,7 +10,22 @@
 // default stubs.
 package extensions
 
-import "sync"
+import (
+	"encoding/json"
+	"sync"
+)
+
+// JugglerCallable is the minimal slice of the Juggler client surface
+// that extension adapters depend on. Keeping the interface narrow here
+// avoids a dependency on the concrete *juggler.Client type from this
+// package, which in turn keeps alternate-build adapter code from having
+// to import vulpineos/internal/juggler directly.
+//
+// The live *juggler.Client type satisfies this interface by structural
+// match, so callers pass it in as-is via InitWithClient.
+type JugglerCallable interface {
+	Call(sessionID, method string, params interface{}) (json.RawMessage, error)
+}
 
 // registry holds the active provider implementations. Reads and writes
 // are guarded by an embedded RWMutex so that setters running from
@@ -93,7 +108,48 @@ var Registry = &registry{
 	mobile:      defaultMobileBridge,
 }
 
-// Init is called once at startup; private extension builds may register
-// providers from their own init() functions before this hook fires. The
-// public build leaves it as a no-op so the call site is a stable anchor.
-func Init() {}
+// privateProviders holds constructors supplied by build-tagged
+// extension files (see build-tagged extension file). The constructors are
+// invoked by InitWithClient once the runtime has a live juggler client
+// to hand out. Public builds leave the struct zero-valued so every
+// entry is nil and InitWithClient becomes a no-op.
+var privateProviders = struct {
+	Vault  func(jc JugglerCallable) CredentialProvider
+	Audio  func(jc JugglerCallable) AudioCapturer
+	Mobile func(jc JugglerCallable) MobileBridge
+}{}
+
+// Init is called once at startup before a juggler client is available.
+// It exists as a stable anchor for the CLI entrypoint. For adapters
+// that need the juggler client to be wired, use InitWithClient once
+// the kernel has produced one.
+func Init() {
+	InitWithClient(nil)
+}
+
+// InitWithClient wires any registered private provider constructors to
+// the live juggler client and installs the resulting adapters in the
+// global Registry. The public build leaves privateProviders zero, so
+// each nil-check short-circuits and the Registry keeps its no-op stubs.
+// Passing a nil jc is allowed and skips registration entirely — that
+// is the default-build path.
+func InitWithClient(jc JugglerCallable) {
+	if jc == nil {
+		return
+	}
+	if privateProviders.Vault != nil {
+		if p := privateProviders.Vault(jc); p != nil {
+			Registry.SetCredentials(p)
+		}
+	}
+	if privateProviders.Audio != nil {
+		if a := privateProviders.Audio(jc); a != nil {
+			Registry.SetAudio(a)
+		}
+	}
+	if privateProviders.Mobile != nil {
+		if m := privateProviders.Mobile(jc); m != nil {
+			Registry.SetMobile(m)
+		}
+	}
+}
