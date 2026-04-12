@@ -262,6 +262,25 @@ VulpineOS exposes 36 tools via Model Context Protocol:
 
 ---
 
+## Product Surface
+
+Product names are public, while source availability depends on the component:
+
+| Product | Source | Public Description |
+|---------|--------|--------------------|
+| VulpineOS | Open source | Browser-agent runtime, MCP tools, TUI, web panel, and remote server |
+| Foxbridge | Open source | CDP-to-Firefox bridge for OpenClaw, Puppeteer, and CDP clients |
+| Vulpine Mark | Open source | Set-of-Mark screenshots, element labels, and label-based interactions |
+| MobileBridge for Android | Open source | Android device discovery, CDP proxying, gestures, and sessions |
+| Vulpine Vault | Commercial/source-closed | Credential metadata, secure autofill, TOTP, and provider imports |
+| AudioBridge | Commercial/source-closed | Browser audio capture sessions and audio chunk streaming |
+| MobileBridge for iOS | Commercial/source-closed | iOS device discovery, Web Inspector bridging, and mobile sessions |
+| Vulpine API | Commercial/source-closed | Hosted extraction, recurring monitors, browser sessions, account operations, billing, and fleet controls |
+
+Planned commercial product names include Vulpine Sentinel, Vulpine Replay, Vulpine Clockwork, Vulpine Prism, Vulpine Pulse, Vulpine Forge, Vulpine Scribe, Vulpine Harbor, Vulpine Mesh, and Vulpine Oracle. These are public roadmap names; their source code and implementation details remain source-closed unless explicitly stated otherwise.
+
+---
+
 ## Testing
 
 **350+ Go tests** across 36 packages, all passing with race detector enabled.
