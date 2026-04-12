@@ -7,45 +7,47 @@ import (
 
 func TestToolDefinitions(t *testing.T) {
 	toolList := tools()
-	if len(toolList) != 34 {
-		t.Errorf("expected 34 tools, got %d", len(toolList))
+	if len(toolList) != 36 {
+		t.Errorf("expected 36 tools, got %d", len(toolList))
 	}
 
 	expectedNames := map[string]bool{
-		"vulpine_navigate":             false,
-		"vulpine_snapshot":             false,
-		"vulpine_click":                false,
-		"vulpine_type":                 false,
-		"vulpine_screenshot":           false,
-		"vulpine_scroll":               false,
-		"vulpine_new_context":          false,
-		"vulpine_close_context":        false,
-		"vulpine_get_ax_tree":          false,
-		"vulpine_click_ref":            false,
-		"vulpine_type_ref":             false,
-		"vulpine_hover_ref":            false,
-		"vulpine_wait":                 false,
-		"vulpine_find":                 false,
-		"vulpine_verify":               false,
-		"vulpine_screenshot_diff":      false,
-		"vulpine_page_settled":         false,
-		"vulpine_select_option":        false,
-		"vulpine_fill_form":            false,
-		"vulpine_page_info":            false,
-		"vulpine_press_key":            false,
-		"vulpine_clear_input":          false,
-		"vulpine_get_form_errors":      false,
-		"vulpine_annotated_screenshot": false,
-		"vulpine_get_credential":       false,
-		"vulpine_autofill":             false,
-		"vulpine_start_audio_capture":  false,
-		"vulpine_stop_audio_capture":   false,
-		"vulpine_read_audio_chunk":     false,
-		"vulpine_list_mobile_devices":  false,
-		"vulpine_click_label":          false,
-		"vulpine_human_click":          false,
-		"vulpine_human_type":           false,
-		"vulpine_human_scroll":         false,
+		"vulpine_navigate":                 false,
+		"vulpine_snapshot":                 false,
+		"vulpine_click":                    false,
+		"vulpine_type":                     false,
+		"vulpine_screenshot":               false,
+		"vulpine_scroll":                   false,
+		"vulpine_new_context":              false,
+		"vulpine_close_context":            false,
+		"vulpine_get_ax_tree":              false,
+		"vulpine_click_ref":                false,
+		"vulpine_type_ref":                 false,
+		"vulpine_hover_ref":                false,
+		"vulpine_wait":                     false,
+		"vulpine_find":                     false,
+		"vulpine_verify":                   false,
+		"vulpine_screenshot_diff":          false,
+		"vulpine_page_settled":             false,
+		"vulpine_select_option":            false,
+		"vulpine_fill_form":                false,
+		"vulpine_page_info":                false,
+		"vulpine_press_key":                false,
+		"vulpine_clear_input":              false,
+		"vulpine_get_form_errors":          false,
+		"vulpine_annotated_screenshot":     false,
+		"vulpine_get_credential":           false,
+		"vulpine_autofill":                 false,
+		"vulpine_start_audio_capture":      false,
+		"vulpine_stop_audio_capture":       false,
+		"vulpine_read_audio_chunk":         false,
+		"vulpine_list_mobile_devices":      false,
+		"vulpine_connect_mobile_device":    false,
+		"vulpine_disconnect_mobile_device": false,
+		"vulpine_click_label":              false,
+		"vulpine_human_click":              false,
+		"vulpine_human_type":               false,
+		"vulpine_human_scroll":             false,
 	}
 
 	for _, tool := range toolList {
@@ -79,12 +81,12 @@ func TestToolDefinitionsRequiredFields(t *testing.T) {
 
 	// Tools that require sessionId
 	sessionTools := map[string]bool{
-		"vulpine_navigate":   true,
-		"vulpine_snapshot":   true,
-		"vulpine_click":      true,
-		"vulpine_type":       true,
-		"vulpine_screenshot": true,
-		"vulpine_scroll":     true,
+		"vulpine_navigate":    true,
+		"vulpine_snapshot":    true,
+		"vulpine_click":       true,
+		"vulpine_type":        true,
+		"vulpine_screenshot":  true,
+		"vulpine_scroll":      true,
 		"vulpine_get_ax_tree": true,
 	}
 
@@ -203,8 +205,8 @@ func TestToolsListResponse(t *testing.T) {
 	if !ok {
 		t.Fatalf("result is not ToolsListResult, got %T", resp.Result)
 	}
-	if len(result.Tools) != 34 {
-		t.Errorf("expected 34 tools, got %d", len(result.Tools))
+	if len(result.Tools) != 36 {
+		t.Errorf("expected 36 tools, got %d", len(result.Tools))
 	}
 }
 

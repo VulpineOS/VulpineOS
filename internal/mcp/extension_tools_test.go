@@ -100,6 +100,8 @@ func TestExtensionToolsRegistered(t *testing.T) {
 		"vulpine_stop_audio_capture",
 		"vulpine_read_audio_chunk",
 		"vulpine_list_mobile_devices",
+		"vulpine_connect_mobile_device",
+		"vulpine_disconnect_mobile_device",
 		"vulpine_click_label",
 	}
 	got := map[string]bool{}
@@ -238,6 +240,24 @@ func TestListMobileDevicesUnavailable(t *testing.T) {
 	withFakeMobile(t, &extensionstest.FakeMobileBridge{})
 
 	res := runExtTool(t, "vulpine_list_mobile_devices", map[string]interface{}{})
+	assertUnavailable(t, res, "mobile bridge unavailable")
+}
+
+func TestConnectMobileDeviceUnavailable(t *testing.T) {
+	withFakeMobile(t, &extensionstest.FakeMobileBridge{})
+
+	res := runExtTool(t, "vulpine_connect_mobile_device", map[string]interface{}{
+		"udid": "ABC123",
+	})
+	assertUnavailable(t, res, "mobile bridge unavailable")
+}
+
+func TestDisconnectMobileDeviceUnavailable(t *testing.T) {
+	withFakeMobile(t, &extensionstest.FakeMobileBridge{})
+
+	res := runExtTool(t, "vulpine_disconnect_mobile_device", map[string]interface{}{
+		"session_id": "s1",
+	})
 	assertUnavailable(t, res, "mobile bridge unavailable")
 }
 

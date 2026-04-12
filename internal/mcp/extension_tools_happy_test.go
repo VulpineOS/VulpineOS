@@ -237,3 +237,42 @@ func TestListMobileDevicesReturnsList(t *testing.T) {
 		t.Errorf("expected body to contain model, got %q", body)
 	}
 }
+
+func TestConnectMobileDeviceReturnsSession(t *testing.T) {
+	withFakeMobile(t, &extensionstest.FakeMobileBridge{
+		AvailableFlag: true,
+		Session: extensions.MobileSession{
+			ID:          "mobile-session-1",
+			UDID:        "ABC123",
+			CDPEndpoint: "http://127.0.0.1:9222",
+		},
+	})
+	res := runExtTool(t, "vulpine_connect_mobile_device", map[string]interface{}{
+		"udid": "ABC123",
+	})
+	if res.IsError {
+		t.Fatalf("unexpected error: %+v", res)
+	}
+	body := res.Content[0].Text
+	if !strings.Contains(body, "mobile-session-1") || !strings.Contains(body, "http://127.0.0.1:9222") {
+		t.Errorf("expected body to contain session details, got %q", body)
+	}
+}
+
+func TestDisconnectMobileDeviceReturnsOK(t *testing.T) {
+	fake := withFakeMobile(t, &extensionstest.FakeMobileBridge{
+		AvailableFlag: true,
+	})
+	res := runExtTool(t, "vulpine_disconnect_mobile_device", map[string]interface{}{
+		"session_id": "mobile-session-1",
+	})
+	if res.IsError {
+		t.Fatalf("unexpected error: %+v", res)
+	}
+	if got := res.Content[0].Text; got != `{"ok":true}` {
+		t.Fatalf("response = %q", got)
+	}
+	if len(fake.Disconnected) != 1 || fake.Disconnected[0] != "mobile-session-1" {
+		t.Fatalf("disconnected = %+v", fake.Disconnected)
+	}
+}

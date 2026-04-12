@@ -71,6 +71,9 @@ func TestDefaultMobileBridgeUnavailable(t *testing.T) {
 	if _, err := m.Connect(ctx, "udid"); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("Connect: expected ErrUnavailable, got %v", err)
 	}
+	if err := m.Disconnect(ctx, "session"); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("Disconnect: expected ErrUnavailable, got %v", err)
+	}
 }
 
 // TestRegistryConcurrentSetGet runs many goroutines that race on

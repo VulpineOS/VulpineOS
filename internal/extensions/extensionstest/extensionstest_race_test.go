@@ -91,6 +91,7 @@ func TestFakesNoRaceUnderConcurrentSet(t *testing.T) {
 			defer wg.Done()
 			_, _ = mobile.ListDevices(ctx)
 			_, _ = mobile.Connect(ctx, "udid-1")
+			_ = mobile.Disconnect(ctx, "session-1")
 			_ = mobile.Available()
 		}()
 	}

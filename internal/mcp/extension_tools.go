@@ -124,6 +124,28 @@ func extensionTools() []ToolDefinition {
 				Properties: map[string]Property{},
 			},
 		},
+		{
+			Name:        "vulpine_connect_mobile_device",
+			Description: "Start a local CDP bridge to a mobile device. Returns a session ID and CDP endpoint.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"udid": {Type: "string", Description: "Mobile device UDID / adb serial"},
+				},
+				Required: []string{"udid"},
+			},
+		},
+		{
+			Name:        "vulpine_disconnect_mobile_device",
+			Description: "Stop a mobile bridge session created by vulpine_connect_mobile_device.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"session_id": {Type: "string", Description: "Mobile bridge session ID"},
+				},
+				Required: []string{"session_id"},
+			},
+		},
 	}
 }
 
@@ -148,6 +170,10 @@ func handleExtensionTool(ctx context.Context, client *juggler.Client, name strin
 		return handleReadAudioChunk(ctx, args), true
 	case "vulpine_list_mobile_devices":
 		return handleListMobileDevices(ctx, args), true
+	case "vulpine_connect_mobile_device":
+		return handleConnectMobileDevice(ctx, args), true
+	case "vulpine_disconnect_mobile_device":
+		return handleDisconnectMobileDevice(ctx, args), true
 	case "vulpine_click_label":
 		return handleClickLabel(ctx, client, args), true
 	}
@@ -414,4 +440,40 @@ func handleListMobileDevices(ctx context.Context, args json.RawMessage) *ToolCal
 	}
 	b, _ := json.Marshal(devices)
 	return textResult(string(b))
+}
+
+func handleConnectMobileDevice(ctx context.Context, args json.RawMessage) *ToolCallResult {
+	var p struct {
+		UDID string `json:"udid"`
+	}
+	if err := json.Unmarshal(normalizeArgs(args), &p); err != nil {
+		return errorResult(err)
+	}
+	m := extensions.Registry.Mobile()
+	if m == nil || !m.Available() {
+		return errorResult(fmt.Errorf("mobile bridge unavailable"))
+	}
+	session, err := m.Connect(ctx, p.UDID)
+	if err != nil {
+		return errorResult(err)
+	}
+	b, _ := json.Marshal(session)
+	return textResult(string(b))
+}
+
+func handleDisconnectMobileDevice(ctx context.Context, args json.RawMessage) *ToolCallResult {
+	var p struct {
+		SessionID string `json:"session_id"`
+	}
+	if err := json.Unmarshal(normalizeArgs(args), &p); err != nil {
+		return errorResult(err)
+	}
+	m := extensions.Registry.Mobile()
+	if m == nil || !m.Available() {
+		return errorResult(fmt.Errorf("mobile bridge unavailable"))
+	}
+	if err := m.Disconnect(ctx, p.SessionID); err != nil {
+		return errorResult(err)
+	}
+	return textResult(`{"ok":true}`)
 }

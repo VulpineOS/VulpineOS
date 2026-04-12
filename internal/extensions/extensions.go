@@ -11,6 +11,7 @@
 package extensions
 
 import (
+	"context"
 	"encoding/json"
 	"sync"
 )
@@ -25,6 +26,7 @@ import (
 // match, so callers pass it in as-is via InitWithClient.
 type JugglerCallable interface {
 	Call(sessionID, method string, params interface{}) (json.RawMessage, error)
+	CallWithContext(ctx context.Context, sessionID, method string, params interface{}) (json.RawMessage, error)
 }
 
 // registry holds the active provider implementations. Reads and writes

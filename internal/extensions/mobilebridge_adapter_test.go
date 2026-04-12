@@ -51,9 +51,52 @@ func TestMobilebridgeAdapterListDevices(t *testing.T) {
 }
 
 func TestMobilebridgeAdapterConnectUnavailable(t *testing.T) {
+	prevConnect := mbConnectSession
+	t.Cleanup(func() { mbConnectSession = prevConnect })
+
+	mbConnectSession = func(ctx context.Context, udid string) (*MobileSession, mobileSessionCleanup, error) {
+		return nil, nil, ErrUnavailable
+	}
+
 	_, err := mobilebridgeAdapter{}.Connect(context.Background(), "R58N12ABCDE")
 	if !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("Connect error = %v, want ErrUnavailable", err)
+	}
+}
+
+func TestMobilebridgeAdapterConnectDisconnect(t *testing.T) {
+	prevConnect := mbConnectSession
+	t.Cleanup(func() {
+		mbConnectSession = prevConnect
+		mobileSessions.Lock()
+		mobileSessions.cleanup = make(map[string]mobileSessionCleanup)
+		mobileSessions.Unlock()
+	})
+
+	cleaned := false
+	mbConnectSession = func(ctx context.Context, udid string) (*MobileSession, mobileSessionCleanup, error) {
+		return &MobileSession{
+				ID:          "session-1",
+				UDID:        udid,
+				CDPEndpoint: "http://127.0.0.1:9222",
+			}, func() error {
+				cleaned = true
+				return nil
+			}, nil
+	}
+
+	session, err := mobilebridgeAdapter{}.Connect(context.Background(), "R58N12ABCDE")
+	if err != nil {
+		t.Fatalf("Connect: %v", err)
+	}
+	if session.ID != "session-1" || session.UDID != "R58N12ABCDE" || session.CDPEndpoint == "" {
+		t.Fatalf("session = %+v", session)
+	}
+	if err := (mobilebridgeAdapter{}).Disconnect(context.Background(), "session-1"); err != nil {
+		t.Fatalf("Disconnect: %v", err)
+	}
+	if !cleaned {
+		t.Fatal("cleanup was not called")
 	}
 }
 
