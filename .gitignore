@@ -84,3 +84,15 @@ checks-bundle.js
 /openclaw/
 go.work
 go.work.sum
+
+# Agent instructions (local-only, mirrors .claude/CLAUDE.md for codex/other agents)
+/AGENTS.md
+
+# Local sibling checkouts and private overlays
+/mobilebridge/
+/vulpine-*/
+/go.local.mod
+/go.local.sum
+/internal/extensions/build-tagged extension file
+/internal/extensions/local_private_test.go
+/patches/audio capture support.patch

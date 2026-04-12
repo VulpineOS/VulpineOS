@@ -108,11 +108,11 @@ var Registry = &registry{
 	mobile:      defaultMobileBridge,
 }
 
-// privateProviders holds constructors supplied by build-tagged
-// extension files (see build-tagged extension file). The constructors are
-// invoked by InitWithClient once the runtime has a live juggler client
-// to hand out. Public builds leave the struct zero-valued so every
-// entry is nil and InitWithClient becomes a no-op.
+// privateProviders holds constructors supplied by local build-tagged
+// extension files. The constructors are invoked by InitWithClient once
+// the runtime has a live juggler client to hand out. Public builds leave
+// the struct zero-valued so every entry is nil and InitWithClient becomes
+// a no-op.
 var privateProviders = struct {
 	Vault  func(jc JugglerCallable) CredentialProvider
 	Audio  func(jc JugglerCallable) AudioCapturer
@@ -127,7 +127,7 @@ func Init() {
 	InitWithClient(nil)
 }
 
-// InitWithClient wires any registered private provider constructors to
+// InitWithClient wires any registered extension provider constructors to
 // the live juggler client and installs the resulting adapters in the
 // global Registry. The public build leaves privateProviders zero, so
 // each nil-check short-circuits and the Registry keeps its no-op stubs.
