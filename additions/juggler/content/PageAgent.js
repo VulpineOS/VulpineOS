@@ -1108,7 +1108,7 @@ export class PageAgent {
       throw new Error('object not found: ' + objectId);
     const element = unsafeObject;
 
-    // Try C++ secure injection first (requires engine-level secure input support)
+    // Try engine-level secure injection first when the build provides it.
     if (element.secureSetValue) {
       element.secureSetValue(value);
       return { injected: true, method: 'engine' };
@@ -1439,4 +1439,3 @@ export class PageAgent {
     return { elements };
   }
 }
-
