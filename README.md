@@ -61,7 +61,7 @@ VulpineOS builds on Camoufox's battle-tested stealth foundation (Firefox 146.0.1
 │  ├── Telemetry Service (memory, risk score, 2s interval)      │
 │  └── Trust Warming Service (idle-time profile warming)        │
 │                                                              │
-│  Go Runtime (22 packages, 283 tests)                          │
+│  Go Runtime (36 packages, 350+ tests)                         │
 │  ├── Bubbletea TUI (3-column agent workbench)                 │
 │  ├── Web Panel (React SPA, 11 pages, 29 API endpoints)        │
 │  ├── Identity Vault (SQLite — citizens, templates, sessions)  │
@@ -69,7 +69,7 @@ VulpineOS builds on Camoufox's battle-tested stealth foundation (Firefox 146.0.1
 │  ├── Orchestrator (spawn citizens + nomads, auto-release)      │
 │  ├── OpenClaw Manager (31 AI providers, skills, SOP files)     │
 │  ├── Proxy Manager (geo-synced fingerprints, auto-rotation)    │
-│  ├── MCP Server (12 browser tools via stdio)                   │
+│  ├── MCP Server (36 tools via stdio)                           │
 │  ├── Foxbridge CDP Proxy (Puppeteer compatibility)             │
 │  ├── Agent Bus (inter-agent messaging with approval policies)  │
 │  ├── Cost Tracker (per-agent budgets, usage alerts)            │
@@ -248,28 +248,23 @@ vulpineos --remote wss://your-vps:8443/ws --api-key $VULPINE_API_KEY
 
 ## MCP Tools
 
-VulpineOS exposes 12 browser tools via Model Context Protocol:
+VulpineOS exposes 36 tools via Model Context Protocol:
 
 | Tool | Description |
 |------|-------------|
-| `vulpine_snapshot` | Token-optimized DOM with element refs and viewport-only mode |
-| `vulpine_click_ref` | Click element by `@ref` from snapshot |
-| `vulpine_type_ref` | Focus and type into element by `@ref` |
-| `vulpine_hover_ref` | Hover element by `@ref` |
-| `vulpine_navigate` | Navigate to URL |
-| `vulpine_click` | Click at coordinates |
-| `vulpine_type` | Type text into focused element |
-| `vulpine_screenshot` | Capture page screenshot |
-| `vulpine_scroll` | Scroll the page |
-| `vulpine_new_context` | Create isolated browser context |
-| `vulpine_close_context` | Close browser context |
-| `vulpine_get_ax_tree` | Get full accessibility tree (injection-filtered) |
+| Core browser controls | Navigate, snapshot, click, type, screenshot, scroll, context lifecycle, and accessibility-tree access |
+| Ref-based interactions | Click, type, and hover by `@ref` from optimized DOM snapshots |
+| Reliability tools | Wait, find, verify, screenshot diff, page-settled checks, select options, fill forms, page info, key press, clear input, form errors |
+| Human-realism tools | Human-like click, scroll, and type timing |
+| Annotated interaction | Annotated screenshots and click-by-label with `@N` labels |
+| Extension surfaces | Credential metadata/autofill, audio capture, and mobile device bridge tools |
+| Mobile bridge | List Android devices, start a local CDP bridge, and disconnect bridge sessions |
 
 ---
 
 ## Testing
 
-**283 Go tests** across 22 packages, all passing with race detector enabled.
+**350+ Go tests** across 36 packages, all passing with race detector enabled.
 
 ```bash
 go test -race ./...
