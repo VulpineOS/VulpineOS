@@ -1184,18 +1184,20 @@ export class PageAgent {
   // merges this element list into the screenshot response.
   //
   // Returns { elements: [{ label, role, text, x, y, width, height,
-  // objectId, confidence }, ...] }. Scope is limited to the main frame
-  // for now — iframe traversal is deferred.
+  // objectId, confidence, frameId }, ...] }. Walks the main frame
+  // plus every child frame reachable through the FrameTree so that
+  // interactive elements inside iframes show up in the annotation
+  // layer with coordinates translated into the top-level document
+  // coordinate space.
   _getAnnotatedScreenshot({ format, maxElements } = {}) {
     const cap = Number.isFinite(maxElements) && maxElements > 0 ? maxElements : 50;
     const mainFrame = this._frameTree.mainFrame();
-    const domWindow = mainFrame.domWindow();
-    const document = domWindow.document;
-    if (!document) {
+    const mainWindow = mainFrame.domWindow();
+    if (!mainWindow || !mainWindow.document) {
       return { elements: [] };
     }
-    const vw = domWindow.innerWidth;
-    const vh = domWindow.innerHeight;
+    const topVw = mainWindow.innerWidth;
+    const topVh = mainWindow.innerHeight;
 
     const SELECTOR = [
       'a[href]',
@@ -1215,58 +1217,26 @@ export class PageAgent {
       '[onclick]',
     ].join(',');
 
-    function isVisible(el, rect, style) {
-      if (rect.width < 4 || rect.height < 4) return false;
-      if (style.display === 'none') return false;
-      if (style.visibility === 'hidden' || style.visibility === 'collapse') return false;
-      if (parseFloat(style.opacity || '1') < 0.05) return false;
-      if (rect.bottom < 0 || rect.right < 0) return false;
-      if (rect.left > vw || rect.top > vh) return false;
-      if (el.getAttribute && el.getAttribute('aria-hidden') === 'true') return false;
-      return true;
-    }
-
-    function isOccluded(el, rect) {
-      const cx = rect.left + rect.width / 2;
-      const cy = rect.top + rect.height / 2;
-      if (cx < 0 || cy < 0 || cx > vw || cy > vh) return false;
-      let hit = null;
-      try { hit = document.elementFromPoint(cx, cy); } catch (e) { return false; }
-      if (!hit) return false;
-      if (hit === el) return false;
-      if (el.contains && el.contains(hit)) return false;
-      if (hit.contains && hit.contains(el)) return false;
-      return true;
-    }
-
-    function isInClippedOverflow(el, rect) {
-      let p = el.parentElement;
-      while (p) {
-        const ps = domWindow.getComputedStyle(p);
-        const ov = (ps.overflow || '') + (ps.overflowX || '') + (ps.overflowY || '');
-        if (/hidden|clip|scroll|auto/.test(ov)) {
-          const pr = p.getBoundingClientRect();
-          const cx = rect.left + rect.width / 2;
-          const cy = rect.top + rect.height / 2;
-          if (cx < pr.left || cx > pr.right || cy < pr.top || cy > pr.bottom) {
-            return true;
-          }
-        }
-        p = p.parentElement;
+    // Compute the (dx, dy) offset of a frame's local coordinate space
+    // into the main frame's coordinate space by walking up through
+    // frameElement ancestors. Returns null if any ancestor is cross
+    // origin in a way that blocks access to frameElement — in which
+    // case the frame is skipped.
+    function frameOffset(frameWindow) {
+      let dx = 0;
+      let dy = 0;
+      let w = frameWindow;
+      while (w && w !== mainWindow) {
+        let frameEl;
+        try { frameEl = w.frameElement; } catch (e) { return null; }
+        if (!frameEl) return null;
+        let r;
+        try { r = frameEl.getBoundingClientRect(); } catch (e) { return null; }
+        dx += r.left;
+        dy += r.top;
+        try { w = frameEl.ownerDocument.defaultView.parent; } catch (e) { return null; }
       }
-      return false;
-    }
-
-    function confidenceFor(el, rect, hasName, occluded, clipped) {
-      let s = 0;
-      if (hasName) s += 0.3;
-      if (el.getAttribute && el.getAttribute('aria-label')) s += 0.2;
-      if (rect.width * rect.height > 100) s += 0.2;
-      if (!occluded) s += 0.2;
-      if (!clipped) s += 0.1;
-      if (s > 1) s = 1;
-      if (s < 0) s = 0;
-      return s;
+      return { dx, dy };
     }
 
     function classify(el) {
@@ -1287,12 +1257,12 @@ export class PageAgent {
       return { tag, role: tag };
     }
 
-    function nameOf(el) {
+    function nameOf(el, doc) {
       const aria = el.getAttribute && el.getAttribute('aria-label');
       if (aria) return aria.trim();
       const labelledBy = el.getAttribute && el.getAttribute('aria-labelledby');
       if (labelledBy) {
-        const ref = document.getElementById(labelledBy);
+        const ref = doc.getElementById(labelledBy);
         if (ref && ref.textContent) return ref.textContent.trim();
       }
       if (el.placeholder) return el.placeholder.trim();
@@ -1303,63 +1273,167 @@ export class PageAgent {
       return text;
     }
 
-    const executionContext = mainFrame.mainExecutionContext();
-    const elements = [];
-    let candidates;
-    try {
-      candidates = document.querySelectorAll(SELECTOR);
-    } catch (e) {
-      return { elements: [] };
+    // enumerateFrame collects candidate interactive elements from a
+    // single frame. The offset dx/dy is added to every rect so the
+    // returned coordinates live in the top-level document space. The
+    // frame's local viewport is used for the visibility checks so
+    // iframe-local off-screen elements are still culled even if the
+    // iframe itself happens to be onscreen in the top document.
+    const enumerateFrame = (frame, { dx, dy }) => {
+      const out = [];
+      const win = frame.domWindow();
+      if (!win) return out;
+      const doc = win.document;
+      if (!doc) return out;
+      const vw = win.innerWidth;
+      const vh = win.innerHeight;
+
+      const isVisible = (el, rect, style) => {
+        if (rect.width < 4 || rect.height < 4) return false;
+        if (style.display === 'none') return false;
+        if (style.visibility === 'hidden' || style.visibility === 'collapse') return false;
+        if (parseFloat(style.opacity || '1') < 0.05) return false;
+        if (rect.bottom < 0 || rect.right < 0) return false;
+        if (rect.left > vw || rect.top > vh) return false;
+        if (el.getAttribute && el.getAttribute('aria-hidden') === 'true') return false;
+        return true;
+      };
+
+      const isOccluded = (el, rect) => {
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        if (cx < 0 || cy < 0 || cx > vw || cy > vh) return false;
+        let hit = null;
+        try { hit = doc.elementFromPoint(cx, cy); } catch (e) { return false; }
+        if (!hit) return false;
+        if (hit === el) return false;
+        if (el.contains && el.contains(hit)) return false;
+        if (hit.contains && hit.contains(el)) return false;
+        return true;
+      };
+
+      const isInClippedOverflow = (el, rect) => {
+        let p = el.parentElement;
+        while (p) {
+          const ps = win.getComputedStyle(p);
+          const ov = (ps.overflow || '') + (ps.overflowX || '') + (ps.overflowY || '');
+          if (/hidden|clip|scroll|auto/.test(ov)) {
+            const pr = p.getBoundingClientRect();
+            const cx = rect.left + rect.width / 2;
+            const cy = rect.top + rect.height / 2;
+            if (cx < pr.left || cx > pr.right || cy < pr.top || cy > pr.bottom) {
+              return true;
+            }
+          }
+          p = p.parentElement;
+        }
+        return false;
+      };
+
+      const confidenceFor = (el, rect, hasName, occluded, clipped) => {
+        let s = 0;
+        if (hasName) s += 0.3;
+        if (el.getAttribute && el.getAttribute('aria-label')) s += 0.2;
+        if (rect.width * rect.height > 100) s += 0.2;
+        if (!occluded) s += 0.2;
+        if (!clipped) s += 0.1;
+        if (s > 1) s = 1;
+        if (s < 0) s = 0;
+        return s;
+      };
+
+      let candidates;
+      try {
+        candidates = doc.querySelectorAll(SELECTOR);
+      } catch (e) {
+        return out;
+      }
+
+      let executionContext;
+      try {
+        executionContext = frame.mainExecutionContext();
+      } catch (e) {
+        return out;
+      }
+      if (!executionContext) return out;
+
+      const seen = new Set();
+      for (const el of candidates) {
+        if (seen.has(el)) continue;
+        seen.add(el);
+        let rect, style;
+        try {
+          rect = el.getBoundingClientRect();
+          style = win.getComputedStyle(el);
+        } catch (e) {
+          continue;
+        }
+        if (!isVisible(el, rect, style)) continue;
+        const occluded = isOccluded(el, rect);
+        if (occluded) continue;
+        const { tag, role } = classify(el);
+        let text = nameOf(el, doc);
+        if (text.length > 80) text = text.slice(0, 77) + '...';
+        const clipped = isInClippedOverflow(el, rect);
+        const conf = confidenceFor(el, rect, text.length > 0, occluded, clipped);
+
+        // Create a durable handle: rawValueToRemoteObject stores the
+        // element in the execution context's remote-object table and
+        // returns an objectId that Page.click({objectId}) will accept
+        // for the lifetime of the frame.
+        let objectId = '';
+        try {
+          const remote = executionContext.rawValueToRemoteObject(el);
+          if (remote && remote.objectId) objectId = remote.objectId;
+        } catch (e) {
+          continue;
+        }
+        if (!objectId) continue;
+
+        out.push({
+          role,
+          tag,
+          text,
+          x: rect.left + dx,
+          y: rect.top + dy,
+          width: rect.width,
+          height: rect.height,
+          objectId,
+          confidence: conf,
+          frameId: frame.id(),
+        });
+      }
+      return out;
+    };
+
+    const elements = enumerateFrame(mainFrame, { dx: 0, dy: 0 });
+
+    // Walk every non-main frame tracked by the FrameTree. For each
+    // frame, compute its offset relative to the top document so the
+    // per-frame local rects can be translated into page coordinates
+    // that match the screenshot the browser process is about to
+    // capture. Cross-origin frames whose frameElement is blocked by
+    // same-origin policy are silently skipped.
+    for (const frame of this._frameTree.frames()) {
+      if (elements.length >= cap) break;
+      if (frame === mainFrame) continue;
+      const win = frame.domWindow();
+      if (!win) continue;
+      const offset = frameOffset(win);
+      if (!offset) continue;
+      // Cull frames entirely off-screen in the top viewport.
+      if (offset.dx > topVw || offset.dy > topVh) continue;
+      const frameElements = enumerateFrame(frame, offset);
+      for (const e of frameElements) {
+        if (elements.length >= cap) break;
+        elements.push(e);
+      }
     }
 
-    const seen = new Set();
-    let idx = 0;
-    for (const el of candidates) {
-      if (elements.length >= cap) break;
-      if (seen.has(el)) continue;
-      seen.add(el);
-      let rect, style;
-      try {
-        rect = el.getBoundingClientRect();
-        style = domWindow.getComputedStyle(el);
-      } catch (e) {
-        continue;
-      }
-      if (!isVisible(el, rect, style)) continue;
-      const occluded = isOccluded(el, rect);
-      if (occluded) continue;
-      const { tag, role } = classify(el);
-      let text = nameOf(el);
-      if (text.length > 80) text = text.slice(0, 77) + '...';
-      const clipped = isInClippedOverflow(el, rect);
-      const conf = confidenceFor(el, rect, text.length > 0, occluded, clipped);
-
-      // Create a durable handle: rawValueToRemoteObject stores the
-      // element in the execution context's remote-object table and
-      // returns an objectId that Page.click({objectId}) will accept
-      // for the lifetime of the frame.
-      let objectId = '';
-      try {
-        const remote = executionContext.rawValueToRemoteObject(el);
-        if (remote && remote.objectId) objectId = remote.objectId;
-      } catch (e) {
-        continue;
-      }
-      if (!objectId) continue;
-
-      idx += 1;
-      elements.push({
-        label: '@' + idx,
-        role,
-        tag,
-        text,
-        x: rect.left,
-        y: rect.top,
-        width: rect.width,
-        height: rect.height,
-        objectId,
-        confidence: conf,
-      });
+    // Assign @N labels after all frames have been collected so the
+    // numbering is stable across the merged main-frame + iframe set.
+    for (let i = 0; i < elements.length; i++) {
+      elements[i].label = '@' + (i + 1);
     }
 
     return { elements };
