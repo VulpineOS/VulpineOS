@@ -139,6 +139,7 @@ func runMCPServer(binaryPath string, headless bool, profileDir string) error {
 	defer k.Stop()
 
 	client := k.Client()
+	extensions.InitWithClient(client)
 
 	// Start embedded foxbridge CDP server FIRST — its Browser.enable
 	// call sets up event subscriptions needed by both foxbridge and MCP.
@@ -317,6 +318,10 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 	app := tui.NewApp(k, client, orch, v, cfg)
 
 	if client != nil {
+		// Wire the live juggler client into any build-tagged extension
+		// providers. On the default public build this is a no-op
+		// because privateProviders is zero-valued.
+		extensions.InitWithClient(client)
 		if _, err := client.Call("", "Browser.enable", map[string]interface{}{
 			"attachToDefaultContext": true,
 		}); err != nil {
@@ -341,6 +346,7 @@ func runRemote(addr string, apiKey string) error {
 	client := juggler.NewClient(rc)
 	defer client.Close()
 
+	extensions.InitWithClient(client)
 	if _, err := client.Call("", "Browser.enable", map[string]interface{}{
 		"attachToDefaultContext": true,
 	}); err != nil {
@@ -373,6 +379,7 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 	defer k.Stop()
 
 	client := k.Client()
+	extensions.InitWithClient(client)
 	if _, err := client.Call("", "Browser.enable", map[string]interface{}{
 		"attachToDefaultContext": true,
 	}); err != nil {
