@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 
+	"vulpineos/internal/extensions/extensionstest"
 	"vulpineos/internal/juggler"
 )
 
@@ -152,6 +153,8 @@ func assertUnavailable(t *testing.T, res *ToolCallResult, wantSubstr string) {
 // "unavailable" path (which is what the default stub providers
 // return) rather than reporting a parse error up the JSON-RPC stack.
 func TestExtensionTools_NilArgsAccepted(t *testing.T) {
+	withFakeMobile(t, &extensionstest.FakeMobileBridge{})
+
 	type kase struct {
 		name      string
 		args      json.RawMessage
@@ -232,6 +235,8 @@ func TestReadAudioChunkUnavailable(t *testing.T) {
 }
 
 func TestListMobileDevicesUnavailable(t *testing.T) {
+	withFakeMobile(t, &extensionstest.FakeMobileBridge{})
+
 	res := runExtTool(t, "vulpine_list_mobile_devices", map[string]interface{}{})
 	assertUnavailable(t, res, "mobile bridge unavailable")
 }

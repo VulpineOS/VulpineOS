@@ -59,7 +59,7 @@ func TestDefaultAudioCapturerUnavailable(t *testing.T) {
 }
 
 func TestDefaultMobileBridgeUnavailable(t *testing.T) {
-	m := Registry.Mobile()
+	m := defaultMobileBridge
 	if m.Available() {
 		t.Fatal("default MobileBridge should report Available() == false")
 	}
