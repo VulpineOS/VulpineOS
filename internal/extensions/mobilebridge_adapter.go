@@ -95,44 +95,23 @@ func init() {
 }
 
 func startMobilebridgeSession(ctx context.Context, udid string) (*MobileSession, mobileSessionCleanup, error) {
-	adbPort, err := freeTCPPort()
-	if err != nil {
-		return nil, nil, err
-	}
 	serverPort, err := freeTCPPort()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	proxy, err := mb.NewProxy(ctx, udid, adbPort)
-	if err != nil {
-		return nil, nil, err
-	}
 	serverAddr := fmt.Sprintf("127.0.0.1:%d", serverPort)
-	server := mb.NewServer(udid, serverAddr)
-	if err := server.Start(); err != nil {
-		_ = proxy.Close()
-		return nil, nil, err
-	}
-	if err := server.RunWithProxy(proxy); err != nil {
-		_ = server.Stop()
-		_ = proxy.Close()
+	session, err := mb.StartAttachedServer(ctx, udid, serverAddr)
+	if err != nil {
 		return nil, nil, err
 	}
 
 	cleanup := func() error {
-		var err error
-		if serverErr := server.Stop(); serverErr != nil {
-			err = serverErr
-		}
-		if proxyErr := proxy.Close(); proxyErr != nil && err == nil {
-			err = proxyErr
-		}
-		return err
+		return session.Close()
 	}
 	return &MobileSession{
 		UDID:        udid,
-		CDPEndpoint: "http://" + serverAddr,
+		CDPEndpoint: session.Endpoint,
 	}, cleanup, nil
 }
 
