@@ -93,6 +93,5 @@ go.work.sum
 /vulpine-*/
 /go.local.mod
 /go.local.sum
-/internal/extensions/build-tagged extension file
-/internal/extensions/local_private_test.go
-/patches/audio capture support.patch
+/internal/extensions/local_*.go
+/patches/local_*.patch
