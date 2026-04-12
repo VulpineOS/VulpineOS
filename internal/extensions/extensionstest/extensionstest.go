@@ -206,6 +206,7 @@ type FakeMobileBridge struct {
 	AvailableFlag bool
 	Devices       []extensions.MobileDevice
 	Session       extensions.MobileSession
+	Disconnected  []string
 }
 
 // SetAvailable toggles AvailableFlag under the write lock.
@@ -244,6 +245,14 @@ func (f *FakeMobileBridge) Connect(ctx context.Context, udid string) (*extension
 	defer f.mu.RUnlock()
 	s := f.Session
 	return &s, nil
+}
+
+// Disconnect records the closed session ID.
+func (f *FakeMobileBridge) Disconnect(ctx context.Context, sessionID string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.Disconnected = append(f.Disconnected, sessionID)
+	return nil
 }
 
 // Available reports AvailableFlag.

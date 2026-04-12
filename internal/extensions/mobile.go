@@ -9,6 +9,7 @@ import "context"
 type MobileBridge interface {
 	ListDevices(ctx context.Context) ([]MobileDevice, error)
 	Connect(ctx context.Context, udid string) (*MobileSession, error)
+	Disconnect(ctx context.Context, sessionID string) error
 	Available() bool
 }
 
@@ -23,6 +24,7 @@ type MobileDevice struct {
 // MobileSession is the result of connecting to a device: an identifier
 // plus a remote debugging endpoint callers can dial.
 type MobileSession struct {
+	ID          string
 	UDID        string
 	CDPEndpoint string
 }
@@ -39,6 +41,10 @@ func (noopMobileBridge) ListDevices(ctx context.Context) ([]MobileDevice, error)
 
 func (noopMobileBridge) Connect(ctx context.Context, udid string) (*MobileSession, error) {
 	return nil, ErrUnavailable
+}
+
+func (noopMobileBridge) Disconnect(ctx context.Context, sessionID string) error {
+	return ErrUnavailable
 }
 
 func (noopMobileBridge) Available() bool { return false }

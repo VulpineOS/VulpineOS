@@ -3,6 +3,7 @@
 package extensions
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 )
@@ -37,5 +38,9 @@ func TestLocalProviders_ZeroOnPublicBuild(t *testing.T) {
 type stubJugglerCallable struct{}
 
 func (stubJugglerCallable) Call(sessionID, method string, params interface{}) (json.RawMessage, error) {
+	return nil, nil
+}
+
+func (stubJugglerCallable) CallWithContext(ctx context.Context, sessionID, method string, params interface{}) (json.RawMessage, error) {
 	return nil, nil
 }
