@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 
@@ -34,25 +35,66 @@ import (
 	"vulpineos/internal/webhooks"
 )
 
+// Version is the VulpineOS build version string reported by --version.
+// It is overridable via -ldflags "-X main.Version=..." at build time.
+var Version = "dev"
+
+// stdout and stderr are indirections so that Run can be driven from a
+// test with a captured buffer. Production code uses the package-level
+// os.Stdout/os.Stderr by default.
+var (
+	stdout io.Writer = os.Stdout
+	stderr io.Writer = os.Stderr
+)
+
 func main() {
+	os.Exit(Run(os.Args))
+}
+
+// Run is the wrapper-friendly entrypoint for the VulpineOS CLI. It
+// parses the given argv (including the program name in args[0]) and
+// returns a process exit code: 0 for success, non-zero for error.
+//
+// This signature exists so that alternate front-end binaries (for
+// example a private build that wants to share the same flag parsing)
+// can delegate to Run directly instead of re-implementing main.
+func Run(args []string) int {
+	fs := flag.NewFlagSet("vulpineos", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+
 	var (
-		binaryPath = flag.String("binary", "", "Path to VulpineOS/Camoufox binary")
-		headless   = flag.Bool("headless", false, "Run in headless mode")
-		profileDir = flag.String("profile", "", "Firefox profile directory")
-		remoteAddr = flag.String("remote", "", "Connect to remote VulpineOS (wss://host:port/ws)")
-		serve      = flag.Bool("serve", false, "Run as remote-accessible server")
-		port       = flag.Int("port", 8443, "Server port (with --serve)")
-		apiKey     = flag.String("api-key", "", "API key for remote authentication")
-		tlsCert    = flag.String("tls-cert", "", "TLS certificate file (with --serve)")
-		tlsKey     = flag.String("tls-key", "", "TLS key file (with --serve)")
-		noTLS      = flag.Bool("no-tls", false, "Disable TLS (plain ws:// instead of wss://)")
-		noBrowser  = flag.Bool("no-browser", false, "Start TUI without launching browser (demo mode)")
-		mcpServer  = flag.Bool("mcp-server", false, "Run as MCP stdio server (used by OpenClaw)")
-		mcpConnect = flag.String("mcp-connect", "", "WebSocket URL to connect MCP server to remote kernel")
+		binaryPath = fs.String("binary", "", "Path to VulpineOS/Camoufox binary")
+		headless   = fs.Bool("headless", false, "Run in headless mode")
+		profileDir = fs.String("profile", "", "Firefox profile directory")
+		remoteAddr = fs.String("remote", "", "Connect to remote VulpineOS (wss://host:port/ws)")
+		serve      = fs.Bool("serve", false, "Run as remote-accessible server")
+		port       = fs.Int("port", 8443, "Server port (with --serve)")
+		apiKey     = fs.String("api-key", "", "API key for remote authentication")
+		tlsCert    = fs.String("tls-cert", "", "TLS certificate file (with --serve)")
+		tlsKey     = fs.String("tls-key", "", "TLS key file (with --serve)")
+		noTLS      = fs.Bool("no-tls", false, "Disable TLS (plain ws:// instead of wss://)")
+		noBrowser  = fs.Bool("no-browser", false, "Start TUI without launching browser (demo mode)")
+		mcpServer  = fs.Bool("mcp-server", false, "Run as MCP stdio server (used by OpenClaw)")
+		mcpConnect = fs.String("mcp-connect", "", "WebSocket URL to connect MCP server to remote kernel")
 		_          = mcpConnect // M4 remote MCP — future use
-		listExt    = flag.Bool("list-extensions", false, "Print the status of optional extension providers and exit")
+		listExt    = fs.Bool("list-extensions", false, "Print the status of optional extension providers and exit")
+		showVer    = fs.Bool("version", false, "Print version and exit")
 	)
-	flag.Parse()
+
+	// args[0] is the program name; pass the rest to Parse.
+	var parseArgs []string
+	if len(args) > 1 {
+		parseArgs = args[1:]
+	}
+	if err := fs.Parse(parseArgs); err != nil {
+		// ContinueOnError means Parse already printed to stderr.
+		return 2
+	}
+
+	if *showVer {
+		fmt.Fprintf(stdout, "vulpineos %s\n", Version)
+		return 0
+	}
 
 	// Initialize the extension registry. On the public build this is a
 	// no-op; alternate builds may register providers via build-tagged
@@ -60,8 +102,8 @@ func main() {
 	extensions.Init()
 
 	if *listExt {
-		printExtensionStatus(os.Stdout)
-		return
+		printExtensionStatus(stdout)
+		return 0
 	}
 
 	var err error
@@ -77,9 +119,10 @@ func main() {
 	}
 
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
+		fmt.Fprintf(stderr, "error: %v\n", err)
+		return 1
 	}
+	return 0
 }
 
 // runMCPServer runs as an MCP stdio server for OpenClaw integration.
