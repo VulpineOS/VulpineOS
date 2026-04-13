@@ -76,6 +76,12 @@ type Agent struct {
 	RestartCount   int               // number of automatic restarts after crashes
 	binary         string            // binary path used to start this agent
 	args           []string          // args used to start this agent
+	waitState      *agentWaitState
+}
+
+type agentWaitState struct {
+	once sync.Once
+	err  error
 }
 
 // newAgent creates a new agent instance (not yet started).
@@ -103,6 +109,7 @@ func (a *Agent) start(binary string, args []string) error {
 	a.args = make([]string, len(args))
 	copy(a.args, args)
 	a.cmd = exec.Command(binary, args...)
+	a.waitState = &agentWaitState{}
 
 	// Apply extra environment variables (e.g. OPENCLAW_CONFIG_PATH)
 	if len(a.env) > 0 {
@@ -209,7 +216,7 @@ func (a *Agent) start(binary string, args []string) error {
 		}
 
 		// Wait for the process to exit so we can inspect the exit code
-		waitErr := a.cmd.Wait()
+		waitErr := a.waitProcess()
 
 		a.mu.Lock()
 		if a.status.Status != "completed" && a.status.Status != "error" {
@@ -378,8 +385,9 @@ func (a *Agent) Stop() error {
 
 	if cmd != nil && cmd.Process != nil {
 		cmd.Process.Kill()
-		// Reap the zombie process; ignore error since Kill causes a non-zero exit.
-		cmd.Wait()
+		// Reap the process through the shared wait path so Stop and the stdout
+		// reader goroutine do not race on exec.Cmd.Wait.
+		a.waitProcess()
 	}
 
 	if pipe != nil {
@@ -396,6 +404,22 @@ func (a *Agent) Stop() error {
 // Wait blocks until the agent exits.
 func (a *Agent) Wait() {
 	<-a.doneCh
+}
+
+func (a *Agent) waitProcess() error {
+	a.mu.Lock()
+	cmd := a.cmd
+	state := a.waitState
+	a.mu.Unlock()
+
+	if cmd == nil || state == nil {
+		return nil
+	}
+
+	state.once.Do(func() {
+		state.err = cmd.Wait()
+	})
+	return state.err
 }
 
 // ExitCode returns the process exit code, or -1 if still running or not started.

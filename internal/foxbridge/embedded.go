@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 
 	"vulpineos/internal/juggler"
 
@@ -60,6 +61,32 @@ func StartEmbedded(client *juggler.Client, port int) (*EmbeddedServer, error) {
 	// Wrap VulpineOS's juggler client as a foxbridge backend.
 	be := &jugglerAdapter{client: client}
 
+	return startEmbeddedWithBackend(be, port, true)
+}
+
+// StartEmbeddedScoped creates an embedded foxbridge server limited to a single browser context.
+// The server only exposes targets and events for browserContextId and forces new pages into it.
+func StartEmbeddedScoped(client *juggler.Client, port int, browserContextID string) (*EmbeddedServer, error) {
+	if client == nil {
+		return nil, fmt.Errorf("juggler client is nil")
+	}
+	if browserContextID == "" {
+		return nil, fmt.Errorf("browser context id is required")
+	}
+	if port == 0 {
+		var err error
+		port, err = reservePort()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	be := newScopedBackend(client, browserContextID)
+	return startEmbeddedWithBackend(be, port, false)
+}
+
+func startEmbeddedWithBackend(be backend.Backend, port int, attachToDefaultContext bool) (*EmbeddedServer, error) {
+
 	// Create CDP session manager and server (same wiring as foxbridge main.go).
 	sessions := cdp.NewSessionManager()
 
@@ -76,7 +103,7 @@ func StartEmbedded(client *juggler.Client, port int) (*EmbeddedServer, error) {
 	// However, foxbridge needs its own Browser.enable to receive attachedToTarget events
 	// through the bridge's event subscriptions.
 	enableParams, _ := json.Marshal(map[string]interface{}{
-		"attachToDefaultContext": true,
+		"attachToDefaultContext": attachToDefaultContext,
 	})
 	if _, err := be.Call("", "Browser.enable", enableParams); err != nil {
 		return nil, fmt.Errorf("Browser.enable via embedded foxbridge: %w", err)
@@ -100,6 +127,20 @@ func StartEmbedded(client *juggler.Client, port int) (*EmbeddedServer, error) {
 
 	log.Printf("embedded foxbridge CDP server listening on 127.0.0.1:%d", port)
 	return es, nil
+}
+
+func reservePort() (int, error) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return 0, fmt.Errorf("reserve foxbridge port: %w", err)
+	}
+	defer listener.Close()
+
+	addr, ok := listener.Addr().(*net.TCPAddr)
+	if !ok {
+		return 0, fmt.Errorf("reserve foxbridge port: unexpected address type %T", listener.Addr())
+	}
+	return addr.Port, nil
 }
 
 // CDPURL returns the CDP WebSocket URL for connecting clients (e.g., OpenClaw).

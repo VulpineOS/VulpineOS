@@ -2,6 +2,10 @@ package internal
 
 import (
 	"encoding/json"
+	"fmt"
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +14,7 @@ import (
 	"time"
 
 	"vulpineos/internal/config"
+	"vulpineos/internal/foxbridge"
 	"vulpineos/internal/juggler"
 	"vulpineos/internal/kernel"
 	"vulpineos/internal/mcp"
@@ -699,6 +704,95 @@ func TestIntegration_AgentSessionPersists(t *testing.T) {
 		t.Fatalf("second SpawnWithSession failed: %v", err)
 	}
 	waitForAssistantContains(t, mgr.ConversationChan(), agentID, "TOKEN:ALPHA42", 90*time.Second)
+}
+
+func TestIntegration_AgentBrowserUsesScopedContext(t *testing.T) {
+	mgr := openclaw.NewManager("")
+	if !mgr.OpenClawInstalled() {
+		t.Skip("OpenClaw not installed")
+	}
+
+	cfg, err := config.Load()
+	if err != nil || !cfg.SetupComplete {
+		t.Skip("VulpineOS not configured — run setup wizard first")
+	}
+	if err := cfg.GenerateOpenClawConfig("", cfg.BinaryPath); err != nil {
+		t.Fatalf("GenerateOpenClawConfig: %v", err)
+	}
+
+	k, client := startKernel(t)
+	defer k.Stop()
+
+	result, err := client.Call("", "Browser.createBrowserContext", mustJSON(map[string]interface{}{
+		"removeOnDetach": true,
+	}))
+	if err != nil {
+		t.Fatalf("Browser.createBrowserContext failed: %v", err)
+	}
+
+	var ctx struct {
+		BrowserContextID string `json:"browserContextId"`
+	}
+	if err := json.Unmarshal(result, &ctx); err != nil {
+		t.Fatalf("unmarshal Browser.createBrowserContext result: %v", err)
+	}
+	if ctx.BrowserContextID == "" {
+		t.Fatal("Browser.createBrowserContext returned empty browserContextId")
+	}
+
+	token := fmt.Sprintf("scoped-%d", time.Now().UnixNano())
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		value := "MISSING"
+		if cookie, err := r.Cookie("vulpine_scope"); err == nil && cookie.Value != "" {
+			value = cookie.Value
+		}
+		fmt.Fprintf(w, "<html><head><title>%s</title></head><body>COOKIE:%s</body></html>", token, value)
+	}))
+	server.Listener = listener
+	server.Start()
+	defer server.Close()
+
+	_, err = client.Call("", "Browser.setCookies", mustJSON(map[string]interface{}{
+		"browserContextId": ctx.BrowserContextID,
+		"cookies": []map[string]interface{}{
+			{
+				"name":   "vulpine_scope",
+				"value":  token,
+				"domain": "127.0.0.1",
+				"path":   "/",
+			},
+		},
+	}))
+	if err != nil {
+		t.Fatalf("Browser.setCookies failed: %v", err)
+	}
+
+	scopedFoxbridge, err := foxbridge.StartEmbeddedScoped(client, 0, ctx.BrowserContextID)
+	if err != nil {
+		t.Fatalf("StartEmbeddedScoped failed: %v", err)
+	}
+	defer scopedFoxbridge.Stop()
+
+	scopedConfig, cleanupConfig, err := openclaw.PrepareScopedConfig(config.OpenClawConfigPath(), scopedFoxbridge.CDPURL())
+	if err != nil {
+		t.Fatalf("PrepareScopedConfig failed: %v", err)
+	}
+	defer cleanupConfig()
+
+	agentID := "test-browser-scope"
+	sessionName := "vulpine-test-browser-scope"
+	task := fmt.Sprintf("Use the browser to open %s and reply exactly COOKIE:%s. Do not explain.", server.URL, token)
+
+	_, err = mgr.SpawnWithSession(agentID, task, sessionName, scopedConfig)
+	if err != nil {
+		t.Fatalf("SpawnWithSession failed: %v", err)
+	}
+
+	waitForAssistantContains(t, mgr.ConversationChan(), agentID, "COOKIE:"+token, 120*time.Second)
 }
 
 func waitForAssistantContains(t *testing.T, convCh <-chan openclaw.ConversationMsg, agentID, want string, timeout time.Duration) {

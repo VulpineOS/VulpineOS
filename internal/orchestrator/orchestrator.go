@@ -7,7 +7,9 @@ import (
 	"sync"
 
 	"vulpineos/internal/agentbus"
+	"vulpineos/internal/config"
 	"vulpineos/internal/costtrack"
+	"vulpineos/internal/foxbridge"
 	"vulpineos/internal/juggler"
 	"vulpineos/internal/kernel"
 	"vulpineos/internal/openclaw"
@@ -42,11 +44,11 @@ type AgentResult struct {
 
 // Orchestrator ties together kernel, pool, vault, and OpenClaw manager.
 type Orchestrator struct {
-	Kernel  *kernel.Kernel
-	Client  *juggler.Client
-	Pool    *pool.Pool
-	Vault   *vault.DB
-	Agents  *openclaw.Manager
+	Kernel *kernel.Kernel
+	Client *juggler.Client
+	Pool   *pool.Pool
+	Vault  *vault.DB
+	Agents *openclaw.Manager
 
 	// Optional subsystems (nil-safe)
 	AgentBus        *agentbus.Bus
@@ -134,7 +136,7 @@ func (o *Orchestrator) SpawnCitizen(citizenID, templateID string) (string, error
 		return "", fmt.Errorf("write SOP: %w", err)
 	}
 
-	agentID, err := o.Agents.Spawn(slot.ContextID, sopFile)
+	agentID, err := o.spawnScopedAgent(slot.ContextID, sopFile)
 	if err != nil {
 		openclaw.CleanupSOP(sopFile)
 		o.Pool.Release(slot)
@@ -188,7 +190,7 @@ func (o *Orchestrator) SpawnNomad(templateID string) (string, error) {
 		return "", fmt.Errorf("write SOP: %w", err)
 	}
 
-	agentID, err := o.Agents.Spawn(slot.ContextID, sopFile)
+	agentID, err := o.spawnScopedAgent(slot.ContextID, sopFile)
 	if err != nil {
 		openclaw.CleanupSOP(sopFile)
 		o.Pool.Release(slot)
@@ -407,4 +409,30 @@ func (o *Orchestrator) statusRelay() {
 			}
 		}
 	}
+}
+
+func (o *Orchestrator) spawnScopedAgent(contextID, sopFile string) (string, error) {
+	scopedFoxbridge, err := foxbridge.StartEmbeddedScoped(o.Client, 0, contextID)
+	if err != nil {
+		return "", fmt.Errorf("start scoped foxbridge: %w", err)
+	}
+
+	scopedConfig, cleanupConfig, err := openclaw.PrepareScopedConfig(config.OpenClawConfigPath(), scopedFoxbridge.CDPURL())
+	if err != nil {
+		scopedFoxbridge.Stop()
+		return "", fmt.Errorf("prepare scoped OpenClaw config: %w", err)
+	}
+
+	cleanup := func() {
+		cleanupConfig()
+		scopedFoxbridge.Stop()
+	}
+
+	agentID, err := o.Agents.SpawnIsolated(contextID, sopFile, scopedConfig, cleanup)
+	if err != nil {
+		cleanup()
+		return "", err
+	}
+
+	return agentID, nil
 }

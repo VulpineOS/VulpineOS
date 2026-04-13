@@ -17,11 +17,16 @@ import (
 
 // Manager manages multiple OpenClaw agent subprocesses.
 type Manager struct {
-	agents         map[string]*Agent
+	agents         map[string]*managedAgent
 	statusCh       chan AgentStatus
 	conversationCh chan ConversationMsg
 	mu             sync.RWMutex
 	binary         string
+}
+
+type managedAgent struct {
+	agent   *Agent
+	cleanup func()
 }
 
 // NewManager creates a new agent manager.
@@ -30,7 +35,7 @@ func NewManager(binary string) *Manager {
 		binary = "openclaw"
 	}
 	return &Manager{
-		agents:         make(map[string]*Agent),
+		agents:         make(map[string]*managedAgent),
 		statusCh:       make(chan AgentStatus, 64),
 		conversationCh: make(chan ConversationMsg, 64),
 		binary:         binary,
@@ -56,42 +61,8 @@ func (m *Manager) SpawnWithSession(agentID, task, sessionName, configPath string
 		return "", fmt.Errorf("OpenClaw not found. Run 'npm install' in the VulpineOS directory or install globally: npm install -g openclaw")
 	}
 
-	// Stop any previous process for this agent before spawning a new one.
-	m.mu.Lock()
-	if old, ok := m.agents[agentID]; ok {
-		delete(m.agents, agentID)
-		m.mu.Unlock()
-		old.Stop()
-	} else {
-		m.mu.Unlock()
-	}
-
 	args := agentTurnArgs(sessionName, task)
-
-	agent := newAgent(agentID, "openclaw", m.statusCh)
-
-	if err := agent.start(openclawBin, args); err != nil {
-		return "", fmt.Errorf("spawn failed (binary=%s): %w", openclawBin, err)
-	}
-
-	m.mu.Lock()
-	m.agents[agentID] = agent
-	m.mu.Unlock()
-
-	// Wire agent conversation channel to manager's channel
-	go m.forwardConversation(agent)
-
-	// Auto-cleanup when agent exits — only delete if this is still the current agent
-	go func() {
-		agent.Wait()
-		m.mu.Lock()
-		if m.agents[agentID] == agent {
-			delete(m.agents, agentID)
-		}
-		m.mu.Unlock()
-	}()
-
-	return agentID, nil
+	return m.startManagedAgent(agentID, "openclaw", openclawBin, args, configPath, nil)
 }
 
 // SpawnPersistent is a compatibility shim over the current one-turn OpenClaw CLI.
@@ -120,7 +91,10 @@ func (m *Manager) ResumeWithSession(agentID, sessionName, configPath string) (st
 	if old, ok := m.agents[agentID]; ok {
 		delete(m.agents, agentID)
 		m.mu.Unlock()
-		old.Stop()
+		old.agent.Stop()
+		if old.cleanup != nil {
+			old.cleanup()
+		}
 	} else {
 		m.mu.Unlock()
 	}
@@ -131,14 +105,14 @@ func (m *Manager) ResumeWithSession(agentID, sessionName, configPath string) (st
 // PauseAgent saves state and stops an agent.
 func (m *Manager) PauseAgent(agentID string) error {
 	m.mu.RLock()
-	agent, ok := m.agents[agentID]
+	entry, ok := m.agents[agentID]
 	m.mu.RUnlock()
 
 	if !ok {
 		return fmt.Errorf("agent %s not found", agentID)
 	}
 
-	return agent.Stop()
+	return entry.agent.Stop()
 }
 
 // forwardConversation reads from an agent's conversationCh and sends to the manager's channel.
@@ -155,13 +129,13 @@ func (m *Manager) forwardConversation(agent *Agent) {
 // SendMessage sends a message to a running agent's stdin.
 func (m *Manager) SendMessage(agentID, text string) error {
 	m.mu.RLock()
-	agent, ok := m.agents[agentID]
+	entry, ok := m.agents[agentID]
 	m.mu.RUnlock()
 
 	if !ok {
 		return fmt.Errorf("agent %s not found", agentID)
 	}
-	return agent.SendMessage(text)
+	return entry.agent.SendMessage(text)
 }
 
 // Spawn creates and starts a new agent turn using the current OpenClaw session CLI.
@@ -169,6 +143,11 @@ func (m *Manager) SendMessage(agentID, text string) error {
 // template SOP content is sent as the first turn and browser attachment is handled
 // by the generated OpenClaw profile config.
 func (m *Manager) Spawn(contextID string, sopFile string, extraArgs ...string) (string, error) {
+	return m.SpawnIsolated(contextID, sopFile, "", nil, extraArgs...)
+}
+
+// SpawnIsolated starts an agent with an optional per-run OpenClaw config and cleanup hook.
+func (m *Manager) SpawnIsolated(contextID string, sopFile string, configPath string, cleanup func(), extraArgs ...string) (string, error) {
 	openclawBin := m.findOpenClaw()
 	if openclawBin == "" {
 		return "", fmt.Errorf("OpenClaw not found. Run 'npm install' in the VulpineOS directory or install globally: npm install -g openclaw")
@@ -192,42 +171,7 @@ func (m *Manager) Spawn(contextID string, sopFile string, extraArgs ...string) (
 	}
 
 	args := agentTurnArgs("vulpine-"+id, message)
-
-	agent := newAgent(id, contextID, m.statusCh)
-	if err := agent.start(openclawBin, args); err != nil {
-		return "", fmt.Errorf("spawn agent: %w", err)
-	}
-
-	m.mu.Lock()
-	m.agents[id] = agent
-	m.mu.Unlock()
-
-	// Auto-restart on crash (up to 3 attempts), then cleanup
-	go func() {
-		for {
-			agent.Wait()
-			exitCode := agent.ExitCode()
-
-			// Only restart on non-zero exit (crash), not clean completion
-			if exitCode != 0 && agent.RestartCount < 3 {
-				agent.RestartCount++
-				fmt.Printf("agent %s crashed (exit %d), restarting (attempt %d/3)\n", id, exitCode, agent.RestartCount)
-				time.Sleep(time.Duration(agent.RestartCount) * time.Second) // backoff
-				if err := agent.restart(); err != nil {
-					fmt.Printf("agent %s restart failed: %v\n", id, err)
-					break
-				}
-				go m.forwardConversation(agent)
-				continue
-			}
-			break
-		}
-		m.mu.Lock()
-		delete(m.agents, id)
-		m.mu.Unlock()
-	}()
-
-	return id, nil
+	return m.startManagedAgent(id, contextID, openclawBin, args, configPath, cleanup)
 }
 
 // SpawnOpenClaw spawns a real OpenClaw agent using the VulpineOS-generated config.
@@ -252,23 +196,7 @@ func (m *Manager) SpawnOpenClaw(task string, agentSkills []config.SkillEntry) (s
 	}
 	_ = agentSkills
 
-	agent := newAgent(id, "openclaw", m.statusCh)
-	if err := agent.start(openclawBin, args); err != nil {
-		return "", fmt.Errorf("spawn openclaw: %w", err)
-	}
-
-	m.mu.Lock()
-	m.agents[id] = agent
-	m.mu.Unlock()
-
-	go func() {
-		agent.Wait()
-		m.mu.Lock()
-		delete(m.agents, id)
-		m.mu.Unlock()
-	}()
-
-	return id, nil
+	return m.startManagedAgent(id, "openclaw", openclawBin, args, "", nil)
 }
 
 // findOpenClaw looks for the OpenClaw binary in common locations.
@@ -356,13 +284,13 @@ func isRunnable(path string) bool {
 // Kill stops an agent by ID.
 func (m *Manager) Kill(agentID string) error {
 	m.mu.RLock()
-	agent, ok := m.agents[agentID]
+	entry, ok := m.agents[agentID]
 	m.mu.RUnlock()
 
 	if !ok {
 		return fmt.Errorf("agent %s not found", agentID)
 	}
-	return agent.Stop()
+	return entry.agent.Stop()
 }
 
 // List returns the status of all active agents.
@@ -371,8 +299,8 @@ func (m *Manager) List() []AgentStatus {
 	defer m.mu.RUnlock()
 
 	statuses := make([]AgentStatus, 0, len(m.agents))
-	for _, agent := range m.agents {
-		statuses = append(statuses, agent.Status())
+	for _, entry := range m.agents {
+		statuses = append(statuses, entry.agent.Status())
 	}
 	return statuses
 }
@@ -387,14 +315,17 @@ func (m *Manager) Count() int {
 // KillAll stops all agents.
 func (m *Manager) KillAll() {
 	m.mu.RLock()
-	agents := make([]*Agent, 0, len(m.agents))
+	agents := make([]*managedAgent, 0, len(m.agents))
 	for _, a := range m.agents {
 		agents = append(agents, a)
 	}
 	m.mu.RUnlock()
 
 	for _, a := range agents {
-		a.Stop()
+		a.agent.Stop()
+		if a.cleanup != nil {
+			a.cleanup()
+		}
 	}
 }
 
@@ -403,4 +334,75 @@ func (m *Manager) Dispose() {
 	m.KillAll()
 	close(m.statusCh)
 	close(m.conversationCh)
+}
+
+func (m *Manager) startManagedAgent(agentID, contextID, openclawBin string, args []string, configPath string, cleanup func()) (string, error) {
+	var old *managedAgent
+
+	m.mu.Lock()
+	if existing, ok := m.agents[agentID]; ok {
+		old = existing
+		delete(m.agents, agentID)
+	}
+	m.mu.Unlock()
+
+	if old != nil {
+		old.agent.Stop()
+		if old.cleanup != nil {
+			old.cleanup()
+		}
+	}
+
+	agent := newAgent(agentID, contextID, m.statusCh)
+	if configPath != "" {
+		agent.env = map[string]string{
+			"OPENCLAW_CONFIG_PATH": configPath,
+		}
+	}
+	if err := agent.start(openclawBin, args); err != nil {
+		if cleanup != nil {
+			cleanup()
+		}
+		return "", fmt.Errorf("spawn failed (binary=%s): %w", openclawBin, err)
+	}
+
+	entry := &managedAgent{agent: agent, cleanup: cleanup}
+
+	m.mu.Lock()
+	m.agents[agentID] = entry
+	m.mu.Unlock()
+
+	go m.forwardConversation(agent)
+
+	go func() {
+		for {
+			agent.Wait()
+			exitCode := agent.ExitCode()
+			if exitCode != 0 && agent.RestartCount < 3 {
+				agent.RestartCount++
+				fmt.Printf("agent %s crashed (exit %d), restarting (attempt %d/3)\n", agentID, exitCode, agent.RestartCount)
+				time.Sleep(time.Duration(agent.RestartCount) * time.Second)
+				if err := agent.restart(); err != nil {
+					fmt.Printf("agent %s restart failed: %v\n", agentID, err)
+					break
+				}
+				go m.forwardConversation(agent)
+				continue
+			}
+			break
+		}
+
+		m.mu.Lock()
+		current := m.agents[agentID]
+		if current == entry {
+			delete(m.agents, agentID)
+		}
+		m.mu.Unlock()
+
+		if current == entry && entry.cleanup != nil {
+			entry.cleanup()
+		}
+	}()
+
+	return agentID, nil
 }
