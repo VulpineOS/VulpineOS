@@ -187,29 +187,32 @@ func (s *Server) handleControl(wsc *wsClient, payload json.RawMessage) {
 	var cmd struct {
 		Command string          `json:"command"`
 		Params  json.RawMessage `json:"params"`
+		ID      int             `json:"id"`
 	}
 	if err := json.Unmarshal(payload, &cmd); err != nil {
 		return
 	}
 
-	var resp []byte
+	respPayload := map[string]interface{}{
+		"id": cmd.ID,
+	}
 	switch cmd.Command {
 	case "ping":
-		resp, _ = json.Marshal(map[string]string{"status": "pong"})
+		respPayload["result"] = map[string]string{"status": "pong"}
 	default:
 		// Dispatch to PanelAPI if available
 		if s.panelAPI != nil {
 			result, err := s.panelAPI.HandleMessage(cmd.Command, cmd.Params)
 			if err != nil {
-				resp, _ = json.Marshal(map[string]string{"error": err.Error()})
+				respPayload["error"] = err.Error()
 			} else {
-				resp = result
+				respPayload["result"] = json.RawMessage(result)
 			}
 		} else {
-			resp, _ = json.Marshal(map[string]string{"error": fmt.Sprintf("unknown command: %s", cmd.Command)})
+			respPayload["error"] = fmt.Sprintf("unknown command: %s", cmd.Command)
 		}
 	}
 
-	env, _ := NewControlEnvelope("response", json.RawMessage(resp))
+	env, _ := NewControlEnvelope("response", respPayload)
 	wsc.conn.Write(wsc.ctx, websocket.MessageText, env)
 }

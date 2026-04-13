@@ -118,6 +118,14 @@ func (m Model) SelectedTarget() (string, string) {
 	return m.items[m.selected].SessionID, m.items[m.selected].TargetID
 }
 
+// SelectedContextID returns the browser context ID of the selected item.
+func (m Model) SelectedContextID() string {
+	if len(m.items) == 0 || m.selected >= len(m.items) {
+		return ""
+	}
+	return m.items[m.selected].ContextID
+}
+
 // SelectedURL returns the URL of the selected context.
 func (m Model) SelectedURL() string {
 	if len(m.items) == 0 || m.selected >= len(m.items) {

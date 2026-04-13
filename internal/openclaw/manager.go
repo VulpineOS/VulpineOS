@@ -17,11 +17,15 @@ import (
 
 // Manager manages multiple OpenClaw agent subprocesses.
 type Manager struct {
-	agents         map[string]*managedAgent
-	statusCh       chan AgentStatus
-	conversationCh chan ConversationMsg
-	mu             sync.RWMutex
-	binary         string
+	agents map[string]*managedAgent
+	mu     sync.RWMutex
+	binary string
+	closed bool
+
+	statusSource       chan AgentStatus
+	conversationSource chan ConversationMsg
+	statusSubs         map[chan AgentStatus]struct{}
+	conversationSubs   map[chan ConversationMsg]struct{}
 }
 
 type managedAgent struct {
@@ -34,35 +38,63 @@ func NewManager(binary string) *Manager {
 	if binary == "" {
 		binary = "openclaw"
 	}
-	return &Manager{
-		agents:         make(map[string]*managedAgent),
-		statusCh:       make(chan AgentStatus, 64),
-		conversationCh: make(chan ConversationMsg, 64),
-		binary:         binary,
+	m := &Manager{
+		agents:             make(map[string]*managedAgent),
+		binary:             binary,
+		statusSource:       make(chan AgentStatus, 64),
+		conversationSource: make(chan ConversationMsg, 64),
+		statusSubs:         make(map[chan AgentStatus]struct{}),
+		conversationSubs:   make(map[chan ConversationMsg]struct{}),
 	}
+	go m.fanOutStatus()
+	go m.fanOutConversation()
+	return m
 }
 
 // StatusChan returns the channel for agent status updates.
 func (m *Manager) StatusChan() <-chan AgentStatus {
-	return m.statusCh
+	ch := make(chan AgentStatus, 64)
+	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		close(ch)
+		return ch
+	}
+	m.statusSubs[ch] = struct{}{}
+	m.mu.Unlock()
+	return ch
 }
 
 // ConversationChan returns the channel for agent conversation messages.
 func (m *Manager) ConversationChan() <-chan ConversationMsg {
-	return m.conversationCh
+	ch := make(chan ConversationMsg, 64)
+	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		close(ch)
+		return ch
+	}
+	m.conversationSubs[ch] = struct{}{}
+	m.mu.Unlock()
+	return ch
 }
 
 // SpawnWithSession creates and starts a new agent with a named session for state persistence.
 // Each call spawns a fresh OpenClaw process for one turn of conversation.
 // If a previous process for this agentID is still running, it is stopped first.
 func (m *Manager) SpawnWithSession(agentID, task, sessionName, configPath string) (string, error) {
+	return m.SpawnWithSessionIsolated(agentID, task, sessionName, configPath, nil)
+}
+
+// SpawnWithSessionIsolated creates and starts a new agent with an optional cleanup hook.
+func (m *Manager) SpawnWithSessionIsolated(agentID, task, sessionName, configPath string, cleanup func()) (string, error) {
 	openclawBin := m.findOpenClaw()
 	if openclawBin == "" {
 		return "", fmt.Errorf("OpenClaw not found. Run 'npm install' in the VulpineOS directory or install globally: npm install -g openclaw")
 	}
 
 	args := agentTurnArgs(sessionName, task)
-	return m.startManagedAgent(agentID, "openclaw", openclawBin, args, configPath, nil)
+	return m.startManagedAgent(agentID, "openclaw", openclawBin, args, configPath, cleanup)
 }
 
 // SpawnPersistent is a compatibility shim over the current one-turn OpenClaw CLI.
@@ -119,7 +151,7 @@ func (m *Manager) PauseAgent(agentID string) error {
 func (m *Manager) forwardConversation(agent *Agent) {
 	for msg := range agent.conversationCh {
 		select {
-		case m.conversationCh <- msg:
+		case m.conversationSource <- msg:
 		default:
 			// Manager channel full, drop
 		}
@@ -332,8 +364,21 @@ func (m *Manager) KillAll() {
 // Dispose kills all agents and closes channels.
 func (m *Manager) Dispose() {
 	m.KillAll()
-	close(m.statusCh)
-	close(m.conversationCh)
+	m.mu.Lock()
+	m.closed = true
+	m.mu.Unlock()
+	close(m.statusSource)
+	close(m.conversationSource)
+	m.mu.Lock()
+	for ch := range m.statusSubs {
+		close(ch)
+		delete(m.statusSubs, ch)
+	}
+	for ch := range m.conversationSubs {
+		close(ch)
+		delete(m.conversationSubs, ch)
+	}
+	m.mu.Unlock()
 }
 
 func (m *Manager) startManagedAgent(agentID, contextID, openclawBin string, args []string, configPath string, cleanup func()) (string, error) {
@@ -353,7 +398,7 @@ func (m *Manager) startManagedAgent(agentID, contextID, openclawBin string, args
 		}
 	}
 
-	agent := newAgent(agentID, contextID, m.statusCh)
+	agent := newAgent(agentID, contextID, m.statusSource)
 	if configPath != "" {
 		agent.env = map[string]string{
 			"OPENCLAW_CONFIG_PATH": configPath,
@@ -405,4 +450,30 @@ func (m *Manager) startManagedAgent(agentID, contextID, openclawBin string, args
 	}()
 
 	return agentID, nil
+}
+
+func (m *Manager) fanOutStatus() {
+	for status := range m.statusSource {
+		m.mu.RLock()
+		for ch := range m.statusSubs {
+			select {
+			case ch <- status:
+			default:
+			}
+		}
+		m.mu.RUnlock()
+	}
+}
+
+func (m *Manager) fanOutConversation() {
+	for msg := range m.conversationSource {
+		m.mu.RLock()
+		for ch := range m.conversationSubs {
+			select {
+			case ch <- msg:
+			default:
+			}
+		}
+		m.mu.RUnlock()
+	}
 }

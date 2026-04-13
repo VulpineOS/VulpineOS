@@ -454,6 +454,31 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 		})
 	}
 
+	if orch != nil && v != nil {
+		statusCh := orch.Agents.StatusChan()
+		go func() {
+			for status := range statusCh {
+				_ = v.UpdateAgentStatus(status.AgentID, status.Status)
+				if status.Tokens > 0 {
+					_ = v.UpdateAgentTokens(status.AgentID, status.Tokens)
+				}
+				if payload, err := json.Marshal(status); err == nil {
+					server.BroadcastEvent("Vulpine.agentStatus", payload)
+				}
+			}
+		}()
+
+		conversationCh := orch.Agents.ConversationChan()
+		go func() {
+			for msg := range conversationCh {
+				_ = v.AppendMessage(msg.AgentID, msg.Role, msg.Content, msg.Tokens)
+				if payload, err := json.Marshal(msg); err == nil {
+					server.BroadcastEvent("Vulpine.conversation", payload)
+				}
+			}
+		}()
+	}
+
 	// Serve the web panel from embedded files
 	if panelFS := PanelFS(); panelFS != nil {
 		remote.ServePanel(server.Mux(), panelFS)

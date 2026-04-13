@@ -412,20 +412,9 @@ func (o *Orchestrator) statusRelay() {
 }
 
 func (o *Orchestrator) spawnScopedAgent(contextID, sopFile string) (string, error) {
-	scopedFoxbridge, err := foxbridge.StartEmbeddedScoped(o.Client, 0, contextID)
+	scopedConfig, cleanup, err := o.PrepareScopedOpenClawConfig(contextID)
 	if err != nil {
-		return "", fmt.Errorf("start scoped foxbridge: %w", err)
-	}
-
-	scopedConfig, cleanupConfig, err := openclaw.PrepareScopedConfig(config.OpenClawConfigPath(), scopedFoxbridge.CDPURL())
-	if err != nil {
-		scopedFoxbridge.Stop()
-		return "", fmt.Errorf("prepare scoped OpenClaw config: %w", err)
-	}
-
-	cleanup := func() {
-		cleanupConfig()
-		scopedFoxbridge.Stop()
+		return "", err
 	}
 
 	agentID, err := o.Agents.SpawnIsolated(contextID, sopFile, scopedConfig, cleanup)
@@ -435,4 +424,31 @@ func (o *Orchestrator) spawnScopedAgent(contextID, sopFile string) (string, erro
 	}
 
 	return agentID, nil
+}
+
+// PrepareScopedOpenClawConfig builds a per-context OpenClaw config overlay.
+func (o *Orchestrator) PrepareScopedOpenClawConfig(contextID string) (string, func(), error) {
+	if o == nil || o.Client == nil {
+		return "", nil, fmt.Errorf("orchestrator client not available")
+	}
+	if contextID == "" {
+		return "", nil, fmt.Errorf("context id is required")
+	}
+
+	scopedFoxbridge, err := foxbridge.StartEmbeddedScoped(o.Client, 0, contextID)
+	if err != nil {
+		return "", nil, fmt.Errorf("start scoped foxbridge: %w", err)
+	}
+
+	scopedConfig, cleanupConfig, err := openclaw.PrepareScopedConfig(config.OpenClawConfigPath(), scopedFoxbridge.CDPURL())
+	if err != nil {
+		scopedFoxbridge.Stop()
+		return "", nil, fmt.Errorf("prepare scoped OpenClaw config: %w", err)
+	}
+
+	cleanup := func() {
+		cleanupConfig()
+		scopedFoxbridge.Stop()
+	}
+	return scopedConfig, cleanup, nil
 }

@@ -288,6 +288,36 @@ func TestUpdateAgentTokens(t *testing.T) {
 	}
 }
 
+func TestUpdateAgentMetadata(t *testing.T) {
+	db := openTestDB(t)
+
+	agent, err := db.CreateAgent("PinnedBot", "task", "{}")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	meta := MarshalAgentMetadata(AgentMetadata{ContextID: "ctx-123"})
+	if err := db.UpdateAgentMetadata(agent.ID, meta); err != nil {
+		t.Fatalf("update metadata: %v", err)
+	}
+
+	got, err := db.GetAgent(agent.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Metadata != meta {
+		t.Fatalf("metadata = %q, want %q", got.Metadata, meta)
+	}
+
+	parsed, err := ParseAgentMetadata(got.Metadata)
+	if err != nil {
+		t.Fatalf("parse metadata: %v", err)
+	}
+	if parsed.ContextID != "ctx-123" {
+		t.Fatalf("contextId = %q, want ctx-123", parsed.ContextID)
+	}
+}
+
 func TestGenerateFingerprintValidJSON(t *testing.T) {
 	fp, err := GenerateFingerprint("test-agent-id")
 	if err != nil {

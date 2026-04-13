@@ -24,7 +24,7 @@ export default function Proxies({ ws }) {
   const testProxy = async (id) => {
     try {
       const r = await ws.call('proxies.test', { proxyId: id })
-      alert(`Latency: ${r?.latency || '?'}ms`)
+      alert(`Latency: ${r?.latencyMs || '?'}ms`)
       refresh()
     } catch (e) { alert('Test failed: ' + e.message) }
   }

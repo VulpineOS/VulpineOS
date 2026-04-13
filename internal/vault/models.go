@@ -6,8 +6,8 @@ import "time"
 type Citizen struct {
 	ID              string    `json:"id"`
 	Label           string    `json:"label"`
-	Fingerprint     string    `json:"fingerprint"`      // JSON blob (BrowserForge config)
-	ProxyConfig     string    `json:"proxy_config"`      // JSON blob
+	Fingerprint     string    `json:"fingerprint"`  // JSON blob (BrowserForge config)
+	ProxyConfig     string    `json:"proxy_config"` // JSON blob
 	Locale          string    `json:"locale"`
 	Timezone        string    `json:"timezone"`
 	CreatedAt       time.Time `json:"created_at"`
@@ -20,7 +20,7 @@ type Citizen struct {
 type CitizenCookies struct {
 	CitizenID string    `json:"citizen_id"`
 	Domain    string    `json:"domain"`
-	Cookies   string    `json:"cookies"`   // JSON array of Juggler Cookie objects
+	Cookies   string    `json:"cookies"` // JSON array of Juggler Cookie objects
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
@@ -70,6 +70,11 @@ type Agent struct {
 	CreatedAt   time.Time `json:"created_at"`
 	LastActive  time.Time `json:"last_active"`
 	Metadata    string    `json:"metadata"`
+}
+
+// AgentMetadata holds optional runtime metadata for a persistent agent.
+type AgentMetadata struct {
+	ContextID string `json:"contextId,omitempty"`
 }
 
 // AgentMessage is a single message in an agent's conversation history.

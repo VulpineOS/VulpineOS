@@ -52,8 +52,8 @@ export default function Dashboard({ ws }) {
         <div className="card">
           <h3>Telemetry</h3>
           <div style={{ fontSize: 13, color: '#aaa', lineHeight: 1.8 }}>
-            <div>Contexts: {t.contexts || 0} · Pages: {t.pages || 0}</div>
-            <div>Detection Risk: <span style={{ color: (t.detectionRisk || 0) > 50 ? '#ef4444' : '#22c55e' }}>{t.detectionRisk || 0}%</span></div>
+            <div>Contexts: {t.activeContexts || 0} · Pages: {t.activePages || 0}</div>
+            <div>Detection Risk: <span style={{ color: (t.detectionRiskScore || 0) > 50 ? '#ef4444' : '#22c55e' }}>{t.detectionRiskScore || 0}%</span></div>
             <div>Citizens: {s.total_citizens || 0} · Templates: {s.total_templates || 0}</div>
           </div>
         </div>

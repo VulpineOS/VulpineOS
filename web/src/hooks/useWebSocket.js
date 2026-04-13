@@ -23,17 +23,24 @@ export function useWebSocket(apiKey) {
         const msg = JSON.parse(e.data)
         // Control response
         if (msg.type === 'control') {
-          const payload = JSON.parse(msg.payload || '{}')
-          if (payload.id && pendingRef.current[payload.id]) {
-            pendingRef.current[payload.id](payload)
-            delete pendingRef.current[payload.id]
+          const payload = msg.payload || {}
+          const params = payload.params || {}
+          if (params.id && pendingRef.current[params.id]) {
+            pendingRef.current[params.id](params)
+            delete pendingRef.current[params.id]
           }
           return
         }
         // Juggler event
         if (msg.type === 'juggler' || msg.method) {
-          const method = msg.method || ''
-          const params = msg.params || {}
+          const payload = msg.payload || msg
+          if (payload.id && pendingRef.current[payload.id]) {
+            pendingRef.current[payload.id](payload)
+            delete pendingRef.current[payload.id]
+            return
+          }
+          const method = payload.method || ''
+          const params = payload.params || {}
           setEvents(prev => [...prev.slice(-199), { method, params, ts: Date.now() }])
           if (method === 'Browser.telemetryUpdate') setTelemetry(params)
         }
@@ -55,7 +62,7 @@ export function useWebSocket(apiKey) {
 
       pendingRef.current[id] = (resp) => {
         if (resp.error) reject(new Error(resp.error))
-        else resolve(resp)
+        else resolve(resp.result)
       }
       wsRef.current.send(envelope)
       setTimeout(() => {
@@ -75,7 +82,10 @@ export function useWebSocket(apiKey) {
       }
       const id = idRef.current++
       const jugglerMsg = JSON.stringify({ type: 'juggler', payload: JSON.stringify({ id, method, params }) })
-      pendingRef.current[id] = resolve
+      pendingRef.current[id] = (resp) => {
+        if (resp.error) reject(new Error(resp.error.message || 'Request failed'))
+        else resolve(resp)
+      }
       wsRef.current.send(jugglerMsg)
       setTimeout(() => {
         if (pendingRef.current[id]) { delete pendingRef.current[id]; reject(new Error('Timeout')) }
@@ -83,5 +93,5 @@ export function useWebSocket(apiKey) {
     })
   }, [])
 
-  return { connected, telemetry, events, call, juggler }
+  return { connected, telemetry, events, call, juggler, send: juggler }
 }

@@ -5,6 +5,17 @@ export default function Agents({ ws }) {
   const [agents, setAgents] = useState([])
   const [task, setTask] = useState('')
   const [costs, setCosts] = useState([])
+  const [selectedContext, setSelectedContext] = useState(localStorage.getItem('vulpine_context_id') || '')
+
+  const contexts = Array.from(new Map(
+    (ws.events || [])
+      .filter(ev => ev.method === 'Browser.attachedToTarget' && ev.params?.targetInfo?.browserContextId)
+      .map(ev => {
+        const contextId = ev.params.targetInfo.browserContextId
+        const url = ev.params.targetInfo.url || 'about:blank'
+        return [contextId, { id: contextId, url }]
+      }),
+  ).values())
 
   const refresh = () => {
     ws.call('agents.list').then(r => setAgents(r?.agents || [])).catch(() => {})
@@ -16,7 +27,7 @@ export default function Agents({ ws }) {
   const spawn = async () => {
     if (!task.trim()) return
     try {
-      await ws.call('agents.spawn', { task })
+      await ws.call('agents.spawn', { task, contextId: selectedContext || undefined })
       setTask('')
       setTimeout(refresh, 1000)
     } catch (e) { alert('Spawn failed: ' + e.message) }
@@ -48,6 +59,20 @@ export default function Agents({ ws }) {
       <div className="page-header">
         <h1>Agents</h1>
         <div style={{ display: 'flex', gap: 8 }}>
+          <select
+            className="input"
+            style={{ width: 220 }}
+            value={selectedContext}
+            onChange={e => {
+              setSelectedContext(e.target.value)
+              localStorage.setItem('vulpine_context_id', e.target.value)
+            }}
+          >
+            <option value="">Shared browser</option>
+            {contexts.map(ctx => (
+              <option key={ctx.id} value={ctx.id}>{ctx.id.slice(0, 12)} · {ctx.url.slice(0, 32)}</option>
+            ))}
+          </select>
           <input className="input" style={{ width: 300 }} placeholder="Task description..." value={task}
             onChange={e => setTask(e.target.value)} onKeyDown={e => e.key === 'Enter' && spawn()} />
           <button className="btn btn-primary" onClick={spawn}>Spawn</button>
@@ -57,15 +82,16 @@ export default function Agents({ ws }) {
 
       <div className="card">
         <table className="table">
-          <thead><tr><th>Agent</th><th>Status</th><th>Fingerprint</th><th>Tokens</th><th>Cost</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Agent</th><th>Status</th><th>Context</th><th>Fingerprint</th><th>Tokens</th><th>Cost</th><th>Actions</th></tr></thead>
           <tbody>
             {agents.length === 0 && (
-              <tr><td colSpan="6" style={{ textAlign: 'center', color: '#666', padding: 32 }}>No agents. Spawn one above.</td></tr>
+              <tr><td colSpan="7" style={{ textAlign: 'center', color: '#666', padding: 32 }}>No agents. Spawn one above.</td></tr>
             )}
             {agents.map(a => (
               <tr key={a.id}>
                 <td><Link to={`/agents/${a.id}`} style={{ color: '#a78bfa', textDecoration: 'none' }}>{a.name || a.id.substring(0, 12)}</Link></td>
                 <td><span className={`badge badge-${a.status === 'active' ? 'green' : a.status === 'paused' ? 'yellow' : a.status === 'completed' ? 'blue' : 'gray'}`}>{a.status}</span></td>
+                <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{a.contextId ? a.contextId.slice(0, 12) : 'shared'}</td>
                 <td style={{ fontSize: 12, color: '#888' }}>{a.fingerprintSummary || '—'}</td>
                 <td>{getTokens(a.id)}</td>
                 <td>{getCost(a.id)}</td>

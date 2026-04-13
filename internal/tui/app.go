@@ -54,12 +54,12 @@ type App struct {
 	cfg     *config.Config
 	monitor *monitor.Monitor
 
-	width, height  int
-	leftWidth      int // adjustable left sidebar width
-	rightWidth     int // adjustable right sidebar width
-	leftSplit      int // height of system info in left (agent list gets remainder)
-	rightSplit     int // height of agent detail in right (contexts gets remainder)
-	focus          int // 0=agentlist, 1=conversation, 2=agentdetail, 3=contexts
+	width, height int
+	leftWidth     int // adjustable left sidebar width
+	rightWidth    int // adjustable right sidebar width
+	leftSplit     int // height of system info in left (agent list gets remainder)
+	rightSplit    int // height of agent detail in right (contexts gets remainder)
+	focus         int // 0=agentlist, 1=conversation, 2=agentdetail, 3=contexts
 
 	// Panels
 	systemInfo   systeminfo.Model
@@ -74,9 +74,10 @@ type App struct {
 	selectedAgentID string
 	inputMode       string // "" | "new-agent-name" | "new-agent-desc" | "chat"
 	newAgentName    string // temp storage during agent creation
+	newAgentContext string
 	notice          string
-	noticeTTL       int    // number of ticks before notice is cleared
-	confirmDelete   bool   // true when waiting for delete confirmation
+	noticeTTL       int  // number of ticks before notice is cleared
+	confirmDelete   bool // true when waiting for delete confirmation
 
 	// Text inputs
 	nameInput textinput.Model
@@ -356,6 +357,10 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "n":
 			if a.orch != nil {
+				a.newAgentContext = ""
+				if a.focus == FocusContextList {
+					a.newAgentContext = a.contextList.SelectedContextID()
+				}
 				a.inputMode = "new-agent-name"
 				a.nameInput.Focus()
 				return a, textinput.Blink
@@ -416,28 +421,49 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "left":
 			switch a.focus {
 			case FocusAgentList:
-				if a.leftWidth > 12 { a.leftWidth -= 2; a.updatePanelSizes() }
+				if a.leftWidth > 12 {
+					a.leftWidth -= 2
+					a.updatePanelSizes()
+				}
 			case FocusContextList:
 				// Left arrow on right panel = expand (pull edge left)
-				if a.rightWidth < 30 { a.rightWidth += 2; a.updatePanelSizes() }
+				if a.rightWidth < 30 {
+					a.rightWidth += 2
+					a.updatePanelSizes()
+				}
 			}
 		case "right":
 			switch a.focus {
 			case FocusAgentList:
-				if a.leftWidth < 30 { a.leftWidth += 2; a.updatePanelSizes() }
+				if a.leftWidth < 30 {
+					a.leftWidth += 2
+					a.updatePanelSizes()
+				}
 			case FocusContextList:
 				// Right arrow on right panel = shrink (push edge right)
-				if a.rightWidth > 12 { a.rightWidth -= 2; a.updatePanelSizes() }
+				if a.rightWidth > 12 {
+					a.rightWidth -= 2
+					a.updatePanelSizes()
+				}
 			}
 		case "up":
 			maxH := a.height - 2
 			switch a.focus {
 			case FocusAgentList:
-				if a.leftSplit > minSplit { a.leftSplit--; a.updatePanelSizes() }
+				if a.leftSplit > minSplit {
+					a.leftSplit--
+					a.updatePanelSizes()
+				}
 			case FocusAgentDetail:
-				if a.rightSplit > minSplit { a.rightSplit--; a.updatePanelSizes() }
+				if a.rightSplit > minSplit {
+					a.rightSplit--
+					a.updatePanelSizes()
+				}
 			case FocusContextList:
-				if a.rightSplit > minSplit { a.rightSplit--; a.updatePanelSizes() }
+				if a.rightSplit > minSplit {
+					a.rightSplit--
+					a.updatePanelSizes()
+				}
 			case FocusConversation:
 				_ = maxH
 				var cmd tea.Cmd
@@ -448,11 +474,20 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			maxH := a.height - 2
 			switch a.focus {
 			case FocusAgentList:
-				if a.leftSplit < maxH-minSplit { a.leftSplit++; a.updatePanelSizes() }
+				if a.leftSplit < maxH-minSplit {
+					a.leftSplit++
+					a.updatePanelSizes()
+				}
 			case FocusAgentDetail:
-				if a.rightSplit < maxH*maxSplitRatio/100 { a.rightSplit++; a.updatePanelSizes() }
+				if a.rightSplit < maxH*maxSplitRatio/100 {
+					a.rightSplit++
+					a.updatePanelSizes()
+				}
 			case FocusContextList:
-				if a.rightSplit < maxH*maxSplitRatio/100 { a.rightSplit++; a.updatePanelSizes() }
+				if a.rightSplit < maxH*maxSplitRatio/100 {
+					a.rightSplit++
+					a.updatePanelSizes()
+				}
 			case FocusConversation:
 				_ = maxH
 				var cmd tea.Cmd
@@ -755,6 +790,7 @@ func (a App) updateNameInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "esc":
 		a.inputMode = ""
 		a.newAgentName = ""
+		a.newAgentContext = ""
 		a.nameInput.Blur()
 		a.nameInput.Reset()
 		return a, nil
@@ -773,15 +809,17 @@ func (a App) updateDescInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if desc == "" {
 			desc = a.newAgentName // use name as description if empty
 		}
-		cmd := a.createAgent(a.newAgentName, desc)
+		cmd := a.createAgent(a.newAgentName, desc, a.newAgentContext)
 		a.inputMode = ""
 		a.newAgentName = ""
+		a.newAgentContext = ""
 		a.taskInput.Blur()
 		a.taskInput.Reset()
 		return a, cmd
 	case "esc":
 		a.inputMode = ""
 		a.newAgentName = ""
+		a.newAgentContext = ""
 		a.taskInput.Blur()
 		a.taskInput.Reset()
 		return a, nil
@@ -831,7 +869,7 @@ func (a App) updateChatInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // detailHeight is the fixed height for the agent detail area.
 // Min/max constraints for panel sizes
 const (
-	minSplit = 5
+	minSplit      = 5
 	maxSplitRatio = 80 // percent of column height
 )
 
@@ -853,8 +891,13 @@ func (a App) View() string {
 	// Left column: systemInfo (with pool stats) on top, agentList below
 	leftTop := a.leftSplit
 	leftBottom := bodyHeight - leftTop - 4 // subtract borders
-	if leftBottom < 3 { leftBottom = 3; leftTop = bodyHeight - leftBottom - 4 }
-	if leftTop < 3 { leftTop = 3 }
+	if leftBottom < 3 {
+		leftBottom = 3
+		leftTop = bodyHeight - leftBottom - 4
+	}
+	if leftTop < 3 {
+		leftTop = 3
+	}
 	sysView := a.renderPanel(FocusAgentList, a.systemInfo.View(), leftWidth, leftTop)
 	agentView := a.renderFocusPanel(FocusAgentList, a.agentList.View(), leftWidth, leftBottom)
 	leftColumn := lipgloss.JoinVertical(lipgloss.Left, sysView, agentView)
@@ -870,10 +913,12 @@ func (a App) View() string {
 		case "new-agent-name":
 			convView = shared.TitleStyle.Render("NEW AGENT — NAME") + "\n\n" +
 				a.nameInput.View() + "\n\n" +
+				a.newAgentContextNotice() +
 				shared.MutedStyle.Render("[Enter] confirm  [Esc] cancel")
 		case "new-agent-desc":
 			convView = shared.TitleStyle.Render("NEW AGENT — DESCRIPTION for "+a.newAgentName) + "\n\n" +
 				a.taskInput.View() + "\n\n" +
+				a.newAgentContextNotice() +
 				shared.MutedStyle.Render("[Enter] create  [Esc] cancel")
 		default:
 			convView = a.conversation.View()
@@ -881,7 +926,9 @@ func (a App) View() string {
 
 		// Full-height conversation panel
 		convStyle := shared.PanelStyle
-		if a.focus == FocusConversation { convStyle = shared.ActivePanelStyle }
+		if a.focus == FocusConversation {
+			convStyle = shared.ActivePanelStyle
+		}
 
 		// Hard-truncate conversation content to prevent overflow
 		maxContentLines := bodyHeight - 2 // subtract panel borders
@@ -898,8 +945,13 @@ func (a App) View() string {
 	// Right column: agent detail on top, contexts below
 	rightTop := a.rightSplit
 	rightBottom := bodyHeight - rightTop - 4 // subtract borders
-	if rightBottom < 3 { rightBottom = 3; rightTop = bodyHeight - rightBottom - 4 }
-	if rightTop < 3 { rightTop = 3 }
+	if rightBottom < 3 {
+		rightBottom = 3
+		rightTop = bodyHeight - rightBottom - 4
+	}
+	if rightTop < 3 {
+		rightTop = 3
+	}
 	detailView := a.renderFocusPanel(FocusAgentDetail, a.agentDetail.View(), rightWidth, rightTop)
 	ctxView := a.renderFocusPanel(FocusContextList, a.contextList.View(), rightWidth, rightBottom)
 	rightColumn := lipgloss.JoinVertical(lipgloss.Left, detailView, ctxView)
@@ -965,10 +1017,16 @@ func (a App) renderStatusBar() string {
 		mode = "remote"
 	}
 
+	ctxHint := ""
+	if contextID := a.contextList.SelectedContextID(); contextID != "" && a.focus == FocusContextList {
+		ctxHint = shared.MutedStyle.Render("  n:new-in-ctx " + shortContextID(contextID))
+	}
+
 	bar := shared.TitleStyle.Render("VULPINE") +
 		shared.MutedStyle.Render(" | ") +
 		shared.RunningStyle.Render("* "+mode) +
-		shared.MutedStyle.Render("  n:new  x:del  v:view  S:settings  Enter:chat  Tab:focus  ↑↓:scroll  q:quit")
+		shared.MutedStyle.Render("  n:new  x:del  v:view  S:settings  Enter:chat  Tab:focus  ↑↓:scroll  q:quit") +
+		ctxHint
 
 	return lipgloss.NewStyle().MaxWidth(a.width).Render(bar)
 }
@@ -992,14 +1050,24 @@ func (a *App) updatePanelSizes() {
 	// Left column splits
 	leftTop := a.leftSplit
 	leftBottom := bodyHeight - leftTop - 4
-	if leftBottom < 3 { leftBottom = 3; leftTop = bodyHeight - leftBottom - 4 }
-	if leftTop < 3 { leftTop = 3 }
+	if leftBottom < 3 {
+		leftBottom = 3
+		leftTop = bodyHeight - leftBottom - 4
+	}
+	if leftTop < 3 {
+		leftTop = 3
+	}
 
 	// Right column splits
 	rightTop := a.rightSplit
 	rightBottom := bodyHeight - rightTop - 4
-	if rightBottom < 3 { rightBottom = 3; rightTop = bodyHeight - rightBottom - 4 }
-	if rightTop < 3 { rightTop = 3 }
+	if rightBottom < 3 {
+		rightBottom = 3
+		rightTop = bodyHeight - rightBottom - 4
+	}
+	if rightTop < 3 {
+		rightTop = 3
+	}
 
 	a.systemInfo.SetWidth(leftWidth)
 	a.systemInfo.SetHeight(leftTop)
@@ -1036,6 +1104,12 @@ func (a *App) updateAgentDetail(agent *vault.Agent) {
 		agent.ID, agent.Name, agent.Task, agent.Status,
 		agent.TotalTokens, fpSummary, proxyInfo, agent.CreatedAt,
 	)
+	meta, err := vault.ParseAgentMetadata(agent.Metadata)
+	if err == nil && meta.ContextID != "" {
+		a.agentDetail.SetBrowserContext("pinned " + shortContextID(meta.ContextID))
+	} else {
+		a.agentDetail.SetBrowserContext("")
+	}
 }
 
 // refreshAgentDetail reloads agent detail from vault.
@@ -1088,7 +1162,7 @@ func (a App) tick() tea.Cmd {
 // createAgent creates an agent profile in the vault AND immediately spawns OpenClaw.
 // The agent wakes up and introduces itself — the user doesn't need to send the first message.
 // ALL errors are visible to the user — either as notices (pre-creation) or in the conversation (post-creation).
-func (a *App) createAgent(name, description string) tea.Cmd {
+func (a *App) createAgent(name, description, contextID string) tea.Cmd {
 	return func() tea.Msg {
 		// Pre-creation checks — show errors as notices since there's no agent yet
 		if a.vault == nil {
@@ -1109,6 +1183,12 @@ func (a *App) createAgent(name, description string) tea.Cmd {
 		if err != nil {
 			return statusNotice{text: "ERROR: Failed to create agent: " + err.Error()}
 		}
+		if contextID != "" {
+			metadata := vault.MarshalAgentMetadata(vault.AgentMetadata{ContextID: contextID})
+			if err := a.vault.UpdateAgentMetadata(agent.ID, metadata); err == nil {
+				agent.Metadata = metadata
+			}
+		}
 
 		// If agent has a proxy assigned, sync fingerprint geo
 		if agent.ProxyConfig != "" {
@@ -1128,7 +1208,14 @@ func (a *App) createAgent(name, description string) tea.Cmd {
 		// Spawn first turn — agent introduces itself
 		introMsg := "You are an AI agent named '" + name + "'. Your purpose: " + description + ". Introduce yourself briefly (1-2 sentences) and ask how you can help."
 		sessionName := "vulpine-" + agent.ID
-		_, spawnErr := a.orch.Agents.SpawnWithSession(agent.ID, introMsg, sessionName, config.OpenClawConfigPath())
+		configPath, cleanup, configErr := a.agentRuntimeConfig(agent)
+		if configErr != nil {
+			agent.Status = "error"
+			a.vault.UpdateAgentStatus(agent.ID, "error")
+			a.vault.AppendMessage(agent.ID, "system", "Failed to prepare runtime: "+configErr.Error(), 0)
+			return shared.AgentCreatedMsg{Agent: *agent}
+		}
+		_, spawnErr := a.orch.Agents.SpawnWithSessionIsolated(agent.ID, introMsg, sessionName, configPath, cleanup)
 		if spawnErr != nil {
 			// Agent is in vault but spawn failed — show it with error status
 			// The user will see the agent in the list with error state + error in conversation
@@ -1169,7 +1256,18 @@ func (a App) resumeAgent(agentID string) tea.Cmd {
 			return statusNotice{text: "No orchestrator"}
 		}
 		sessionName := "vulpine-" + agentID
-		_, err := a.orch.Agents.ResumeWithSession(agentID, sessionName, config.OpenClawConfigPath())
+		agent, err := a.vault.GetAgent(agentID)
+		if err != nil {
+			return statusNotice{text: "Resume failed: " + err.Error()}
+		}
+		configPath, cleanup, err := a.agentRuntimeConfig(agent)
+		if err != nil {
+			return statusNotice{text: "Resume failed: " + err.Error()}
+		}
+		_, err = a.orch.Agents.ResumeWithSession(agentID, sessionName, configPath)
+		if cleanup != nil {
+			cleanup()
+		}
 		if err != nil {
 			return statusNotice{text: "Resume failed: " + err.Error()}
 		}
@@ -1210,7 +1308,23 @@ func (a App) sendMessageToAgent(agentID, text string) tea.Cmd {
 		}
 
 		sessionName := "vulpine-" + agentID
-		_, err := a.orch.Agents.SpawnWithSession(agentID, text, sessionName, config.OpenClawConfigPath())
+		agent, err := a.vault.GetAgent(agentID)
+		if err != nil {
+			return shared.ConversationEntryMsg{
+				AgentID: agentID,
+				Role:    "system",
+				Content: "Error: " + err.Error(),
+			}
+		}
+		configPath, cleanup, err := a.agentRuntimeConfig(agent)
+		if err != nil {
+			return shared.ConversationEntryMsg{
+				AgentID: agentID,
+				Role:    "system",
+				Content: "Error: " + err.Error(),
+			}
+		}
+		_, err = a.orch.Agents.SpawnWithSessionIsolated(agentID, text, sessionName, configPath, cleanup)
 		if err != nil {
 			return shared.ConversationEntryMsg{
 				AgentID: agentID,
@@ -1225,6 +1339,37 @@ func (a App) sendMessageToAgent(agentID, text string) tea.Cmd {
 
 		return nil
 	}
+}
+
+func (a App) newAgentContextNotice() string {
+	if a.newAgentContext == "" {
+		return ""
+	}
+	return shared.MutedStyle.Render("Pinned browser context: "+shortContextID(a.newAgentContext)) + "\n\n"
+}
+
+func (a *App) agentRuntimeConfig(agent *vault.Agent) (string, func(), error) {
+	if agent == nil {
+		return "", nil, fmt.Errorf("agent not found")
+	}
+	meta, err := vault.ParseAgentMetadata(agent.Metadata)
+	if err != nil {
+		return "", nil, fmt.Errorf("parse agent metadata: %w", err)
+	}
+	if meta.ContextID == "" {
+		return config.OpenClawConfigPath(), nil, nil
+	}
+	if a.orch == nil {
+		return "", nil, fmt.Errorf("orchestrator not available")
+	}
+	return a.orch.PrepareScopedOpenClawConfig(meta.ContextID)
+}
+
+func shortContextID(contextID string) string {
+	if len(contextID) <= 12 {
+		return contextID
+	}
+	return contextID[:12]
 }
 
 // reloadSettingsProxies loads proxies from vault into the settings panel.

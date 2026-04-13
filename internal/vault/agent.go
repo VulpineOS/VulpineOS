@@ -1,6 +1,7 @@
 package vault
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -138,6 +139,18 @@ func (db *DB) UpdateAgentTokens(id string, tokens int) error {
 	return err
 }
 
+// UpdateAgentMetadata updates the metadata JSON for an agent.
+func (db *DB) UpdateAgentMetadata(id, metadata string) error {
+	if metadata == "" {
+		metadata = "{}"
+	}
+	_, err := db.conn.Exec(
+		`UPDATE agents SET metadata = ? WHERE id = ?`,
+		metadata, id,
+	)
+	return err
+}
+
 // DeleteAgent removes an agent and all associated messages (cascade).
 func (db *DB) DeleteAgent(id string) error {
 	_, err := db.conn.Exec(`DELETE FROM agents WHERE id = ?`, id)
@@ -209,4 +222,25 @@ func (db *DB) GetRecentMessages(agentID string, limit int) ([]AgentMessage, erro
 		messages[i], messages[j] = messages[j], messages[i]
 	}
 	return messages, nil
+}
+
+// ParseAgentMetadata parses the JSON metadata for an agent.
+func ParseAgentMetadata(raw string) (AgentMetadata, error) {
+	if raw == "" {
+		return AgentMetadata{}, nil
+	}
+	var meta AgentMetadata
+	if err := json.Unmarshal([]byte(raw), &meta); err != nil {
+		return AgentMetadata{}, err
+	}
+	return meta, nil
+}
+
+// MarshalAgentMetadata encodes agent metadata to JSON.
+func MarshalAgentMetadata(meta AgentMetadata) string {
+	data, err := json.Marshal(meta)
+	if err != nil {
+		return "{}"
+	}
+	return string(data)
 }

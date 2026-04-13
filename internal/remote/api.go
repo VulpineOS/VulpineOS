@@ -3,6 +3,7 @@ package remote
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"vulpineos/internal/agentbus"
 	"vulpineos/internal/config"
@@ -126,25 +127,30 @@ func (api *PanelAPI) agentsList() (json.RawMessage, error) {
 		return nil, err
 	}
 	type agentSummary struct {
-		ID          string `json:"id"`
-		Name        string `json:"name"`
-		Status      string `json:"status"`
-		Task        string `json:"task"`
-		TotalTokens int    `json:"totalTokens"`
-		Fingerprint string `json:"fingerprint"` // summary string
+		ID                 string `json:"id"`
+		Name               string `json:"name"`
+		Status             string `json:"status"`
+		Task               string `json:"task"`
+		TotalTokens        int    `json:"totalTokens"`
+		Fingerprint        string `json:"fingerprint"`
+		FingerprintSummary string `json:"fingerprintSummary"`
+		ContextID          string `json:"contextId,omitempty"`
 	}
 	out := make([]agentSummary, len(agents))
 	for i, a := range agents {
+		meta, _ := vault.ParseAgentMetadata(a.Metadata)
 		out[i] = agentSummary{
-			ID:          a.ID,
-			Name:        a.Name,
-			Status:      a.Status,
-			Task:        a.Task,
-			TotalTokens: a.TotalTokens,
-			Fingerprint: vault.FingerprintSummary(a.Fingerprint),
+			ID:                 a.ID,
+			Name:               a.Name,
+			Status:             a.Status,
+			Task:               a.Task,
+			TotalTokens:        a.TotalTokens,
+			Fingerprint:        a.Fingerprint,
+			FingerprintSummary: vault.FingerprintSummary(a.Fingerprint),
+			ContextID:          meta.ContextID,
 		}
 	}
-	return json.Marshal(out)
+	return json.Marshal(map[string]interface{}{"agents": out})
 }
 
 func (api *PanelAPI) agentsSpawn(params json.RawMessage) (json.RawMessage, error) {
@@ -153,15 +159,65 @@ func (api *PanelAPI) agentsSpawn(params json.RawMessage) (json.RawMessage, error
 	}
 	var p struct {
 		TemplateID string `json:"templateId"`
+		Name       string `json:"name"`
+		Task       string `json:"task"`
+		ContextID  string `json:"contextId"`
 	}
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
-	agentID, err := api.Orchestrator.SpawnNomad(p.TemplateID)
+	if p.TemplateID != "" {
+		agentID, err := api.Orchestrator.SpawnNomad(p.TemplateID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]string{"agentId": agentID})
+	}
+	if api.Vault == nil {
+		return nil, fmt.Errorf("vault not available")
+	}
+	task := strings.TrimSpace(p.Task)
+	if task == "" {
+		return nil, fmt.Errorf("task is required")
+	}
+	name := strings.TrimSpace(p.Name)
+	if name == "" {
+		name = task
+		if len(name) > 48 {
+			name = name[:48]
+		}
+	}
+	fp, err := vault.GenerateFingerprint(name)
+	if err != nil {
+		fp = "{}"
+	}
+	agent, err := api.Vault.CreateAgent(name, task, fp)
 	if err != nil {
 		return nil, err
 	}
-	return json.Marshal(map[string]string{"agentId": agentID})
+	if p.ContextID != "" {
+		metadata := vault.MarshalAgentMetadata(vault.AgentMetadata{ContextID: p.ContextID})
+		if err := api.Vault.UpdateAgentMetadata(agent.ID, metadata); err == nil {
+			agent.Metadata = metadata
+		}
+	}
+	introMsg := "You are an AI agent named '" + name + "'. Your purpose: " + task + ". Introduce yourself briefly (1-2 sentences) and ask how you can help."
+	sessionName := "vulpine-" + agent.ID
+	configPath, cleanup, err := api.agentRuntimeConfig(agent)
+	if err != nil {
+		_ = api.Vault.UpdateAgentStatus(agent.ID, "error")
+		_ = api.Vault.AppendMessage(agent.ID, "system", "Failed to prepare runtime: "+err.Error(), 0)
+		return nil, err
+	}
+	_, err = api.Orchestrator.Agents.SpawnWithSessionIsolated(agent.ID, introMsg, sessionName, configPath, cleanup)
+	if err != nil {
+		_ = api.Vault.UpdateAgentStatus(agent.ID, "error")
+		_ = api.Vault.AppendMessage(agent.ID, "system", "Failed to start: "+err.Error(), 0)
+		return nil, err
+	}
+	_ = api.Vault.UpdateAgentStatus(agent.ID, "active")
+	_ = api.Vault.AppendMessage(agent.ID, "system", "Agent starting...", 0)
+	return json.Marshal(map[string]string{"agentId": agent.ID})
 }
 
 func (api *PanelAPI) agentsKill(params json.RawMessage) (json.RawMessage, error) {
@@ -203,15 +259,39 @@ func (api *PanelAPI) agentsResume(params json.RawMessage) (json.RawMessage, erro
 	var p struct {
 		AgentID     string `json:"agentId"`
 		SessionName string `json:"sessionName"`
+		Message     string `json:"message"`
 	}
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
-	configPath := config.OpenClawConfigPath()
-	id, err := api.Orchestrator.Agents.ResumeWithSession(p.AgentID, p.SessionName, configPath)
+	if p.SessionName == "" {
+		p.SessionName = "vulpine-" + p.AgentID
+	}
+	if strings.TrimSpace(p.Message) != "" {
+		if api.Vault == nil {
+			return nil, fmt.Errorf("vault not available")
+		}
+		agent, err := api.Vault.GetAgent(p.AgentID)
+		if err != nil {
+			return nil, err
+		}
+		_ = api.Vault.AppendMessage(p.AgentID, "user", p.Message, 0)
+		configPath, cleanup, err := api.agentRuntimeConfig(agent)
+		if err != nil {
+			return nil, err
+		}
+		id, err := api.Orchestrator.Agents.SpawnWithSessionIsolated(p.AgentID, p.Message, p.SessionName, configPath, cleanup)
+		if err != nil {
+			return nil, err
+		}
+		_ = api.Vault.UpdateAgentStatus(p.AgentID, "active")
+		return json.Marshal(map[string]string{"agentId": id})
+	}
+	id, err := api.Orchestrator.Agents.ResumeWithSession(p.AgentID, p.SessionName, config.OpenClawConfigPath())
 	if err != nil {
 		return nil, err
 	}
+	_ = api.Vault.UpdateAgentStatus(p.AgentID, "active")
 	return json.Marshal(map[string]string{"agentId": id})
 }
 
@@ -236,7 +316,7 @@ func (api *PanelAPI) agentsGetMessages(params json.RawMessage) (json.RawMessage,
 	if err != nil {
 		return nil, err
 	}
-	return json.Marshal(msgs)
+	return json.Marshal(map[string]interface{}{"messages": msgs})
 }
 
 // ---------------------------------------------------------------------------
@@ -295,7 +375,7 @@ func (api *PanelAPI) costsGetAll() (json.RawMessage, error) {
 	if api.Costs == nil {
 		return nil, fmt.Errorf("cost tracker not available")
 	}
-	return json.Marshal(api.Costs.AllUsage())
+	return json.Marshal(map[string]interface{}{"usage": api.Costs.AllUsage()})
 }
 
 func (api *PanelAPI) costsSetBudget(params json.RawMessage) (json.RawMessage, error) {
@@ -329,7 +409,7 @@ func (api *PanelAPI) webhooksList() (json.RawMessage, error) {
 	if api.Webhooks == nil {
 		return nil, fmt.Errorf("webhook manager not available")
 	}
-	return json.Marshal(api.Webhooks.List())
+	return json.Marshal(map[string]interface{}{"webhooks": api.Webhooks.List()})
 }
 
 func (api *PanelAPI) webhooksAdd(params json.RawMessage) (json.RawMessage, error) {
@@ -337,9 +417,9 @@ func (api *PanelAPI) webhooksAdd(params json.RawMessage) (json.RawMessage, error
 		return nil, fmt.Errorf("webhook manager not available")
 	}
 	var p struct {
-		URL    string              `json:"url"`
+		URL    string               `json:"url"`
 		Events []webhooks.EventType `json:"events"`
-		Secret string              `json:"secret"`
+		Secret string               `json:"secret"`
 	}
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("invalid params: %w", err)
@@ -374,7 +454,27 @@ func (api *PanelAPI) proxiesList() (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
-	return json.Marshal(proxies)
+	type proxySummary struct {
+		ID        string `json:"id"`
+		URL       string `json:"url"`
+		Country   string `json:"country,omitempty"`
+		Label     string `json:"label"`
+		LatencyMS int64  `json:"latencyMs"`
+	}
+	out := make([]proxySummary, 0, len(proxies))
+	for _, stored := range proxies {
+		summary := proxySummary{ID: stored.ID, Label: stored.Label}
+		var cfg proxy.ProxyConfig
+		if err := json.Unmarshal([]byte(stored.Config), &cfg); err == nil {
+			summary.URL = cfg.URL()
+		}
+		var geo proxy.GeoInfo
+		if err := json.Unmarshal([]byte(stored.Geo), &geo); err == nil {
+			summary.Country = geo.Country
+		}
+		out = append(out, summary)
+	}
+	return json.Marshal(map[string]interface{}{"proxies": out})
 }
 
 func (api *PanelAPI) proxiesAdd(params json.RawMessage) (json.RawMessage, error) {
@@ -383,11 +483,23 @@ func (api *PanelAPI) proxiesAdd(params json.RawMessage) (json.RawMessage, error)
 	}
 	var p struct {
 		Config string `json:"config"` // JSON proxy config or proxy URL
+		URL    string `json:"url"`
 		Geo    string `json:"geo"`
 		Label  string `json:"label"`
 	}
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("invalid params: %w", err)
+	}
+	if p.Config == "" && p.URL != "" {
+		pc, err := proxy.ParseProxyURL(p.URL)
+		if err != nil {
+			return nil, err
+		}
+		data, _ := json.Marshal(pc)
+		p.Config = string(data)
+		if p.Label == "" {
+			p.Label = p.URL
+		}
 	}
 	stored, err := api.Vault.AddProxy(p.Config, p.Geo, p.Label)
 	if err != nil {
@@ -401,10 +513,14 @@ func (api *PanelAPI) proxiesDelete(params json.RawMessage) (json.RawMessage, err
 		return nil, fmt.Errorf("vault not available")
 	}
 	var p struct {
-		ID string `json:"id"`
+		ID      string `json:"id"`
+		ProxyID string `json:"proxyId"`
 	}
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("invalid params: %w", err)
+	}
+	if p.ID == "" {
+		p.ID = p.ProxyID
 	}
 	if err := api.Vault.DeleteProxy(p.ID); err != nil {
 		return nil, err
@@ -414,20 +530,37 @@ func (api *PanelAPI) proxiesDelete(params json.RawMessage) (json.RawMessage, err
 
 func (api *PanelAPI) proxiesTest(params json.RawMessage) (json.RawMessage, error) {
 	var p struct {
-		URL string `json:"url"`
+		URL     string `json:"url"`
+		ProxyID string `json:"proxyId"`
 	}
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
-	pc, err := proxy.ParseProxyURL(p.URL)
-	if err != nil {
-		return nil, fmt.Errorf("parse proxy URL: %w", err)
+	var pc *proxy.ProxyConfig
+	if p.URL != "" {
+		parsed, err := proxy.ParseProxyURL(p.URL)
+		if err != nil {
+			return nil, fmt.Errorf("parse proxy URL: %w", err)
+		}
+		pc = parsed
+	} else if p.ProxyID != "" && api.Vault != nil {
+		stored, err := api.Vault.GetProxy(p.ProxyID)
+		if err != nil {
+			return nil, err
+		}
+		var cfg proxy.ProxyConfig
+		if err := json.Unmarshal([]byte(stored.Config), &cfg); err != nil {
+			return nil, fmt.Errorf("parse stored proxy config: %w", err)
+		}
+		pc = &cfg
+	} else {
+		return nil, fmt.Errorf("proxy url or proxy id is required")
 	}
 	latency, err := proxy.TestProxy(*pc)
 	if err != nil {
 		return nil, fmt.Errorf("proxy test failed: %w", err)
 	}
-	return json.Marshal(map[string]int64{"latencyMs": latency})
+	return json.Marshal(map[string]int64{"latencyMs": latency, "latency": latency})
 }
 
 func (api *PanelAPI) proxiesSetRotation(params json.RawMessage) (json.RawMessage, error) {
@@ -526,7 +659,7 @@ func (api *PanelAPI) recordingGetTimeline(params json.RawMessage) (json.RawMessa
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
 	timeline := api.Recorder.GetTimeline(p.AgentID)
-	return json.Marshal(timeline)
+	return json.Marshal(map[string]interface{}{"actions": timeline})
 }
 
 func (api *PanelAPI) recordingExport(params json.RawMessage) (json.RawMessage, error) {
@@ -567,9 +700,9 @@ func (api *PanelAPI) fingerprintsGet(params json.RawMessage) (json.RawMessage, e
 	// Return parsed fingerprint data plus the summary
 	fp, _ := vault.ParseFingerprint(agent.Fingerprint)
 	out := struct {
-		Raw     string              `json:"raw"`
+		Raw     string                 `json:"raw"`
 		Parsed  *vault.FingerprintData `json:"parsed,omitempty"`
-		Summary string              `json:"summary"`
+		Summary string                 `json:"summary"`
 	}{
 		Raw:     agent.Fingerprint,
 		Parsed:  fp,
@@ -600,20 +733,44 @@ func (api *PanelAPI) fingerprintsGenerate(params json.RawMessage) (json.RawMessa
 // ---------------------------------------------------------------------------
 
 func (api *PanelAPI) statusGet() (json.RawMessage, error) {
-	out := struct {
-		Orchestrator *orchestrator.Status `json:"orchestrator,omitempty"`
-		KernelPID    int                  `json:"kernelPid"`
-		KernelUp     bool                 `json:"kernelUp"`
-	}{}
+	out := map[string]interface{}{}
 
 	if api.Kernel != nil {
-		out.KernelUp = api.Kernel.Running()
-		out.KernelPID = api.Kernel.PID()
+		out["kernelUp"] = api.Kernel.Running()
+		out["kernelPid"] = api.Kernel.PID()
+		out["kernel_running"] = api.Kernel.Running()
+		out["kernel_pid"] = api.Kernel.PID()
 	}
 	if api.Orchestrator != nil {
 		status := api.Orchestrator.Status()
-		out.Orchestrator = &status
+		out["orchestrator"] = &status
+		out["kernel_running"] = status.KernelRunning
+		out["kernel_pid"] = status.KernelPID
+		out["pool_available"] = status.PoolAvailable
+		out["pool_active"] = status.PoolActive
+		out["pool_total"] = status.PoolTotal
+		out["active_agents"] = status.ActiveAgents
+		out["total_citizens"] = status.TotalCitizens
+		out["total_templates"] = status.TotalTemplates
+		out["total_cost_usd"] = status.TotalCostUSD
 	}
 
 	return json.Marshal(out)
+}
+
+func (api *PanelAPI) agentRuntimeConfig(agent *vault.Agent) (string, func(), error) {
+	if agent == nil {
+		return "", nil, fmt.Errorf("agent not found")
+	}
+	meta, err := vault.ParseAgentMetadata(agent.Metadata)
+	if err != nil {
+		return "", nil, fmt.Errorf("parse agent metadata: %w", err)
+	}
+	if meta.ContextID == "" {
+		return config.OpenClawConfigPath(), nil, nil
+	}
+	if api.Orchestrator == nil {
+		return "", nil, fmt.Errorf("orchestrator not available")
+	}
+	return api.Orchestrator.PrepareScopedOpenClawConfig(meta.ContextID)
 }
