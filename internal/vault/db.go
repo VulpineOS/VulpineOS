@@ -119,6 +119,13 @@ func OpenPath(path string) (*DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open vault db: %w", err)
 	}
+	conn.SetMaxOpenConns(1)
+	conn.SetMaxIdleConns(1)
+
+	if _, err := conn.Exec(`PRAGMA busy_timeout = 5000`); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("set busy_timeout: %w", err)
+	}
 
 	if _, err := conn.Exec(schema); err != nil {
 		conn.Close()

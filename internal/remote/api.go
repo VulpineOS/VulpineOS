@@ -8,6 +8,7 @@ import (
 	"vulpineos/internal/agentbus"
 	"vulpineos/internal/config"
 	"vulpineos/internal/costtrack"
+	"vulpineos/internal/juggler"
 	"vulpineos/internal/kernel"
 	"vulpineos/internal/orchestrator"
 	"vulpineos/internal/proxy"
@@ -27,6 +28,8 @@ type PanelAPI struct {
 	Recorder     *recording.Recorder
 	Rotator      *proxy.Rotator
 	Kernel       *kernel.Kernel
+	Client       *juggler.Client
+	Contexts     *ContextRegistry
 }
 
 // HandleMessage dispatches a control message to the appropriate handler.
@@ -108,6 +111,14 @@ func (api *PanelAPI) HandleMessage(method string, params json.RawMessage) (json.
 	// --- Status ---
 	case "status.get":
 		return api.statusGet()
+
+	// --- Contexts ---
+	case "contexts.list":
+		return api.contextsList()
+	case "contexts.create":
+		return api.contextsCreate(params)
+	case "contexts.remove":
+		return api.contextsRemove(params)
 
 	default:
 		return nil, fmt.Errorf("unknown method: %s", method)
@@ -201,7 +212,7 @@ func (api *PanelAPI) agentsSpawn(params json.RawMessage) (json.RawMessage, error
 			agent.Metadata = metadata
 		}
 	}
-	introMsg := "You are an AI agent named '" + name + "'. Your purpose: " + task + ". Introduce yourself briefly (1-2 sentences) and ask how you can help."
+	initialPrompt := task
 	sessionName := "vulpine-" + agent.ID
 	configPath, cleanup, err := api.agentRuntimeConfig(agent)
 	if err != nil {
@@ -209,7 +220,7 @@ func (api *PanelAPI) agentsSpawn(params json.RawMessage) (json.RawMessage, error
 		_ = api.Vault.AppendMessage(agent.ID, "system", "Failed to prepare runtime: "+err.Error(), 0)
 		return nil, err
 	}
-	_, err = api.Orchestrator.Agents.SpawnWithSessionIsolated(agent.ID, introMsg, sessionName, configPath, cleanup)
+	_, err = api.Orchestrator.Agents.SpawnWithSessionIsolated(agent.ID, initialPrompt, sessionName, configPath, cleanup)
 	if err != nil {
 		_ = api.Vault.UpdateAgentStatus(agent.ID, "error")
 		_ = api.Vault.AppendMessage(agent.ID, "system", "Failed to start: "+err.Error(), 0)
@@ -659,6 +670,9 @@ func (api *PanelAPI) recordingGetTimeline(params json.RawMessage) (json.RawMessa
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
 	timeline := api.Recorder.GetTimeline(p.AgentID)
+	if timeline == nil {
+		timeline = []recording.Action{}
+	}
 	return json.Marshal(map[string]interface{}{"actions": timeline})
 }
 
@@ -773,4 +787,65 @@ func (api *PanelAPI) agentRuntimeConfig(agent *vault.Agent) (string, func(), err
 		return "", nil, fmt.Errorf("orchestrator not available")
 	}
 	return api.Orchestrator.PrepareScopedOpenClawConfig(meta.ContextID)
+}
+
+func (api *PanelAPI) contextsList() (json.RawMessage, error) {
+	if api.Contexts == nil {
+		return json.Marshal(map[string]interface{}{"contexts": []ContextInfo{}})
+	}
+	return json.Marshal(map[string]interface{}{"contexts": api.Contexts.List()})
+}
+
+func (api *PanelAPI) contextsCreate(params json.RawMessage) (json.RawMessage, error) {
+	if api.Client == nil {
+		return nil, fmt.Errorf("juggler client not available")
+	}
+	var p struct {
+		RemoveOnDetach bool `json:"removeOnDetach"`
+	}
+	if len(params) > 0 {
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, fmt.Errorf("invalid params: %w", err)
+		}
+	}
+	result, err := api.Client.Call("", "Browser.createBrowserContext", map[string]interface{}{
+		"removeOnDetach": p.RemoveOnDetach,
+	})
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		BrowserContextID string `json:"browserContextId"`
+	}
+	if err := json.Unmarshal(result, &out); err != nil {
+		return nil, fmt.Errorf("parse createBrowserContext result: %w", err)
+	}
+	if api.Contexts != nil {
+		api.Contexts.Created(out.BrowserContextID)
+	}
+	return json.Marshal(map[string]string{"browserContextId": out.BrowserContextID})
+}
+
+func (api *PanelAPI) contextsRemove(params json.RawMessage) (json.RawMessage, error) {
+	if api.Client == nil {
+		return nil, fmt.Errorf("juggler client not available")
+	}
+	var p struct {
+		BrowserContextID string `json:"browserContextId"`
+	}
+	if err := json.Unmarshal(params, &p); err != nil {
+		return nil, fmt.Errorf("invalid params: %w", err)
+	}
+	if p.BrowserContextID == "" {
+		return nil, fmt.Errorf("browserContextId is required")
+	}
+	if _, err := api.Client.Call("", "Browser.removeBrowserContext", map[string]interface{}{
+		"browserContextId": p.BrowserContextID,
+	}); err != nil {
+		return nil, err
+	}
+	if api.Contexts != nil {
+		api.Contexts.Removed(p.BrowserContextID)
+	}
+	return json.Marshal(map[string]string{"status": "ok"})
 }

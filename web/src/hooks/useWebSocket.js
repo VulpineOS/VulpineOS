@@ -56,9 +56,7 @@ export function useWebSocket(apiKey) {
         reject(new Error('Not connected')); return
       }
       const id = idRef.current++
-      // The server expects a control envelope: {"type":"control","payload":"{\"command\":\"...\",\"params\":{}}"}
-      const controlPayload = JSON.stringify({ command: method, params: JSON.stringify(params), id })
-      const envelope = JSON.stringify({ type: 'control', payload: controlPayload })
+      const envelope = JSON.stringify({ type: 'control', payload: { command: method, params, id } })
 
       pendingRef.current[id] = (resp) => {
         if (resp.error) reject(new Error(resp.error))
@@ -81,7 +79,7 @@ export function useWebSocket(apiKey) {
         reject(new Error('Not connected')); return
       }
       const id = idRef.current++
-      const jugglerMsg = JSON.stringify({ type: 'juggler', payload: JSON.stringify({ id, method, params }) })
+      const jugglerMsg = JSON.stringify({ type: 'juggler', payload: { id, method, params } })
       pendingRef.current[id] = (resp) => {
         if (resp.error) reject(new Error(resp.error.message || 'Request failed'))
         else resolve(resp)
