@@ -2,9 +2,11 @@ package openclaw
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -64,13 +66,7 @@ func (m *Manager) SpawnWithSession(agentID, task, sessionName, configPath string
 		m.mu.Unlock()
 	}
 
-	args := []string{
-		"--profile", "vulpine",
-		"run",
-		"--session-id", sessionName,
-		"--message", task,
-		"--json",
-	}
+	args := agentTurnArgs(sessionName, task)
 
 	agent := newAgent(agentID, "openclaw", m.statusCh)
 
@@ -98,97 +94,28 @@ func (m *Manager) SpawnWithSession(agentID, task, sessionName, configPath string
 	return agentID, nil
 }
 
-// SpawnPersistent creates a long-lived agent process that stays alive for ongoing chat.
-// Messages are sent via stdin, responses read from stdout. The process only exits if it
-// crashes or VulpineOS shuts down. If the process dies, SendMessageOrRespawn will restart it.
+// SpawnPersistent is a compatibility shim over the current one-turn OpenClaw CLI.
 func (m *Manager) SpawnPersistent(agentID, initialMessage, sessionName string) (string, error) {
-	openclawBin := m.findOpenClaw()
-	if openclawBin == "" {
-		return "", fmt.Errorf("OpenClaw not found. Run 'npm install' in the VulpineOS directory or install globally: npm install -g openclaw")
-	}
-
-	// Stop any previous process
-	m.mu.Lock()
-	if old, ok := m.agents[agentID]; ok {
-		delete(m.agents, agentID)
-		m.mu.Unlock()
-		old.Stop()
-	} else {
-		m.mu.Unlock()
-	}
-
-	// Launch in interactive mode — no --message flag keeps stdin open
-	args := []string{
-		"--profile", "vulpine",
-		"run",
-		"--session-id", sessionName,
-		"--json",
-	}
-
-	agent := newAgent(agentID, "openclaw", m.statusCh)
-
-	if err := agent.start(openclawBin, args); err != nil {
-		return "", fmt.Errorf("spawn failed (binary=%s): %w", openclawBin, err)
-	}
-
-	m.mu.Lock()
-	m.agents[agentID] = agent
-	m.mu.Unlock()
-
-	go m.forwardConversation(agent)
-
-	// Don't auto-delete — agent stays in the map even after exit so we can respawn
-	go func() {
-		agent.Wait()
-		// Mark as exited but keep in map for respawn
-		agent.mu.Lock()
-		if agent.status.Status != "error" {
-			agent.status.Status = "ready"
-		}
-		agent.emitStatusLocked()
-		agent.mu.Unlock()
-	}()
-
-	// Send the initial message
-	if initialMessage != "" {
-		time.Sleep(500 * time.Millisecond) // brief pause for process startup
-		if err := agent.SendMessage(initialMessage); err != nil {
-			return agentID, fmt.Errorf("send initial message: %w", err)
-		}
-	}
-
-	return agentID, nil
+	return m.SpawnWithSession(agentID, initialMessage, sessionName, config.OpenClawConfigPath())
 }
 
-// SendMessageOrRespawn sends a message to a running agent. If the process has exited,
-// it respawns transparently and sends the message to the new process.
+// SendMessageOrRespawn sends a one-turn message using the current session id.
 func (m *Manager) SendMessageOrRespawn(agentID, text, sessionName string) error {
-	m.mu.RLock()
-	agent, exists := m.agents[agentID]
-	m.mu.RUnlock()
-
-	// Try sending to existing process
-	if exists {
-		err := agent.SendMessage(text)
-		if err == nil {
-			return nil // success — process is alive
-		}
-		// Process died — fall through to respawn
-	}
-
-	// Respawn the agent process
-	_, err := m.SpawnPersistent(agentID, text, sessionName)
+	_, err := m.SpawnWithSession(agentID, text, sessionName, config.OpenClawConfigPath())
 	return err
 }
 
-// ResumeWithSession resumes an agent from a saved session.
+// ResumeWithSession reactivates a saved session without forcing a model turn.
 func (m *Manager) ResumeWithSession(agentID, sessionName, configPath string) (string, error) {
 	openclawBin := m.findOpenClaw()
 	if openclawBin == "" {
 		return "", fmt.Errorf("OpenClaw not found. Run 'npm install' in the VulpineOS directory or install globally: npm install -g openclaw")
 	}
+	_ = openclawBin
+	_ = sessionName
+	_ = configPath
 
-	// Stop any previous process for this agent before resuming
+	// Stop any previous process for this agent before resuming.
 	m.mu.Lock()
 	if old, ok := m.agents[agentID]; ok {
 		delete(m.agents, agentID)
@@ -197,36 +124,6 @@ func (m *Manager) ResumeWithSession(agentID, sessionName, configPath string) (st
 	} else {
 		m.mu.Unlock()
 	}
-
-	args := []string{
-		"--profile", "vulpine",
-		"run",
-		"--session-id", sessionName,
-		"--message", "/resume",
-		"--json",
-	}
-
-	agent := newAgent(agentID, "openclaw", m.statusCh)
-
-	if err := agent.start(openclawBin, args); err != nil {
-		return "", fmt.Errorf("resume failed (binary=%s): %w", openclawBin, err)
-	}
-
-	m.mu.Lock()
-	m.agents[agentID] = agent
-	m.mu.Unlock()
-
-	go m.forwardConversation(agent)
-
-	// Auto-cleanup — only delete if this is still the current agent
-	go func() {
-		agent.Wait()
-		m.mu.Lock()
-		if m.agents[agentID] == agent {
-			delete(m.agents, agentID)
-		}
-		m.mu.Unlock()
-	}()
 
 	return agentID, nil
 }
@@ -240,12 +137,6 @@ func (m *Manager) PauseAgent(agentID string) error {
 	if !ok {
 		return fmt.Errorf("agent %s not found", agentID)
 	}
-
-	if err := agent.SendMessage("/savestate"); err != nil {
-		// Best effort — continue to stop even if send fails
-		_ = err
-	}
-	time.Sleep(1 * time.Second)
 
 	return agent.Stop()
 }
@@ -273,20 +164,37 @@ func (m *Manager) SendMessage(agentID, text string) error {
 	return agent.SendMessage(text)
 }
 
-// Spawn creates and starts a new agent bound to a browser context.
+// Spawn creates and starts a new agent turn using the current OpenClaw session CLI.
+// The newer CLI no longer accepts legacy context-id or SOP flags directly, so the
+// template SOP content is sent as the first turn and browser attachment is handled
+// by the generated OpenClaw profile config.
 func (m *Manager) Spawn(contextID string, sopFile string, extraArgs ...string) (string, error) {
+	openclawBin := m.findOpenClaw()
+	if openclawBin == "" {
+		return "", fmt.Errorf("OpenClaw not found. Run 'npm install' in the VulpineOS directory or install globally: npm install -g openclaw")
+	}
+
 	id := uuid.New().String()[:8]
 
-	args := []string{
-		"--context-id", contextID,
-	}
+	message := ""
 	if sopFile != "" {
-		args = append(args, "--sop", sopFile)
+		data, err := os.ReadFile(sopFile)
+		if err != nil {
+			return "", fmt.Errorf("read SOP: %w", err)
+		}
+		message = strings.TrimSpace(string(data))
 	}
-	args = append(args, extraArgs...)
+	if message == "" && len(extraArgs) > 0 {
+		message = strings.Join(extraArgs, " ")
+	}
+	if message == "" {
+		message = "Start."
+	}
+
+	args := agentTurnArgs("vulpine-"+id, message)
 
 	agent := newAgent(id, contextID, m.statusCh)
-	if err := agent.start(m.binary, args); err != nil {
+	if err := agent.start(openclawBin, args); err != nil {
 		return "", fmt.Errorf("spawn agent: %w", err)
 	}
 
@@ -333,20 +241,16 @@ func (m *Manager) SpawnOpenClaw(task string, agentSkills []config.SkillEntry) (s
 
 	id := uuid.New().String()[:8]
 
-	// Build per-agent skill dirs if needed
-	agentSkillDir := config.AgentSkillDir(id)
-
 	// OpenClaw args: run with our config, send a task
 	args := []string{
-		"run",
-		"--config", config.OpenClawConfigPath(),
-		"--message", task,
+		"--profile", "vulpine",
+		"agent",
+		"--local",
+		"--session-id", "vulpine-" + id,
+		"-m", task,
+		"--json",
 	}
-
-	// Add per-agent skill directory if there are agent-specific skills
-	if len(agentSkills) > 0 {
-		args = append(args, "--skills-dir", agentSkillDir)
-	}
+	_ = agentSkills
 
 	agent := newAgent(id, "openclaw", m.statusCh)
 	if err := agent.start(openclawBin, args); err != nil {
@@ -370,11 +274,12 @@ func (m *Manager) SpawnOpenClaw(task string, agentSkills []config.SkillEntry) (s
 // findOpenClaw looks for the OpenClaw binary in common locations.
 // Searches: explicit binary path, exe dir, cwd, parent dirs (for monorepo), global PATH.
 func (m *Manager) findOpenClaw() string {
-	// If binary was explicitly set and exists, use it
+	// If binary was explicitly set, treat it as authoritative.
 	if m.binary != "" && m.binary != "openclaw" {
-		if info, err := os.Stat(m.binary); err == nil && !info.IsDir() {
+		if isRunnable(m.binary) {
 			return m.binary
 		}
+		return ""
 	}
 
 	// Get the directory containing the vulpineos binary
@@ -406,7 +311,7 @@ func (m *Manager) findOpenClaw() string {
 			filepath.Join(d, "openclaw", "start.sh"),
 		}
 		for _, c := range candidates {
-			if info, err := os.Stat(c); err == nil && !info.IsDir() {
+			if isRunnable(c) {
 				abs, _ := filepath.Abs(c)
 				return abs
 			}
@@ -424,6 +329,28 @@ func (m *Manager) findOpenClaw() string {
 // OpenClawInstalled returns true if OpenClaw is available.
 func (m *Manager) OpenClawInstalled() bool {
 	return m.findOpenClaw() != ""
+}
+
+func agentTurnArgs(sessionName, message string) []string {
+	args := []string{
+		"--profile", "vulpine",
+		"agent",
+		"--local",
+		"--session-id", sessionName,
+		"--json",
+	}
+	if message != "" {
+		args = append(args, "-m", message)
+	}
+	return args
+}
+
+func isRunnable(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil || info.IsDir() {
+		return false
+	}
+	return info.Mode().Type() == fs.FileMode(0) && info.Mode()&0111 != 0
 }
 
 // Kill stops an agent by ID.
