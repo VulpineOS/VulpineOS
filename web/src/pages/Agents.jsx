@@ -5,21 +5,13 @@ export default function Agents({ ws }) {
   const [agents, setAgents] = useState([])
   const [task, setTask] = useState('')
   const [costs, setCosts] = useState([])
+  const [contexts, setContexts] = useState([])
   const [selectedContext, setSelectedContext] = useState(localStorage.getItem('vulpine_context_id') || '')
-
-  const contexts = Array.from(new Map(
-    (ws.events || [])
-      .filter(ev => ev.method === 'Browser.attachedToTarget' && ev.params?.targetInfo?.browserContextId)
-      .map(ev => {
-        const contextId = ev.params.targetInfo.browserContextId
-        const url = ev.params.targetInfo.url || 'about:blank'
-        return [contextId, { id: contextId, url }]
-      }),
-  ).values())
 
   const refresh = () => {
     ws.call('agents.list').then(r => setAgents(r?.agents || [])).catch(() => {})
     ws.call('costs.getAll').then(r => setCosts(r?.usage || [])).catch(() => {})
+    ws.call('contexts.list').then(r => setContexts(r?.contexts || [])).catch(() => {})
   }
 
   useEffect(() => { if (ws.connected) refresh() }, [ws.connected])

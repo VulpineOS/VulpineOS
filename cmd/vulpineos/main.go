@@ -423,6 +423,7 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 
 	// Create proxy rotator
 	rotator := proxy.NewRotator()
+	contexts := remote.NewContextRegistry()
 
 	addr := fmt.Sprintf(":%d", port)
 	server := remote.NewServer(addr, apiKey, client)
@@ -438,6 +439,8 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 		Recorder:     rec,
 		Rotator:      rotator,
 		Kernel:       k,
+		Client:       client,
+		Contexts:     contexts,
 	})
 
 	// Forward telemetry events to connected clients
@@ -450,6 +453,26 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 	} {
 		evt := event
 		client.Subscribe(evt, func(_ string, params json.RawMessage) {
+			switch evt {
+			case "Browser.attachedToTarget":
+				var payload struct {
+					SessionID  string `json:"sessionId"`
+					TargetInfo struct {
+						BrowserContextID string `json:"browserContextId"`
+						URL              string `json:"url"`
+					} `json:"targetInfo"`
+				}
+				if err := json.Unmarshal(params, &payload); err == nil {
+					contexts.Attached(payload.SessionID, payload.TargetInfo.BrowserContextID, payload.TargetInfo.URL)
+				}
+			case "Browser.detachedFromTarget":
+				var payload struct {
+					SessionID string `json:"sessionId"`
+				}
+				if err := json.Unmarshal(params, &payload); err == nil {
+					contexts.Detached(payload.SessionID)
+				}
+			}
 			server.BroadcastEvent(evt, params)
 		})
 	}
@@ -458,9 +481,13 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 		statusCh := orch.Agents.StatusChan()
 		go func() {
 			for status := range statusCh {
-				_ = v.UpdateAgentStatus(status.AgentID, status.Status)
+				if err := v.UpdateAgentStatus(status.AgentID, status.Status); err != nil {
+					log.Printf("vault: update agent status %s: %v", status.AgentID, err)
+				}
 				if status.Tokens > 0 {
-					_ = v.UpdateAgentTokens(status.AgentID, status.Tokens)
+					if err := v.UpdateAgentTokens(status.AgentID, status.Tokens); err != nil {
+						log.Printf("vault: update agent tokens %s: %v", status.AgentID, err)
+					}
 				}
 				if payload, err := json.Marshal(status); err == nil {
 					server.BroadcastEvent("Vulpine.agentStatus", payload)
@@ -471,7 +498,9 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 		conversationCh := orch.Agents.ConversationChan()
 		go func() {
 			for msg := range conversationCh {
-				_ = v.AppendMessage(msg.AgentID, msg.Role, msg.Content, msg.Tokens)
+				if err := v.AppendMessage(msg.AgentID, msg.Role, msg.Content, msg.Tokens); err != nil {
+					log.Printf("vault: append message %s: %v", msg.AgentID, err)
+				}
 				if payload, err := json.Marshal(msg); err == nil {
 					server.BroadcastEvent("Vulpine.conversation", payload)
 				}

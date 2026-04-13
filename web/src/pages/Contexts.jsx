@@ -4,38 +4,31 @@ export default function Contexts({ ws }) {
   const [contexts, setContexts] = useState([])
   const [selectedContext, setSelectedContext] = useState(localStorage.getItem('vulpine_context_id') || '')
 
+  const refresh = () => {
+    ws.call('contexts.list').then(r => setContexts(r?.contexts || [])).catch(() => {})
+  }
+
   useEffect(() => {
-    const active = new Map()
-    ;(ws.events || []).forEach(ev => {
-      if (ev.method === 'Browser.attachedToTarget') {
-        const contextId = ev.params?.targetInfo?.browserContextId
-        if (!contextId) return
-        const current = active.get(contextId) || { id: contextId, pages: 0, url: 'about:blank' }
-        current.pages += 1
-        current.url = ev.params?.targetInfo?.url || current.url
-        active.set(contextId, current)
-      }
-      if (ev.method === 'Browser.detachedFromTarget') {
-        // detach events do not include browserContextId, so keep the latest known snapshot
-      }
-    })
-    const known = JSON.parse(localStorage.getItem('vulpine_known_contexts') || '[]')
-    known.forEach(id => {
-      if (!active.has(id)) active.set(id, { id, pages: 0, url: 'about:blank' })
-    })
-    setContexts(Array.from(active.values()))
+    if (ws.connected) refresh()
+  }, [ws.connected])
+
+  useEffect(() => {
+    if (!ws.connected) return
+    const latest = ws.events?.[ws.events.length - 1]
+    if (!latest) return
+    if (latest.method === 'Browser.attachedToTarget' || latest.method === 'Browser.detachedFromTarget') {
+      refresh()
+    }
   }, [ws.connected, ws.events])
 
   const createContext = async () => {
     try {
-      const r = await ws.juggler('Browser.createBrowserContext', { removeOnDetach: true })
-      if (r?.result?.browserContextId) {
-        const id = r.result.browserContextId
-        const next = Array.from(new Set([...contexts.map(c => c.id), id]))
-        localStorage.setItem('vulpine_known_contexts', JSON.stringify(next))
+      const r = await ws.call('contexts.create', { removeOnDetach: true })
+      if (r?.browserContextId) {
+        const id = r.browserContextId
         localStorage.setItem('vulpine_context_id', id)
         setSelectedContext(id)
-        setContexts(prev => [...prev, { id, pages: 0, url: 'about:blank' }])
+        refresh()
       }
     } catch (e) {
       alert('Failed: ' + e.message)
@@ -44,14 +37,12 @@ export default function Contexts({ ws }) {
 
   const removeContext = async (id) => {
     try {
-      await ws.juggler('Browser.removeBrowserContext', { browserContextId: id })
-      const next = contexts.filter(c => c.id !== id).map(c => c.id)
-      localStorage.setItem('vulpine_known_contexts', JSON.stringify(next))
+      await ws.call('contexts.remove', { browserContextId: id })
       if (localStorage.getItem('vulpine_context_id') === id) {
         localStorage.removeItem('vulpine_context_id')
         setSelectedContext('')
       }
-      setContexts(prev => prev.filter(c => c.id !== id))
+      refresh()
     } catch (e) {
       alert('Failed: ' + e.message)
     }
