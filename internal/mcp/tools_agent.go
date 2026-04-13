@@ -13,7 +13,7 @@ import (
 
 // handleWait waits for a condition to be met on the page.
 // Supports: element appears, element contains text, network idle, DOM stable.
-func handleWait(client *juggler.Client, args json.RawMessage) (*ToolCallResult, error) {
+func handleWait(client *juggler.Client, tracker *ContextTracker, args json.RawMessage) (*ToolCallResult, error) {
 	var p struct {
 		SessionID string `json:"sessionId"`
 		Condition string `json:"condition"` // "element", "text", "networkIdle", "domStable", "urlContains"
@@ -38,7 +38,7 @@ func handleWait(client *juggler.Client, args json.RawMessage) (*ToolCallResult, 
 	pollInterval := 300 * time.Millisecond
 
 	for time.Now().Before(deadline) {
-		met, detail, err := checkCondition(client, p.SessionID, p.Condition, p.Selector, p.Text, p.Ref)
+		met, detail, err := checkCondition(client, tracker, p.SessionID, p.Condition, p.Selector, p.Text, p.Ref)
 		if err != nil {
 			return errorResult(err), nil
 		}
@@ -51,7 +51,7 @@ func handleWait(client *juggler.Client, args json.RawMessage) (*ToolCallResult, 
 	return errorResult(fmt.Errorf("timeout after %ds waiting for condition: %s", timeout, p.Condition)), nil
 }
 
-func checkCondition(client *juggler.Client, sessionID, condition, selector, text, ref string) (bool, string, error) {
+func checkCondition(client *juggler.Client, tracker *ContextTracker, sessionID, condition, selector, text, ref string) (bool, string, error) {
 	switch condition {
 	case "element":
 		// Check if element matching CSS selector exists and is visible
@@ -64,7 +64,7 @@ func checkCondition(client *juggler.Client, sessionID, condition, selector, text
 				window.getComputedStyle(el).visibility !== 'hidden';
 			return JSON.stringify({found: true, visible: visible, text: el.textContent.substring(0, 100)});
 		})()`, selector)
-		result, err := evalJS(client, sessionID, js)
+		result, err := evalJS(client, tracker, sessionID, js)
 		if err != nil {
 			return false, "", nil // page might not be ready yet
 		}
@@ -82,7 +82,7 @@ func checkCondition(client *juggler.Client, sessionID, condition, selector, text
 	case "text":
 		// Check if page body contains specific text
 		js := `document.body.innerText`
-		result, err := evalJS(client, sessionID, js)
+		result, err := evalJS(client, tracker, sessionID, js)
 		if err != nil {
 			return false, "", nil
 		}
@@ -98,7 +98,7 @@ func checkCondition(client *juggler.Client, sessionID, condition, selector, text
 			const recent = entries.filter(e => (performance.now() - e.startTime) < 500 && e.duration === 0);
 			return JSON.stringify({pending: recent.length});
 		})()`
-		result, err := evalJS(client, sessionID, js)
+		result, err := evalJS(client, tracker, sessionID, js)
 		if err != nil {
 			return false, "", nil
 		}
@@ -114,12 +114,12 @@ func checkCondition(client *juggler.Client, sessionID, condition, selector, text
 	case "domStable":
 		// Take two snapshots 300ms apart and compare
 		js := `document.documentElement.innerHTML.length`
-		result1, err := evalJS(client, sessionID, js)
+		result1, err := evalJS(client, tracker, sessionID, js)
 		if err != nil {
 			return false, "", nil
 		}
 		time.Sleep(300 * time.Millisecond)
-		result2, err := evalJS(client, sessionID, js)
+		result2, err := evalJS(client, tracker, sessionID, js)
 		if err != nil {
 			return false, "", nil
 		}
@@ -130,7 +130,7 @@ func checkCondition(client *juggler.Client, sessionID, condition, selector, text
 
 	case "urlContains":
 		js := `window.location.href`
-		result, err := evalJS(client, sessionID, js)
+		result, err := evalJS(client, tracker, sessionID, js)
 		if err != nil {
 			return false, "", nil
 		}
@@ -146,12 +146,12 @@ func checkCondition(client *juggler.Client, sessionID, condition, selector, text
 
 // handleFind searches for elements by text content, role, aria-label, or placeholder.
 // Returns matching refs from the current snapshot.
-func handleFind(client *juggler.Client, args json.RawMessage) (*ToolCallResult, error) {
+func handleFind(client *juggler.Client, tracker *ContextTracker, args json.RawMessage) (*ToolCallResult, error) {
 	var p struct {
-		SessionID string `json:"sessionId"`
-		Query     string `json:"query"`    // text to search for
-		Role      string `json:"role"`     // optional: filter by role (button, link, input, etc.)
-		MaxResults int   `json:"maxResults"` // default 5
+		SessionID  string `json:"sessionId"`
+		Query      string `json:"query"`      // text to search for
+		Role       string `json:"role"`       // optional: filter by role (button, link, input, etc.)
+		MaxResults int    `json:"maxResults"` // default 5
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
 		return errorResult(err), nil
@@ -213,7 +213,7 @@ func handleFind(client *juggler.Client, args json.RawMessage) (*ToolCallResult, 
 		return JSON.stringify(results);
 	})()`, p.Query, p.Role, maxResults)
 
-	result, err := evalJS(client, p.SessionID, js)
+	result, err := evalJS(client, tracker, p.SessionID, js)
 	if err != nil {
 		return errorResult(err), nil
 	}
@@ -256,7 +256,7 @@ func handleFind(client *juggler.Client, args json.RawMessage) (*ToolCallResult, 
 }
 
 // handleVerify checks the state of an element after an action.
-func handleVerify(client *juggler.Client, args json.RawMessage) (*ToolCallResult, error) {
+func handleVerify(client *juggler.Client, tracker *ContextTracker, args json.RawMessage) (*ToolCallResult, error) {
 	var p struct {
 		SessionID string `json:"sessionId"`
 		Check     string `json:"check"`    // "exists", "visible", "checked", "value", "text", "url", "title"
@@ -270,7 +270,7 @@ func handleVerify(client *juggler.Client, args json.RawMessage) (*ToolCallResult
 	switch p.Check {
 	case "exists":
 		js := fmt.Sprintf(`!!document.querySelector(%q)`, p.Selector)
-		result, err := evalJS(client, p.SessionID, js)
+		result, err := evalJS(client, tracker, p.SessionID, js)
 		if err != nil {
 			return errorResult(err), nil
 		}
@@ -287,7 +287,7 @@ func handleVerify(client *juggler.Client, args json.RawMessage) (*ToolCallResult
 			const style = window.getComputedStyle(el);
 			return (rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden') ? "visible" : "hidden";
 		})()`, p.Selector)
-		result, err := evalJS(client, p.SessionID, js)
+		result, err := evalJS(client, tracker, p.SessionID, js)
 		if err != nil {
 			return errorResult(err), nil
 		}
@@ -301,7 +301,7 @@ func handleVerify(client *juggler.Client, args json.RawMessage) (*ToolCallResult
 			const el = document.querySelector(%q);
 			return el ? String(el.checked) : "not_found";
 		})()`, p.Selector)
-		result, err := evalJS(client, p.SessionID, js)
+		result, err := evalJS(client, tracker, p.SessionID, js)
 		if err != nil {
 			return errorResult(err), nil
 		}
@@ -315,7 +315,7 @@ func handleVerify(client *juggler.Client, args json.RawMessage) (*ToolCallResult
 			const el = document.querySelector(%q);
 			return el ? el.value : "not_found";
 		})()`, p.Selector)
-		result, err := evalJS(client, p.SessionID, js)
+		result, err := evalJS(client, tracker, p.SessionID, js)
 		if err != nil {
 			return errorResult(err), nil
 		}
@@ -329,7 +329,7 @@ func handleVerify(client *juggler.Client, args json.RawMessage) (*ToolCallResult
 			const el = document.querySelector(%q);
 			return el ? el.textContent.trim() : "not_found";
 		})()`, p.Selector)
-		result, err := evalJS(client, p.SessionID, js)
+		result, err := evalJS(client, tracker, p.SessionID, js)
 		if err != nil {
 			return errorResult(err), nil
 		}
@@ -340,7 +340,7 @@ func handleVerify(client *juggler.Client, args json.RawMessage) (*ToolCallResult
 
 	case "url":
 		js := `window.location.href`
-		result, err := evalJS(client, p.SessionID, js)
+		result, err := evalJS(client, tracker, p.SessionID, js)
 		if err != nil {
 			return errorResult(err), nil
 		}
@@ -351,7 +351,7 @@ func handleVerify(client *juggler.Client, args json.RawMessage) (*ToolCallResult
 
 	case "title":
 		js := `document.title`
-		result, err := evalJS(client, p.SessionID, js)
+		result, err := evalJS(client, tracker, p.SessionID, js)
 		if err != nil {
 			return errorResult(err), nil
 		}
@@ -420,7 +420,7 @@ func handleScreenshotDiff(client *juggler.Client, tracker *ScreenshotTracker, ar
 
 // handlePageSettled waits until the page is fully loaded and stable.
 // Combines network idle + DOM stability + no pending animations.
-func handlePageSettled(client *juggler.Client, args json.RawMessage) (*ToolCallResult, error) {
+func handlePageSettled(client *juggler.Client, tracker *ContextTracker, args json.RawMessage) (*ToolCallResult, error) {
 	var p struct {
 		SessionID string `json:"sessionId"`
 		Timeout   int    `json:"timeout"` // seconds, default 10
@@ -446,7 +446,7 @@ func handlePageSettled(client *juggler.Client, args json.RawMessage) (*ToolCallR
 			images: Array.from(document.images).filter(i => !i.complete).length,
 			url: window.location.href,
 		})`
-		result, err := evalJS(client, p.SessionID, js)
+		result, err := evalJS(client, tracker, p.SessionID, js)
 		if err != nil {
 			time.Sleep(300 * time.Millisecond)
 			continue
@@ -478,7 +478,7 @@ func handlePageSettled(client *juggler.Client, args json.RawMessage) (*ToolCallR
 }
 
 // handleSelectOption selects an option from a dropdown/select element.
-func handleSelectOption(client *juggler.Client, args json.RawMessage) (*ToolCallResult, error) {
+func handleSelectOption(client *juggler.Client, tracker *ContextTracker, args json.RawMessage) (*ToolCallResult, error) {
 	var p struct {
 		SessionID string `json:"sessionId"`
 		Selector  string `json:"selector"` // CSS selector for the <select> element
@@ -512,7 +512,7 @@ func handleSelectOption(client *juggler.Client, args json.RawMessage) (*ToolCall
 		return errorResult(fmt.Errorf("either value or text is required")), nil
 	}
 
-	result, err := evalJS(client, p.SessionID, js)
+	result, err := evalJS(client, tracker, p.SessionID, js)
 	if err != nil {
 		return errorResult(err), nil
 	}
@@ -531,7 +531,7 @@ func handleSelectOption(client *juggler.Client, args json.RawMessage) (*ToolCall
 }
 
 // handleFillForm fills multiple form fields at once.
-func handleFillForm(client *juggler.Client, args json.RawMessage) (*ToolCallResult, error) {
+func handleFillForm(client *juggler.Client, tracker *ContextTracker, args json.RawMessage) (*ToolCallResult, error) {
 	var p struct {
 		SessionID string            `json:"sessionId"`
 		Fields    map[string]string `json:"fields"` // selector → value
@@ -554,7 +554,7 @@ func handleFillForm(client *juggler.Client, args json.RawMessage) (*ToolCallResu
 			return "ok";
 		})()`, selector, value)
 
-		result, err := evalJS(client, p.SessionID, js)
+		result, err := evalJS(client, tracker, p.SessionID, js)
 		if err != nil {
 			errors = append(errors, fmt.Sprintf("%s: %v", selector, err))
 			continue
@@ -574,7 +574,7 @@ func handleFillForm(client *juggler.Client, args json.RawMessage) (*ToolCallResu
 }
 
 // handleGetPageInfo returns comprehensive page state for agent decision-making.
-func handleGetPageInfo(client *juggler.Client, args json.RawMessage) (*ToolCallResult, error) {
+func handleGetPageInfo(client *juggler.Client, tracker *ContextTracker, args json.RawMessage) (*ToolCallResult, error) {
 	var p struct {
 		SessionID string `json:"sessionId"`
 	}
@@ -601,7 +601,7 @@ func handleGetPageInfo(client *juggler.Client, args json.RawMessage) (*ToolCallR
 		alerts: 0,
 	})`
 
-	result, err := evalJS(client, p.SessionID, js)
+	result, err := evalJS(client, tracker, p.SessionID, js)
 	if err != nil {
 		return errorResult(err), nil
 	}
@@ -651,19 +651,11 @@ func handlePressKey(client *juggler.Client, args json.RawMessage) (*ToolCallResu
 		modifiers |= 8
 	}
 
-	// keydown
-	_, err := client.Call(p.SessionID, "Page.dispatchKeyEvent", map[string]interface{}{
-		"type": "keydown", "key": key, "modifiers": modifiers,
-	})
-	if err != nil {
+	if err := dispatchKeyEvent(client, p.SessionID, "keydown", key, modifiers, ""); err != nil {
 		return errorResult(err), nil
 	}
 
-	// keyup
-	_, err = client.Call(p.SessionID, "Page.dispatchKeyEvent", map[string]interface{}{
-		"type": "keyup", "key": key, "modifiers": modifiers,
-	})
-	if err != nil {
+	if err := dispatchKeyEvent(client, p.SessionID, "keyup", key, modifiers, ""); err != nil {
 		return errorResult(err), nil
 	}
 
@@ -675,7 +667,7 @@ func handlePressKey(client *juggler.Client, args json.RawMessage) (*ToolCallResu
 }
 
 // handleClearInput selects all text in the focused input and deletes it.
-func handleClearInput(client *juggler.Client, args json.RawMessage) (*ToolCallResult, error) {
+func handleClearInput(client *juggler.Client, tracker *ContextTracker, args json.RawMessage) (*ToolCallResult, error) {
 	var p struct {
 		SessionID string `json:"sessionId"`
 		Selector  string `json:"selector"` // optional CSS selector to focus first
@@ -685,30 +677,46 @@ func handleClearInput(client *juggler.Client, args json.RawMessage) (*ToolCallRe
 	}
 
 	if p.Selector != "" {
-		js := fmt.Sprintf(`(() => { const el = document.querySelector(%q); if(el){el.focus();el.select();} return !!el; })()`, p.Selector)
-		evalJS(client, p.SessionID, js)
+		js := fmt.Sprintf(`(() => {
+			const el = document.querySelector(%q);
+			if (!el || !('value' in el)) return "not_found";
+			el.focus();
+			el.value = "";
+			el.dispatchEvent(new Event('input', {bubbles: true}));
+			el.dispatchEvent(new Event('change', {bubbles: true}));
+			return "ok";
+		})()`, p.Selector)
+		result, err := evalJS(client, tracker, p.SessionID, js)
+		if err != nil {
+			return errorResult(err), nil
+		}
+		if result == "not_found" {
+			return errorResult(fmt.Errorf("element %q not found", p.Selector)), nil
+		}
+		return textResult("Input cleared"), nil
 	}
 
-	// Select all (ctrl+a)
-	client.Call(p.SessionID, "Page.dispatchKeyEvent", map[string]interface{}{
-		"type": "keydown", "key": "a", "modifiers": 2,
-	})
-	client.Call(p.SessionID, "Page.dispatchKeyEvent", map[string]interface{}{
-		"type": "keyup", "key": "a", "modifiers": 2,
-	})
-	// Delete selected text
-	client.Call(p.SessionID, "Page.dispatchKeyEvent", map[string]interface{}{
-		"type": "keydown", "key": "Backspace", "modifiers": 0,
-	})
-	client.Call(p.SessionID, "Page.dispatchKeyEvent", map[string]interface{}{
-		"type": "keyup", "key": "Backspace", "modifiers": 0,
-	})
+	js := `(() => {
+		const el = document.activeElement;
+		if (!el || !('value' in el)) return "not_found";
+		el.value = "";
+		el.dispatchEvent(new Event('input', {bubbles: true}));
+		el.dispatchEvent(new Event('change', {bubbles: true}));
+		return "ok";
+	})()`
+	result, err := evalJS(client, tracker, p.SessionID, js)
+	if err != nil {
+		return errorResult(err), nil
+	}
+	if result == "not_found" {
+		return errorResult(fmt.Errorf("no focused input to clear")), nil
+	}
 
 	return textResult("Input cleared"), nil
 }
 
 // handleGetFormErrors extracts form validation error messages from the page.
-func handleGetFormErrors(client *juggler.Client, args json.RawMessage) (*ToolCallResult, error) {
+func handleGetFormErrors(client *juggler.Client, tracker *ContextTracker, args json.RawMessage) (*ToolCallResult, error) {
 	var p struct {
 		SessionID string `json:"sessionId"`
 		Selector  string `json:"selector"` // optional form selector, default "form"
@@ -751,7 +759,7 @@ func handleGetFormErrors(client *juggler.Client, args json.RawMessage) (*ToolCal
 		return JSON.stringify({errors: errors, count: errors.length});
 	})()`, sel)
 
-	result, err := evalJS(client, p.SessionID, js)
+	result, err := evalJS(client, tracker, p.SessionID, js)
 	if err != nil {
 		return errorResult(err), nil
 	}
@@ -761,13 +769,21 @@ func handleGetFormErrors(client *juggler.Client, args json.RawMessage) (*ToolCal
 // --- Helper functions ---
 
 // evalJS evaluates JavaScript and returns the string result.
-func evalJS(client *juggler.Client, sessionID, expression string) (string, error) {
+func evalJS(client *juggler.Client, tracker *ContextTracker, sessionID, expression string) (string, error) {
 	if client == nil {
 		return "", fmt.Errorf("no browser connection")
 	}
+	if tracker == nil {
+		return "", fmt.Errorf("no context tracker")
+	}
+	ctx, err := tracker.Resolve(sessionID)
+	if err != nil {
+		return "", err
+	}
 	result, err := client.Call(sessionID, "Runtime.evaluate", map[string]interface{}{
-		"expression":    expression,
-		"returnByValue": true,
+		"expression":         expression,
+		"returnByValue":      true,
+		"executionContextId": ctx.ExecutionContextID,
 	})
 	if err != nil {
 		return "", err
@@ -797,6 +813,84 @@ func evalJS(client *juggler.Client, sessionID, expression string) (string, error
 		data, _ := json.Marshal(v)
 		return string(data), nil
 	}
+}
+
+type keyEventSpec struct {
+	Key     string
+	Code    string
+	KeyCode int
+	Text    string
+}
+
+func keySpecForKey(key string) keyEventSpec {
+	specs := map[string]keyEventSpec{
+		"Enter":      {Key: "Enter", Code: "Enter", KeyCode: 13},
+		"Tab":        {Key: "Tab", Code: "Tab", KeyCode: 9},
+		"Escape":     {Key: "Escape", Code: "Escape", KeyCode: 27},
+		"Backspace":  {Key: "Backspace", Code: "Backspace", KeyCode: 8},
+		"Delete":     {Key: "Delete", Code: "Delete", KeyCode: 46},
+		"ArrowUp":    {Key: "ArrowUp", Code: "ArrowUp", KeyCode: 38},
+		"ArrowDown":  {Key: "ArrowDown", Code: "ArrowDown", KeyCode: 40},
+		"ArrowLeft":  {Key: "ArrowLeft", Code: "ArrowLeft", KeyCode: 37},
+		"ArrowRight": {Key: "ArrowRight", Code: "ArrowRight", KeyCode: 39},
+		"Home":       {Key: "Home", Code: "Home", KeyCode: 36},
+		"End":        {Key: "End", Code: "End", KeyCode: 35},
+		"PageUp":     {Key: "PageUp", Code: "PageUp", KeyCode: 33},
+		"PageDown":   {Key: "PageDown", Code: "PageDown", KeyCode: 34},
+		"Space":      {Key: " ", Code: "Space", KeyCode: 32, Text: " "},
+	}
+	if spec, ok := specs[key]; ok {
+		return spec
+	}
+	if len(key) == 1 {
+		ch := key[0]
+		switch {
+		case ch >= 'a' && ch <= 'z':
+			return keyEventSpec{
+				Key:     string(ch),
+				Code:    "Key" + strings.ToUpper(string(ch)),
+				KeyCode: int(ch - 32),
+				Text:    string(ch),
+			}
+		case ch >= 'A' && ch <= 'Z':
+			return keyEventSpec{
+				Key:     string(ch),
+				Code:    "Key" + string(ch),
+				KeyCode: int(ch),
+				Text:    string(ch),
+			}
+		case ch >= '0' && ch <= '9':
+			return keyEventSpec{
+				Key:     string(ch),
+				Code:    "Digit" + string(ch),
+				KeyCode: int(ch),
+				Text:    string(ch),
+			}
+		}
+	}
+	return keyEventSpec{Key: key, Code: key, KeyCode: 0}
+}
+
+func dispatchKeyEvent(client *juggler.Client, sessionID, eventType, key string, modifiers int, text string) error {
+	spec := keySpecForKey(key)
+	params := map[string]interface{}{
+		"type":      eventType,
+		"key":       spec.Key,
+		"code":      spec.Code,
+		"keyCode":   spec.KeyCode,
+		"location":  0,
+		"repeat":    false,
+		"modifiers": modifiers,
+	}
+	if eventType == "keydown" {
+		if text != "" {
+			params["text"] = text
+		} else if spec.Text != "" && modifiers == 0 {
+			params["text"] = spec.Text
+		}
+	}
+	_, err := client.Call(sessionID, "Page.dispatchKeyEvent", params)
+	return err
 }
 
 func truncate(s string, max int) string {
