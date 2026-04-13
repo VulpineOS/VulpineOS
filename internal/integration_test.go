@@ -638,6 +638,9 @@ func TestIntegration_AgentSpawnAndRespond(t *testing.T) {
 	if err != nil || !cfg.SetupComplete {
 		t.Skip("VulpineOS not configured — run setup wizard first")
 	}
+	if err := cfg.GenerateOpenClawConfig("", cfg.BinaryPath); err != nil {
+		t.Fatalf("GenerateOpenClawConfig: %v", err)
+	}
 
 	agentID := "test-integration"
 	sessionName := "vulpine-test-integration"
@@ -664,6 +667,58 @@ func TestIntegration_AgentSpawnAndRespond(t *testing.T) {
 			}
 		case <-timeout:
 			t.Fatal("agent did not respond within 60 seconds")
+		}
+	}
+}
+
+func TestIntegration_AgentSessionPersists(t *testing.T) {
+	mgr := openclaw.NewManager("")
+	if !mgr.OpenClawInstalled() {
+		t.Skip("OpenClaw not installed")
+	}
+
+	cfg, err := config.Load()
+	if err != nil || !cfg.SetupComplete {
+		t.Skip("VulpineOS not configured — run setup wizard first")
+	}
+	if err := cfg.GenerateOpenClawConfig("", cfg.BinaryPath); err != nil {
+		t.Fatalf("GenerateOpenClawConfig: %v", err)
+	}
+
+	agentID := "test-session"
+	sessionName := "vulpine-test-session"
+
+	_, err = mgr.SpawnWithSession(agentID, "Remember token ALPHA42 and reply exactly TOKEN_SAVED", sessionName, config.OpenClawConfigPath())
+	if err != nil {
+		t.Fatalf("first SpawnWithSession failed: %v", err)
+	}
+	waitForAssistantContains(t, mgr.ConversationChan(), agentID, "TOKEN_SAVED", 90*time.Second)
+
+	_, err = mgr.SpawnWithSession(agentID, "What token did I ask you to remember? Reply exactly TOKEN:ALPHA42", sessionName, config.OpenClawConfigPath())
+	if err != nil {
+		t.Fatalf("second SpawnWithSession failed: %v", err)
+	}
+	waitForAssistantContains(t, mgr.ConversationChan(), agentID, "TOKEN:ALPHA42", 90*time.Second)
+}
+
+func waitForAssistantContains(t *testing.T, convCh <-chan openclaw.ConversationMsg, agentID, want string, timeout time.Duration) {
+	t.Helper()
+
+	deadline := time.After(timeout)
+	for {
+		select {
+		case msg, ok := <-convCh:
+			if !ok {
+				t.Fatal("conversation channel closed")
+			}
+			if msg.AgentID == agentID && msg.Role == "assistant" {
+				t.Logf("Agent response: %s", msg.Content[:min(len(msg.Content), 200)])
+				if strings.Contains(msg.Content, want) {
+					return
+				}
+			}
+		case <-deadline:
+			t.Fatalf("assistant response containing %q not received within %s", want, timeout)
 		}
 	}
 }

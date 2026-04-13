@@ -43,6 +43,7 @@ func (g *Gateway) Start() error {
 	args := []string{
 		"--profile", "vulpine",
 		"gateway",
+		"run",
 		"--bind", "loopback",
 		"--allow-unconfigured",
 	}
