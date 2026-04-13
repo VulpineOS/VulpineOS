@@ -39,7 +39,7 @@ func handleHumanClick(client *juggler.Client, args json.RawMessage) (*ToolCallRe
 	for _, pt := range path {
 		time.Sleep(time.Duration(pt.DelayMs) * time.Millisecond)
 		_, err := client.Call(p.SessionID, "Page.dispatchMouseEvent", map[string]interface{}{
-			"type": "mouseMoved", "x": pt.X, "y": pt.Y,
+			"type": "mousemove", "x": math.Max(0, pt.X), "y": math.Max(0, pt.Y),
 			"button": 0, "clickCount": 0, "modifiers": 0, "buttons": 0,
 		})
 		if err != nil {
@@ -208,7 +208,7 @@ func generateHumanPath(fromX, fromY, toX, toY float64, speed string) []pathPoint
 
 // handleHumanType types text with realistic human cadence including variable
 // inter-key intervals, occasional pauses, and rare typo corrections.
-func handleHumanType(client *juggler.Client, args json.RawMessage) (*ToolCallResult, error) {
+func handleHumanType(client *juggler.Client, tracker *ContextTracker, args json.RawMessage) (*ToolCallResult, error) {
 	var p struct {
 		SessionID string `json:"sessionId"`
 		Text      string `json:"text"`
@@ -232,19 +232,25 @@ func handleHumanType(client *juggler.Client, args json.RawMessage) (*ToolCallRes
 		key := string(ks.Char)
 
 		if ks.IsCorrection {
-			// Type Backspace to delete the typo
-			_, err := client.Call(p.SessionID, "Page.dispatchKeyEvent", map[string]interface{}{
-				"type": "keydown", "key": "Backspace", "modifiers": 0,
-			})
+			// Remove the previous character from the active editable field.
+			result, err := evalJS(client, tracker, p.SessionID, `(() => {
+				const el = document.activeElement;
+				if (!el || !('value' in el)) return "not_input";
+				const start = typeof el.selectionStart === 'number' ? el.selectionStart : el.value.length;
+				const end = typeof el.selectionEnd === 'number' ? el.selectionEnd : el.value.length;
+				if (start === 0 && end === 0) return "ok";
+				const from = start === end ? Math.max(0, start - 1) : start;
+				el.value = el.value.slice(0, from) + el.value.slice(end);
+				if (typeof el.setSelectionRange === 'function') el.setSelectionRange(from, from);
+				el.dispatchEvent(new Event('input', {bubbles: true}));
+				el.dispatchEvent(new Event('change', {bubbles: true}));
+				return "ok";
+			})()`)
 			if err != nil {
 				return errorResult(err), nil
 			}
-			time.Sleep(time.Duration(60+rand.Intn(40)) * time.Millisecond)
-			_, err = client.Call(p.SessionID, "Page.dispatchKeyEvent", map[string]interface{}{
-				"type": "keyup", "key": "Backspace", "modifiers": 0,
-			})
-			if err != nil {
-				return errorResult(err), nil
+			if result == "not_input" {
+				return errorResult(fmt.Errorf("human_type: active element is not editable")), nil
 			}
 
 			// Brief pause after noticing typo
@@ -252,23 +258,24 @@ func handleHumanType(client *juggler.Client, args json.RawMessage) (*ToolCallRes
 			continue
 		}
 
-		// keydown
-		_, err := client.Call(p.SessionID, "Page.dispatchKeyEvent", map[string]interface{}{
-			"type": "keydown", "key": key, "modifiers": 0,
-		})
+		result, err := evalJS(client, tracker, p.SessionID, fmt.Sprintf(`(() => {
+			const el = document.activeElement;
+			if (!el || !('value' in el)) return "not_input";
+			const start = typeof el.selectionStart === 'number' ? el.selectionStart : el.value.length;
+			const end = typeof el.selectionEnd === 'number' ? el.selectionEnd : el.value.length;
+			const text = %q;
+			el.value = el.value.slice(0, start) + text + el.value.slice(end);
+			const pos = start + text.length;
+			if (typeof el.setSelectionRange === 'function') el.setSelectionRange(pos, pos);
+			el.dispatchEvent(new Event('input', {bubbles: true}));
+			el.dispatchEvent(new Event('change', {bubbles: true}));
+			return "ok";
+		})()`, key))
 		if err != nil {
 			return errorResult(err), nil
 		}
-
-		// Dwell time (80-120ms)
-		time.Sleep(time.Duration(80+rand.Intn(40)) * time.Millisecond)
-
-		// keyup
-		_, err = client.Call(p.SessionID, "Page.dispatchKeyEvent", map[string]interface{}{
-			"type": "keyup", "key": key, "modifiers": 0,
-		})
-		if err != nil {
-			return errorResult(err), nil
+		if result == "not_input" {
+			return errorResult(fmt.Errorf("human_type: active element is not editable")), nil
 		}
 
 		typed++
@@ -365,7 +372,7 @@ func typoNeighbor(ch rune) rune {
 
 // handleHumanScroll scrolls the page with realistic inertial decay: an initial
 // large scroll followed by progressively smaller increments with micro-pauses.
-func handleHumanScroll(client *juggler.Client, args json.RawMessage) (*ToolCallResult, error) {
+func handleHumanScroll(client *juggler.Client, tracker *ContextTracker, args json.RawMessage) (*ToolCallResult, error) {
 	var p struct {
 		SessionID string  `json:"sessionId"`
 		DeltaY    float64 `json:"deltaY"` // total scroll amount (positive = down)
@@ -375,7 +382,7 @@ func handleHumanScroll(client *juggler.Client, args json.RawMessage) (*ToolCallR
 	}
 
 	// Break into 3-6 scroll events with inertial decay
-	numSteps := 3 + rand.Intn(4) // 3-6 steps
+	numSteps := 3 + rand.Intn(4)            // 3-6 steps
 	decayFactor := 0.6 + rand.Float64()*0.2 // 60-80% of previous
 
 	remaining := p.DeltaY
@@ -401,11 +408,10 @@ func handleHumanScroll(client *juggler.Client, args json.RawMessage) (*ToolCallR
 			delta = remaining
 		}
 
-		_, err := client.Call(p.SessionID, "Page.dispatchWheelEvent", map[string]interface{}{
-			"x": 400, "y": 300,
-			"deltaX": 0, "deltaY": math.Round(delta), "deltaZ": 0,
-			"modifiers": 0,
-		})
+		_, err := evalJS(client, tracker, p.SessionID, fmt.Sprintf(`(() => {
+			window.scrollBy(0, %f);
+			return Math.round(window.scrollY);
+		})()`, delta))
 		if err != nil {
 			return errorResult(err), nil
 		}

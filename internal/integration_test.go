@@ -795,6 +795,83 @@ func TestIntegration_AgentBrowserUsesScopedContext(t *testing.T) {
 	waitForAssistantContains(t, mgr.ConversationChan(), agentID, "COOKIE:"+token, 120*time.Second)
 }
 
+func TestIntegration_AgentBrowserClicksLocalPage(t *testing.T) {
+	mgr := openclaw.NewManager("")
+	if !mgr.OpenClawInstalled() {
+		t.Skip("OpenClaw not installed")
+	}
+
+	cfg, err := config.Load()
+	if err != nil || !cfg.SetupComplete {
+		t.Skip("VulpineOS not configured — run setup wizard first")
+	}
+	if err := cfg.GenerateOpenClawConfig("", cfg.BinaryPath); err != nil {
+		t.Fatalf("GenerateOpenClawConfig: %v", err)
+	}
+
+	k, client := startKernel(t)
+	defer k.Stop()
+
+	result, err := client.Call("", "Browser.createBrowserContext", mustJSON(map[string]interface{}{
+		"removeOnDetach": true,
+	}))
+	if err != nil {
+		t.Fatalf("Browser.createBrowserContext failed: %v", err)
+	}
+
+	var ctx struct {
+		BrowserContextID string `json:"browserContextId"`
+	}
+	if err := json.Unmarshal(result, &ctx); err != nil {
+		t.Fatalf("unmarshal Browser.createBrowserContext result: %v", err)
+	}
+	if ctx.BrowserContextID == "" {
+		t.Fatal("Browser.createBrowserContext returned empty browserContextId")
+	}
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `<!doctype html>
+<html>
+<head><title>Agent Audit</title></head>
+<body>
+  <h1>Agent Audit</h1>
+  <button id="action" onclick="document.getElementById('status').textContent='clicked'">Action Button</button>
+  <div id="status">ready</div>
+</body>
+</html>`)
+	}))
+	server.Listener = listener
+	server.Start()
+	defer server.Close()
+
+	scopedFoxbridge, err := foxbridge.StartEmbeddedScoped(client, 0, ctx.BrowserContextID)
+	if err != nil {
+		t.Fatalf("StartEmbeddedScoped failed: %v", err)
+	}
+	defer scopedFoxbridge.Stop()
+
+	scopedConfig, cleanupConfig, err := openclaw.PrepareScopedConfig(config.OpenClawConfigPath(), scopedFoxbridge.CDPURL())
+	if err != nil {
+		t.Fatalf("PrepareScopedConfig failed: %v", err)
+	}
+	defer cleanupConfig()
+
+	agentID := "test-browser-click"
+	sessionName := "vulpine-test-browser-click"
+	task := fmt.Sprintf("Use the browser to open %s, click Action Button, and reply exactly STATUS:clicked. Do not explain.", server.URL)
+
+	_, err = mgr.SpawnWithSession(agentID, task, sessionName, scopedConfig)
+	if err != nil {
+		t.Fatalf("SpawnWithSession failed: %v", err)
+	}
+
+	waitForAssistantContains(t, mgr.ConversationChan(), agentID, "STATUS:clicked", 180*time.Second)
+}
+
 func waitForAssistantContains(t *testing.T, convCh <-chan openclaw.ConversationMsg, agentID, want string, timeout time.Duration) {
 	t.Helper()
 

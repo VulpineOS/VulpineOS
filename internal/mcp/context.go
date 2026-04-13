@@ -56,6 +56,21 @@ func NewContextTracker(client *juggler.Client) *ContextTracker {
 		}
 	})
 
+	client.Subscribe("Runtime.executionContextDestroyed", func(sessionID string, params json.RawMessage) {
+		var ev struct {
+			ExecutionContextID string `json:"executionContextId"`
+		}
+		json.Unmarshal(params, &ev)
+
+		ct.mu.Lock()
+		defer ct.mu.Unlock()
+
+		ctx := ct.contexts[sessionID]
+		if ctx != nil && ctx.ExecutionContextID == ev.ExecutionContextID {
+			ctx.ExecutionContextID = ""
+		}
+	})
+
 	client.Subscribe("Page.frameAttached", func(sessionID string, params json.RawMessage) {
 		var ev struct {
 			FrameID       string `json:"frameId"`
@@ -98,6 +113,18 @@ func (ct *ContextTracker) Get(sessionID string) *SessionContext {
 	ct.mu.RLock()
 	defer ct.mu.RUnlock()
 	return ct.contexts[sessionID]
+}
+
+// InvalidateExecutionContext forces the next Resolve call for the
+// given session to wait for a fresh execution context event. This is
+// needed across navigations, where the old context may briefly remain
+// readable while already pointing at the previous document.
+func (ct *ContextTracker) InvalidateExecutionContext(sessionID string) {
+	ct.mu.Lock()
+	defer ct.mu.Unlock()
+	if ctx := ct.contexts[sessionID]; ctx != nil {
+		ctx.ExecutionContextID = ""
+	}
 }
 
 // Resolve discovers the execution context and frame for a session.

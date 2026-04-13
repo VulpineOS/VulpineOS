@@ -399,7 +399,7 @@ func handleToolCallFull(ctx context.Context, client *juggler.Client, tracker *Co
 	case "vulpine_screenshot":
 		return handleScreenshot(client, args)
 	case "vulpine_scroll":
-		return handleScroll(client, args)
+		return handleScroll(client, tracker, args)
 	case "vulpine_new_context":
 		return handleNewContext(client, args)
 	case "vulpine_close_context":
@@ -415,38 +415,38 @@ func handleToolCallFull(ctx context.Context, client *juggler.Client, tracker *Co
 
 	// Agent reliability tools
 	case "vulpine_wait":
-		return handleWait(client, args)
+		return handleWait(client, tracker, args)
 	case "vulpine_find":
-		return handleFind(client, args)
+		return handleFind(client, tracker, args)
 	case "vulpine_verify":
-		return handleVerify(client, args)
+		return handleVerify(client, tracker, args)
 	case "vulpine_screenshot_diff":
 		if screenshots == nil {
 			screenshots = NewScreenshotTracker()
 		}
 		return handleScreenshotDiff(client, screenshots, args)
 	case "vulpine_page_settled":
-		return handlePageSettled(client, args)
+		return handlePageSettled(client, tracker, args)
 	case "vulpine_select_option":
-		return handleSelectOption(client, args)
+		return handleSelectOption(client, tracker, args)
 	case "vulpine_fill_form":
-		return handleFillForm(client, args)
+		return handleFillForm(client, tracker, args)
 	case "vulpine_page_info":
-		return handleGetPageInfo(client, args)
+		return handleGetPageInfo(client, tracker, args)
 	case "vulpine_press_key":
 		return handlePressKey(client, args)
 	case "vulpine_clear_input":
-		return handleClearInput(client, args)
+		return handleClearInput(client, tracker, args)
 	case "vulpine_get_form_errors":
-		return handleGetFormErrors(client, args)
+		return handleGetFormErrors(client, tracker, args)
 
 	// Human-like interaction tools
 	case "vulpine_human_click":
 		return handleHumanClick(client, args)
 	case "vulpine_human_type":
-		return handleHumanType(client, args)
+		return handleHumanType(client, tracker, args)
 	case "vulpine_human_scroll":
-		return handleHumanScroll(client, args)
+		return handleHumanScroll(client, tracker, args)
 
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
@@ -490,6 +490,8 @@ func handleNavigate(client *juggler.Client, tracker *ContextTracker, args json.R
 	if err != nil {
 		return errorResult(err), nil
 	}
+
+	tracker.InvalidateExecutionContext(p.SessionID)
 
 	// Navigation invalidates every objectID captured by the previous
 	// page's annotated screenshot. Drop any label mappings for this
@@ -631,7 +633,7 @@ func handleScreenshot(client *juggler.Client, args json.RawMessage) (*ToolCallRe
 	}, nil
 }
 
-func handleScroll(client *juggler.Client, args json.RawMessage) (*ToolCallResult, error) {
+func handleScroll(client *juggler.Client, tracker *ContextTracker, args json.RawMessage) (*ToolCallResult, error) {
 	var p struct {
 		SessionID string  `json:"sessionId"`
 		DeltaY    float64 `json:"deltaY"`
@@ -640,16 +642,15 @@ func handleScroll(client *juggler.Client, args json.RawMessage) (*ToolCallResult
 		return errorResult(err), nil
 	}
 
-	_, err := client.Call(p.SessionID, "Page.dispatchWheelEvent", map[string]interface{}{
-		"x": 400, "y": 300,
-		"deltaX": 0, "deltaY": p.DeltaY, "deltaZ": 0,
-		"modifiers": 0,
-	})
+	result, err := evalJS(client, tracker, p.SessionID, fmt.Sprintf(`(() => {
+		window.scrollBy(0, %f);
+		return Math.round(window.scrollY);
+	})()`, p.DeltaY))
 	if err != nil {
 		return errorResult(err), nil
 	}
 
-	return textResult(fmt.Sprintf("Scrolled by %v pixels", p.DeltaY)), nil
+	return textResult(fmt.Sprintf("Scrolled by %v pixels to y=%s", p.DeltaY, result)), nil
 }
 
 func handleNewContext(client *juggler.Client, args json.RawMessage) (*ToolCallResult, error) {
@@ -796,22 +797,39 @@ func handleTypeRef(client *juggler.Client, args json.RawMessage) (*ToolCallResul
 		return errorResult(err), nil
 	}
 
-	// Focus the element by ref
-	result, err := client.Call(p.SessionID, "Page.focusByRef", map[string]interface{}{
+	// Resolve the element and click it to focus before inserting text.
+	result, err := client.Call(p.SessionID, "Page.resolveRef", map[string]interface{}{
 		"ref": p.Ref,
 	})
 	if err != nil {
 		return errorResult(err), nil
 	}
 
-	var focused struct {
-		Found bool `json:"found"`
+	var resolved struct {
+		X     float64 `json:"x"`
+		Y     float64 `json:"y"`
+		Found bool    `json:"found"`
 	}
-	if err := json.Unmarshal(result, &focused); err != nil {
+	if err := json.Unmarshal(result, &resolved); err != nil {
 		return errorResult(err), nil
 	}
-	if !focused.Found {
+	if !resolved.Found {
 		return errorResult(fmt.Errorf("element ref %s not found (stale snapshot?)", p.Ref)), nil
+	}
+
+	_, err = client.Call(p.SessionID, "Page.dispatchMouseEvent", map[string]interface{}{
+		"type": "mousedown", "x": resolved.X, "y": resolved.Y,
+		"button": 0, "clickCount": 1, "modifiers": 0, "buttons": 1,
+	})
+	if err != nil {
+		return errorResult(err), nil
+	}
+	_, err = client.Call(p.SessionID, "Page.dispatchMouseEvent", map[string]interface{}{
+		"type": "mouseup", "x": resolved.X, "y": resolved.Y,
+		"button": 0, "clickCount": 1, "modifiers": 0, "buttons": 0,
+	})
+	if err != nil {
+		return errorResult(err), nil
 	}
 
 	// Type the text
@@ -854,9 +872,9 @@ func handleHoverRef(client *juggler.Client, args json.RawMessage) (*ToolCallResu
 		return errorResult(fmt.Errorf("element ref %s not found (stale snapshot?)", p.Ref)), nil
 	}
 
-	// mouseMoved
+	// mousemove
 	_, err = client.Call(p.SessionID, "Page.dispatchMouseEvent", map[string]interface{}{
-		"type": "mouseMoved", "x": resolved.X, "y": resolved.Y,
+		"type": "mousemove", "x": resolved.X, "y": resolved.Y,
 		"button": 0, "clickCount": 0, "modifiers": 0, "buttons": 0,
 	})
 	if err != nil {
