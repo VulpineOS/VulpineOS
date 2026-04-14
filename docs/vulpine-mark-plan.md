@@ -85,7 +85,7 @@ The standalone `vulpine-mark` repo gets community adoption and positions Vulpine
 
 ## Open Source: YES
 
-**Repo:** `PopcornDev1/vulpine-mark` (public)
+**Repo:** `VulpineOS/vulpine-mark` (public)
 
 Reasons:
 - The concept (SoM) is already published research — no proprietary secret
@@ -185,4 +185,3 @@ These are NEW ideas beyond the MVP and current roadmap, ranked by impact-to-effo
 13. **Arrow mode** — draw arrows from each element to a list of labels anchored at the screen edge, keeping the page content unobscured. ~5h. Public.
 14. **Pre-warmed annotation cache** — on navigation, pre-compute annotation in the background so the first `Annotate()` call after page-load is instant. ~4h. **VulpineOS-native** (needs lifecycle hooks).
 15. **Confidence scores per label** — expose a confidence field in the element map (`0.0-1.0`) based on visibility %, occlusion, and role certainty; lets the agent ignore low-confidence badges. ~3h. Public.
-
