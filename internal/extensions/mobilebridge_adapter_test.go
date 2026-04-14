@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"testing"
 
-	mb "github.com/PopcornDev1/mobilebridge/pkg/mobilebridge"
+	mb "github.com/VulpineOS/mobilebridge/pkg/mobilebridge"
 )
 
 func TestMobilebridgeAdapterAvailable(t *testing.T) {

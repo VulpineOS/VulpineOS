@@ -8,9 +8,9 @@ import (
 
 	"vulpineos/internal/juggler"
 
-	"github.com/PopcornDev1/foxbridge/pkg/backend"
-	"github.com/PopcornDev1/foxbridge/pkg/bridge"
-	"github.com/PopcornDev1/foxbridge/pkg/cdp"
+	"github.com/VulpineOS/foxbridge/pkg/backend"
+	"github.com/VulpineOS/foxbridge/pkg/bridge"
+	"github.com/VulpineOS/foxbridge/pkg/cdp"
 )
 
 // jugglerAdapter wraps a VulpineOS juggler.Client as a foxbridge backend.Backend.
