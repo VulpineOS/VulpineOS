@@ -15,15 +15,16 @@ import (
 
 // Kernel manages the Firefox/VulpineOS browser process.
 type Kernel struct {
-	cmd       *exec.Cmd
-	client    *juggler.Client
-	transport *juggler.PipeTransport
-	logFile   *os.File
-	startedAt time.Time
-	waited    bool // true after cmd.Wait() has been called
-	window    *WindowController
-	headless  bool
-	mu        sync.Mutex
+	cmd        *exec.Cmd
+	client     *juggler.Client
+	transport  *juggler.PipeTransport
+	logFile    *os.File
+	profileDir string
+	startedAt  time.Time
+	waited     bool // true after cmd.Wait() has been called
+	window     *WindowController
+	headless   bool
+	mu         sync.Mutex
 }
 
 // Config holds the kernel launch configuration.
@@ -61,18 +62,27 @@ func (k *Kernel) Start(cfg Config) error {
 		}
 	}
 
+	profileDir := cfg.ProfileDir
+	if profileDir == "" {
+		tempProfileDir, err := os.MkdirTemp("", "vulpineos-profile-*")
+		if err != nil {
+			return fmt.Errorf("create temp profile: %w", err)
+		}
+		profileDir = tempProfileDir
+		k.profileDir = tempProfileDir
+	}
+
 	// Build args
 	args := []string{
 		"--juggler-pipe",
 		"--no-remote",
+		"--new-instance",
 		"--purgecaches", // Force Firefox to re-read omni.ja (needed after patching)
 	}
 	if cfg.Headless {
 		args = append(args, "--headless")
 	}
-	if cfg.ProfileDir != "" {
-		args = append(args, "--profile", cfg.ProfileDir)
-	}
+	args = append(args, "--profile", profileDir)
 	args = append(args, cfg.ExtraArgs...)
 
 	// Create pipes for Juggler transport (FD 3 read, FD 4 write)
@@ -110,6 +120,10 @@ func (k *Kernel) Start(cfg Config) error {
 		toFirefoxWrite.Close()
 		fromFirefoxRead.Close()
 		fromFirefoxWrite.Close()
+		if k.profileDir != "" {
+			_ = os.RemoveAll(k.profileDir)
+			k.profileDir = ""
+		}
 		return fmt.Errorf("start firefox: %w", err)
 	}
 
@@ -212,6 +226,10 @@ func (k *Kernel) Stop() error {
 	if k.logFile != nil {
 		k.logFile.Close()
 		k.logFile = nil
+	}
+	if k.profileDir != "" {
+		_ = os.RemoveAll(k.profileDir)
+		k.profileDir = ""
 	}
 
 	return nil

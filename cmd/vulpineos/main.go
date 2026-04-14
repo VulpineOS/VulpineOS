@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -46,6 +47,22 @@ var (
 	stdout io.Writer = os.Stdout
 	stderr io.Writer = os.Stderr
 )
+
+func enableBrowser(client *juggler.Client, label string) error {
+	var lastErr error
+	time.Sleep(1 * time.Second)
+	for attempt := 0; attempt < 5; attempt++ {
+		_, err := client.Call("", "Browser.enable", map[string]interface{}{
+			"attachToDefaultContext": true,
+		})
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		time.Sleep(time.Duration(attempt+1) * 500 * time.Millisecond)
+	}
+	return fmt.Errorf("%s: %w", label, lastErr)
+}
 
 func main() {
 	os.Exit(Run(os.Args))
@@ -147,10 +164,8 @@ func runMCPServer(binaryPath string, headless bool, profileDir string) error {
 	if err := fb.StartEmbeddedMode(client, 9222); err != nil {
 		log.Printf("foxbridge embedded mode failed: %v", err)
 		// Fall back to manual Browser.enable for MCP
-		if _, err := client.Call("", "Browser.enable", map[string]interface{}{
-			"attachToDefaultContext": true,
-		}); err != nil {
-			return fmt.Errorf("Browser.enable: %w", err)
+		if err := enableBrowser(client, "Browser.enable"); err != nil {
+			return err
 		}
 	} else {
 		defer fb.Stop()
@@ -225,6 +240,11 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 		go func() {
 			// Open vault
 			v, _ = vault.Open()
+			if v != nil {
+				if err := v.ReconcileNonTerminalAgents("interrupted"); err != nil {
+					log.Printf("Warning: reconcile agents: %v", err)
+				}
+			}
 
 			// Start kernel
 			k = kernel.New()
@@ -322,10 +342,8 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 		// providers. On the default public build this is a no-op
 		// because privateProviders is zero-valued.
 		extensions.InitWithClient(client)
-		if _, err := client.Call("", "Browser.enable", map[string]interface{}{
-			"attachToDefaultContext": true,
-		}); err != nil {
-			return fmt.Errorf("Browser.enable: %w", err)
+		if err := enableBrowser(client, "Browser.enable"); err != nil {
+			return err
 		}
 	}
 	p := tea.NewProgram(app, tea.WithAltScreen())
@@ -347,10 +365,8 @@ func runRemote(addr string, apiKey string) error {
 	defer client.Close()
 
 	extensions.InitWithClient(client)
-	if _, err := client.Call("", "Browser.enable", map[string]interface{}{
-		"attachToDefaultContext": true,
-	}); err != nil {
-		return fmt.Errorf("Browser.enable (remote): %w", err)
+	if err := enableBrowser(client, "Browser.enable (remote)"); err != nil {
+		return err
 	}
 
 	app := tui.NewApp(nil, client, nil, nil, nil)
@@ -380,15 +396,16 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 
 	client := k.Client()
 	extensions.InitWithClient(client)
-	if _, err := client.Call("", "Browser.enable", map[string]interface{}{
-		"attachToDefaultContext": true,
-	}); err != nil {
-		return fmt.Errorf("Browser.enable: %w", err)
+	if err := enableBrowser(client, "Browser.enable"); err != nil {
+		return err
 	}
 
 	// Open vault
 	v, _ := vault.Open()
 	if v != nil {
+		if err := v.ReconcileNonTerminalAgents("interrupted"); err != nil {
+			log.Printf("Warning: reconcile agents: %v", err)
+		}
 		defer v.Close()
 	}
 
@@ -450,9 +467,14 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 		"Browser.trustWarmingStateChanged",
 		"Browser.attachedToTarget",
 		"Browser.detachedFromTarget",
+		"Page.navigationCommitted",
+		"Page.eventFired",
+		"Page.frameAttached",
+		"Runtime.executionContextCreated",
+		"Runtime.executionContextDestroyed",
 	} {
 		evt := event
-		client.Subscribe(evt, func(_ string, params json.RawMessage) {
+		client.Subscribe(evt, func(sessionID string, params json.RawMessage) {
 			switch evt {
 			case "Browser.attachedToTarget":
 				var payload struct {
@@ -473,7 +495,7 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 					contexts.Detached(payload.SessionID)
 				}
 			}
-			server.BroadcastEvent(evt, params)
+			server.BroadcastEvent(evt, sessionID, params)
 		})
 	}
 
@@ -489,8 +511,15 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 						log.Printf("vault: update agent tokens %s: %v", status.AgentID, err)
 					}
 				}
-				if payload, err := json.Marshal(status); err == nil {
-					server.BroadcastEvent("Vulpine.agentStatus", payload)
+				payload := map[string]interface{}{
+					"agentId":   status.AgentID,
+					"contextId": status.ContextID,
+					"status":    status.Status,
+					"objective": status.Objective,
+					"tokens":    status.Tokens,
+				}
+				if encoded, err := json.Marshal(payload); err == nil {
+					server.BroadcastEvent("Vulpine.agentStatus", "", encoded)
 				}
 			}
 		}()
@@ -501,8 +530,14 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 				if err := v.AppendMessage(msg.AgentID, msg.Role, msg.Content, msg.Tokens); err != nil {
 					log.Printf("vault: append message %s: %v", msg.AgentID, err)
 				}
-				if payload, err := json.Marshal(msg); err == nil {
-					server.BroadcastEvent("Vulpine.conversation", payload)
+				payload := map[string]interface{}{
+					"agentId": msg.AgentID,
+					"role":    msg.Role,
+					"content": msg.Content,
+					"tokens":  msg.Tokens,
+				}
+				if encoded, err := json.Marshal(payload); err == nil {
+					server.BroadcastEvent("Vulpine.conversation", "", encoded)
 				}
 			}
 		}()

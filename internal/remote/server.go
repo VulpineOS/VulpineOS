@@ -84,10 +84,11 @@ func (s *Server) Stop(ctx context.Context) error {
 
 // BroadcastEvent sends a Juggler event to all connected clients.
 // Clients that fail to receive the message are removed.
-func (s *Server) BroadcastEvent(method string, params json.RawMessage) {
+func (s *Server) BroadcastEvent(method, sessionID string, params json.RawMessage) {
 	msg, _ := json.Marshal(&juggler.Message{
-		Method: method,
-		Params: params,
+		Method:    method,
+		Params:    params,
+		SessionID: sessionID,
 	})
 	env, err := NewJugglerEnvelope(msg)
 	if err != nil {

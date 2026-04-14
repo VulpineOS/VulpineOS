@@ -121,6 +121,21 @@ func (db *DB) UpdateAgentStatus(id, status string) error {
 	return err
 }
 
+// ReconcileNonTerminalAgents marks persisted agents left in a non-terminal
+// state as interrupted after a process restart.
+func (db *DB) ReconcileNonTerminalAgents(status string) error {
+	if status == "" {
+		status = "interrupted"
+	}
+	_, err := db.conn.Exec(
+		`UPDATE agents
+		 SET status = ?, last_active = ?
+		 WHERE status NOT IN ('completed', 'error', 'interrupted')`,
+		status, time.Now().Unix(),
+	)
+	return err
+}
+
 // UpdateAgentFingerprint updates the fingerprint JSON for an agent.
 func (db *DB) UpdateAgentFingerprint(id, fingerprint string) error {
 	_, err := db.conn.Exec(
