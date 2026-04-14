@@ -11,14 +11,14 @@ VulpineOS is the operating system for AI browser agents — a Firefox/Camoufox-b
 </p>
 
 <p align="center">
-  <a href="https://github.com/PopcornDev1/VulpineOS/actions/workflows/ci.yml"><img src="https://github.com/PopcornDev1/VulpineOS/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/VulpineOS/VulpineOS/actions/workflows/ci.yml"><img src="https://github.com/VulpineOS/VulpineOS/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
 
 <p align="center">
   <a href="https://docs.vulpineos.com">Documentation</a> ·
   <a href="https://vulpineos.com">Vulpine API</a> ·
-  <a href="https://github.com/PopcornDev1/foxbridge">Foxbridge CDP Proxy</a> ·
-  <a href="https://github.com/PopcornDev1/VulpineOS/issues">Issues</a>
+  <a href="https://github.com/VulpineOS/foxbridge">Foxbridge CDP Proxy</a> ·
+  <a href="https://github.com/VulpineOS/VulpineOS/issues">Issues</a>
 </p>
 
 ---
@@ -202,7 +202,7 @@ Access via `--serve --port 8443 --api-key KEY` or through the remote client.
 
 ## Foxbridge: CDP-to-Firefox Protocol Proxy
 
-[Foxbridge](https://github.com/PopcornDev1/foxbridge) is a standalone Go binary that translates Chrome DevTools Protocol (CDP) to Firefox's Juggler and WebDriver BiDi protocols. Any CDP tool — OpenClaw, Puppeteer, browser-use — can control Camoufox as if it were Chrome.
+[Foxbridge](https://github.com/VulpineOS/foxbridge) is a standalone Go binary that translates Chrome DevTools Protocol (CDP) to Firefox's Juggler and WebDriver BiDi protocols. Any CDP tool — OpenClaw, Puppeteer, browser-use — can control Camoufox as if it were Chrome.
 
 - **74/74 Puppeteer Juggler tests** passing
 - **62/62 Puppeteer BiDi tests** passing
@@ -223,7 +223,7 @@ Access via `--serve --port 8443 --api-key KEY` or through the remote client.
 ### Install
 
 ```bash
-git clone https://github.com/PopcornDev1/VulpineOS.git
+git clone https://github.com/VulpineOS/VulpineOS.git
 cd VulpineOS
 npm install          # installs OpenClaw
 go build -o vulpineos ./cmd/vulpineos
