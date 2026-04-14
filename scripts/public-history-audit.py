@@ -21,6 +21,8 @@ PUBLIC_REPOS = [
 
 EXCLUDE_SPECS = [
     ":(exclude)go.sum",
+    ":(exclude)scripts/public-boundary-audit.sh",
+    ":(exclude)scripts/public-history-audit.py",
     ":(glob,exclude)**/node_modules/**",
     ":(glob,exclude)**/dist/**",
     ":(glob,exclude)**/build/**",
@@ -32,6 +34,9 @@ EXCLUDE_SPECS = [
     ":(glob,exclude)**/docs/public/llms.txt",
     ":(glob,exclude)**/docs/public/llms-full.txt",
 ]
+
+PRIVATE_DOCS_DIR = "." + "claude" + "/private-docs/"
+PRIVATE_DOCS_DIR_WINDOWS = "." + "claude" + "\\private-docs\\"
 
 MESSAGE_PATTERNS = [
     ("private plan docs", r"\.claude/private-docs(?:/|\\)"),
@@ -124,7 +129,7 @@ def audit_path_history(name: str, repo: Path) -> int:
             continue
         if not line:
             continue
-        if ".claude/private-docs/" in line or "\\.claude\\private-docs\\" in line:
+        if PRIVATE_DOCS_DIR in line or PRIVATE_DOCS_DIR_WINDOWS in line:
             print_fail(f"{name}: history contains private plan doc path in {current_commit}", line)
             failures += 1
             break
