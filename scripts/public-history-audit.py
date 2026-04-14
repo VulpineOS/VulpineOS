@@ -37,6 +37,7 @@ EXCLUDE_SPECS = [
 
 PRIVATE_DOCS_DIR = "." + "claude" + "/private-docs/"
 PRIVATE_DOCS_DIR_WINDOWS = "." + "claude" + "\\private-docs\\"
+PUBLIC_REVSET = ["--remotes=origin", "--tags"]
 
 MESSAGE_PATTERNS = [
     ("private plan docs", r"\.claude/private-docs(?:/|\\)"),
@@ -93,7 +94,7 @@ def print_fail(message: str, details: str | None = None) -> None:
 
 
 def audit_commit_messages(name: str, repo: Path) -> int:
-    proc = run(repo, ["log", "--all", "--format=%H%x00%B%x00==END=="])
+    proc = run(repo, ["log", *PUBLIC_REVSET, "--format=%H%x00%B%x00==END=="])
     if proc.returncode != 0:
         print_fail(f"{name}: unable to read commit history", proc.stderr)
         return 1
@@ -115,7 +116,7 @@ def audit_commit_messages(name: str, repo: Path) -> int:
 
 
 def audit_path_history(name: str, repo: Path) -> int:
-    proc = run(repo, ["log", "--all", "--name-only", "--format=commit:%H"])
+    proc = run(repo, ["log", *PUBLIC_REVSET, "--name-only", "--format=commit:%H"])
     if proc.returncode != 0:
         print_fail(f"{name}: unable to read path history", proc.stderr)
         return 1
@@ -141,7 +142,7 @@ def audit_diff_history(name: str, repo: Path) -> int:
     for description, pickaxe_pattern, strict_pattern in DIFF_PATTERNS:
         args = [
             "log",
-            "--all",
+            *PUBLIC_REVSET,
             "--pickaxe-regex",
             "-S",
             pickaxe_pattern,
