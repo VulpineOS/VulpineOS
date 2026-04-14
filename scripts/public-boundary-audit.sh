@@ -114,8 +114,8 @@ check_repo() {
 
   check_pattern "$repo" "$expected_name" "tracked reference to private plan docs" '\.claude/private-docs(?:/|\\)'
   check_pattern "$repo" "$expected_name" "tracked reference to private repos" 'github\.com/VulpineOS/(vulpine-private|vulpine-api)(?:\b|/)'
-  check_pattern "$repo" "$expected_name" "tracked macOS absolute path" '(^|[^A-Za-z0-9_])/Users/(?!<user>|<username>|example/|name/)[A-Za-z0-9._-]+/'
-  check_pattern "$repo" "$expected_name" "tracked Linux absolute path" '(^|[^A-Za-z0-9_])/home/(?!<user>|<username>|example/|name/)[A-Za-z0-9._-]+/'
+  check_pattern "$repo" "$expected_name" "tracked macOS absolute path" '(^|[^A-Za-z0-9_])/Users/(?!<user>|<username>|example/|name/|runner/)[A-Za-z0-9._-]+/'
+  check_pattern "$repo" "$expected_name" "tracked Linux absolute path" '(^|[^A-Za-z0-9_])/home/(?!<user>|<username>|example/|name/|appveyor/|runner/|runneradmin/|ubuntu/|vsts/)[A-Za-z0-9._-]+/'
   check_pattern "$repo" "$expected_name" "tracked Windows absolute path" '(^|[^A-Za-z0-9_])[A-Za-z]:\\\\Users\\\\(?!<user>|<username>|example\\\\|name\\\\)[^\\\\\\s]+\\\\'
   check_pattern "$repo" "$expected_name" "high-confidence secret token" 'ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{20,}|lin_api_[A-Za-z0-9]{20,}|xox[pbar]-[A-Za-z0-9-]{20,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|sk-(proj-)?[A-Za-z0-9]{20,}'
 }
