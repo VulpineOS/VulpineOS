@@ -1,6 +1,7 @@
 package kernel
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -204,7 +205,9 @@ func (k *Kernel) Stop() error {
 
 	if k.client != nil {
 		// Try graceful shutdown via protocol
-		k.client.Call("", "Browser.close", nil)
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		_, _ = k.client.CallWithContext(ctx, "", "Browser.close", nil)
+		cancel()
 		k.client.Close()
 		k.client = nil
 	}

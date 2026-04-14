@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"sync"
 
-	mb "github.com/PopcornDev1/mobilebridge/pkg/mobilebridge"
+	mb "github.com/VulpineOS/mobilebridge/pkg/mobilebridge"
 	"github.com/google/uuid"
 )
 

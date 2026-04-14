@@ -43,7 +43,7 @@ func (p *Process) Start(cfg Config) error {
 
 	bin := findFoxbridge()
 	if bin == "" {
-		return fmt.Errorf("foxbridge binary not found (install with: go install github.com/PopcornDev1/foxbridge/cmd/foxbridge@latest)")
+		return fmt.Errorf("foxbridge binary not found (install with: go install github.com/VulpineOS/foxbridge/cmd/foxbridge@latest)")
 	}
 	p.binary = bin
 

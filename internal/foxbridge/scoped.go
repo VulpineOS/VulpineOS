@@ -7,7 +7,7 @@ import (
 
 	"vulpineos/internal/juggler"
 
-	"github.com/PopcornDev1/foxbridge/pkg/backend"
+	"github.com/VulpineOS/foxbridge/pkg/backend"
 )
 
 type jugglerBackend interface {
