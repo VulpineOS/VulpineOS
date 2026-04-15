@@ -244,6 +244,9 @@ func (f *FakeMobileBridge) Connect(ctx context.Context, udid string) (*extension
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	s := f.Session
+	if s.UDID == "" {
+		s.UDID = udid
+	}
 	return &s, nil
 }
 

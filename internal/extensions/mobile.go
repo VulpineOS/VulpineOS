@@ -21,12 +21,14 @@ type MobileDevice struct {
 	Model    string
 }
 
-// MobileSession is the result of connecting to a device: an identifier
-// plus a remote debugging endpoint callers can dial.
+// MobileSession is the result of connecting to a device. Some providers
+// expose a dialable CDP endpoint; others expose a local bridge session
+// that is driven in-process.
 type MobileSession struct {
 	ID          string
 	UDID        string
 	CDPEndpoint string
+	Protocol    string
 }
 
 // defaultMobileBridge is the no-op stub used when no mobile bridge has

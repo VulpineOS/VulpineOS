@@ -79,6 +79,7 @@ func TestMobilebridgeAdapterConnectDisconnect(t *testing.T) {
 				ID:          "session-1",
 				UDID:        udid,
 				CDPEndpoint: "http://127.0.0.1:9222",
+				Protocol:    "cdp",
 			}, func() error {
 				cleaned = true
 				return nil
@@ -89,7 +90,7 @@ func TestMobilebridgeAdapterConnectDisconnect(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Connect: %v", err)
 	}
-	if session.ID != "session-1" || session.UDID != "R58N12ABCDE" || session.CDPEndpoint == "" {
+	if session.ID != "session-1" || session.UDID != "R58N12ABCDE" || session.CDPEndpoint == "" || session.Protocol != "cdp" {
 		t.Fatalf("session = %+v", session)
 	}
 	if err := (mobilebridgeAdapter{}).Disconnect(context.Background(), "session-1"); err != nil {
