@@ -112,6 +112,7 @@ func startMobilebridgeSession(ctx context.Context, udid string) (*MobileSession,
 	return &MobileSession{
 		UDID:        udid,
 		CDPEndpoint: session.Endpoint,
+		Protocol:    "cdp",
 	}, cleanup, nil
 }
 

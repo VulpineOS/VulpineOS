@@ -85,7 +85,7 @@ func TestFakesNoRaceUnderConcurrentSet(t *testing.T) {
 			defer wg.Done()
 			mobile.SetAvailable(i%2 == 0)
 			mobile.SetDevices([]extensions.MobileDevice{{UDID: "udid-1"}})
-			mobile.SetSession(extensions.MobileSession{UDID: "udid-1", CDPEndpoint: "ws://localhost:9222"})
+			mobile.SetSession(extensions.MobileSession{UDID: "udid-1", CDPEndpoint: "ws://localhost:9222", Protocol: "cdp"})
 		}(i)
 		go func() {
 			defer wg.Done()

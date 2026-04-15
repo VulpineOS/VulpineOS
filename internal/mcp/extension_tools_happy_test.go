@@ -245,6 +245,7 @@ func TestConnectMobileDeviceReturnsSession(t *testing.T) {
 			ID:          "mobile-session-1",
 			UDID:        "ABC123",
 			CDPEndpoint: "http://127.0.0.1:9222",
+			Protocol:    "cdp",
 		},
 	})
 	res := runExtTool(t, "vulpine_connect_mobile_device", map[string]interface{}{
