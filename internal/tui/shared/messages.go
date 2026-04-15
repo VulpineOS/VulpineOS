@@ -40,10 +40,10 @@ type ContextUpdateMsg struct {
 
 // TargetAttachedMsg fires when a new page target appears.
 type TargetAttachedMsg struct {
-	SessionID  string
-	TargetID   string
-	ContextID  string
-	URL        string
+	SessionID string
+	TargetID  string
+	ContextID string
+	URL       string
 }
 
 // FrameAttachedMsg fires when a frame is attached to a page.
@@ -133,6 +133,11 @@ type PoolStatsMsg struct {
 	Available int
 	Active    int
 	Total     int
+}
+
+// RuntimeEventMsg carries a runtime lifecycle audit event.
+type RuntimeEventMsg struct {
+	Event vault.RuntimeEvent
 }
 
 // TickMsg is the periodic refresh tick.

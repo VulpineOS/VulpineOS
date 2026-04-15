@@ -19,6 +19,7 @@ import (
 	"vulpineos/internal/monitor"
 	"vulpineos/internal/orchestrator"
 	"vulpineos/internal/proxy"
+	"vulpineos/internal/runtimeaudit"
 	"vulpineos/internal/tui/agentdetail"
 	"vulpineos/internal/tui/agentlist"
 	"vulpineos/internal/tui/contextlist"
@@ -87,7 +88,7 @@ type App struct {
 }
 
 // NewApp creates the root TUI model.
-func NewApp(k *kernel.Kernel, client *juggler.Client, orch *orchestrator.Orchestrator, v *vault.DB, cfg *config.Config) App {
+func NewApp(k *kernel.Kernel, client *juggler.Client, orch *orchestrator.Orchestrator, v *vault.DB, cfg *config.Config, audit *runtimeaudit.Manager) App {
 	eventCh := make(chan tea.Msg, 64)
 
 	nameIn := textinput.New()
@@ -123,6 +124,22 @@ func NewApp(k *kernel.Kernel, client *juggler.Client, orch *orchestrator.Orchest
 		poolStats:    poolstats.New(),
 		settings:     settings.New(),
 		eventCh:      eventCh,
+	}
+
+	if audit != nil {
+		if events, err := audit.List(3); err == nil {
+			seed := make([]shared.RuntimeEventMsg, 0, len(events))
+			for _, event := range events {
+				seed = append(seed, shared.RuntimeEventMsg{Event: event})
+			}
+			app.systemInfo.SetRuntimeEvents(seed)
+		}
+		sub := audit.Subscribe()
+		go func() {
+			for event := range sub {
+				eventCh <- shared.RuntimeEventMsg{Event: event}
+			}
+		}()
 	}
 
 	// Load existing agents from vault and reconcile status
@@ -597,6 +614,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		cmds = append(cmds, a.waitForEvent())
 	case shared.TelemetryMsg:
+		a.systemInfo, _ = a.systemInfo.Update(msg)
+		cmds = append(cmds, a.waitForEvent())
+	case shared.RuntimeEventMsg:
 		a.systemInfo, _ = a.systemInfo.Update(msg)
 		cmds = append(cmds, a.waitForEvent())
 	case shared.TrustWarmMsg:

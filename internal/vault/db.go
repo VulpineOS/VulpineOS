@@ -86,6 +86,17 @@ CREATE TABLE IF NOT EXISTS agent_messages (
 );
 CREATE INDEX IF NOT EXISTS idx_agent_messages_agent ON agent_messages(agent_id, timestamp);
 
+CREATE TABLE IF NOT EXISTS runtime_events (
+	id         INTEGER PRIMARY KEY AUTOINCREMENT,
+	component  TEXT NOT NULL,
+	level      TEXT NOT NULL,
+	event      TEXT NOT NULL,
+	message    TEXT NOT NULL,
+	metadata   TEXT DEFAULT '{}',
+	timestamp  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_runtime_events_timestamp ON runtime_events(timestamp DESC);
+
 CREATE TABLE IF NOT EXISTS proxies (
 	id       TEXT PRIMARY KEY,
 	config   TEXT NOT NULL,

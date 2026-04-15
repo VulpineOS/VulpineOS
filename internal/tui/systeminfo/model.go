@@ -24,8 +24,16 @@ type Model struct {
 	poolAvailable  int
 	poolActive     int
 	poolTotal      int
+	runtimeEvents  []sharedRuntimeEvent
 	width          int
 	height         int
+}
+
+type sharedRuntimeEvent struct {
+	component string
+	event     string
+	level     string
+	at        time.Time
 }
 
 // New creates a new system info panel.
@@ -67,8 +75,31 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.poolAvailable = msg.Available
 		m.poolActive = msg.Active
 		m.poolTotal = msg.Total
+	case shared.RuntimeEventMsg:
+		m.runtimeEvents = append([]sharedRuntimeEvent{{
+			component: msg.Event.Component,
+			event:     msg.Event.Event,
+			level:     msg.Event.Level,
+			at:        msg.Event.Timestamp,
+		}}, m.runtimeEvents...)
+		if len(m.runtimeEvents) > 3 {
+			m.runtimeEvents = m.runtimeEvents[:3]
+		}
 	}
 	return m, nil
+}
+
+// SetRuntimeEvents seeds the recent runtime event list.
+func (m *Model) SetRuntimeEvents(events []shared.RuntimeEventMsg) {
+	m.runtimeEvents = m.runtimeEvents[:0]
+	for _, event := range events {
+		m.runtimeEvents = append(m.runtimeEvents, sharedRuntimeEvent{
+			component: event.Event.Component,
+			event:     event.Event.Event,
+			level:     event.Event.Level,
+			at:        event.Event.Timestamp,
+		})
+	}
 }
 
 // meterBar renders a compact bar like "██░ 312" within roughly 10 chars.
@@ -136,6 +167,14 @@ func (m Model) View() string {
 	b.WriteString(shared.MutedStyle.Render(fmt.Sprintf("Pool: %d/%d/%d", m.poolAvailable, m.poolActive, m.poolTotal)))
 	b.WriteString("\n")
 	b.WriteString(shared.MutedStyle.Render(fmt.Sprintf("Ctx: %d Pg: %d", m.activeContexts, m.activePages)))
+	if len(m.runtimeEvents) > 0 {
+		b.WriteString("\n\n")
+		b.WriteString(shared.MutedStyle.Render("Runtime"))
+		for _, event := range m.runtimeEvents {
+			b.WriteString("\n")
+			b.WriteString(shared.MutedStyle.Render(formatRuntimeEvent(event)))
+		}
+	}
 
 	// Truncate to allocated height so the panel never overflows
 	result := b.String()
@@ -147,6 +186,14 @@ func (m Model) View() string {
 		}
 	}
 	return result
+}
+
+func formatRuntimeEvent(event sharedRuntimeEvent) string {
+	component := strings.ToUpper(event.component)
+	if len(component) > 4 {
+		component = component[:4]
+	}
+	return fmt.Sprintf("%s %s %s", component, event.event, event.at.Format("15:04"))
 }
 
 // formatDuration formats a duration compactly (e.g., "12m", "1h3m").

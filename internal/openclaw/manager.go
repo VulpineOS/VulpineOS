@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	"vulpineos/internal/config"
+	"vulpineos/internal/runtimeaudit"
 )
 
 // Manager manages multiple OpenClaw agent subprocesses.
@@ -26,6 +27,7 @@ type Manager struct {
 	conversationSource chan ConversationMsg
 	statusSubs         map[chan AgentStatus]struct{}
 	conversationSubs   map[chan ConversationMsg]struct{}
+	audit              *runtimeaudit.Manager
 }
 
 type managedAgent struct {
@@ -49,6 +51,13 @@ func NewManager(binary string) *Manager {
 	go m.fanOutStatus()
 	go m.fanOutConversation()
 	return m
+}
+
+// SetRuntimeAudit attaches a runtime audit manager.
+func (m *Manager) SetRuntimeAudit(audit *runtimeaudit.Manager) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.audit = audit
 }
 
 // StatusChan returns the channel for agent status updates.
@@ -408,6 +417,11 @@ func (m *Manager) startManagedAgent(agentID, contextID, openclawBin string, args
 		if cleanup != nil {
 			cleanup()
 		}
+		m.logRuntimeEvent("error", "start_failed", "failed to start OpenClaw agent", map[string]string{
+			"agent_id": agentID,
+			"context":  contextID,
+			"error":    err.Error(),
+		})
 		return "", fmt.Errorf("spawn failed (binary=%s): %w", openclawBin, err)
 	}
 
@@ -425,12 +439,29 @@ func (m *Manager) startManagedAgent(agentID, contextID, openclawBin string, args
 			exitCode := agent.ExitCode()
 			if exitCode != 0 && agent.RestartCount < 3 {
 				agent.RestartCount++
+				m.logRuntimeEvent("error", "crashed", "OpenClaw agent crashed", map[string]string{
+					"agent_id":  agentID,
+					"context":   contextID,
+					"exit_code": fmt.Sprintf("%d", exitCode),
+					"attempt":   fmt.Sprintf("%d", agent.RestartCount),
+				})
 				fmt.Printf("agent %s crashed (exit %d), restarting (attempt %d/3)\n", agentID, exitCode, agent.RestartCount)
 				time.Sleep(time.Duration(agent.RestartCount) * time.Second)
 				if err := agent.restart(); err != nil {
+					m.logRuntimeEvent("error", "restart_failed", "OpenClaw agent restart failed", map[string]string{
+						"agent_id": agentID,
+						"context":  contextID,
+						"attempt":  fmt.Sprintf("%d", agent.RestartCount),
+						"error":    err.Error(),
+					})
 					fmt.Printf("agent %s restart failed: %v\n", agentID, err)
 					break
 				}
+				m.logRuntimeEvent("warn", "restarted", "OpenClaw agent restarted", map[string]string{
+					"agent_id": agentID,
+					"context":  contextID,
+					"attempt":  fmt.Sprintf("%d", agent.RestartCount),
+				})
 				go m.forwardConversation(agent)
 				continue
 			}
@@ -450,6 +481,18 @@ func (m *Manager) startManagedAgent(agentID, contextID, openclawBin string, args
 	}()
 
 	return agentID, nil
+}
+
+func (m *Manager) logRuntimeEvent(level, event, message string, metadata map[string]string) {
+	m.mu.RLock()
+	audit := m.audit
+	m.mu.RUnlock()
+	if audit == nil {
+		return
+	}
+	if _, err := audit.Log("openclaw", level, event, message, metadata); err != nil {
+		fmt.Printf("runtime audit openclaw %s: %v\n", event, err)
+	}
 }
 
 func (m *Manager) fanOutStatus() {

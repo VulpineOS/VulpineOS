@@ -13,6 +13,7 @@ import (
 	"vulpineos/internal/orchestrator"
 	"vulpineos/internal/proxy"
 	"vulpineos/internal/recording"
+	"vulpineos/internal/runtimeaudit"
 	"vulpineos/internal/vault"
 	"vulpineos/internal/webhooks"
 )
@@ -30,6 +31,7 @@ type PanelAPI struct {
 	Kernel       *kernel.Kernel
 	Client       *juggler.Client
 	Contexts     *ContextRegistry
+	RuntimeAudit *runtimeaudit.Manager
 }
 
 // HandleMessage dispatches a control message to the appropriate handler.
@@ -111,6 +113,10 @@ func (api *PanelAPI) HandleMessage(method string, params json.RawMessage) (json.
 	// --- Status ---
 	case "status.get":
 		return api.statusGet()
+
+	// --- Runtime audit ---
+	case "runtime.list":
+		return api.runtimeList(params)
 
 	// --- Contexts ---
 	case "contexts.list":
@@ -770,6 +776,25 @@ func (api *PanelAPI) statusGet() (json.RawMessage, error) {
 	}
 
 	return json.Marshal(out)
+}
+
+func (api *PanelAPI) runtimeList(params json.RawMessage) (json.RawMessage, error) {
+	if api.RuntimeAudit == nil {
+		return json.Marshal(map[string]interface{}{"events": []vault.RuntimeEvent{}})
+	}
+	var p struct {
+		Limit int `json:"limit"`
+	}
+	if len(params) > 0 {
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, fmt.Errorf("invalid params: %w", err)
+		}
+	}
+	events, err := api.RuntimeAudit.List(p.Limit)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(map[string]interface{}{"events": events})
 }
 
 func (api *PanelAPI) agentRuntimeConfig(agent *vault.Agent) (string, func(), error) {

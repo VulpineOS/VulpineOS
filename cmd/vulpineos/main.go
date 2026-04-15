@@ -29,6 +29,7 @@ import (
 	"vulpineos/internal/proxy"
 	"vulpineos/internal/recording"
 	"vulpineos/internal/remote"
+	"vulpineos/internal/runtimeaudit"
 	"vulpineos/internal/tui"
 	"vulpineos/internal/tui/loading"
 	"vulpineos/internal/tui/setup"
@@ -228,8 +229,10 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 	var client *juggler.Client
 	var orch *orchestrator.Orchestrator
 	var v *vault.DB
+	var audit *runtimeaudit.Manager
 	var gw *openclaw.Gateway
 	var fb *foxbridge.Process
+	var wd *kernel.Watchdog
 	var startErr error
 
 	if !noBrowser {
@@ -244,6 +247,7 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 				if err := v.ReconcileNonTerminalAgents("interrupted"); err != nil {
 					log.Printf("Warning: reconcile agents: %v", err)
 				}
+				audit = runtimeaudit.New(v)
 			}
 
 			// Start kernel
@@ -255,6 +259,44 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 			})
 			if startErr == nil {
 				client = k.Client()
+				if audit != nil {
+					_, _ = audit.Log("kernel", "info", "started", "kernel started", map[string]string{
+						"pid":      fmt.Sprintf("%d", k.PID()),
+						"headless": fmt.Sprintf("%t", headless),
+					})
+					wd = kernel.NewWatchdog(k, false)
+					wd.SetConfig(kernel.Config{
+						BinaryPath: binaryPath,
+						Headless:   headless,
+						ProfileDir: profileDir,
+					})
+					wd.OnEvent(func(event kernel.WatchdogEvent) {
+						level := "warn"
+						message := "kernel event"
+						switch event.Type {
+						case "crashed":
+							level = "error"
+							message = "kernel exited unexpectedly"
+						case "restart_success":
+							level = "warn"
+							message = "kernel restarted"
+						case "restart_failed":
+							level = "error"
+							message = "kernel restart failed"
+						}
+						metadata := map[string]string{}
+						if event.Attempt > 0 {
+							metadata["attempt"] = fmt.Sprintf("%d", event.Attempt)
+						}
+						if event.Err != nil {
+							metadata["error"] = event.Err.Error()
+						}
+						if _, err := audit.Log("kernel", level, event.Type, message, metadata); err != nil {
+							log.Printf("runtime audit kernel %s: %v", event.Type, err)
+						}
+					})
+					wd.Start()
+				}
 
 				// Create orchestrator with optional subsystems
 				if v != nil {
@@ -269,6 +311,9 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 						Recording: recording.NewRecorder(),
 						PageCache: pagecache.New(filepath.Join(config.Dir(), "pagecache")),
 					})
+					if audit != nil {
+						orch.Agents.SetRuntimeAudit(audit)
+					}
 					orch.Start()
 				}
 			}
@@ -277,6 +322,7 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 			// This avoids launching a second Firefox — OpenClaw connects to the same kernel.
 			if client != nil {
 				fb = foxbridge.New()
+				fb.SetRuntimeAudit(audit)
 				fbErr := fb.StartEmbeddedMode(client, 9222)
 				if fbErr != nil {
 					log.Printf("embedded foxbridge not available: %v (OpenClaw will use built-in Chrome)", fbErr)
@@ -319,12 +365,25 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 		if startErr != nil {
 			return fmt.Errorf("start kernel: %w", startErr)
 		}
-		defer k.Stop()
+		defer func() {
+			if audit != nil {
+				_, _ = audit.Log("kernel", "info", "stopped", "kernel stopped", map[string]string{
+					"pid": fmt.Sprintf("%d", k.PID()),
+				})
+			}
+			_ = k.Stop()
+		}()
+		if wd != nil {
+			defer wd.Stop()
+		}
 		if fb != nil {
 			defer fb.Stop()
 		}
 		if v != nil {
 			defer v.Close()
+		}
+		if audit != nil {
+			defer audit.Close()
 		}
 		if orch != nil {
 			defer orch.Close()
@@ -335,7 +394,7 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 	}
 
 	// Create TUI with event subscriptions in place before Browser.enable
-	app := tui.NewApp(k, client, orch, v, cfg)
+	app := tui.NewApp(k, client, orch, v, cfg, audit)
 
 	if client != nil {
 		// Wire the live juggler client into any build-tagged extension
@@ -369,7 +428,7 @@ func runRemote(addr string, apiKey string) error {
 		return err
 	}
 
-	app := tui.NewApp(nil, client, nil, nil, nil)
+	app := tui.NewApp(nil, client, nil, nil, nil, nil)
 	p := tea.NewProgram(app, tea.WithAltScreen())
 	_, err = p.Run()
 	return err
@@ -384,6 +443,7 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 		cfg = &config.Config{}
 	}
 
+	var audit *runtimeaudit.Manager
 	k := kernel.New()
 	if err := k.Start(kernel.Config{
 		BinaryPath: binaryPath,
@@ -392,7 +452,14 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 	}); err != nil {
 		return fmt.Errorf("start kernel: %w", err)
 	}
-	defer k.Stop()
+	defer func() {
+		if audit != nil {
+			_, _ = audit.Log("kernel", "info", "stopped", "kernel stopped", map[string]string{
+				"pid": fmt.Sprintf("%d", k.PID()),
+			})
+		}
+		_ = k.Stop()
+	}()
 
 	client := k.Client()
 	extensions.InitWithClient(client)
@@ -406,8 +473,50 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 		if err := v.ReconcileNonTerminalAgents("interrupted"); err != nil {
 			log.Printf("Warning: reconcile agents: %v", err)
 		}
+		audit = runtimeaudit.New(v)
 		defer v.Close()
+		defer audit.Close()
 	}
+
+	if audit != nil {
+		_, _ = audit.Log("kernel", "info", "started", "kernel started", map[string]string{
+			"pid":      fmt.Sprintf("%d", k.PID()),
+			"headless": fmt.Sprintf("%t", headless),
+		})
+	}
+	wd := kernel.NewWatchdog(k, false)
+	wd.SetConfig(kernel.Config{
+		BinaryPath: binaryPath,
+		Headless:   headless,
+		ProfileDir: profileDir,
+	})
+	wd.OnEvent(func(event kernel.WatchdogEvent) {
+		if audit == nil {
+			return
+		}
+		level := "warn"
+		message := "kernel event"
+		switch event.Type {
+		case "crashed":
+			level = "error"
+			message = "kernel exited unexpectedly"
+		case "restart_success":
+			message = "kernel restarted"
+		case "restart_failed":
+			level = "error"
+			message = "kernel restart failed"
+		}
+		metadata := map[string]string{}
+		if event.Attempt > 0 {
+			metadata["attempt"] = fmt.Sprintf("%d", event.Attempt)
+		}
+		if event.Err != nil {
+			metadata["error"] = event.Err.Error()
+		}
+		_, _ = audit.Log("kernel", level, event.Type, message, metadata)
+	})
+	wd.Start()
+	defer wd.Stop()
 
 	// Create orchestrator with subsystems
 	var orch *orchestrator.Orchestrator
@@ -431,6 +540,9 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 			Recording: rec,
 			PageCache: pagecache.New(filepath.Join(config.Dir(), "pagecache")),
 		})
+		if audit != nil {
+			orch.Agents.SetRuntimeAudit(audit)
+		}
 		if startErr := orch.Start(); startErr != nil {
 			log.Printf("Warning: orchestrator start: %v", startErr)
 		} else {
@@ -458,6 +570,7 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 		Kernel:       k,
 		Client:       client,
 		Contexts:     contexts,
+		RuntimeAudit: audit,
 	})
 
 	// Forward telemetry events to connected clients
@@ -543,6 +656,17 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 		}()
 	}
 
+	if audit != nil {
+		sub := audit.Subscribe()
+		go func() {
+			for event := range sub {
+				if encoded, err := json.Marshal(event); err == nil {
+					server.BroadcastEvent("Vulpine.runtimeEvent", "", encoded)
+				}
+			}
+		}()
+	}
+
 	// Serve the web panel from embedded files
 	if panelFS := PanelFS(); panelFS != nil {
 		remote.ServePanel(server.Mux(), panelFS)
@@ -551,6 +675,7 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 
 	// Start embedded foxbridge CDP server
 	fb := foxbridge.New()
+	fb.SetRuntimeAudit(audit)
 	if err := fb.StartEmbeddedMode(client, 9222); err != nil {
 		log.Printf("foxbridge: %v (CDP proxy not available)", err)
 	} else {
@@ -581,6 +706,5 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 	if err == nil {
 		log.Printf("TLS cert fingerprint: %s", fp)
 	}
-
 	return server.StartTLS(certFile, keyFile)
 }

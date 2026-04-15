@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"vulpineos/internal/juggler"
+	"vulpineos/internal/runtimeaudit"
 )
 
 // Process manages the foxbridge CDP-to-Juggler proxy process.
@@ -20,6 +21,7 @@ type Process struct {
 	port     int
 	binary   string
 	embedded *EmbeddedServer // non-nil when running in embedded mode
+	audit    *runtimeaudit.Manager
 }
 
 // Config holds foxbridge startup configuration.
@@ -35,6 +37,11 @@ func New() *Process {
 	return &Process{port: 9222}
 }
 
+// SetRuntimeAudit attaches a runtime audit manager.
+func (p *Process) SetRuntimeAudit(audit *runtimeaudit.Manager) {
+	p.audit = audit
+}
+
 // Start launches foxbridge, which in turn launches Camoufox with Juggler pipe.
 func (p *Process) Start(cfg Config) error {
 	if p.cmd != nil {
@@ -43,7 +50,9 @@ func (p *Process) Start(cfg Config) error {
 
 	bin := findFoxbridge()
 	if bin == "" {
-		return fmt.Errorf("foxbridge binary not found (install with: go install github.com/VulpineOS/foxbridge/cmd/foxbridge@latest)")
+		err := fmt.Errorf("foxbridge binary not found (install with: go install github.com/VulpineOS/foxbridge/cmd/foxbridge@latest)")
+		p.logRuntimeEvent("error", "start_failed", "foxbridge binary not found", nil)
+		return err
 	}
 	p.binary = bin
 
@@ -76,6 +85,10 @@ func (p *Process) Start(cfg Config) error {
 	}
 
 	if err := p.cmd.Start(); err != nil {
+		p.logRuntimeEvent("error", "start_failed", "foxbridge failed to start", map[string]string{
+			"error": err.Error(),
+			"mode":  "external",
+		})
 		return fmt.Errorf("start foxbridge: %w", err)
 	}
 
@@ -84,10 +97,19 @@ func (p *Process) Start(cfg Config) error {
 	// Wait for the CDP port to become available
 	if err := waitForPort(port, 15*time.Second); err != nil {
 		p.Stop()
+		p.logRuntimeEvent("error", "start_failed", "foxbridge port did not become ready", map[string]string{
+			"error": err.Error(),
+			"mode":  "external",
+			"port":  fmt.Sprintf("%d", port),
+		})
 		return fmt.Errorf("foxbridge failed to start: %w", err)
 	}
 
 	log.Printf("foxbridge CDP proxy ready on ws://127.0.0.1:%d", port)
+	p.logRuntimeEvent("info", "started", "foxbridge external proxy started", map[string]string{
+		"mode": "external",
+		"port": fmt.Sprintf("%d", port),
+	})
 	return nil
 }
 
@@ -104,6 +126,10 @@ func (p *Process) StartEmbeddedMode(client *juggler.Client, port int) error {
 
 	es, err := StartEmbedded(client, port)
 	if err != nil {
+		p.logRuntimeEvent("error", "start_failed", "embedded foxbridge failed to start", map[string]string{
+			"error": err.Error(),
+			"mode":  "embedded",
+		})
 		return fmt.Errorf("start embedded foxbridge: %w", err)
 	}
 	p.embedded = es
@@ -111,10 +137,19 @@ func (p *Process) StartEmbeddedMode(client *juggler.Client, port int) error {
 	// Wait briefly for the HTTP server to bind.
 	if err := waitForPort(port, 5*time.Second); err != nil {
 		p.embedded = nil
+		p.logRuntimeEvent("error", "start_failed", "embedded foxbridge port not ready", map[string]string{
+			"error": err.Error(),
+			"mode":  "embedded",
+			"port":  fmt.Sprintf("%d", port),
+		})
 		return fmt.Errorf("embedded foxbridge port not ready: %w", err)
 	}
 
 	log.Printf("foxbridge embedded CDP proxy ready on ws://127.0.0.1:%d", port)
+	p.logRuntimeEvent("info", "started", "foxbridge embedded proxy started", map[string]string{
+		"mode": "embedded",
+		"port": fmt.Sprintf("%d", port),
+	})
 	return nil
 }
 
@@ -123,6 +158,10 @@ func (p *Process) Stop() {
 	if p.embedded != nil {
 		p.embedded.Stop()
 		p.embedded = nil
+		p.logRuntimeEvent("info", "stopped", "foxbridge embedded proxy stopped", map[string]string{
+			"mode": "embedded",
+			"port": fmt.Sprintf("%d", p.port),
+		})
 		return
 	}
 	if p.cmd != nil && p.cmd.Process != nil {
@@ -130,6 +169,10 @@ func (p *Process) Stop() {
 		p.cmd.Wait()
 		p.cmd = nil
 		log.Println("foxbridge stopped")
+		p.logRuntimeEvent("info", "stopped", "foxbridge external proxy stopped", map[string]string{
+			"mode": "external",
+			"port": fmt.Sprintf("%d", p.port),
+		})
 	}
 }
 
@@ -218,4 +261,13 @@ func waitForPort(port int, timeout time.Duration) error {
 		time.Sleep(250 * time.Millisecond)
 	}
 	return fmt.Errorf("port %d not ready after %v", port, timeout)
+}
+
+func (p *Process) logRuntimeEvent(level, event, message string, metadata map[string]string) {
+	if p.audit == nil {
+		return
+	}
+	if _, err := p.audit.Log("foxbridge", level, event, message, metadata); err != nil {
+		log.Printf("runtime audit foxbridge %s: %v", event, err)
+	}
 }
