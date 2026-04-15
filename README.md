@@ -237,6 +237,10 @@ go build -o vulpineos ./cmd/vulpineos
 
 First launch opens a setup wizard to configure your AI provider (Anthropic, OpenAI, Google, xAI, and 27 more).
 
+For a minimal OpenClaw example project showing MCP-first and foxbridge
+CDP setups, see
+[examples/openclaw-setup/README.md](examples/openclaw-setup/README.md).
+
 ### Docker (Vulpine-Box)
 
 ```bash

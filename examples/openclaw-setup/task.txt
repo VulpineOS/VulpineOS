@@ -1,0 +1,1 @@
+Go to example.com, tell me the page title, and stop.
