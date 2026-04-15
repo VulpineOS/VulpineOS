@@ -72,6 +72,7 @@ func TestLiveScopedSessionSoak(t *testing.T) {
 
 	for i := 0; i < iterations; i++ {
 		t.Run(fmt.Sprintf("iteration-%02d", i+1), func(t *testing.T) {
+			started := time.Now()
 			contextID := createBrowserContext(t, client)
 			token := fmt.Sprintf("soak-%02d-%d", i+1, time.Now().UnixNano())
 
@@ -193,6 +194,7 @@ func TestLiveScopedSessionSoak(t *testing.T) {
 			}
 
 			waitForDetachedSession(t, detachedCh, sessionID, 15*time.Second)
+			t.Logf("SOAK_RESULT iteration=%d duration_ms=%d cleanup_session=%s status=ok", i+1, time.Since(started).Milliseconds(), sessionID)
 		})
 	}
 }

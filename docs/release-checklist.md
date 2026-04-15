@@ -40,6 +40,16 @@ go test ./internal/... ./cmd/... -race
 go build -o vulpineos ./cmd/vulpineos
 ```
 
+For scoped-session release-candidate coverage, run the soak harness and
+keep the JSON artifact with the release notes:
+
+```bash
+./scripts/run-soak.sh 3
+```
+
+This writes a log plus a small JSON result artifact under
+`.artifacts/soak/`.
+
 For Juggler JavaScript changes:
 
 ```bash

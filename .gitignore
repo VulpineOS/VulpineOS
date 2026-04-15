@@ -83,6 +83,7 @@ checks-bundle.js
 /vulpineos
 /vulpineos-private
 /openclaw/
+/.artifacts/
 go.work
 go.work.sum
 
