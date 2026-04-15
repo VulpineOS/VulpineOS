@@ -36,3 +36,6 @@ The history audit scans all reachable commits in the same public repos. It check
 3. Confirm every public repo is clean with `git status --short`
 4. Confirm `VulpineOS` still has `remote.upstream.pushurl=DISABLED`
 5. Review release notes and docs for private-code references before tagging
+
+For the broader public release flow, including verification, rebuild,
+tagging, and checksum steps, see `docs/release-checklist.md`.

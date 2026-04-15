@@ -244,6 +244,12 @@ docker compose up -d
 vulpineos --remote wss://your-vps:8443/ws --api-key $VULPINE_API_KEY
 ```
 
+## Release notes
+
+For public release gating and audit steps, see
+[docs/release-checklist.md](docs/release-checklist.md) and
+[docs/release-hygiene.md](docs/release-hygiene.md).
+
 ---
 
 ## MCP Tools
