@@ -26,6 +26,17 @@ func TestBroadcastEventPreservesSessionID(t *testing.T) {
 	}
 	defer conn.Close(websocket.StatusNormalClosure, "")
 
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		server.clientsMu.RLock()
+		count := len(server.clients)
+		server.clientsMu.RUnlock()
+		if count == 1 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
 	params := json.RawMessage(`{"frameId":"frame-1"}`)
 	server.BroadcastEvent("Page.frameAttached", "session-1", params)
 
