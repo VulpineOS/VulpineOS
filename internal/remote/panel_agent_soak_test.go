@@ -107,31 +107,34 @@ func TestPanelAgentSessionSoak(t *testing.T) {
 		{id: "", token: "PANEL-ALPHA"},
 		{id: "", token: "PANEL-BETA"},
 	}
+	spawnEvents := make([]map[string]interface{}, 0)
 
 	for i := range agents {
 		resp, events := controlCall(t, ctx, conn, "agents.spawn", map[string]interface{}{
 			"task": fmt.Sprintf("Remember token %s and reply exactly SAVED:%s", agents[i].token, agents[i].token),
 		})
-		_ = events
+		spawnEvents = append(spawnEvents, events...)
 		agents[i].id = resultString(t, resp, "agentId")
 	}
 
-	waitForConversationEvents(t, ctx, conn, map[string]string{
+	waitForConversationEvents(t, ctx, conn, spawnEvents, map[string]string{
 		agents[0].id: "SAVED:" + agents[0].token,
 		agents[1].id: "SAVED:" + agents[1].token,
 	})
 
+	tokenEvents := make([]map[string]interface{}, 0)
 	for _, agent := range agents {
-		resp, _ := controlCall(t, ctx, conn, "agents.resume", map[string]interface{}{
+		resp, events := controlCall(t, ctx, conn, "agents.resume", map[string]interface{}{
 			"agentId": agent.id,
 			"message": fmt.Sprintf("What token did I ask you to remember? Reply exactly TOKEN:%s", agent.token),
 		})
+		tokenEvents = append(tokenEvents, events...)
 		if resultString(t, resp, "agentId") != agent.id {
 			t.Fatalf("resume agentId = %#v", resp)
 		}
 	}
 
-	waitForConversationEvents(t, ctx, conn, map[string]string{
+	waitForConversationEvents(t, ctx, conn, tokenEvents, map[string]string{
 		agents[0].id: "TOKEN:" + agents[0].token,
 		agents[1].id: "TOKEN:" + agents[1].token,
 	})
@@ -201,11 +204,14 @@ func controlCall(t *testing.T, ctx context.Context, conn *websocket.Conn, method
 	}
 }
 
-func waitForConversationEvents(t *testing.T, ctx context.Context, conn *websocket.Conn, wants map[string]string) {
+func waitForConversationEvents(t *testing.T, ctx context.Context, conn *websocket.Conn, initial []map[string]interface{}, wants map[string]string) {
 	t.Helper()
 	pending := make(map[string]string, len(wants))
 	for agentID, want := range wants {
 		pending[agentID] = want
+	}
+	for _, payload := range initial {
+		markConversationMatch(pending, payload)
 	}
 
 	deadline := time.Now().Add(2 * time.Minute)
@@ -231,17 +237,21 @@ func waitForConversationEvents(t *testing.T, ctx context.Context, conn *websocke
 		if payload["method"] != "Vulpine.conversation" {
 			continue
 		}
-		params, ok := payload["params"].(map[string]interface{})
-		if !ok {
-			continue
-		}
-		agentID, _ := params["agentId"].(string)
-		content, _ := params["content"].(string)
-		role, _ := params["role"].(string)
-		want, exists := pending[agentID]
-		if exists && role == "assistant" && strings.Contains(content, want) {
-			delete(pending, agentID)
-		}
+		markConversationMatch(pending, payload)
+	}
+}
+
+func markConversationMatch(pending map[string]string, payload map[string]interface{}) {
+	params, ok := payload["params"].(map[string]interface{})
+	if !ok {
+		return
+	}
+	agentID, _ := params["agentId"].(string)
+	content, _ := params["content"].(string)
+	role, _ := params["role"].(string)
+	want, exists := pending[agentID]
+	if exists && role == "assistant" && strings.Contains(content, want) {
+		delete(pending, agentID)
 	}
 }
 
@@ -268,4 +278,3 @@ func resultString(t *testing.T, resp map[string]interface{}, key string) string 
 	value, _ := result[key].(string)
 	return value
 }
-

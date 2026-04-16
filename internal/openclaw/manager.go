@@ -119,28 +119,10 @@ func (m *Manager) SendMessageOrRespawn(agentID, text, sessionName string) error 
 
 // ResumeWithSession reactivates a saved session without forcing a model turn.
 func (m *Manager) ResumeWithSession(agentID, sessionName, configPath string) (string, error) {
-	openclawBin := m.findOpenClaw()
-	if openclawBin == "" {
-		return "", fmt.Errorf("OpenClaw not found. Run 'npm install' in the VulpineOS directory or install globally: npm install -g openclaw")
+	if strings.TrimSpace(configPath) == "" {
+		configPath = config.OpenClawConfigPath()
 	}
-	_ = openclawBin
-	_ = sessionName
-	_ = configPath
-
-	// Stop any previous process for this agent before resuming.
-	m.mu.Lock()
-	if old, ok := m.agents[agentID]; ok {
-		delete(m.agents, agentID)
-		m.mu.Unlock()
-		old.agent.Stop()
-		if old.cleanup != nil {
-			old.cleanup()
-		}
-	} else {
-		m.mu.Unlock()
-	}
-
-	return agentID, nil
+	return m.SpawnWithSession(agentID, "Continue from the saved session and resume the current task.", sessionName, configPath)
 }
 
 // PauseAgent saves state and stops an agent.
@@ -153,7 +135,7 @@ func (m *Manager) PauseAgent(agentID string) error {
 		return fmt.Errorf("agent %s not found", agentID)
 	}
 
-	return entry.agent.Stop()
+	return entry.agent.stopWithStatus("paused")
 }
 
 // forwardConversation reads from an agent's conversationCh and sends to the manager's channel.
@@ -437,7 +419,7 @@ func (m *Manager) startManagedAgent(agentID, contextID, openclawBin string, args
 		for {
 			agent.Wait()
 			exitCode := agent.ExitCode()
-			if exitCode != 0 && agent.RestartCount < 3 {
+			if exitCode != 0 && agent.RestartCount < 3 && !agent.StopRequested() {
 				agent.RestartCount++
 				m.logRuntimeEvent("error", "crashed", "OpenClaw agent crashed", map[string]string{
 					"agent_id":  agentID,

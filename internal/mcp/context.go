@@ -24,6 +24,14 @@ type ContextTracker struct {
 	client   *juggler.Client
 }
 
+func cloneSessionContext(ctx *SessionContext) *SessionContext {
+	if ctx == nil {
+		return nil
+	}
+	dup := *ctx
+	return &dup
+}
+
 // NewContextTracker creates a tracker and subscribes to the relevant events.
 func NewContextTracker(client *juggler.Client) *ContextTracker {
 	ct := &ContextTracker{
@@ -112,7 +120,7 @@ func NewContextTracker(client *juggler.Client) *ContextTracker {
 func (ct *ContextTracker) Get(sessionID string) *SessionContext {
 	ct.mu.RLock()
 	defer ct.mu.RUnlock()
-	return ct.contexts[sessionID]
+	return cloneSessionContext(ct.contexts[sessionID])
 }
 
 // InvalidateExecutionContext forces the next Resolve call for the
@@ -132,7 +140,7 @@ func (ct *ContextTracker) InvalidateExecutionContext(sessionID string) {
 func (ct *ContextTracker) Resolve(sessionID string) (*SessionContext, error) {
 	// Check if already tracked
 	ct.mu.RLock()
-	ctx := ct.contexts[sessionID]
+	ctx := cloneSessionContext(ct.contexts[sessionID])
 	ct.mu.RUnlock()
 
 	if ctx != nil && ctx.ExecutionContextID != "" && ctx.FrameID != "" {
@@ -146,7 +154,7 @@ func (ct *ContextTracker) Resolve(sessionID string) (*SessionContext, error) {
 	for i := 0; i < 20; i++ {
 		time.Sleep(250 * time.Millisecond)
 		ct.mu.RLock()
-		ctx = ct.contexts[sessionID]
+		ctx = cloneSessionContext(ct.contexts[sessionID])
 		ct.mu.RUnlock()
 		if ctx != nil && ctx.ExecutionContextID != "" {
 			return ctx, nil

@@ -271,6 +271,9 @@ func (api *PanelAPI) agentsPause(params json.RawMessage) (json.RawMessage, error
 	if err := api.Orchestrator.Agents.PauseAgent(p.AgentID); err != nil {
 		return nil, err
 	}
+	if api.Vault != nil {
+		_ = api.Vault.UpdateAgentStatus(p.AgentID, "paused")
+	}
 	return json.Marshal(map[string]string{"status": "ok"})
 }
 

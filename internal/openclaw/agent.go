@@ -77,6 +77,7 @@ type Agent struct {
 	binary         string            // binary path used to start this agent
 	args           []string          // args used to start this agent
 	waitState      *agentWaitState
+	stopStatus     string
 }
 
 type agentWaitState struct {
@@ -219,7 +220,9 @@ func (a *Agent) start(binary string, args []string) error {
 		waitErr := a.waitProcess()
 
 		a.mu.Lock()
-		if a.status.Status != "completed" && a.status.Status != "error" {
+		if a.stopStatus != "" {
+			a.status.Status = a.stopStatus
+		} else if a.status.Status != "completed" && a.status.Status != "error" {
 			// Process exited without producing a valid response
 			if waitErr != nil {
 				a.status.Status = "error"
@@ -372,9 +375,18 @@ func (a *Agent) emitConversation(msg ConversationMsg) {
 
 // Stop kills the agent subprocess and waits for it to exit.
 func (a *Agent) Stop() error {
+	return a.stopWithStatus("completed")
+}
+
+func (a *Agent) stopWithStatus(status string) error {
 	a.mu.Lock()
 	cmd := a.cmd
 	pipe := a.stdinPipe
+	if status == "" {
+		status = "completed"
+	}
+	a.stopStatus = status
+	a.status.Status = status
 	a.mu.Unlock()
 
 	// Try to tell OpenClaw to save state before killing
@@ -394,10 +406,7 @@ func (a *Agent) Stop() error {
 		pipe.Close()
 	}
 
-	a.mu.Lock()
-	a.status.Status = "completed"
-	a.emitStatusLocked()
-	a.mu.Unlock()
+	a.emitStatus()
 	return nil
 }
 
@@ -420,6 +429,12 @@ func (a *Agent) waitProcess() error {
 		state.err = cmd.Wait()
 	})
 	return state.err
+}
+
+func (a *Agent) StopRequested() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.stopStatus != ""
 }
 
 // ExitCode returns the process exit code, or -1 if still running or not started.
