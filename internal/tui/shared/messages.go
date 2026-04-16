@@ -123,6 +123,13 @@ type AgentDeletedMsg struct {
 	AgentID string
 }
 
+// BulkAgentStatusMsg updates multiple agent statuses at once.
+type BulkAgentStatusMsg struct {
+	AgentIDs []string
+	Status   string
+	Notice   string
+}
+
 // AgentCreatedMsg fires when a new agent is created.
 type AgentCreatedMsg struct {
 	Agent vault.Agent

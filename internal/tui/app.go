@@ -79,6 +79,7 @@ type App struct {
 	notice          string
 	noticeTTL       int  // number of ticks before notice is cleared
 	confirmDelete   bool // true when waiting for delete confirmation
+	confirmKillAll  bool // true when waiting for bulk kill confirmation
 
 	// Text inputs
 	nameInput textinput.Model
@@ -346,6 +347,11 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.confirmDelete = false
 			a.notice = ""
 		}
+		// Cancel bulk kill confirmation on any key except X
+		if a.confirmKillAll && msg.String() != "X" {
+			a.confirmKillAll = false
+			a.notice = ""
+		}
 
 		// Normal keybinds
 		switch msg.String() {
@@ -371,6 +377,15 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, a.pauseAllAgents())
 		case "R":
 			cmds = append(cmds, a.resumePausedAgents())
+		case "X":
+			if a.confirmKillAll {
+				a.confirmKillAll = false
+				cmds = append(cmds, a.killAllAgents())
+			} else {
+				a.confirmKillAll = true
+				a.notice = "Press X again to kill all live agents, or any other key to cancel"
+				a.noticeTTL = 5
+			}
 		case "tab":
 			// Cycle: AgentList → Conversation → AgentDetail → ContextList → AgentList
 			a.focus = (a.focus + 1) % FocusNormalCount
@@ -728,6 +743,20 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.notice = "Agent deleted"
 		a.noticeTTL = 3
 
+	case shared.BulkAgentStatusMsg:
+		for _, agentID := range msg.AgentIDs {
+			a.agentList.UpdateStatus(agentID, msg.Status)
+			if a.vault != nil {
+				a.vault.UpdateAgentStatus(agentID, msg.Status)
+			}
+			if agentID == a.selectedAgentID {
+				a.conversation.SetThinking(false)
+				a.refreshAgentDetail(agentID)
+			}
+		}
+		a.notice = msg.Notice
+		a.noticeTTL = 3
+
 	case shared.SettingsClosedMsg:
 		a.settings.SetActive(false)
 		if a.focus == FocusSettings {
@@ -1058,7 +1087,7 @@ func (a App) renderStatusBar() string {
 	bar := shared.TitleStyle.Render("VULPINE") +
 		shared.MutedStyle.Render(" | ") +
 		shared.RunningStyle.Render("* "+mode) +
-		shared.MutedStyle.Render("  n:new  p/r:agent  P/R:all  x:del  v:view  S:settings  Enter:chat  Tab:focus  ↑↓:scroll  q:quit") +
+		shared.MutedStyle.Render("  n:new  p/r:agent  P/R:all  X:kill-all  x:del  v:view  S:settings  Enter:chat  Tab:focus  ↑↓:scroll  q:quit") +
 		ctxHint
 
 	return lipgloss.NewStyle().MaxWidth(a.width).Render(bar)
@@ -1508,6 +1537,33 @@ func (a App) resumePausedAgents() tea.Cmd {
 			return statusNotice{text: "No paused agents resumed"}
 		}
 		return statusNotice{text: fmt.Sprintf("Resumed %d agents", resumed)}
+	}
+}
+
+func (a App) killAllAgents() tea.Cmd {
+	return func() tea.Msg {
+		if a.orch == nil || a.vault == nil {
+			return statusNotice{text: "Kill all unavailable"}
+		}
+		statuses := a.orch.Agents.List()
+		if len(statuses) == 0 {
+			return statusNotice{text: "No live agents to kill"}
+		}
+
+		affected := make([]string, 0, len(statuses))
+		for _, status := range statuses {
+			affected = append(affected, status.AgentID)
+		}
+
+		a.orch.Agents.KillAll()
+		for _, agentID := range affected {
+			_ = a.vault.UpdateAgentStatus(agentID, "interrupted")
+		}
+		return shared.BulkAgentStatusMsg{
+			AgentIDs: affected,
+			Status:   "interrupted",
+			Notice:   fmt.Sprintf("Killed %d agents", len(affected)),
+		}
 	}
 }
 

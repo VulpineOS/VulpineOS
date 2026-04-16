@@ -184,7 +184,7 @@ A terminal-based command center for managing AI agents, browser contexts, and id
 └───────────────┴──────────────────────────────┴─────────────────┘
 ```
 
-**Keybinds:** `n` new agent · `j/k` navigate · `Enter` chat · `p/r` pause or resume selected agent · `P/R` pause or resume all agents · `x` delete · `S` settings · `q` quit
+**Keybinds:** `n` new agent · `j/k` navigate · `Enter` chat · `p/r` pause or resume selected agent · `P/R` pause or resume all agents · `X` kill all live agents · `x` delete · `S` settings · `q` quit
 
 The agent list shows unread reply counts for non-selected agents so background work does not disappear while you are focused elsewhere.
 

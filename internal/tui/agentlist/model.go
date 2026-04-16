@@ -168,6 +168,16 @@ func (m Model) UnreadCount(id string) int {
 	return 0
 }
 
+// Status returns the current status for an agent.
+func (m Model) Status(id string) string {
+	for _, agent := range m.agents {
+		if agent.ID == id {
+			return agent.Status
+		}
+	}
+	return ""
+}
+
 // statusIcon returns a styled icon for the given status.
 func statusIcon(status string) string {
 	switch status {
