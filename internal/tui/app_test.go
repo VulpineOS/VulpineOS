@@ -279,6 +279,89 @@ func TestPauseResumeKeybindingsShortCircuitOnAgentState(t *testing.T) {
 	}
 }
 
+func TestBulkKillKeybindingWithoutOrchestrator(t *testing.T) {
+	db := openTestVault(t)
+
+	app := NewApp(nil, nil, nil, db, nil, nil)
+
+	model, cmd := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'X'}})
+	if cmd != nil {
+		t.Fatal("did not expect first X press to return a command")
+	}
+	app = model.(App)
+	if !app.confirmKillAll {
+		t.Fatal("expected bulk kill confirmation to be armed")
+	}
+
+	model, cmd = app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'X'}})
+	if cmd == nil {
+		t.Fatal("expected second X press to return a command")
+	}
+	app = model.(App)
+	if app.confirmKillAll {
+		t.Fatal("expected bulk kill confirmation to clear after execution")
+	}
+	msg := cmd()
+	notice, ok := msg.(statusNotice)
+	if !ok {
+		t.Fatalf("bulk kill command returned %T, want statusNotice", msg)
+	}
+	if notice.text != "Kill all unavailable" {
+		t.Fatalf("bulk kill notice = %q, want %q", notice.text, "Kill all unavailable")
+	}
+}
+
+func TestBulkAgentStatusMsgMarksAgentsInterrupted(t *testing.T) {
+	db := openTestVault(t)
+
+	first, err := db.CreateAgent("first-agent", "task", "{}")
+	if err != nil {
+		t.Fatalf("create first agent: %v", err)
+	}
+	second, err := db.CreateAgent("second-agent", "task", "{}")
+	if err != nil {
+		t.Fatalf("create second agent: %v", err)
+	}
+	if err := db.UpdateAgentStatus(first.ID, "active"); err != nil {
+		t.Fatalf("set first status: %v", err)
+	}
+	if err := db.UpdateAgentStatus(second.ID, "active"); err != nil {
+		t.Fatalf("set second status: %v", err)
+	}
+
+	app := NewApp(nil, nil, nil, db, nil, nil)
+	app.selectedAgentID = first.ID
+	app.conversation.SetAgentID(first.ID)
+	app.conversation.SetThinking(true)
+
+	model, _ := app.Update(shared.BulkAgentStatusMsg{
+		AgentIDs: []string{first.ID, second.ID},
+		Status:   "interrupted",
+		Notice:   "Killed 2 agents",
+	})
+	app = model.(App)
+
+	if got := app.agentList.Status(first.ID); got != "interrupted" {
+		t.Fatalf("first status = %q, want interrupted", got)
+	}
+	if got := app.agentList.Status(second.ID); got != "interrupted" {
+		t.Fatalf("second status = %q, want interrupted", got)
+	}
+	if app.notice != "Killed 2 agents" {
+		t.Fatalf("notice = %q, want %q", app.notice, "Killed 2 agents")
+	}
+	if app.conversation.IsThinking() {
+		t.Fatal("expected selected conversation thinking state to clear")
+	}
+	stored, err := db.GetAgent(second.ID)
+	if err != nil {
+		t.Fatalf("get second agent: %v", err)
+	}
+	if stored.Status != "interrupted" {
+		t.Fatalf("stored second status = %q, want interrupted", stored.Status)
+	}
+}
+
 func TestGracefulShutdownPausesActiveAgents(t *testing.T) {
 	db := openTestVault(t)
 

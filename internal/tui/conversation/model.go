@@ -108,6 +108,11 @@ func (m *Model) SetThinking(thinking bool) {
 	}
 }
 
+// IsThinking returns whether the conversation is waiting on an agent response.
+func (m Model) IsThinking() bool {
+	return m.thinking
+}
+
 // New creates a new conversation panel.
 func New() Model {
 	ti := textinput.New()
