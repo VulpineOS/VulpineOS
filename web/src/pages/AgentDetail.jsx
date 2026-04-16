@@ -1,29 +1,89 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
 
 export default function AgentDetail({ ws }) {
   const { id } = useParams()
+  const [agent, setAgent] = useState(null)
   const [messages, setMessages] = useState([])
   const [timeline, setTimeline] = useState([])
   const [fingerprint, setFingerprint] = useState(null)
   const [input, setInput] = useState('')
   const [tab, setTab] = useState('conversation')
+  const recentEvents = useMemo(() => ws.events.slice(-200), [ws.events])
 
-  useEffect(() => {
+  const refresh = () => {
     if (!ws.connected || !id) return
+    ws.call('agents.list').then(r => setAgent((r?.agents || []).find(a => a.id === id) || null)).catch(() => {})
     ws.call('agents.getMessages', { agentId: id }).then(r => setMessages(r?.messages || [])).catch(() => {})
     ws.call('recording.getTimeline', { agentId: id }).then(r => setTimeline(r?.actions || [])).catch(() => {})
     ws.call('fingerprints.get', { agentId: id }).then(r => setFingerprint(r)).catch(() => {})
+  }
+
+  useEffect(() => {
+    refresh()
   }, [ws.connected, id])
 
-  const sendMessage = async () => {
-    if (!input.trim()) return
+  useEffect(() => {
+    if (!id) return
+    for (const event of recentEvents) {
+      if (event.method === 'Vulpine.agentStatus' && event.params?.agentId === id) {
+        setAgent(prev => ({
+          ...(prev || { id }),
+          ...(prev || {}),
+          id,
+          status: event.params.status || prev?.status,
+          contextId: event.params.contextId || prev?.contextId,
+          task: event.params.objective || prev?.task,
+          totalTokens: event.params.tokens ?? prev?.totalTokens ?? 0,
+        }))
+      }
+      if (event.method === 'Vulpine.conversation' && event.params?.agentId === id) {
+        const nextMsg = {
+          role: event.params.role,
+          content: event.params.content,
+          tokens: event.params.tokens || 0,
+        }
+        setMessages(prev => {
+          const last = prev[prev.length-1]
+          if (last && last.role === nextMsg.role && last.content === nextMsg.content && (last.tokens || 0) === nextMsg.tokens) {
+            return prev
+          }
+          return [...prev, nextMsg]
+        })
+      }
+    }
+  }, [recentEvents, id])
+
+  const pause = async () => {
     try {
-      await ws.call('agents.resume', { agentId: id, message: input })
+      await ws.call('agents.pause', { agentId: id })
+      setAgent(prev => prev ? { ...prev, status: 'paused' } : prev)
+    } catch (e) { alert(e.message) }
+  }
+
+  const resume = async () => {
+    try {
+      await ws.call('agents.resume', { agentId: id })
+      setAgent(prev => prev ? { ...prev, status: 'active' } : prev)
+    } catch (e) { alert(e.message) }
+  }
+
+  const kill = async () => {
+    if (!confirm('Kill agent ' + id.substring(0, 8) + '?')) return
+    try {
+      await ws.call('agents.kill', { agentId: id })
+      setAgent(prev => prev ? { ...prev, status: 'interrupted' } : prev)
+    } catch (e) { alert(e.message) }
+  }
+
+  const sendMessage = async () => {
+    const text = input.trim()
+    if (!text) return
+    try {
+      await ws.call('agents.resume', { agentId: id, message: text })
+      setMessages(prev => [...prev, { role: 'user', content: text, tokens: 0 }])
+      setAgent(prev => prev ? { ...prev, status: 'active' } : prev)
       setInput('')
-      setTimeout(() => {
-        ws.call('agents.getMessages', { agentId: id }).then(r => setMessages(r?.messages || [])).catch(() => {})
-      }, 2000)
     } catch (e) { alert(e.message) }
   }
 
@@ -33,6 +93,15 @@ export default function AgentDetail({ ws }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <Link to="/agents" style={{ color: '#666', textDecoration: 'none' }}>← Agents</Link>
           <h1>Agent {id.substring(0, 12)}</h1>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <span className={`badge badge-${agent?.status === 'active' ? 'green' : agent?.status === 'paused' ? 'yellow' : agent?.status === 'completed' ? 'blue' : 'gray'}`}>
+            {agent?.status || 'unknown'}
+          </span>
+          {agent?.status === 'active' && <button className="btn btn-ghost" onClick={pause}>Pause</button>}
+          {agent?.status === 'paused' && <button className="btn btn-ghost" onClick={resume}>Resume</button>}
+          {agent?.status !== 'completed' && <button className="btn btn-danger" onClick={kill}>Kill</button>}
+          <button className="btn btn-ghost" onClick={refresh}>Refresh</button>
         </div>
       </div>
 
