@@ -1308,7 +1308,11 @@ func (a App) pauseAgent(agentID string) tea.Cmd {
 		if a.vault != nil {
 			a.vault.UpdateAgentStatus(agentID, "paused")
 		}
-		return statusNotice{text: "Agent paused: " + agentID}
+		return shared.BulkAgentStatusMsg{
+			AgentIDs: []string{agentID},
+			Status:   "paused",
+			Notice:   "Agent paused: " + agentID,
+		}
 	}
 }
 
@@ -1340,7 +1344,11 @@ func (a App) resumeAgent(agentID string) tea.Cmd {
 		if a.vault != nil {
 			a.vault.UpdateAgentStatus(agentID, "active")
 		}
-		return statusNotice{text: "Agent resumed: " + agentID}
+		return shared.BulkAgentStatusMsg{
+			AgentIDs: []string{agentID},
+			Status:   "active",
+			Notice:   "Agent resumed: " + agentID,
+		}
 	}
 }
 
