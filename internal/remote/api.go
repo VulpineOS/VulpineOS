@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"vulpineos/internal/agentbus"
 	"vulpineos/internal/config"
@@ -117,6 +118,8 @@ func (api *PanelAPI) HandleMessage(method string, params json.RawMessage) (json.
 	// --- Runtime audit ---
 	case "runtime.list":
 		return api.runtimeList(params)
+	case "runtime.export":
+		return api.runtimeExport(params)
 	case "runtime.setRetention":
 		return api.runtimeSetRetention(params)
 
@@ -783,49 +786,134 @@ func (api *PanelAPI) statusGet() (json.RawMessage, error) {
 func (api *PanelAPI) runtimeList(params json.RawMessage) (json.RawMessage, error) {
 	if api.RuntimeAudit == nil {
 		return json.Marshal(map[string]interface{}{
-			"events":    []vault.RuntimeEvent{},
-			"settings":  vault.RuntimeAuditSettings{},
-			"applied":   map[string]interface{}{},
+			"events":   []vault.RuntimeEvent{},
+			"settings": vault.RuntimeAuditSettings{},
+			"applied":  map[string]interface{}{},
 		})
 	}
-	var p struct {
-		Limit     int    `json:"limit"`
-		Component string `json:"component"`
-		Level     string `json:"level"`
-		Event     string `json:"event"`
-		Query     string `json:"query"`
-	}
-	if len(params) > 0 {
-		if err := json.Unmarshal(params, &p); err != nil {
-			return nil, fmt.Errorf("invalid params: %w", err)
-		}
-	}
-	settings, err := api.RuntimeAudit.Settings()
+	filter, _, err := decodeRuntimeAuditParams(params)
 	if err != nil {
 		return nil, err
 	}
-	filter := vault.RuntimeEventFilter{
-		Limit:     p.Limit,
-		Component: p.Component,
-		Level:     p.Level,
-		Event:     p.Event,
-		Query:     p.Query,
-	}
-	events, err := api.RuntimeAudit.List(filter)
+	settings, events, applied, err := api.runtimeAuditSnapshot(filter)
 	if err != nil {
 		return nil, err
 	}
 	return json.Marshal(map[string]interface{}{
 		"events":   events,
 		"settings": settings,
-		"applied": map[string]interface{}{
-			"limit":     filter.Limit,
-			"component": filter.Component,
-			"level":     filter.Level,
-			"event":     filter.Event,
-			"query":     filter.Query,
-		},
+		"applied":  applied,
 	})
+}
+
+func (api *PanelAPI) runtimeExport(params json.RawMessage) (json.RawMessage, error) {
+	if api.RuntimeAudit == nil {
+		return json.Marshal(map[string]interface{}{
+			"content":     "",
+			"contentType": "application/json",
+			"fileName":    "runtime-audit.json",
+			"format":      "json",
+		})
+	}
+	filter, format, err := decodeRuntimeAuditParams(params)
+	if err != nil {
+		return nil, err
+	}
+	settings, events, applied, err := api.runtimeAuditSnapshot(filter)
+	if err != nil {
+		return nil, err
+	}
+	if format == "" {
+		format = "json"
+	}
+
+	exportedAt := time.Now().UTC()
+	switch format {
+	case "json":
+		payload, err := json.MarshalIndent(map[string]interface{}{
+			"exportedAt": exportedAt.Format(time.RFC3339),
+			"settings":   settings,
+			"applied":    applied,
+			"events":     events,
+		}, "", "  ")
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]interface{}{
+			"content":     string(payload),
+			"contentType": "application/json",
+			"fileName":    "runtime-audit-" + exportedAt.Format("20060102-150405") + ".json",
+			"format":      "json",
+		})
+	case "ndjson":
+		lines := make([]string, 0, len(events)+1)
+		header, err := json.Marshal(map[string]interface{}{
+			"type":       "runtime_audit_export",
+			"exportedAt": exportedAt.Format(time.RFC3339),
+			"settings":   settings,
+			"applied":    applied,
+		})
+		if err != nil {
+			return nil, err
+		}
+		lines = append(lines, string(header))
+		for _, event := range events {
+			encoded, err := json.Marshal(event)
+			if err != nil {
+				return nil, err
+			}
+			lines = append(lines, string(encoded))
+		}
+		return json.Marshal(map[string]interface{}{
+			"content":     strings.Join(lines, "\n") + "\n",
+			"contentType": "application/x-ndjson",
+			"fileName":    "runtime-audit-" + exportedAt.Format("20060102-150405") + ".ndjson",
+			"format":      "ndjson",
+		})
+	default:
+		return nil, fmt.Errorf("invalid format: %s", format)
+	}
+}
+
+func (api *PanelAPI) runtimeAuditSnapshot(filter vault.RuntimeEventFilter) (vault.RuntimeAuditSettings, []vault.RuntimeEvent, map[string]interface{}, error) {
+	settings, err := api.RuntimeAudit.Settings()
+	if err != nil {
+		return vault.RuntimeAuditSettings{}, nil, nil, err
+	}
+	events, err := api.RuntimeAudit.List(filter)
+	if err != nil {
+		return vault.RuntimeAuditSettings{}, nil, nil, err
+	}
+	return settings, events, map[string]interface{}{
+		"limit":     filter.Limit,
+		"component": filter.Component,
+		"level":     filter.Level,
+		"event":     filter.Event,
+		"query":     filter.Query,
+	}, nil
+}
+
+func decodeRuntimeAuditParams(params json.RawMessage) (vault.RuntimeEventFilter, string, error) {
+	var p struct {
+		Limit     int    `json:"limit"`
+		Component string `json:"component"`
+		Level     string `json:"level"`
+		Event     string `json:"event"`
+		Query     string `json:"query"`
+		Format    string `json:"format"`
+	}
+	if len(params) > 0 {
+		if err := json.Unmarshal(params, &p); err != nil {
+			return vault.RuntimeEventFilter{}, "", fmt.Errorf("invalid params: %w", err)
+		}
+	}
+	return vault.RuntimeEventFilter{
+		Limit:     p.Limit,
+		Component: p.Component,
+		Level:     p.Level,
+		Event:     p.Event,
+		Query:     p.Query,
+	}, p.Format, nil
 }
 
 func (api *PanelAPI) runtimeSetRetention(params json.RawMessage) (json.RawMessage, error) {

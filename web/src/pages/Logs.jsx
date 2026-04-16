@@ -61,6 +61,19 @@ export default function Logs({ ws }) {
     setRuntimeFilter(current => ({ ...current }))
   }
 
+  async function downloadRuntimeExport(format) {
+    const result = await ws.call('runtime.export', { ...runtimeFilter, format })
+    const blob = new Blob([result?.content || ''], { type: result?.contentType || 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = result?.fileName || `runtime-audit.${format === 'ndjson' ? 'ndjson' : 'json'}`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div>
       <div className="page-header">
@@ -86,6 +99,8 @@ export default function Logs({ ws }) {
               onChange={e => setRetentionInput(e.target.value)}
             />
             <button className="btn btn-secondary" onClick={saveRetention}>Save</button>
+            <button className="btn btn-secondary" onClick={() => downloadRuntimeExport('json')}>Export JSON</button>
+            <button className="btn btn-secondary" onClick={() => downloadRuntimeExport('ndjson')}>Export NDJSON</button>
           </div>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr 1fr 120px', gap: 12, marginBottom: 16 }}>
