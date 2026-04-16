@@ -614,10 +614,6 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, a.waitForEvent())
 	case shared.NavigationMsg:
 		a.contextList, _ = a.contextList.Update(msg)
-		// Show navigation as live activity in conversation
-		if a.selectedAgentID != "" && msg.URL != "" && msg.URL != "about:blank" {
-			a.conversation.AddEntry("system", "Navigating to "+msg.URL)
-		}
 		cmds = append(cmds, a.waitForEvent())
 	case shared.FrameAttachedMsg:
 		a.contextList, _ = a.contextList.Update(msg)
@@ -626,10 +622,6 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, a.waitForEvent())
 	case shared.PageLoadMsg:
 		a.contextList, _ = a.contextList.Update(msg)
-		// Show page load completion as live activity
-		if a.selectedAgentID != "" && msg.Name == "load" {
-			a.conversation.AddEntry("system", "Page loaded")
-		}
 		cmds = append(cmds, a.waitForEvent())
 	case shared.TelemetryMsg:
 		a.systemInfo, _ = a.systemInfo.Update(msg)

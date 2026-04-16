@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"vulpineos/internal/tui/shared"
 	"vulpineos/internal/vault"
 )
 
@@ -266,5 +267,44 @@ func TestGracefulShutdownPausesActiveAgents(t *testing.T) {
 	}
 	if shouldPauseOnShutdown("paused") {
 		t.Fatal("did not expect paused agents to be re-paused during shutdown")
+	}
+}
+
+func TestBrowserEventsDoNotPolluteSelectedConversation(t *testing.T) {
+	db := openTestVault(t)
+
+	agent, err := db.CreateAgent("agent", "task", "{}")
+	if err != nil {
+		t.Fatalf("create agent: %v", err)
+	}
+	if err := db.AppendMessage(agent.ID, "assistant", "persisted reply", 0); err != nil {
+		t.Fatalf("append message: %v", err)
+	}
+
+	app := NewApp(nil, nil, nil, db, nil, nil)
+	app.conversation.SetSize(80, 20)
+	app.selectedAgentID = agent.ID
+	app.conversation.SetAgentID(agent.ID)
+	app.conversation.LoadMessages([]vault.AgentMessage{
+		{Role: "assistant", Content: "persisted reply"},
+	})
+	before := app.conversation.View()
+
+	model, _ := app.Update(shared.NavigationMsg{
+		SessionID: "sess-1",
+		FrameID:   "frame-1",
+		URL:       "https://example.com/other-agent",
+	})
+	app = model.(App)
+	model, _ = app.Update(shared.PageLoadMsg{
+		SessionID: "sess-1",
+		FrameID:   "frame-1",
+		Name:      "load",
+	})
+	app = model.(App)
+
+	after := app.conversation.View()
+	if after != before {
+		t.Fatalf("conversation changed after unrelated browser events\nbefore:\n%s\n\nafter:\n%s", before, after)
 	}
 }
