@@ -1489,19 +1489,25 @@ func (a App) pauseAllAgents() tea.Cmd {
 		}
 		statuses := a.orch.Agents.List()
 		paused := 0
+		affected := make([]string, 0, len(statuses))
 		for _, status := range statuses {
 			switch status.Status {
 			case "running", "thinking", "starting", "active":
 				if err := a.orch.Agents.PauseAgent(status.AgentID); err == nil {
 					_ = a.vault.UpdateAgentStatus(status.AgentID, "paused")
 					paused++
+					affected = append(affected, status.AgentID)
 				}
 			}
 		}
 		if paused == 0 {
 			return statusNotice{text: "No active agents to pause"}
 		}
-		return statusNotice{text: fmt.Sprintf("Paused %d agents", paused)}
+		return shared.BulkAgentStatusMsg{
+			AgentIDs: affected,
+			Status:   "paused",
+			Notice:   fmt.Sprintf("Paused %d agents", paused),
+		}
 	}
 }
 
@@ -1515,6 +1521,7 @@ func (a App) resumePausedAgents() tea.Cmd {
 			return statusNotice{text: "Resume all failed: " + err.Error()}
 		}
 		resumed := 0
+		affected := make([]string, 0, len(agents))
 		for i := range agents {
 			configPath, cleanup, cfgErr := a.agentRuntimeConfig(&agents[i])
 			if cfgErr != nil {
@@ -1527,6 +1534,7 @@ func (a App) resumePausedAgents() tea.Cmd {
 				}
 				_ = a.vault.UpdateAgentStatus(agents[i].ID, "active")
 				resumed++
+				affected = append(affected, agents[i].ID)
 				continue
 			}
 			if cleanup != nil {
@@ -1536,7 +1544,11 @@ func (a App) resumePausedAgents() tea.Cmd {
 		if resumed == 0 {
 			return statusNotice{text: "No paused agents resumed"}
 		}
-		return statusNotice{text: fmt.Sprintf("Resumed %d agents", resumed)}
+		return shared.BulkAgentStatusMsg{
+			AgentIDs: affected,
+			Status:   "active",
+			Notice:   fmt.Sprintf("Resumed %d agents", resumed),
+		}
 	}
 }
 
