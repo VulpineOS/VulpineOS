@@ -1,7 +1,7 @@
-github.com/PopcornDev1/foxbridge v0.1.0 h1:JULMtUHHiwU7AFDDDW1l+ks58e12WMf5oTPDkwLsQGo=
-github.com/PopcornDev1/foxbridge v0.1.0/go.mod h1:gXjfnwtxyx1bFAiWYAzHusNBl1kWBvrS2dZk7VUCRWo=
-github.com/PopcornDev1/mobilebridge v0.0.0-20260412201100-d8398d7afb7d h1:6ksLwAaC8P2W/0ZorL/lUbgxCSuK+sScEabfqvvUB8Y=
-github.com/PopcornDev1/mobilebridge v0.0.0-20260412201100-d8398d7afb7d/go.mod h1:P5ScECDULbr0hoe3H9YiCJxmYRUeJaSQ4TQyYkaYJ10=
+github.com/VulpineOS/foxbridge v0.1.1 h1:6lmGcwaYwBk5y9th/OdUQsgAp9ud5TE+5Q1R/xtHTRM=
+github.com/VulpineOS/foxbridge v0.1.1/go.mod h1:WEAs/DHBRgEPBZ9nYxI7Fql+ZQsgMP00Fh2hdjiLbBc=
+github.com/VulpineOS/mobilebridge v0.1.0 h1:nyAkPYnFcMui6i53lr+3bstf4XcTurAFdSANbMHFgiw=
+github.com/VulpineOS/mobilebridge v0.1.0/go.mod h1:/dYC0xaP6T5YDaJcWvOfj0d1KmSkKbJoTC+p1nKUxkE=
 github.com/atotto/clipboard v0.1.4 h1:EH0zSVneZPSuFR11BlR9YppQTVDbh5+16AmcJi4g1z4=
 github.com/atotto/clipboard v0.1.4/go.mod h1:ZY9tmq7sm5xIbd9bOK4onWV4S6X0u6GY7Vn0Yu86PYI=
 github.com/aymanbagabas/go-osc52/v2 v2.0.1 h1:HwpRHbFMcZLEVr42D4p7XBqjyuxQH5SMiErDT4WkJ2k=
