@@ -132,6 +132,48 @@ func TestNewAppLoadsPersistedConversationAndSelectionSwitch(t *testing.T) {
 	}
 }
 
+func TestConversationUnreadCountsTrackNonSelectedAgents(t *testing.T) {
+	db := openTestVault(t)
+
+	first, err := db.CreateAgent("first-agent", "first task", "{}")
+	if err != nil {
+		t.Fatalf("create first agent: %v", err)
+	}
+	second, err := db.CreateAgent("second-agent", "second task", "{}")
+	if err != nil {
+		t.Fatalf("create second agent: %v", err)
+	}
+
+	app := NewApp(nil, nil, nil, db, nil, nil)
+	app.selectedAgentID = first.ID
+	app.conversation.SetAgentID(first.ID)
+
+	model, _ := app.Update(shared.ConversationEntryMsg{
+		AgentID: second.ID,
+		Role:    "assistant",
+		Content: "background reply",
+	})
+	app = model.(App)
+
+	if got := app.agentList.UnreadCount(second.ID); got != 1 {
+		t.Fatalf("second unread = %d, want 1", got)
+	}
+
+	app.agentList.MoveDown()
+	if cmd := app.selectCurrentAgent(); cmd != nil {
+		if msg := cmd(); msg != nil {
+			t.Fatalf("selectCurrentAgent returned unexpected msg: %#v", msg)
+		}
+	}
+
+	if got := app.agentList.UnreadCount(second.ID); got != 0 {
+		t.Fatalf("second unread after selection = %d, want 0", got)
+	}
+	if !strings.Contains(app.conversation.View(), "background reply") {
+		t.Fatalf("expected conversation to include unread message after selection, got:\n%s", app.conversation.View())
+	}
+}
+
 func TestPauseResumeKeybindings(t *testing.T) {
 	db := openTestVault(t)
 

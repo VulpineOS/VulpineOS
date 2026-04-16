@@ -665,6 +665,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.AgentID == a.selectedAgentID {
 			a.conversation.SetThinking(false)
 			a.conversation.AddEntry(msg.Role, msg.Content)
+			a.agentList.ClearUnread(msg.AgentID)
+		} else {
+			a.agentList.MarkUnread(msg.AgentID)
 		}
 		cmds = append(cmds, a.waitForEvent())
 
@@ -1162,6 +1165,7 @@ func (a *App) selectCurrentAgent() tea.Cmd {
 	}
 	a.selectedAgentID = newID
 	a.conversation.SetAgentID(newID)
+	a.agentList.ClearUnread(newID)
 
 	if a.vault != nil {
 		agent, err := a.vault.GetAgent(newID)

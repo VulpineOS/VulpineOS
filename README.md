@@ -178,13 +178,15 @@ A terminal-based command center for managing AI agents, browser contexts, and id
 │               │ scout ⠋ Thinking...          │ Profile: mac-m1 │
 ├─ Agents ──────┤                              ├─ Contexts ──────┤
 │ ● Scout-1     │                              │ ctx-a91 page    │
-│ ◌ Scout-2     │                              │   about:blank   │
+│ ◌ Scout-2   2 │                              │   about:blank   │
 │ ✓ Researcher  │                              │ ctx-b22 page    │
 │ ⏸ Monitor     │ > Type a message...          │   google.com    │
 └───────────────┴──────────────────────────────┴─────────────────┘
 ```
 
 **Keybinds:** `n` new agent · `j/k` navigate · `Enter` chat · `p/r` pause or resume selected agent · `P/R` pause or resume all agents · `x` delete · `S` settings · `q` quit
+
+The agent list shows unread reply counts for non-selected agents so background work does not disappear while you are focused elsewhere.
 
 On quit, VulpineOS pauses active agents before exiting so the next launch can resume saved sessions instead of dropping in-flight work.
 

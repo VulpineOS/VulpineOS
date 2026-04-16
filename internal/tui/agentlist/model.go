@@ -17,6 +17,7 @@ type AgentListItem struct {
 	Name   string
 	Status string
 	Tokens int
+	Unread int
 }
 
 // Model holds the selectable agent list state.
@@ -137,6 +138,36 @@ func (m *Model) UpdateStatus(id, status string) {
 	}
 }
 
+// MarkUnread increments the unread count for an agent.
+func (m *Model) MarkUnread(id string) {
+	for i := range m.agents {
+		if m.agents[i].ID == id {
+			m.agents[i].Unread++
+			return
+		}
+	}
+}
+
+// ClearUnread clears unread count for an agent.
+func (m *Model) ClearUnread(id string) {
+	for i := range m.agents {
+		if m.agents[i].ID == id {
+			m.agents[i].Unread = 0
+			return
+		}
+	}
+}
+
+// UnreadCount returns the unread count for an agent.
+func (m Model) UnreadCount(id string) int {
+	for _, agent := range m.agents {
+		if agent.ID == id {
+			return agent.Unread
+		}
+	}
+	return 0
+}
+
 // statusIcon returns a styled icon for the given status.
 func statusIcon(status string) string {
 	switch status {
@@ -184,8 +215,16 @@ func (m Model) View() string {
 		}
 
 		icon := statusIcon(a.Status)
+		unread := ""
+		if a.Unread > 0 {
+			if a.Unread > 9 {
+				unread = lipgloss.NewStyle().Foreground(shared.ColorWarning).Render(" 9+")
+			} else {
+				unread = lipgloss.NewStyle().Foreground(shared.ColorWarning).Render(fmt.Sprintf(" %d", a.Unread))
+			}
+		}
 
-		line := fmt.Sprintf("%s%-*s %s", cursor, maxName, name, icon)
+		line := fmt.Sprintf("%s%-*s %s%s", cursor, maxName, name, icon, unread)
 		if i == m.selected {
 			line = shared.SelectedStyle.Render(line)
 		}
