@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "test": "vitest run",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -14,8 +15,12 @@
     "react-router-dom": "^7.0.0"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
     "@vitejs/plugin-react": "^4.0.0",
+    "@types/react": "^19.0.0",
+    "jsdom": "^25.0.1",
     "vite": "^6.0.0",
-    "@types/react": "^19.0.0"
+    "vitest": "^2.1.8"
   }
 }

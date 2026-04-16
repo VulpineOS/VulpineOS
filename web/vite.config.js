@@ -7,6 +7,10 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
   },
+  test: {
+    environment: 'jsdom',
+    setupFiles: './src/test/setup.js',
+  },
   server: {
     proxy: {
       '/ws': { target: 'ws://localhost:8443', ws: true },
