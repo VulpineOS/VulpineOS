@@ -362,6 +362,51 @@ func TestBulkAgentStatusMsgMarksAgentsInterrupted(t *testing.T) {
 	}
 }
 
+func TestBulkAgentStatusMsgMarksAgentsPaused(t *testing.T) {
+	db := openTestVault(t)
+
+	first, err := db.CreateAgent("first-agent", "task", "{}")
+	if err != nil {
+		t.Fatalf("create first agent: %v", err)
+	}
+	second, err := db.CreateAgent("second-agent", "task", "{}")
+	if err != nil {
+		t.Fatalf("create second agent: %v", err)
+	}
+	if err := db.UpdateAgentStatus(first.ID, "active"); err != nil {
+		t.Fatalf("set first status: %v", err)
+	}
+	if err := db.UpdateAgentStatus(second.ID, "active"); err != nil {
+		t.Fatalf("set second status: %v", err)
+	}
+
+	app := NewApp(nil, nil, nil, db, nil, nil)
+
+	model, _ := app.Update(shared.BulkAgentStatusMsg{
+		AgentIDs: []string{first.ID, second.ID},
+		Status:   "paused",
+		Notice:   "Paused 2 agents",
+	})
+	app = model.(App)
+
+	if got := app.agentList.Status(first.ID); got != "paused" {
+		t.Fatalf("first status = %q, want paused", got)
+	}
+	if got := app.agentList.Status(second.ID); got != "paused" {
+		t.Fatalf("second status = %q, want paused", got)
+	}
+	if app.notice != "Paused 2 agents" {
+		t.Fatalf("notice = %q, want %q", app.notice, "Paused 2 agents")
+	}
+	stored, err := db.GetAgent(first.ID)
+	if err != nil {
+		t.Fatalf("get first agent: %v", err)
+	}
+	if stored.Status != "paused" {
+		t.Fatalf("stored first status = %q, want paused", stored.Status)
+	}
+}
+
 func TestGracefulShutdownPausesActiveAgents(t *testing.T) {
 	db := openTestVault(t)
 
