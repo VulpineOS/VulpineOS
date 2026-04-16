@@ -63,7 +63,7 @@ VulpineOS builds on Camoufox's battle-tested stealth foundation (Firefox 146.0.1
 │                                                              │
 │  Go Runtime (36 packages, 350+ tests)                         │
 │  ├── Bubbletea TUI (3-column agent workbench)                 │
-│  ├── Web Panel (React SPA, 11 pages, 30 API endpoints)        │
+│  ├── Web Panel (React SPA, 11 pages, 31 API endpoints)        │
 │  ├── Identity Vault (SQLite — citizens, templates, sessions)  │
 │  ├── Context Pool (pre-warm, recycle, memory limits)           │
 │  ├── Orchestrator (spawn citizens + nomads, auto-release)      │
@@ -150,7 +150,7 @@ Beyond the four core phases, VulpineOS includes hardened runtime security:
 
 | Feature | Description |
 |---------|-------------|
-| **Web Panel** | React SPA (Vite) with 11 pages — Dashboard, Agents, Contexts, Proxies, Security, Webhooks, Scripts, Settings, Logs, and more. 30 API endpoints over WebSocket, including persisted runtime audit history. |
+| **Web Panel** | React SPA (Vite) with 11 pages — Dashboard, Agents, Contexts, Proxies, Security, Webhooks, Scripts, Settings, Logs, and more. 31 API endpoints over WebSocket, including persisted runtime audit history plus retention controls. |
 | **Agent Bus** | Inter-agent communication (ask, delegate, reply, notify) with user-controlled approval policies and full audit trail |
 | **Cost Tracking** | Per-agent token usage and API cost tracking with budget limits. Built-in pricing for Claude, GPT-4o, Gemini. Alerts at configurable thresholds. |
 | **Session Recording** | Record browser actions as timestamped timelines. Export to JSON. Terminal-based replay at real speed. |
@@ -194,7 +194,7 @@ A React SPA served from the Go binary — no separate frontend deployment needed
 
 **11 pages:** Dashboard, Agents, Agent Detail, Contexts, Proxies, Security, Webhooks, Scripts, Settings, Logs, Login
 
-**30 API endpoints** covering: agent CRUD, config management, cost tracking, webhooks, proxy management, agent bus (pending/approve/reject/policies), session recording, fingerprints, system status, and runtime audit history.
+**31 API endpoints** covering: agent CRUD, config management, cost tracking, webhooks, proxy management, agent bus (pending/approve/reject/policies), session recording, fingerprints, system status, and runtime audit history plus retention controls.
 
 Access via `--serve --port 8443 --api-key KEY` or through the remote client.
 

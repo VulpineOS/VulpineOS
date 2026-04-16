@@ -127,7 +127,7 @@ func NewApp(k *kernel.Kernel, client *juggler.Client, orch *orchestrator.Orchest
 	}
 
 	if audit != nil {
-		if events, err := audit.List(3); err == nil {
+		if events, err := audit.List(vault.RuntimeEventFilter{Limit: 3}); err == nil {
 			seed := make([]shared.RuntimeEventMsg, 0, len(events))
 			for _, event := range events {
 				seed = append(seed, shared.RuntimeEventMsg{Event: event})

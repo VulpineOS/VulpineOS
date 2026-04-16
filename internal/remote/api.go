@@ -117,6 +117,8 @@ func (api *PanelAPI) HandleMessage(method string, params json.RawMessage) (json.
 	// --- Runtime audit ---
 	case "runtime.list":
 		return api.runtimeList(params)
+	case "runtime.setRetention":
+		return api.runtimeSetRetention(params)
 
 	// --- Contexts ---
 	case "contexts.list":
@@ -780,21 +782,71 @@ func (api *PanelAPI) statusGet() (json.RawMessage, error) {
 
 func (api *PanelAPI) runtimeList(params json.RawMessage) (json.RawMessage, error) {
 	if api.RuntimeAudit == nil {
-		return json.Marshal(map[string]interface{}{"events": []vault.RuntimeEvent{}})
+		return json.Marshal(map[string]interface{}{
+			"events":    []vault.RuntimeEvent{},
+			"settings":  vault.RuntimeAuditSettings{},
+			"applied":   map[string]interface{}{},
+		})
 	}
 	var p struct {
-		Limit int `json:"limit"`
+		Limit     int    `json:"limit"`
+		Component string `json:"component"`
+		Level     string `json:"level"`
+		Event     string `json:"event"`
+		Query     string `json:"query"`
 	}
 	if len(params) > 0 {
 		if err := json.Unmarshal(params, &p); err != nil {
 			return nil, fmt.Errorf("invalid params: %w", err)
 		}
 	}
-	events, err := api.RuntimeAudit.List(p.Limit)
+	settings, err := api.RuntimeAudit.Settings()
 	if err != nil {
 		return nil, err
 	}
-	return json.Marshal(map[string]interface{}{"events": events})
+	filter := vault.RuntimeEventFilter{
+		Limit:     p.Limit,
+		Component: p.Component,
+		Level:     p.Level,
+		Event:     p.Event,
+		Query:     p.Query,
+	}
+	events, err := api.RuntimeAudit.List(filter)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(map[string]interface{}{
+		"events":   events,
+		"settings": settings,
+		"applied": map[string]interface{}{
+			"limit":     filter.Limit,
+			"component": filter.Component,
+			"level":     filter.Level,
+			"event":     filter.Event,
+			"query":     filter.Query,
+		},
+	})
+}
+
+func (api *PanelAPI) runtimeSetRetention(params json.RawMessage) (json.RawMessage, error) {
+	if api.RuntimeAudit == nil {
+		return json.Marshal(map[string]interface{}{
+			"settings": vault.RuntimeAuditSettings{},
+		})
+	}
+	var p struct {
+		Retention int `json:"retention"`
+	}
+	if err := json.Unmarshal(params, &p); err != nil {
+		return nil, fmt.Errorf("invalid params: %w", err)
+	}
+	settings, err := api.RuntimeAudit.SetRetention(p.Retention)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(map[string]interface{}{
+		"settings": settings,
+	})
 }
 
 func (api *PanelAPI) agentRuntimeConfig(agent *vault.Agent) (string, func(), error) {

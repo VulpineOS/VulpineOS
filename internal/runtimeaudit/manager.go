@@ -45,11 +45,27 @@ func (m *Manager) Log(component, level, event, message string, metadata map[stri
 }
 
 // List returns the most recent persisted runtime events.
-func (m *Manager) List(limit int) ([]vault.RuntimeEvent, error) {
+func (m *Manager) List(filter vault.RuntimeEventFilter) ([]vault.RuntimeEvent, error) {
 	if m == nil || m.vault == nil {
 		return nil, nil
 	}
-	return m.vault.ListRuntimeEvents(limit)
+	return m.vault.ListRuntimeEvents(filter)
+}
+
+// Settings returns persisted runtime audit settings.
+func (m *Manager) Settings() (vault.RuntimeAuditSettings, error) {
+	if m == nil || m.vault == nil {
+		return vault.RuntimeAuditSettings{}, nil
+	}
+	return m.vault.RuntimeAuditSettings()
+}
+
+// SetRetention updates the persisted runtime audit retention window.
+func (m *Manager) SetRetention(limit int) (vault.RuntimeAuditSettings, error) {
+	if m == nil || m.vault == nil {
+		return vault.RuntimeAuditSettings{}, nil
+	}
+	return m.vault.SetRuntimeAuditRetention(limit)
 }
 
 // Subscribe returns a live event channel.

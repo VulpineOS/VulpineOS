@@ -97,6 +97,11 @@ CREATE TABLE IF NOT EXISTS runtime_events (
 );
 CREATE INDEX IF NOT EXISTS idx_runtime_events_timestamp ON runtime_events(timestamp DESC);
 
+CREATE TABLE IF NOT EXISTS runtime_settings (
+	key    TEXT PRIMARY KEY,
+	value  TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS proxies (
 	id       TEXT PRIMARY KEY,
 	config   TEXT NOT NULL,
