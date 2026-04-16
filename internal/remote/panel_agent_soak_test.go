@@ -151,6 +151,28 @@ func TestPanelAgentSessionSoak(t *testing.T) {
 			t.Fatalf("messages len = %d", len(messages))
 		}
 	}
+
+	pauseToken := "PAUSE-ALPHA"
+	if err := startAndInterruptTurn(t, ctx, conn, "agents.resume", "agents.pause", agents[0].id, longOutputPrompt(pauseToken)); err != nil {
+		t.Fatalf("pause agent: %v", err)
+	}
+	waitForAgentStatusInVault(t, v, agents[0].id, "paused", 30*time.Second)
+
+	killToken := "KILL-BETA"
+	if err := startAndInterruptTurn(t, ctx, conn, "agents.resume", "agents.kill", agents[1].id, longOutputPrompt(killToken)); err != nil {
+		t.Fatalf("kill agent: %v", err)
+	}
+	waitForAgentStatusInVault(t, v, agents[1].id, "completed", 30*time.Second)
+
+	resp, _ := controlCall(t, ctx, conn, "agents.getMessages", map[string]interface{}{
+		"agentId": agents[0].id,
+	})
+	assertMessagesContain(t, resp, "TOKEN:"+agents[0].token, pauseToken)
+
+	resp, _ = controlCall(t, ctx, conn, "agents.getMessages", map[string]interface{}{
+		"agentId": agents[1].id,
+	})
+	assertMessagesContain(t, resp, "SAVED:"+agents[1].token, "TOKEN:"+agents[1].token, killToken)
 }
 
 func controlCall(t *testing.T, ctx context.Context, conn *websocket.Conn, method string, params map[string]interface{}) (map[string]interface{}, []map[string]interface{}) {
@@ -277,4 +299,94 @@ func resultString(t *testing.T, resp map[string]interface{}, key string) string 
 	}
 	value, _ := result[key].(string)
 	return value
+}
+
+func startAndInterruptTurn(t *testing.T, ctx context.Context, conn *websocket.Conn, startMethod, interruptMethod, agentID, message string) error {
+	t.Helper()
+
+	for attempt := 0; attempt < 5; attempt++ {
+		startResp, _ := controlCall(t, ctx, conn, startMethod, map[string]interface{}{
+			"agentId": agentID,
+			"message": message,
+		})
+		if errText := responseError(startResp); errText != "" {
+			return fmt.Errorf("start turn: %s", errText)
+		}
+
+		interruptResp, _ := controlCall(t, ctx, conn, interruptMethod, map[string]interface{}{
+			"agentId": agentID,
+		})
+		if errText := responseError(interruptResp); errText == "" {
+			return nil
+		} else if !strings.Contains(errText, "not found") {
+			return fmt.Errorf("%s: %s", interruptMethod, errText)
+		}
+
+		time.Sleep(250 * time.Millisecond)
+	}
+
+	return fmt.Errorf("%s never caught a live turn", interruptMethod)
+}
+
+func waitForAgentStatusInVault(t *testing.T, v *vault.DB, agentID, want string, timeout time.Duration) {
+	t.Helper()
+
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		agent, err := v.GetAgent(agentID)
+		if err != nil {
+			t.Fatalf("get agent %s: %v", agentID, err)
+		}
+		if agent.Status == want {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	agent, err := v.GetAgent(agentID)
+	if err != nil {
+		t.Fatalf("get agent %s after timeout: %v", agentID, err)
+	}
+	t.Fatalf("agent %s status = %q, want %q", agentID, agent.Status, want)
+}
+
+func assertMessagesContain(t *testing.T, resp map[string]interface{}, wants ...string) {
+	t.Helper()
+
+	result, ok := resp["result"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("result = %#v", resp)
+	}
+	messages, ok := result["messages"].([]interface{})
+	if !ok {
+		t.Fatalf("messages = %#v", resp)
+	}
+
+	joined := make([]string, 0, len(messages))
+	for _, raw := range messages {
+		msg, ok := raw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		content, _ := msg["content"].(string)
+		joined = append(joined, content)
+	}
+	haystack := strings.Join(joined, "\n")
+	for _, want := range wants {
+		if !strings.Contains(haystack, want) {
+			t.Fatalf("messages missing %q in:\n%s", want, haystack)
+		}
+	}
+}
+
+func responseError(resp map[string]interface{}) string {
+	if resp == nil {
+		return "nil response"
+	}
+	errText, _ := resp["error"].(string)
+	return errText
+}
+
+func longOutputPrompt(token string) string {
+	return fmt.Sprintf("Return exactly 600 lines. Each line must begin with HOLD:%s: followed by a zero-padded line number from 001 to 600. Do not summarize, explain, or stop early.", token)
 }

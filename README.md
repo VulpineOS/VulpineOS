@@ -186,6 +186,10 @@ A terminal-based command center for managing AI agents, browser contexts, and id
 
 **Keybinds:** `n` new agent · `j/k` navigate · `Enter` chat · `p/r` pause or resume selected agent · `P/R` pause or resume all agents · `x` delete · `S` settings · `q` quit
 
+The live operator path is covered by env-gated soak tests in `internal/agent_soak_integration_test.go` and `internal/remote/panel_agent_soak_test.go`, including persisted-session resume plus panel-driven pause and kill flows.
+
+Live OpenClaw integration tests in `internal/integration_test.go` are gated behind `VULPINEOS_RUN_LIVE=1` so the default `go test` and CI path stay hermetic.
+
 ---
 
 ## Web Panel
@@ -209,6 +213,7 @@ Access via `--serve --port 8443 --api-key KEY` or through the remote client.
 - Dual backend: `--backend juggler` (pipe) or `--backend bidi` (WebSocket)
 - Fetch domain with request/response interception
 - Embedded into VulpineOS startup — OpenClaw agents automatically use Camoufox
+- On macOS and Linux, VulpineOS launches OpenClaw in its own process group so pause and kill also tear down descendant agent processes cleanly
 
 ---
 

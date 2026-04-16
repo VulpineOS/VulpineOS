@@ -46,6 +46,13 @@ func skipIfNoBrowser(t *testing.T) string {
 	return binary
 }
 
+func requireLiveOpenClaw(t *testing.T) {
+	t.Helper()
+	if strings.TrimSpace(os.Getenv("VULPINEOS_RUN_LIVE")) == "" {
+		t.Skip("set VULPINEOS_RUN_LIVE=1 to run live OpenClaw integration tests")
+	}
+}
+
 // startKernel launches Camoufox in headless mode and returns the kernel + client.
 func startKernel(t *testing.T) (*kernel.Kernel, *juggler.Client) {
 	binary := skipIfNoBrowser(t)
@@ -625,6 +632,7 @@ func TestIntegration_MCPNavigateAndClick(t *testing.T) {
 // === OPENCLAW AGENT TESTS ===
 
 func TestIntegration_OpenClawInstalled(t *testing.T) {
+	requireLiveOpenClaw(t)
 	mgr := openclaw.NewManager("")
 	if !mgr.OpenClawInstalled() {
 		t.Skip("OpenClaw not installed — skipping")
@@ -633,6 +641,7 @@ func TestIntegration_OpenClawInstalled(t *testing.T) {
 }
 
 func TestIntegration_AgentSpawnAndRespond(t *testing.T) {
+	requireLiveOpenClaw(t)
 	mgr := openclaw.NewManager("")
 	if !mgr.OpenClawInstalled() {
 		t.Skip("OpenClaw not installed")
@@ -677,6 +686,7 @@ func TestIntegration_AgentSpawnAndRespond(t *testing.T) {
 }
 
 func TestIntegration_AgentSessionPersists(t *testing.T) {
+	requireLiveOpenClaw(t)
 	mgr := openclaw.NewManager("")
 	if !mgr.OpenClawInstalled() {
 		t.Skip("OpenClaw not installed")
@@ -707,6 +717,7 @@ func TestIntegration_AgentSessionPersists(t *testing.T) {
 }
 
 func TestIntegration_AgentBrowserUsesScopedContext(t *testing.T) {
+	requireLiveOpenClaw(t)
 	mgr := openclaw.NewManager("")
 	if !mgr.OpenClawInstalled() {
 		t.Skip("OpenClaw not installed")
@@ -796,6 +807,7 @@ func TestIntegration_AgentBrowserUsesScopedContext(t *testing.T) {
 }
 
 func TestIntegration_AgentBrowserClicksLocalPage(t *testing.T) {
+	requireLiveOpenClaw(t)
 	mgr := openclaw.NewManager("")
 	if !mgr.OpenClawInstalled() {
 		t.Skip("OpenClaw not installed")

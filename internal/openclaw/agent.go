@@ -110,6 +110,7 @@ func (a *Agent) start(binary string, args []string) error {
 	a.args = make([]string, len(args))
 	copy(a.args, args)
 	a.cmd = exec.Command(binary, args...)
+	configureAgentProcess(a.cmd)
 	a.waitState = &agentWaitState{}
 
 	// Apply extra environment variables (e.g. OPENCLAW_CONFIG_PATH)
@@ -396,7 +397,7 @@ func (a *Agent) stopWithStatus(status string) error {
 	}
 
 	if cmd != nil && cmd.Process != nil {
-		cmd.Process.Kill()
+		_ = killAgentProcess(cmd)
 		// Reap the process through the shared wait path so Stop and the stdout
 		// reader goroutine do not race on exec.Cmd.Wait.
 		a.waitProcess()
