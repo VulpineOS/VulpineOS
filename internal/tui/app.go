@@ -353,6 +353,24 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Graceful shutdown: pause all running agents so they save state
 			a.gracefulShutdown()
 			return a, tea.Quit
+		case "p":
+			if a.selectedAgentID == "" {
+				a.notice = "No agent selected"
+				a.noticeTTL = 3
+				return a, nil
+			}
+			cmds = append(cmds, a.pauseSelectedAgent())
+		case "r":
+			if a.selectedAgentID == "" {
+				a.notice = "No agent selected"
+				a.noticeTTL = 3
+				return a, nil
+			}
+			cmds = append(cmds, a.resumeSelectedAgent())
+		case "P":
+			cmds = append(cmds, a.pauseAllAgents())
+		case "R":
+			cmds = append(cmds, a.resumePausedAgents())
 		case "tab":
 			// Cycle: AgentList → Conversation → AgentDetail → ContextList → AgentList
 			a.focus = (a.focus + 1) % FocusNormalCount
@@ -1045,7 +1063,7 @@ func (a App) renderStatusBar() string {
 	bar := shared.TitleStyle.Render("VULPINE") +
 		shared.MutedStyle.Render(" | ") +
 		shared.RunningStyle.Render("* "+mode) +
-		shared.MutedStyle.Render("  n:new  x:del  v:view  S:settings  Enter:chat  Tab:focus  ↑↓:scroll  q:quit") +
+		shared.MutedStyle.Render("  n:new  p/r:agent  P/R:all  x:del  v:view  S:settings  Enter:chat  Tab:focus  ↑↓:scroll  q:quit") +
 		ctxHint
 
 	return lipgloss.NewStyle().MaxWidth(a.width).Render(bar)
@@ -1275,6 +1293,9 @@ func (a App) resumeAgent(agentID string) tea.Cmd {
 		if a.orch == nil {
 			return statusNotice{text: "No orchestrator"}
 		}
+		if a.vault == nil {
+			return statusNotice{text: "No vault available"}
+		}
 		sessionName := "vulpine-" + agentID
 		agent, err := a.vault.GetAgent(agentID)
 		if err != nil {
@@ -1324,6 +1345,13 @@ func (a App) sendMessageToAgent(agentID, text string) tea.Cmd {
 				AgentID: agentID,
 				Role:    "system",
 				Content: "Error: No orchestrator available. Is the browser running?",
+			}
+		}
+		if a.vault == nil {
+			return shared.ConversationEntryMsg{
+				AgentID: agentID,
+				Role:    "system",
+				Content: "Error: No vault available.",
 			}
 		}
 
@@ -1390,6 +1418,107 @@ func shortContextID(contextID string) string {
 		return contextID
 	}
 	return contextID[:12]
+}
+
+func (a App) selectedAgentStatus() string {
+	if a.selectedAgentID == "" || a.vault == nil {
+		return ""
+	}
+	agent, err := a.vault.GetAgent(a.selectedAgentID)
+	if err != nil {
+		return ""
+	}
+	return agent.Status
+}
+
+func (a App) pauseSelectedAgent() tea.Cmd {
+	status := a.selectedAgentStatus()
+	switch status {
+	case "":
+		return statusNoticeCmd("Agent state unavailable")
+	case "paused":
+		return statusNoticeCmd("Agent already paused")
+	case "completed", "error", "failed", "interrupted":
+		return statusNoticeCmd("Agent is not running")
+	}
+	return a.pauseAgent(a.selectedAgentID)
+}
+
+func (a App) resumeSelectedAgent() tea.Cmd {
+	status := a.selectedAgentStatus()
+	switch status {
+	case "":
+		return statusNoticeCmd("Agent state unavailable")
+	case "active", "running", "thinking", "starting":
+		return statusNoticeCmd("Agent already active")
+	case "completed":
+		return statusNoticeCmd("Completed agents cannot be resumed")
+	}
+	return a.resumeAgent(a.selectedAgentID)
+}
+
+func (a App) pauseAllAgents() tea.Cmd {
+	return func() tea.Msg {
+		if a.orch == nil || a.vault == nil {
+			return statusNotice{text: "Pause all unavailable"}
+		}
+		statuses := a.orch.Agents.List()
+		paused := 0
+		for _, status := range statuses {
+			switch status.Status {
+			case "running", "thinking", "starting", "active":
+				if err := a.orch.Agents.PauseAgent(status.AgentID); err == nil {
+					_ = a.vault.UpdateAgentStatus(status.AgentID, "paused")
+					paused++
+				}
+			}
+		}
+		if paused == 0 {
+			return statusNotice{text: "No active agents to pause"}
+		}
+		return statusNotice{text: fmt.Sprintf("Paused %d agents", paused)}
+	}
+}
+
+func (a App) resumePausedAgents() tea.Cmd {
+	return func() tea.Msg {
+		if a.orch == nil || a.vault == nil {
+			return statusNotice{text: "Resume all unavailable"}
+		}
+		agents, err := a.vault.ListAgentsByStatus("paused")
+		if err != nil {
+			return statusNotice{text: "Resume all failed: " + err.Error()}
+		}
+		resumed := 0
+		for i := range agents {
+			configPath, cleanup, cfgErr := a.agentRuntimeConfig(&agents[i])
+			if cfgErr != nil {
+				continue
+			}
+			sessionName := "vulpine-" + agents[i].ID
+			if _, err := a.orch.Agents.ResumeWithSession(agents[i].ID, sessionName, configPath); err == nil {
+				if cleanup != nil {
+					cleanup()
+				}
+				_ = a.vault.UpdateAgentStatus(agents[i].ID, "active")
+				resumed++
+				continue
+			}
+			if cleanup != nil {
+				cleanup()
+			}
+		}
+		if resumed == 0 {
+			return statusNotice{text: "No paused agents resumed"}
+		}
+		return statusNotice{text: fmt.Sprintf("Resumed %d agents", resumed)}
+	}
+}
+
+func statusNoticeCmd(text string) tea.Cmd {
+	return func() tea.Msg {
+		return statusNotice{text: text}
+	}
 }
 
 // reloadSettingsProxies loads proxies from vault into the settings panel.
