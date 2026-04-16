@@ -235,3 +235,36 @@ func TestPauseResumeKeybindingsShortCircuitOnAgentState(t *testing.T) {
 		t.Fatalf("resume notice = %q, want %q", notice.text, "Agent already active")
 	}
 }
+
+func TestGracefulShutdownPausesActiveAgents(t *testing.T) {
+	db := openTestVault(t)
+
+	agent, err := db.CreateAgent("active-agent", "task", "{}")
+	if err != nil {
+		t.Fatalf("create active agent: %v", err)
+	}
+	if err := db.UpdateAgentStatus(agent.ID, "active"); err != nil {
+		t.Fatalf("set active status: %v", err)
+	}
+
+	app := NewApp(nil, nil, nil, db, nil, nil)
+	if err := db.UpdateAgentStatus(agent.ID, "active"); err != nil {
+		t.Fatalf("restore active status after startup reconciliation: %v", err)
+	}
+
+	app.gracefulShutdown()
+
+	stored, err := db.GetAgent(agent.ID)
+	if err != nil {
+		t.Fatalf("get agent after shutdown: %v", err)
+	}
+	if stored.Status != "active" {
+		t.Fatalf("agent status = %q, want active without orchestrator", stored.Status)
+	}
+	if !shouldPauseOnShutdown("active") {
+		t.Fatal("expected active agents to be paused during shutdown")
+	}
+	if shouldPauseOnShutdown("paused") {
+		t.Fatal("did not expect paused agents to be re-paused during shutdown")
+	}
+}

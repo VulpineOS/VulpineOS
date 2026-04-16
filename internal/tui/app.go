@@ -1595,11 +1595,20 @@ func (a *App) gracefulShutdown() {
 	// Get all running agents and pause them
 	agents := a.orch.Agents.List()
 	for _, status := range agents {
-		if status.Status == "running" || status.Status == "thinking" || status.Status == "starting" {
+		if shouldPauseOnShutdown(status.Status) {
 			// Send /savestate and mark as paused in vault
 			a.orch.Agents.PauseAgent(status.AgentID)
 			a.vault.UpdateAgentStatus(status.AgentID, "paused")
 		}
+	}
+}
+
+func shouldPauseOnShutdown(status string) bool {
+	switch status {
+	case "running", "thinking", "starting", "active":
+		return true
+	default:
+		return false
 	}
 }
 
