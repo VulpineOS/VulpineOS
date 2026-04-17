@@ -49,7 +49,7 @@ var (
 	stderr io.Writer = os.Stderr
 )
 
-var startGatewayIfAvailable = func(cfg *config.Config) *openclaw.Gateway {
+var startGatewayIfAvailable = func(cfg *config.Config, audit *runtimeaudit.Manager) *openclaw.Gateway {
 	mgr := openclaw.NewManager("")
 	if !mgr.OpenClawInstalled() {
 		return nil
@@ -57,11 +57,24 @@ var startGatewayIfAvailable = func(cfg *config.Config) *openclaw.Gateway {
 	gw := openclaw.NewGateway("")
 	if err := gw.Start(); err != nil {
 		log.Printf("Warning: OpenClaw gateway failed to start: %v (browser tools won't work)", err)
+		if audit != nil {
+			_, _ = audit.Log("gateway", "error", "start_failed", "OpenClaw gateway failed to start", map[string]string{
+				"error": err.Error(),
+			})
+		}
 		return nil
+	}
+	if audit != nil {
+		_, _ = audit.Log("gateway", "info", "started", "OpenClaw gateway started", nil)
 	}
 	if cfg != nil {
 		if err := config.RepairOpenClawProfile(cfg.FoxbridgeCDPURL); err != nil {
 			log.Printf("Warning: could not repair OpenClaw profile after gateway start: %v", err)
+			if audit != nil {
+				_, _ = audit.Log("gateway", "warn", "profile_repair_failed", "OpenClaw profile repair failed after gateway start", map[string]string{
+					"error": err.Error(),
+				})
+			}
 		}
 	}
 	return gw
@@ -407,7 +420,7 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 
 			// Start OpenClaw gateway for browser support
 			if startErr == nil {
-				gw = startGatewayIfAvailable(cfg)
+				gw = startGatewayIfAvailable(cfg, audit)
 			}
 
 			loaderProg.Send(loading.DoneMsg{})
@@ -454,7 +467,12 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 			defer orch.Close()
 		}
 		if gw != nil {
-			defer gw.Stop()
+			defer func() {
+				if audit != nil {
+					_, _ = audit.Log("gateway", "info", "stopped", "OpenClaw gateway stopped", nil)
+				}
+				gw.Stop()
+			}()
 		}
 	}
 
@@ -764,10 +782,15 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 		log.Printf("foxbridge CDP on %s", fb.CDPURL())
 	}
 
-	gw := startGatewayIfAvailable(cfg)
+	gw := startGatewayIfAvailable(cfg, audit)
 	if gw != nil {
 		panelAPI.Gateway = gw
-		defer gw.Stop()
+		defer func() {
+			if audit != nil {
+				_, _ = audit.Log("gateway", "info", "stopped", "OpenClaw gateway stopped", nil)
+			}
+			gw.Stop()
+		}()
 	}
 
 	log.Printf("VulpineOS kernel running (PID %d)", k.PID())
