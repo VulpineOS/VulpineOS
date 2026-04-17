@@ -134,3 +134,37 @@ func TestStatusRefreshesVisibleState(t *testing.T) {
 		t.Fatal("Status() visible = false, want true")
 	}
 }
+
+func TestShowReturnsUnderlyingAppleScriptError(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("macOS-specific window visibility test")
+	}
+
+	original := runWindowCommand
+	defer func() { runWindowCommand = original }()
+
+	runWindowCommand = func(name string, args ...string) (string, error) {
+		call := name + " " + strings.Join(args, " ")
+		switch {
+		case name == "ps":
+			return "123 1 camoufox\n", nil
+		case strings.Contains(call, "set visible of first process whose unix id is 123 to true"):
+			return "", assertiveError("not authorized")
+		default:
+			return "", nil
+		}
+	}
+
+	w := NewWindowController(123)
+	err := w.Show()
+	if err == nil {
+		t.Fatal("Show() error = nil, want propagated osascript error")
+	}
+	if !strings.Contains(err.Error(), "not authorized") {
+		t.Fatalf("Show() error = %v, want propagated osascript detail", err)
+	}
+}
+
+type assertiveError string
+
+func (e assertiveError) Error() string { return string(e) }
