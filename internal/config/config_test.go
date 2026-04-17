@@ -261,6 +261,130 @@ func TestGenerateOpenClawConfig(t *testing.T) {
 	}
 }
 
+func TestGenerateOpenClawConfigPreservesGatewayAndCommands(t *testing.T) {
+	withTempHome(t)
+
+	profileDir := OpenClawProfileDir()
+	if err := os.MkdirAll(profileDir, 0700); err != nil {
+		t.Fatalf("mkdir profile dir: %v", err)
+	}
+
+	existing := map[string]interface{}{
+		"gateway": map[string]interface{}{
+			"mode":      "remote",
+			"authToken": "keep-me",
+			"url":       "https://gateway.example.com",
+		},
+		"commands": map[string]interface{}{
+			"native":       "manual",
+			"nativeSkills": "manual",
+			"restart":      false,
+		},
+		"meta": map[string]interface{}{
+			"profile": "vulpine",
+		},
+	}
+	data, err := json.MarshalIndent(existing, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal existing config: %v", err)
+	}
+	if err := os.WriteFile(OpenClawConfigPath(), data, 0600); err != nil {
+		t.Fatalf("write existing config: %v", err)
+	}
+
+	cfg := &Config{
+		Provider:      "anthropic",
+		APIKey:        "sk-ant-test-key-99999",
+		Model:         "anthropic/claude-sonnet-4-6",
+		SetupComplete: true,
+	}
+	if err := cfg.GenerateOpenClawConfig("/usr/local/bin/vulpineos", "/usr/local/bin/camoufox"); err != nil {
+		t.Fatalf("GenerateOpenClawConfig: %v", err)
+	}
+
+	written, err := os.ReadFile(OpenClawConfigPath())
+	if err != nil {
+		t.Fatalf("read openclaw.json: %v", err)
+	}
+
+	var oc map[string]interface{}
+	if err := json.Unmarshal(written, &oc); err != nil {
+		t.Fatalf("openclaw.json not valid JSON: %v", err)
+	}
+
+	gateway, ok := oc["gateway"].(map[string]interface{})
+	if !ok {
+		t.Fatal("missing gateway section")
+	}
+	if gateway["authToken"] != "keep-me" {
+		t.Fatalf("gateway authToken = %v, want keep-me", gateway["authToken"])
+	}
+	if gateway["url"] != "https://gateway.example.com" {
+		t.Fatalf("gateway url = %v, want preserved remote URL", gateway["url"])
+	}
+	if gateway["mode"] != "local" {
+		t.Fatalf("gateway mode = %v, want local override", gateway["mode"])
+	}
+
+	commands, ok := oc["commands"].(map[string]interface{})
+	if !ok {
+		t.Fatal("missing commands section")
+	}
+	if commands["native"] != "manual" {
+		t.Fatalf("commands.native = %v, want manual", commands["native"])
+	}
+	if commands["restart"] != false {
+		t.Fatalf("commands.restart = %v, want false", commands["restart"])
+	}
+
+	meta, ok := oc["meta"].(map[string]interface{})
+	if !ok {
+		t.Fatal("missing meta section")
+	}
+	if meta["profile"] != "vulpine" {
+		t.Fatalf("meta.profile = %v, want vulpine", meta["profile"])
+	}
+}
+
+func TestGenerateOpenClawConfigRewritesStaleVulpineBrowserSkill(t *testing.T) {
+	withTempHome(t)
+
+	staleSkillDir := filepath.Join(OpenClawProfileDir(), "skills", "vulpine-browser")
+	if err := os.MkdirAll(staleSkillDir, 0700); err != nil {
+		t.Fatalf("mkdir stale skill dir: %v", err)
+	}
+	stalePath := filepath.Join(staleSkillDir, "SKILL.md")
+	stale := "Use vulpineos-browser shell command for everything."
+	if err := os.WriteFile(stalePath, []byte(stale), 0600); err != nil {
+		t.Fatalf("write stale skill: %v", err)
+	}
+
+	cfg := &Config{
+		Provider:      "anthropic",
+		APIKey:        "sk-ant-test-key-99999",
+		Model:         "anthropic/claude-sonnet-4-6",
+		SetupComplete: true,
+	}
+	if err := cfg.GenerateOpenClawConfig("/usr/local/bin/vulpineos", "/usr/local/bin/camoufox"); err != nil {
+		t.Fatalf("GenerateOpenClawConfig: %v", err)
+	}
+
+	skillData, err := os.ReadFile(stalePath)
+	if err != nil {
+		t.Fatalf("read rewritten skill: %v", err)
+	}
+	body := string(skillData)
+	if strings.Contains(body, "shell command for everything") {
+		t.Fatalf("expected stale skill body to be replaced, got:\n%s", body)
+	}
+	if !strings.Contains(body, "Use the `browser` tool directly") {
+		t.Fatalf("expected rewritten skill to instruct built-in browser tool, got:\n%s", body)
+	}
+	if !strings.Contains(body, "Do not call `vulpineos-browser`") {
+		t.Fatalf("expected rewritten skill to forbid helper command, got:\n%s", body)
+	}
+}
+
 func TestGenerateOpenClawConfigPreservesGatewayAuthAndCommands(t *testing.T) {
 	withTempHome(t)
 
