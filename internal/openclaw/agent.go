@@ -352,6 +352,7 @@ type sessionLogLine struct {
 		Role       string `json:"role"`
 		ToolName   string `json:"toolName"`
 		ToolCallID string `json:"toolCallId"`
+		IsError    bool   `json:"isError"`
 		Content    []struct {
 			Type      string                 `json:"type"`
 			Text      string                 `json:"text"`
@@ -476,7 +477,7 @@ func (a *Agent) handleSessionLogLine(line string) {
 				Content: msg,
 			})
 		}
-		status, errText := toolResultStatus(event.Message.Content, event.Message.Details)
+		status, errText := toolResultStatus(event.Message.IsError, event.Message.Content, event.Message.Details)
 		a.lastToolName = event.Message.ToolName
 		if status == "error" {
 			a.lastToolFailed = true
@@ -546,7 +547,7 @@ func summarizeToolResult(name string, content []struct {
 	if name == "" {
 		name = "tool"
 	}
-	if status, errText := toolResultStatus(content, details); status != "" {
+	if status, errText := toolResultStatus(false, content, details); status != "" {
 		if status == "error" {
 			if errText != "" {
 				return fmt.Sprintf("Tool failed: %s — %s", name, truncate(singleLine(errText), 180))
@@ -574,7 +575,7 @@ func summarizeToolResult(name string, content []struct {
 	return fmt.Sprintf("Tool completed: %s", name)
 }
 
-func toolResultStatus(content []struct {
+func toolResultStatus(isError bool, content []struct {
 	Type      string                 `json:"type"`
 	Text      string                 `json:"text"`
 	Thinking  string                 `json:"thinking"`
@@ -582,6 +583,32 @@ func toolResultStatus(content []struct {
 	Name      string                 `json:"name"`
 	Arguments map[string]interface{} `json:"arguments"`
 }, details map[string]interface{}) (status string, errText string) {
+	if isError {
+		if errText, _ = details["error"].(string); errText != "" {
+			return "error", errText
+		}
+		if aggregated, _ := details["aggregated"].(string); aggregated != "" {
+			return "error", aggregated
+		}
+		return "error", ""
+	}
+
+	if exitCode, ok := numericDetail(details["exitCode"]); ok && exitCode != 0 {
+		if aggregated, _ := details["aggregated"].(string); aggregated != "" {
+			return "error", aggregated
+		}
+		if errText, _ = details["error"].(string); errText != "" {
+			return "error", errText
+		}
+		return "error", fmt.Sprintf("command exited with code %d", exitCode)
+	}
+	if okValue, ok := details["ok"].(bool); ok && !okValue {
+		if errText, _ = details["error"].(string); errText != "" {
+			return "error", errText
+		}
+		return "error", ""
+	}
+
 	if status, _ = details["status"].(string); status != "" {
 		errText, _ = details["error"].(string)
 		return status, errText
@@ -603,6 +630,21 @@ func toolResultStatus(content []struct {
 	}
 
 	return "", ""
+}
+
+func numericDetail(v interface{}) (int, bool) {
+	switch n := v.(type) {
+	case int:
+		return n, true
+	case int32:
+		return int(n), true
+	case int64:
+		return int(n), true
+	case float64:
+		return int(n), true
+	default:
+		return 0, false
+	}
 }
 
 func summarizeBrowserCall(args map[string]interface{}) string {
