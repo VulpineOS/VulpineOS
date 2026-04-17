@@ -78,14 +78,16 @@ type App struct {
 	settings     settings.Model
 
 	// State
-	selectedAgentID string
-	inputMode       string // "" | "new-agent-name" | "new-agent-desc" | "chat"
-	newAgentName    string // temp storage during agent creation
-	newAgentContext string
-	notice          string
-	noticeTTL       int  // number of ticks before notice is cleared
-	confirmDelete   bool // true when waiting for delete confirmation
-	confirmKillAll  bool // true when waiting for bulk kill confirmation
+	selectedAgentID         string
+	inputMode               string // "" | "new-agent-name" | "new-agent-desc" | "chat"
+	newAgentName            string // temp storage during agent creation
+	newAgentContext         string
+	notice                  string
+	noticeTTL               int  // number of ticks before notice is cleared
+	confirmDelete           bool // true when waiting for delete confirmation
+	confirmKillAll          bool // true when waiting for bulk kill confirmation
+	resizeMode              bool
+	pendingChatFocusAgentID string
 
 	// Text inputs
 	nameInput textinput.Model
@@ -131,6 +133,9 @@ func NewApp(k *kernel.Kernel, client *juggler.Client, orch *orchestrator.Orchest
 		poolStats:    poolstats.New(),
 		settings:     settings.New(),
 		eventCh:      eventCh,
+	}
+	if cfg != nil {
+		app.resizeMode = cfg.ResizePanelsWithArrows
 	}
 
 	if audit != nil {
@@ -399,11 +404,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.focus = (a.focus + 1) % FocusNormalCount
 		case "m":
 			enabled := !a.resizeModeEnabled()
-			if a.cfg != nil {
-				a.cfg.ResizePanelsWithArrows = enabled
-				_ = a.cfg.Save()
-				a.settings.SetConfig(a.cfg)
-			}
+			a.resizeMode = enabled
 			if enabled {
 				a.notice = "Resize mode enabled — arrow keys resize panels"
 			} else {
@@ -758,7 +759,13 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.conversation.SetThinking(false)
 			a.conversation.AddEntry(msg.Role, msg.Content)
 			a.agentList.ClearUnread(msg.AgentID)
-			if a.focus == FocusConversation && a.inputMode == "chat" && !a.conversation.Focused() {
+			if msg.Role == "assistant" && a.pendingChatFocusAgentID == msg.AgentID {
+				a.pendingChatFocusAgentID = ""
+				a.focus = FocusConversation
+				a.inputMode = "chat"
+				a.conversation.SetAwake(true)
+				cmds = append(cmds, a.conversation.Focus())
+			} else if a.focus == FocusConversation && a.inputMode == "chat" && !a.conversation.Focused() {
 				cmds = append(cmds, a.conversation.Focus())
 			}
 		} else {
@@ -788,9 +795,11 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.conversation.SetThinking(true)
 			cmds = append(cmds, conversation.ThinkingTick())
 			a.notice = "Agent starting — waiting for response..."
+			a.pendingChatFocusAgentID = msg.Agent.ID
 		} else if msg.Agent.Status == "error" {
 			a.conversation.SetThinking(false)
 			a.notice = "Agent created with errors — check conversation"
+			a.pendingChatFocusAgentID = ""
 		}
 		agentCopy := msg.Agent
 		a.updateAgentDetail(&agentCopy)
@@ -887,6 +896,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case shared.ResizeModeToggleMsg:
+		a.resizeMode = msg.Enabled
 		if a.cfg != nil {
 			a.cfg.ResizePanelsWithArrows = msg.Enabled
 			_ = a.cfg.Save()
@@ -1257,7 +1267,7 @@ func (a *App) updatePanelSizes() {
 }
 
 func (a *App) resizeModeEnabled() bool {
-	return a.cfg != nil && a.cfg.ResizePanelsWithArrows
+	return a.resizeMode
 }
 
 // updateAgentDetail populates the agent detail panel from an Agent struct.
@@ -1378,7 +1388,7 @@ func (a *App) createAgent(name, description, contextID string) tea.Cmd {
 		}
 
 		// Spawn first turn — agent introduces itself
-		introMsg := "You are an AI agent named '" + name + "'. Your purpose: " + description + ". Introduce yourself briefly (1-2 sentences) and ask how you can help."
+		introMsg := "You are an AI agent named '" + name + "'. Your assigned runtime name for this session is exactly '" + name + "' and you must not claim a different name or inherited persona. Your purpose: " + description + ". Introduce yourself briefly (1-2 sentences), use the assigned name exactly, and ask how you can help."
 		sessionName := "vulpine-" + agent.ID
 		configPath, cleanup, configErr := a.agentRuntimeConfig(agent)
 		if configErr != nil {

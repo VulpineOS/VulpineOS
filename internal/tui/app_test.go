@@ -357,6 +357,22 @@ func TestModeHotkeyTogglesResizeMode(t *testing.T) {
 	}
 }
 
+func TestModeHotkeyDoesNotPersistResizePreference(t *testing.T) {
+	db := openTestVault(t)
+	cfg := &config.Config{ResizePanelsWithArrows: false}
+	app := NewApp(nil, nil, nil, db, cfg, nil)
+
+	model, _ := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'m'}})
+	app = model.(App)
+
+	if !app.resizeModeEnabled() {
+		t.Fatal("resize mode should be enabled after pressing m")
+	}
+	if cfg.ResizePanelsWithArrows {
+		t.Fatal("mode hotkey should not persist the resize preference")
+	}
+}
+
 func TestSelectedAssistantReplyRefocusesChatInput(t *testing.T) {
 	db := openTestVault(t)
 	cfg := &config.Config{}
@@ -387,6 +403,48 @@ func TestSelectedAssistantReplyRefocusesChatInput(t *testing.T) {
 	}
 	if !app.conversation.IsAwake() {
 		t.Fatal("conversation should stay awake after assistant reply")
+	}
+}
+
+func TestPendingStartupReplyRefocusesChatInput(t *testing.T) {
+	db := openTestVault(t)
+	cfg := &config.Config{}
+	app := NewApp(nil, nil, nil, db, cfg, nil)
+	app.conversation.SetSize(80, 20)
+
+	agent, err := db.CreateAgent("Scraper", "Scrape prices", "{}")
+	if err != nil {
+		t.Fatalf("create agent: %v", err)
+	}
+	app.selectedAgentID = agent.ID
+	app.focus = FocusAgentDetail
+	app.inputMode = ""
+	app.pendingChatFocusAgentID = agent.ID
+	app.conversation.SetAgentID(agent.ID)
+	app.conversation.SetAgentName(agent.Name)
+	app.conversation.Blur()
+
+	model, cmd := app.Update(shared.ConversationEntryMsg{
+		AgentID: agent.ID,
+		Role:    "assistant",
+		Content: "Ready to work.",
+	})
+	app = model.(App)
+
+	if cmd == nil {
+		t.Fatal("expected first assistant reply to return a focus command")
+	}
+	if app.focus != FocusConversation {
+		t.Fatalf("focus = %d, want conversation", app.focus)
+	}
+	if app.inputMode != "chat" {
+		t.Fatalf("inputMode = %q, want chat", app.inputMode)
+	}
+	if app.pendingChatFocusAgentID != "" {
+		t.Fatalf("pendingChatFocusAgentID = %q, want cleared", app.pendingChatFocusAgentID)
+	}
+	if !app.conversation.IsAwake() {
+		t.Fatal("conversation should be awake after first assistant reply")
 	}
 }
 

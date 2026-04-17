@@ -186,12 +186,14 @@ A terminal-based command center for managing AI agents, browser contexts, and id
 
 **Keybinds:** `n` new agent · `j/k` navigate · `Enter` chat · `p/r` pause or resume selected agent · `P/R` pause or resume all agents · `X` kill all live agents · `x` delete · `v` show or hide Camoufox · `o` open raw session log · `t` toggle action trace · `m` toggle arrow-key mode · `S` settings · `c` reconfigure · `q` quit
 
-Arrow keys navigate the agent list and conversation by default. If you want panel resizing on arrow keys, enable **Arrow Keys Resize Panels** in `Settings -> General` or press `m` to toggle modes directly from the TUI footer.
+Arrow keys navigate the agent list and conversation by default. If you want panel resizing on arrow keys, enable **Arrow Keys Resize Panels** in `Settings -> General`. Press `m` to toggle resize mode for the current session without rewriting the saved default.
 
 The generated OpenClaw workspace under `~/.openclaw-vulpine/workspace` is refreshed with VulpineOS-owned bootstrap files so agents follow the current assigned name and task instead of inheriting an older persona from a stale workspace.
+New-agent introduction turns now also assert the assigned runtime name explicitly, reducing drift toward an older remembered persona.
 Those bootstrap files also force exact action/result reporting and explicitly forbid claiming a browser action succeeded after an error, timeout, or incomplete result.
 The footer always shows the current arrow-key mode as `mode:navigate` or `mode:resize`.
 If the conversation panel is awake but the cursor has dropped out of the input, the next typed character re-focuses chat automatically, while `v` still works as a browser show or hide shortcut from that unfocused state.
+After a newly created agent sends its first real reply, VulpineOS automatically snaps focus back to the chat box so the conversation is immediately writable again.
 The `v` shortcut now refreshes the actual macOS window visibility before toggling, so a stale cached state no longer turns the first show or hide into a no-op.
 Press `t` to switch the center panel into a trace-only view of system tool events so browser/tool starts, completions, and failures are easy to inspect without mixing them into the full conversation stream.
 If a tool fails and the agent still replies as if the task succeeded, VulpineOS now injects an explicit warning into that trace so false-success replies are visible immediately.
