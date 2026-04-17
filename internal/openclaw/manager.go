@@ -390,6 +390,9 @@ func (m *Manager) startManagedAgent(agentID, contextID, openclawBin string, args
 	}
 
 	agent := newAgent(agentID, contextID, m.statusSource)
+	if sessionID := sessionIDFromArgs(args); sessionID != "" {
+		agent.sessionLogPath = filepath.Join(config.OpenClawProfileDir(), "agents", "main", "sessions", sessionID+".jsonl")
+	}
 	if configPath != "" {
 		agent.env = map[string]string{
 			"OPENCLAW_CONFIG_PATH": configPath,
@@ -463,6 +466,15 @@ func (m *Manager) startManagedAgent(agentID, contextID, openclawBin string, args
 	}()
 
 	return agentID, nil
+}
+
+func sessionIDFromArgs(args []string) string {
+	for i := 0; i < len(args)-1; i++ {
+		if args[i] == "--session-id" {
+			return args[i+1]
+		}
+	}
+	return ""
 }
 
 func (m *Manager) logRuntimeEvent(level, event, message string, metadata map[string]string) {

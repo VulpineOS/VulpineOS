@@ -186,6 +186,11 @@ type SkillToggleMsg struct {
 	Enabled bool
 }
 
+// ResizeModeToggleMsg requests toggling panel-resize mode for arrow keys.
+type ResizeModeToggleMsg struct {
+	Enabled bool
+}
+
 // ProxyTestRequestMsg requests testing a proxy's latency and geo.
 type ProxyTestRequestMsg struct {
 	ProxyID string

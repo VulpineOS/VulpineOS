@@ -9,21 +9,22 @@ import (
 
 // Config holds VulpineOS user configuration.
 type Config struct {
-	Provider        string          `json:"provider"`
-	APIKey          string          `json:"apiKey"`
-	Model           string          `json:"model"`
-	SetupComplete   bool            `json:"setupComplete"`
-	BinaryPath      string          `json:"binaryPath,omitempty"`
-	FoxbridgeCDPURL string          `json:"-"` // runtime-only: set when foxbridge is running
-	GlobalSkills    []SkillEntry    `json:"globalSkills,omitempty"`  // skills enabled for all agents
-	AgentSkills     map[string][]SkillEntry `json:"agentSkills,omitempty"` // agentID → skills for that agent only
+	Provider               string                  `json:"provider"`
+	APIKey                 string                  `json:"apiKey"`
+	Model                  string                  `json:"model"`
+	SetupComplete          bool                    `json:"setupComplete"`
+	BinaryPath             string                  `json:"binaryPath,omitempty"`
+	ResizePanelsWithArrows bool                    `json:"resizePanelsWithArrows,omitempty"`
+	FoxbridgeCDPURL        string                  `json:"-"`                      // runtime-only: set when foxbridge is running
+	GlobalSkills           []SkillEntry            `json:"globalSkills,omitempty"` // skills enabled for all agents
+	AgentSkills            map[string][]SkillEntry `json:"agentSkills,omitempty"`  // agentID → skills for that agent only
 }
 
 // SkillEntry describes a skill configuration.
 type SkillEntry struct {
-	Name    string            `json:"name"`              // skill name/key
+	Name    string            `json:"name"` // skill name/key
 	Enabled bool              `json:"enabled"`
-	Env     map[string]string `json:"env,omitempty"`     // per-skill env vars (e.g. API keys)
+	Env     map[string]string `json:"env,omitempty"` // per-skill env vars (e.g. API keys)
 }
 
 // SkillDir returns the path to the global skills directory.
@@ -77,12 +78,12 @@ func (c *Config) AddAgentSkill(agentID, name string, env map[string]string) {
 
 // Provider describes a supported AI model provider.
 type Provider struct {
-	ID          string   // e.g. "anthropic"
-	Name        string   // e.g. "Anthropic (Claude)"
-	EnvVar      string   // e.g. "ANTHROPIC_API_KEY"
-	DefaultModel string  // e.g. "anthropic/claude-sonnet-4-6"
-	Models      []string // available models
-	NeedsKey    bool     // false for ollama
+	ID           string   // e.g. "anthropic"
+	Name         string   // e.g. "Anthropic (Claude)"
+	EnvVar       string   // e.g. "ANTHROPIC_API_KEY"
+	DefaultModel string   // e.g. "anthropic/claude-sonnet-4-6"
+	Models       []string // available models
+	NeedsKey     bool     // false for ollama
 }
 
 // Providers is the full registry of OpenClaw-supported AI providers.
@@ -91,132 +92,132 @@ var Providers = []Provider{
 	// --- Tier 1: Major cloud providers ---
 	{ID: "anthropic", Name: "Anthropic (Claude)", EnvVar: "ANTHROPIC_API_KEY",
 		DefaultModel: "anthropic/claude-sonnet-4-6",
-		Models: []string{"anthropic/claude-opus-4-6", "anthropic/claude-sonnet-4-6", "anthropic/claude-haiku-4-5"},
-		NeedsKey: true},
+		Models:       []string{"anthropic/claude-opus-4-6", "anthropic/claude-sonnet-4-6", "anthropic/claude-haiku-4-5"},
+		NeedsKey:     true},
 	{ID: "openai", Name: "OpenAI (GPT)", EnvVar: "OPENAI_API_KEY",
 		DefaultModel: "openai/gpt-5.4",
-		Models: []string{"openai/gpt-5.4", "openai/gpt-4.1", "openai/gpt-4.1-mini", "openai/o3"},
-		NeedsKey: true},
+		Models:       []string{"openai/gpt-5.4", "openai/gpt-4.1", "openai/gpt-4.1-mini", "openai/o3"},
+		NeedsKey:     true},
 	{ID: "google", Name: "Google (Gemini)", EnvVar: "GEMINI_API_KEY",
 		DefaultModel: "google/gemini-2.5-pro",
-		Models: []string{"google/gemini-3.1-pro-preview", "google/gemini-2.5-pro", "google/gemini-2.5-flash"},
-		NeedsKey: true},
+		Models:       []string{"google/gemini-3.1-pro-preview", "google/gemini-2.5-pro", "google/gemini-2.5-flash"},
+		NeedsKey:     true},
 	{ID: "xai", Name: "xAI (Grok)", EnvVar: "XAI_API_KEY",
 		DefaultModel: "xai/grok-3",
-		Models: []string{"xai/grok-3", "xai/grok-3-mini"},
-		NeedsKey: true},
+		Models:       []string{"xai/grok-3", "xai/grok-3-mini"},
+		NeedsKey:     true},
 	{ID: "zai", Name: "Z.AI (GLM)", EnvVar: "ZAI_API_KEY",
 		DefaultModel: "zai/glm-5",
-		Models: []string{"zai/glm-5", "zai/glm-4.7", "zai/glm-4.6"},
-		NeedsKey: true},
+		Models:       []string{"zai/glm-5", "zai/glm-4.7", "zai/glm-4.6"},
+		NeedsKey:     true},
 
 	// --- Tier 2: Routing/Gateway providers ---
 	{ID: "openrouter", Name: "OpenRouter", EnvVar: "OPENROUTER_API_KEY",
 		DefaultModel: "openrouter/anthropic/claude-sonnet-4-6",
-		Models: []string{"openrouter/anthropic/claude-sonnet-4-6", "openrouter/openai/gpt-4.1", "openrouter/google/gemini-2.5-pro"},
-		NeedsKey: true},
+		Models:       []string{"openrouter/anthropic/claude-sonnet-4-6", "openrouter/openai/gpt-4.1", "openrouter/google/gemini-2.5-pro"},
+		NeedsKey:     true},
 	{ID: "groq", Name: "Groq (LPU)", EnvVar: "GROQ_API_KEY",
 		DefaultModel: "groq/llama-3.3-70b-versatile",
-		Models: []string{"groq/llama-3.3-70b-versatile", "groq/mixtral-8x7b-32768"},
-		NeedsKey: true},
+		Models:       []string{"groq/llama-3.3-70b-versatile", "groq/mixtral-8x7b-32768"},
+		NeedsKey:     true},
 	{ID: "mistral", Name: "Mistral", EnvVar: "MISTRAL_API_KEY",
 		DefaultModel: "mistral/mistral-large-latest",
-		Models: []string{"mistral/mistral-large-latest", "mistral/codestral-latest"},
-		NeedsKey: true},
+		Models:       []string{"mistral/mistral-large-latest", "mistral/codestral-latest"},
+		NeedsKey:     true},
 	{ID: "together", Name: "Together AI", EnvVar: "TOGETHER_API_KEY",
 		DefaultModel: "together/meta-llama/Llama-3.3-70B-Instruct-Turbo",
-		Models: []string{"together/meta-llama/Llama-3.3-70B-Instruct-Turbo", "together/deepseek-ai/DeepSeek-R1"},
-		NeedsKey: true},
+		Models:       []string{"together/meta-llama/Llama-3.3-70B-Instruct-Turbo", "together/deepseek-ai/DeepSeek-R1"},
+		NeedsKey:     true},
 	{ID: "cerebras", Name: "Cerebras", EnvVar: "CEREBRAS_API_KEY",
 		DefaultModel: "cerebras/llama-3.3-70b",
-		Models: []string{"cerebras/llama-3.3-70b"},
-		NeedsKey: true},
+		Models:       []string{"cerebras/llama-3.3-70b"},
+		NeedsKey:     true},
 
 	// --- Tier 3: Specialized providers ---
 	{ID: "moonshot", Name: "Moonshot (Kimi)", EnvVar: "MOONSHOT_API_KEY",
 		DefaultModel: "moonshot/kimi-k2.5",
-		Models: []string{"moonshot/kimi-k2.5"},
-		NeedsKey: true},
+		Models:       []string{"moonshot/kimi-k2.5"},
+		NeedsKey:     true},
 	{ID: "kimi-coding", Name: "Kimi Coding", EnvVar: "KIMI_API_KEY",
 		DefaultModel: "kimi-coding/k2p5",
-		Models: []string{"kimi-coding/k2p5"},
-		NeedsKey: true},
+		Models:       []string{"kimi-coding/k2p5"},
+		NeedsKey:     true},
 	{ID: "minimax", Name: "MiniMax", EnvVar: "MINIMAX_API_KEY",
 		DefaultModel: "minimax/MiniMax-M2.5",
-		Models: []string{"minimax/MiniMax-M2.5"},
-		NeedsKey: true},
+		Models:       []string{"minimax/MiniMax-M2.5"},
+		NeedsKey:     true},
 	{ID: "venice", Name: "Venice AI", EnvVar: "VENICE_API_KEY",
 		DefaultModel: "venice/llama-3.3-70b",
-		Models: []string{"venice/llama-3.3-70b"},
-		NeedsKey: true},
+		Models:       []string{"venice/llama-3.3-70b"},
+		NeedsKey:     true},
 	{ID: "nvidia", Name: "NVIDIA", EnvVar: "NVIDIA_API_KEY",
 		DefaultModel: "nvidia/llama-3.1-405b-instruct",
-		Models: []string{"nvidia/llama-3.1-405b-instruct"},
-		NeedsKey: true},
+		Models:       []string{"nvidia/llama-3.1-405b-instruct"},
+		NeedsKey:     true},
 	{ID: "huggingface", Name: "Hugging Face", EnvVar: "HF_TOKEN",
 		DefaultModel: "huggingface/deepseek-ai/DeepSeek-R1",
-		Models: []string{"huggingface/deepseek-ai/DeepSeek-R1"},
-		NeedsKey: true},
+		Models:       []string{"huggingface/deepseek-ai/DeepSeek-R1"},
+		NeedsKey:     true},
 	{ID: "volcengine", Name: "Volcengine (Doubao)", EnvVar: "VOLCANO_ENGINE_API_KEY",
 		DefaultModel: "volcengine/doubao-seed-1-8-251228",
-		Models: []string{"volcengine/doubao-seed-1-8-251228"},
-		NeedsKey: true},
+		Models:       []string{"volcengine/doubao-seed-1-8-251228"},
+		NeedsKey:     true},
 	{ID: "byteplus", Name: "BytePlus", EnvVar: "BYTEPLUS_API_KEY",
 		DefaultModel: "byteplus/seed-1-8-251228",
-		Models: []string{"byteplus/seed-1-8-251228"},
-		NeedsKey: true},
+		Models:       []string{"byteplus/seed-1-8-251228"},
+		NeedsKey:     true},
 	{ID: "xiaomi", Name: "Xiaomi", EnvVar: "XIAOMI_API_KEY",
 		DefaultModel: "xiaomi/MiMo-7B-RL",
-		Models: []string{"xiaomi/MiMo-7B-RL"},
-		NeedsKey: true},
+		Models:       []string{"xiaomi/MiMo-7B-RL"},
+		NeedsKey:     true},
 	{ID: "qianfan", Name: "Qianfan (Baidu)", EnvVar: "QIANFAN_API_KEY",
 		DefaultModel: "qianfan/ernie-4.5-128k",
-		Models: []string{"qianfan/ernie-4.5-128k"},
-		NeedsKey: true},
+		Models:       []string{"qianfan/ernie-4.5-128k"},
+		NeedsKey:     true},
 	{ID: "modelstudio", Name: "Model Studio (Alibaba)", EnvVar: "MODELSTUDIO_API_KEY",
 		DefaultModel: "modelstudio/qwen-plus",
-		Models: []string{"modelstudio/qwen-plus"},
-		NeedsKey: true},
+		Models:       []string{"modelstudio/qwen-plus"},
+		NeedsKey:     true},
 
 	// --- Gateway/proxy providers ---
 	{ID: "opencode", Name: "OpenCode (Zen)", EnvVar: "OPENCODE_API_KEY",
 		DefaultModel: "opencode/claude-opus-4-6",
-		Models: []string{"opencode/claude-opus-4-6", "opencode/claude-sonnet-4-6"},
-		NeedsKey: true},
+		Models:       []string{"opencode/claude-opus-4-6", "opencode/claude-sonnet-4-6"},
+		NeedsKey:     true},
 	{ID: "kilocode", Name: "Kilo Gateway", EnvVar: "KILOCODE_API_KEY",
 		DefaultModel: "kilocode/anthropic/claude-opus-4.6",
-		Models: []string{"kilocode/anthropic/claude-opus-4.6"},
-		NeedsKey: true},
+		Models:       []string{"kilocode/anthropic/claude-opus-4.6"},
+		NeedsKey:     true},
 	{ID: "vercel-ai-gateway", Name: "Vercel AI Gateway", EnvVar: "AI_GATEWAY_API_KEY",
 		DefaultModel: "vercel-ai-gateway/anthropic/claude-opus-4.6",
-		Models: []string{"vercel-ai-gateway/anthropic/claude-opus-4.6"},
-		NeedsKey: true},
+		Models:       []string{"vercel-ai-gateway/anthropic/claude-opus-4.6"},
+		NeedsKey:     true},
 	{ID: "cloudflare-ai-gateway", Name: "Cloudflare AI Gateway", EnvVar: "CLOUDFLARE_AI_GATEWAY_API_KEY",
 		DefaultModel: "cloudflare-ai-gateway/openai/gpt-4.1",
-		Models: []string{"cloudflare-ai-gateway/openai/gpt-4.1"},
-		NeedsKey: true},
+		Models:       []string{"cloudflare-ai-gateway/openai/gpt-4.1"},
+		NeedsKey:     true},
 	{ID: "synthetic", Name: "Synthetic", EnvVar: "SYNTHETIC_API_KEY",
 		DefaultModel: "synthetic/hf:MiniMaxAI/MiniMax-M2.5",
-		Models: []string{"synthetic/hf:MiniMaxAI/MiniMax-M2.5"},
-		NeedsKey: true},
+		Models:       []string{"synthetic/hf:MiniMaxAI/MiniMax-M2.5"},
+		NeedsKey:     true},
 	{ID: "github-copilot", Name: "GitHub Copilot", EnvVar: "GITHUB_TOKEN",
 		DefaultModel: "github-copilot/claude-sonnet-4-6",
-		Models: []string{"github-copilot/claude-sonnet-4-6", "github-copilot/gpt-4.1"},
-		NeedsKey: true},
+		Models:       []string{"github-copilot/claude-sonnet-4-6", "github-copilot/gpt-4.1"},
+		NeedsKey:     true},
 
 	// --- Local providers (no API key) ---
 	{ID: "ollama", Name: "Ollama (Local)", EnvVar: "",
 		DefaultModel: "ollama/llama3.3",
-		Models: []string{"ollama/llama3.3", "ollama/qwen3", "ollama/deepseek-r1", "ollama/codellama"},
-		NeedsKey: false},
+		Models:       []string{"ollama/llama3.3", "ollama/qwen3", "ollama/deepseek-r1", "ollama/codellama"},
+		NeedsKey:     false},
 	{ID: "vllm", Name: "vLLM (Local)", EnvVar: "",
 		DefaultModel: "vllm/your-model-id",
-		Models: []string{"vllm/your-model-id"},
-		NeedsKey: false},
+		Models:       []string{"vllm/your-model-id"},
+		NeedsKey:     false},
 	{ID: "sglang", Name: "SGLang (Local)", EnvVar: "",
 		DefaultModel: "sglang/your-model-id",
-		Models: []string{"sglang/your-model-id"},
-		NeedsKey: false},
+		Models:       []string{"sglang/your-model-id"},
+		NeedsKey:     false},
 }
 
 // GetProvider returns the provider by ID.
@@ -296,6 +297,8 @@ func (c *Config) GenerateOpenClawConfig(vulpineosBinary, camoufoxBinary string) 
 		return fmt.Errorf("unknown provider: %s", c.Provider)
 	}
 
+	existing, _ := readExistingOpenClawConfig()
+
 	// Build env map
 	env := map[string]interface{}{}
 	if provider.EnvVar != "" && c.APIKey != "" {
@@ -324,6 +327,7 @@ func (c *Config) GenerateOpenClawConfig(vulpineosBinary, camoufoxBinary string) 
 		"env":      env,
 		"agents": map[string]interface{}{
 			"defaults": map[string]interface{}{
+				"workspace": OpenClawWorkspaceDir(),
 				"model": map[string]interface{}{
 					"primary": c.Model,
 				},
@@ -332,9 +336,7 @@ func (c *Config) GenerateOpenClawConfig(vulpineosBinary, camoufoxBinary string) 
 				},
 			},
 		},
-		"gateway": map[string]interface{}{
-			"mode": "local",
-		},
+		"gateway": preservedGatewayConfig(existing),
 		// Enable browser — if foxbridge is running, route through Camoufox via CDP proxy.
 		// Otherwise fall back to OpenClaw's built-in Chromium.
 		"browser": func() map[string]interface{} {
@@ -354,6 +356,10 @@ func (c *Config) GenerateOpenClawConfig(vulpineosBinary, camoufoxBinary string) 
 				"extraDirs": extraDirs,
 			},
 		},
+		"commands": preservedCommandsConfig(existing),
+	}
+	if meta, ok := existing["meta"].(map[string]interface{}); ok && len(meta) > 0 {
+		config["meta"] = meta
 	}
 
 	data, err := json.MarshalIndent(config, "", "  ")
@@ -366,6 +372,12 @@ func (c *Config) GenerateOpenClawConfig(vulpineosBinary, camoufoxBinary string) 
 	profileDir := OpenClawProfileDir()
 	if err := os.MkdirAll(profileDir, 0700); err != nil {
 		return fmt.Errorf("create openclaw profile dir: %w", err)
+	}
+	if err := ensureOpenClawWorkspace(); err != nil {
+		return fmt.Errorf("create openclaw workspace: %w", err)
+	}
+	if err := ensureOpenClawProfileSkills(); err != nil {
+		return fmt.Errorf("create openclaw profile skills: %w", err)
 	}
 
 	path := filepath.Join(profileDir, "openclaw.json")
@@ -381,4 +393,113 @@ func OpenClawProfileDir() string {
 // OpenClawConfigPath returns the path to the generated openclaw.json.
 func OpenClawConfigPath() string {
 	return filepath.Join(OpenClawProfileDir(), "openclaw.json")
+}
+
+// OpenClawWorkspaceDir returns the isolated OpenClaw workspace for VulpineOS.
+func OpenClawWorkspaceDir() string {
+	return filepath.Join(OpenClawProfileDir(), "workspace")
+}
+
+func readExistingOpenClawConfig() (map[string]interface{}, error) {
+	data, err := os.ReadFile(OpenClawConfigPath())
+	if err != nil {
+		return nil, err
+	}
+	var cfg map[string]interface{}
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
+func preservedGatewayConfig(existing map[string]interface{}) map[string]interface{} {
+	gateway := map[string]interface{}{
+		"mode": "local",
+	}
+	if existingGateway, ok := existing["gateway"].(map[string]interface{}); ok {
+		for key, value := range existingGateway {
+			gateway[key] = value
+		}
+		gateway["mode"] = "local"
+	}
+	return gateway
+}
+
+func preservedCommandsConfig(existing map[string]interface{}) map[string]interface{} {
+	commands := map[string]interface{}{
+		"native":       "auto",
+		"nativeSkills": "auto",
+		"restart":      true,
+		"ownerDisplay": "raw",
+	}
+	if existingCommands, ok := existing["commands"].(map[string]interface{}); ok {
+		for key, value := range existingCommands {
+			commands[key] = value
+		}
+	}
+	return commands
+}
+
+func ensureOpenClawWorkspace() error {
+	workspaceDir := OpenClawWorkspaceDir()
+	if err := os.MkdirAll(workspaceDir, 0700); err != nil {
+		return err
+	}
+	bootstrap := map[string]string{
+		"AGENTS.md": `# VulpineOS Agent Workspace
+
+This workspace is owned by VulpineOS.
+
+- Follow the agent name and task provided by the current user message.
+- Do not claim a different persistent personal identity from old workspace files.
+- When you take an action, state the exact action you are about to take.
+- After each action, report whether it succeeded, failed, or returned incomplete data.
+- Keep progress reports concrete and short.`,
+		"SOUL.md": `# VulpineOS SOUL
+
+Be direct, accurate, and task-focused.
+Do not invent a separate persona when the user has assigned you a role for this session.
+`,
+		"TOOLS.md": `# VulpineOS Tools
+
+Use the configured browser path first. If a tool or browser path fails, say exactly what failed.
+`,
+	}
+	for name, content := range bootstrap {
+		path := filepath.Join(workspaceDir, name)
+		if _, err := os.Stat(path); err == nil {
+			continue
+		}
+		if err := os.WriteFile(path, []byte(content), 0600); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func ensureOpenClawProfileSkills() error {
+	skillDir := filepath.Join(OpenClawProfileDir(), "skills", "vulpine-browser")
+	if err := os.MkdirAll(skillDir, 0700); err != nil {
+		return err
+	}
+	skill := `---
+name: vulpine-browser
+version: 2.0.0
+description: Browse the web through VulpineOS using the built-in browser tool
+tools:
+  - browser
+---
+
+# VulpineOS Browser
+
+VulpineOS already routes OpenClaw's built-in ` + "`browser`" + ` tool through foxbridge into Camoufox.
+
+Rules:
+
+1. Use the ` + "`browser`" + ` tool directly. Do not call ` + "`vulpineos-browser`" + ` or any shell helper.
+2. Report the exact action you are about to take before using the browser tool.
+3. After each browser action, report whether it succeeded, failed, or returned incomplete data.
+4. If the browser tool returns an auth or gateway error, report that error exactly and stop guessing.
+`
+	return os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(skill), 0600)
 }

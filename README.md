@@ -184,7 +184,9 @@ A terminal-based command center for managing AI agents, browser contexts, and id
 └───────────────┴──────────────────────────────┴─────────────────┘
 ```
 
-**Keybinds:** `n` new agent · `j/k` navigate · `Enter` chat · `p/r` pause or resume selected agent · `P/R` pause or resume all agents · `X` kill all live agents · `x` delete · `S` settings · `q` quit
+**Keybinds:** `n` new agent · `j/k` navigate · `Enter` chat · `p/r` pause or resume selected agent · `P/R` pause or resume all agents · `X` kill all live agents · `x` delete · `v` show or hide Camoufox · `S` settings · `q` quit
+
+Arrow keys navigate the agent list and conversation by default. If you want panel resizing on arrow keys, enable **Arrow Keys Resize Panels** in `Settings -> General`.
 
 The agent list shows unread reply counts for non-selected agents so background work does not disappear while you are focused elsewhere.
 
@@ -219,6 +221,8 @@ Access via `--serve --port 8443 --api-key KEY` or through the remote client.
 - Dual backend: `--backend juggler` (pipe) or `--backend bidi` (WebSocket)
 - Fetch domain with request/response interception
 - Embedded into VulpineOS startup — OpenClaw agents automatically use Camoufox
+- OpenClaw is pinned to an isolated VulpineOS workspace under `~/.openclaw-vulpine/workspace` so personal OpenClaw identities and memories do not leak into VulpineOS agents
+- VulpineOS preserves the OpenClaw gateway auth token when regenerating `openclaw.json`, preventing browser gateway token drift during runtime config updates
 - On macOS and Linux, VulpineOS launches OpenClaw in its own process group so pause and kill also tear down descendant agent processes cleanly
 
 ---

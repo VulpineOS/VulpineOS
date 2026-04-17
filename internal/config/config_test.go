@@ -4,8 +4,22 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func withTempHome(t *testing.T) string {
+	t.Helper()
+	tmpHome := t.TempDir()
+	oldHome := os.Getenv("HOME")
+	if err := os.Setenv("HOME", tmpHome); err != nil {
+		t.Fatalf("set HOME: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Setenv("HOME", oldHome)
+	})
+	return tmpHome
+}
 
 func TestConfigSaveLoad(t *testing.T) {
 	// Create temp dir to act as config dir
@@ -141,23 +155,18 @@ func TestConfigSkillManagement(t *testing.T) {
 }
 
 func TestGenerateOpenClawConfig(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "vulpine-openclaw-test-*")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	// Create a skills directory so it gets included
-	skillDir := filepath.Join(tmpDir, "skills")
+	tmpHome := withTempHome(t)
+	skillDir := filepath.Join(tmpHome, ".vulpineos", "skills")
 	if err := os.MkdirAll(skillDir, 0755); err != nil {
 		t.Fatal(err)
 	}
 
 	cfg := &Config{
-		Provider:      "anthropic",
-		APIKey:        "sk-ant-test-key-99999",
-		Model:         "anthropic/claude-sonnet-4-6",
-		SetupComplete: true,
+		Provider:               "anthropic",
+		APIKey:                 "sk-ant-test-key-99999",
+		Model:                  "anthropic/claude-sonnet-4-6",
+		SetupComplete:          true,
+		ResizePanelsWithArrows: true,
 		GlobalSkills: []SkillEntry{
 			{Name: "web-search", Enabled: true, Env: map[string]string{"KEY": "val"}},
 			{Name: "disabled-skill", Enabled: false},
@@ -166,8 +175,7 @@ func TestGenerateOpenClawConfig(t *testing.T) {
 
 	// GenerateOpenClawConfig writes to Dir() which we can't easily override,
 	// so we test the output shape by calling it and checking the file.
-	err = cfg.GenerateOpenClawConfig("/usr/local/bin/vulpineos", "/usr/local/bin/camoufox")
-	if err != nil {
+	if err := cfg.GenerateOpenClawConfig("/usr/local/bin/vulpineos", "/usr/local/bin/camoufox"); err != nil {
 		t.Fatalf("GenerateOpenClawConfig: %v", err)
 	}
 
@@ -177,7 +185,6 @@ func TestGenerateOpenClawConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read openclaw.json: %v", err)
 	}
-	defer os.Remove(ocPath)
 
 	var oc map[string]interface{}
 	if err := json.Unmarshal(data, &oc); err != nil {
@@ -234,6 +241,87 @@ func TestGenerateOpenClawConfig(t *testing.T) {
 	}
 	if model["primary"] != "anthropic/claude-sonnet-4-6" {
 		t.Errorf("model.primary = %v, want anthropic/claude-sonnet-4-6", model["primary"])
+	}
+
+	defaults, _ = agents["defaults"].(map[string]interface{})
+	if defaults["workspace"] != OpenClawWorkspaceDir() {
+		t.Errorf("workspace = %v, want %q", defaults["workspace"], OpenClawWorkspaceDir())
+	}
+
+	if _, err := os.Stat(filepath.Join(OpenClawWorkspaceDir(), "AGENTS.md")); err != nil {
+		t.Fatalf("expected isolated workspace bootstrap files: %v", err)
+	}
+	skillPath := filepath.Join(OpenClawProfileDir(), "skills", "vulpine-browser", "SKILL.md")
+	skillData, err := os.ReadFile(skillPath)
+	if err != nil {
+		t.Fatalf("expected patched vulpine-browser skill: %v", err)
+	}
+	if !strings.Contains(string(skillData), "Do not call `vulpineos-browser`") {
+		t.Fatalf("expected skill to forbid vulpineos-browser helper, got:\n%s", string(skillData))
+	}
+}
+
+func TestGenerateOpenClawConfigPreservesGatewayAuthAndCommands(t *testing.T) {
+	withTempHome(t)
+
+	if err := os.MkdirAll(OpenClawProfileDir(), 0700); err != nil {
+		t.Fatalf("mkdir profile: %v", err)
+	}
+	existing := map[string]interface{}{
+		"gateway": map[string]interface{}{
+			"mode": "local",
+			"auth": map[string]interface{}{
+				"mode":  "token",
+				"token": "keep-me",
+			},
+		},
+		"commands": map[string]interface{}{
+			"ownerDisplay": "raw",
+			"restart":      true,
+		},
+		"meta": map[string]interface{}{
+			"lastTouchedVersion": "2026.3.13",
+		},
+	}
+	data, err := json.Marshal(existing)
+	if err != nil {
+		t.Fatalf("marshal existing config: %v", err)
+	}
+	if err := os.WriteFile(OpenClawConfigPath(), data, 0600); err != nil {
+		t.Fatalf("write existing config: %v", err)
+	}
+
+	cfg := &Config{
+		Provider:      "anthropic",
+		APIKey:        "sk-ant-test-key-99999",
+		Model:         "anthropic/claude-sonnet-4-6",
+		SetupComplete: true,
+	}
+	if err := cfg.GenerateOpenClawConfig("/usr/local/bin/vulpineos", "/usr/local/bin/camoufox"); err != nil {
+		t.Fatalf("GenerateOpenClawConfig: %v", err)
+	}
+
+	out, err := os.ReadFile(OpenClawConfigPath())
+	if err != nil {
+		t.Fatalf("read generated config: %v", err)
+	}
+
+	var oc map[string]interface{}
+	if err := json.Unmarshal(out, &oc); err != nil {
+		t.Fatalf("parse generated config: %v", err)
+	}
+	gateway := oc["gateway"].(map[string]interface{})
+	auth := gateway["auth"].(map[string]interface{})
+	if auth["token"] != "keep-me" {
+		t.Fatalf("gateway auth token = %v, want keep-me", auth["token"])
+	}
+	commands := oc["commands"].(map[string]interface{})
+	if commands["ownerDisplay"] != "raw" {
+		t.Fatalf("ownerDisplay = %v, want raw", commands["ownerDisplay"])
+	}
+	meta := oc["meta"].(map[string]interface{})
+	if meta["lastTouchedVersion"] != "2026.3.13" {
+		t.Fatalf("meta.lastTouchedVersion = %v, want 2026.3.13", meta["lastTouchedVersion"])
 	}
 }
 

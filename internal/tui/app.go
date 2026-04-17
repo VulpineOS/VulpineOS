@@ -433,8 +433,10 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "v":
 			// View: toggle browser window visibility
 			if a.kernel != nil && a.kernel.Window() != nil {
-				visible := a.kernel.Window().Toggle()
-				if visible {
+				visible, err := a.kernel.Window().Toggle()
+				if err != nil {
+					a.notice = "Browser toggle failed: " + err.Error()
+				} else if visible {
 					a.notice = "Browser window shown — press v to hide"
 				} else {
 					a.notice = "Browser window hidden"
@@ -469,80 +471,102 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.inputMode = ""
 			a.focus = FocusAgentList
 		case "left":
-			switch a.focus {
-			case FocusAgentList:
-				if a.leftWidth > 12 {
-					a.leftWidth -= 2
-					a.updatePanelSizes()
-				}
-			case FocusContextList:
-				// Left arrow on right panel = expand (pull edge left)
-				if a.rightWidth < 30 {
-					a.rightWidth += 2
-					a.updatePanelSizes()
+			if a.resizeModeEnabled() {
+				switch a.focus {
+				case FocusAgentList:
+					if a.leftWidth > 12 {
+						a.leftWidth -= 2
+						a.updatePanelSizes()
+					}
+				case FocusContextList:
+					// Left arrow on right panel = expand (pull edge left)
+					if a.rightWidth < 30 {
+						a.rightWidth += 2
+						a.updatePanelSizes()
+					}
 				}
 			}
 		case "right":
-			switch a.focus {
-			case FocusAgentList:
-				if a.leftWidth < 30 {
-					a.leftWidth += 2
-					a.updatePanelSizes()
-				}
-			case FocusContextList:
-				// Right arrow on right panel = shrink (push edge right)
-				if a.rightWidth > 12 {
-					a.rightWidth -= 2
-					a.updatePanelSizes()
+			if a.resizeModeEnabled() {
+				switch a.focus {
+				case FocusAgentList:
+					if a.leftWidth < 30 {
+						a.leftWidth += 2
+						a.updatePanelSizes()
+					}
+				case FocusContextList:
+					// Right arrow on right panel = shrink (push edge right)
+					if a.rightWidth > 12 {
+						a.rightWidth -= 2
+						a.updatePanelSizes()
+					}
 				}
 			}
 		case "up":
 			maxH := a.height - 2
 			switch a.focus {
-			case FocusAgentList:
-				if a.leftSplit > minSplit {
-					a.leftSplit--
-					a.updatePanelSizes()
-				}
-			case FocusAgentDetail:
-				if a.rightSplit > minSplit {
-					a.rightSplit--
-					a.updatePanelSizes()
-				}
-			case FocusContextList:
-				if a.rightSplit > minSplit {
-					a.rightSplit--
-					a.updatePanelSizes()
-				}
 			case FocusConversation:
 				_ = maxH
 				var cmd tea.Cmd
 				a.conversation, cmd = a.conversation.Update(msg)
 				return a, cmd
+			case FocusAgentList:
+				if a.resizeModeEnabled() {
+					if a.leftSplit > minSplit {
+						a.leftSplit--
+						a.updatePanelSizes()
+					}
+				} else {
+					a.agentList.MoveUp()
+					cmds = append(cmds, a.selectCurrentAgent())
+				}
+			case FocusAgentDetail:
+				if a.resizeModeEnabled() && a.rightSplit > minSplit {
+					a.rightSplit--
+					a.updatePanelSizes()
+				}
+			case FocusContextList:
+				if a.resizeModeEnabled() {
+					if a.rightSplit > minSplit {
+						a.rightSplit--
+						a.updatePanelSizes()
+					}
+				} else {
+					a.contextList.MoveUp()
+				}
 			}
 		case "down":
 			maxH := a.height - 2
 			switch a.focus {
-			case FocusAgentList:
-				if a.leftSplit < maxH-minSplit {
-					a.leftSplit++
-					a.updatePanelSizes()
-				}
-			case FocusAgentDetail:
-				if a.rightSplit < maxH*maxSplitRatio/100 {
-					a.rightSplit++
-					a.updatePanelSizes()
-				}
-			case FocusContextList:
-				if a.rightSplit < maxH*maxSplitRatio/100 {
-					a.rightSplit++
-					a.updatePanelSizes()
-				}
 			case FocusConversation:
 				_ = maxH
 				var cmd tea.Cmd
 				a.conversation, cmd = a.conversation.Update(msg)
 				return a, cmd
+			case FocusAgentList:
+				if a.resizeModeEnabled() {
+					if a.leftSplit < maxH-minSplit {
+						a.leftSplit++
+						a.updatePanelSizes()
+					}
+				} else {
+					a.agentList.MoveDown()
+					cmds = append(cmds, a.selectCurrentAgent())
+				}
+			case FocusAgentDetail:
+				if a.resizeModeEnabled() && a.rightSplit < maxH*maxSplitRatio/100 {
+					a.rightSplit++
+					a.updatePanelSizes()
+				}
+			case FocusContextList:
+				if a.resizeModeEnabled() {
+					if a.rightSplit < maxH*maxSplitRatio/100 {
+						a.rightSplit++
+						a.updatePanelSizes()
+					}
+				} else {
+					a.contextList.MoveDown()
+				}
 			}
 		case "S":
 			a.focus = FocusSettings
@@ -715,6 +739,8 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		agentCopy := msg.Agent
 		a.updateAgentDetail(&agentCopy)
 		a.focus = FocusConversation
+		a.inputMode = "chat"
+		a.conversation.SetAwake(true)
 		a.noticeTTL = 3
 		cmds = append(cmds, a.conversation.Focus())
 		cmds = append(cmds, a.waitForEvent())
@@ -803,6 +829,19 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.notice = "Skill " + msg.Name + " " + state
 			a.noticeTTL = 3
 		}
+
+	case shared.ResizeModeToggleMsg:
+		if a.cfg != nil {
+			a.cfg.ResizePanelsWithArrows = msg.Enabled
+			_ = a.cfg.Save()
+			a.settings.SetConfig(a.cfg)
+		}
+		if msg.Enabled {
+			a.notice = "Resize mode enabled — arrow keys resize panels"
+		} else {
+			a.notice = "Resize mode disabled — arrow keys navigate and scroll"
+		}
+		a.noticeTTL = 3
 
 	case shared.ProxyTestRequestMsg:
 		cmds = append(cmds, a.testProxy(msg.ProxyID, msg.Config))
@@ -1149,6 +1188,10 @@ func (a *App) updatePanelSizes() {
 	}
 	a.nameInput.Width = inputWidth
 	a.taskInput.Width = inputWidth
+}
+
+func (a *App) resizeModeEnabled() bool {
+	return a.cfg != nil && a.cfg.ResizePanelsWithArrows
 }
 
 // updateAgentDetail populates the agent detail panel from an Agent struct.

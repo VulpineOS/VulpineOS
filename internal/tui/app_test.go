@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"vulpineos/internal/config"
 	"vulpineos/internal/tui/shared"
 	"vulpineos/internal/vault"
 )
@@ -255,6 +256,65 @@ func TestDeletingOnlySelectedAgentClearsWorkbenchState(t *testing.T) {
 	detailView := app.agentDetail.View()
 	if !strings.Contains(detailView, "to create a new agent") {
 		t.Fatalf("expected empty detail prompt, got:\n%s", detailView)
+	}
+}
+
+func TestAgentCreatedFocusesUnlockedChat(t *testing.T) {
+	db := openTestVault(t)
+	cfg := &config.Config{}
+	app := NewApp(nil, nil, nil, db, cfg, nil)
+	app.conversation.SetSize(80, 20)
+
+	agent, err := db.CreateAgent("Scraper", "Scrape prices", "{}")
+	if err != nil {
+		t.Fatalf("create agent: %v", err)
+	}
+	agent.Status = "active"
+
+	model, _ := app.Update(shared.AgentCreatedMsg{Agent: *agent})
+	app = model.(App)
+
+	if app.focus != FocusConversation {
+		t.Fatalf("focus = %d, want conversation", app.focus)
+	}
+	if app.inputMode != "chat" {
+		t.Fatalf("inputMode = %q, want chat", app.inputMode)
+	}
+	if !app.conversation.IsAwake() {
+		t.Fatal("conversation should be awake after agent creation")
+	}
+}
+
+func TestArrowKeysNavigateAgentsWhenResizeModeDisabled(t *testing.T) {
+	db := openTestVault(t)
+	first, err := db.CreateAgent("first-agent", "first task", "{}")
+	if err != nil {
+		t.Fatalf("create first agent: %v", err)
+	}
+	second, err := db.CreateAgent("second-agent", "second task", "{}")
+	if err != nil {
+		t.Fatalf("create second agent: %v", err)
+	}
+	if _, err := db.Conn().Exec(`UPDATE agents SET last_active = ? WHERE id = ?`, time.Now().Unix()+10, first.ID); err != nil {
+		t.Fatalf("set first last_active: %v", err)
+	}
+	if _, err := db.Conn().Exec(`UPDATE agents SET last_active = ? WHERE id = ?`, time.Now().Unix(), second.ID); err != nil {
+		t.Fatalf("set second last_active: %v", err)
+	}
+
+	cfg := &config.Config{ResizePanelsWithArrows: false}
+	app := NewApp(nil, nil, nil, db, cfg, nil)
+	app.focus = FocusAgentList
+
+	originalSplit := app.leftSplit
+	model, _ := app.Update(tea.KeyMsg{Type: tea.KeyDown})
+	app = model.(App)
+
+	if app.leftSplit != originalSplit {
+		t.Fatalf("leftSplit changed from %d to %d with resize mode disabled", originalSplit, app.leftSplit)
+	}
+	if app.selectedAgentID != second.ID {
+		t.Fatalf("selected agent = %q, want %q after down arrow", app.selectedAgentID, second.ID)
 	}
 }
 

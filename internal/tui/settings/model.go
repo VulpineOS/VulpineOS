@@ -16,8 +16,9 @@ import (
 type Section int
 
 const (
-	SectionProxies Section = 0
-	SectionSkills  Section = 1
+	SectionGeneral Section = 0
+	SectionProxies Section = 1
+	SectionSkills  Section = 2
 )
 
 // ProxyItem describes a proxy entry in the settings list.
@@ -46,9 +47,10 @@ type Model struct {
 	scroll  int // scroll offset for the full page
 
 	// General
-	provider  string
-	model     string
-	apiKeySet bool // don't show the actual key, just whether it's set
+	provider               string
+	model                  string
+	apiKeySet              bool // don't show the actual key, just whether it's set
+	resizePanelsWithArrows bool
 
 	// Proxies
 	proxies     []ProxyItem
@@ -69,7 +71,7 @@ func New() Model {
 	ti.Width = 60
 
 	return Model{
-		section:     SectionProxies,
+		section:     SectionGeneral,
 		importInput: ti,
 	}
 }
@@ -96,6 +98,7 @@ func (m *Model) SetConfig(cfg *config.Config) {
 	m.provider = cfg.Provider
 	m.model = cfg.Model
 	m.apiKeySet = cfg.APIKey != ""
+	m.resizePanelsWithArrows = cfg.ResizePanelsWithArrows
 
 	// Load skills from config
 	m.skills = nil
@@ -156,7 +159,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 		case "tab":
 			// Switch section focus
-			if m.section == SectionProxies {
+			if m.section == SectionGeneral {
+				m.section = SectionProxies
+			} else if m.section == SectionProxies {
 				m.section = SectionSkills
 			} else {
 				// Close settings and let app handle Tab cycling
@@ -213,6 +218,12 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			}
 
 		case " ":
+			if m.section == SectionGeneral {
+				m.resizePanelsWithArrows = !m.resizePanelsWithArrows
+				return m, func() tea.Msg {
+					return shared.ResizeModeToggleMsg{Enabled: m.resizePanelsWithArrows}
+				}
+			}
 			if m.section == SectionSkills && len(m.skills) > 0 {
 				m.skills[m.skillIdx].Enabled = !m.skills[m.skillIdx].Enabled
 				s := m.skills[m.skillIdx]
@@ -298,7 +309,11 @@ func (m Model) View() string {
 func (m Model) viewGeneral() string {
 	var b strings.Builder
 
-	b.WriteString(shared.HeaderStyle.Render("General"))
+	if m.section == SectionGeneral {
+		b.WriteString(shared.TitleStyle.Render("General"))
+	} else {
+		b.WriteString(shared.HeaderStyle.Render("General"))
+	}
 	b.WriteString("\n\n")
 
 	providerName := m.provider
@@ -321,7 +336,25 @@ func (m Model) viewGeneral() string {
 	b.WriteString(lipgloss.NewStyle().Render(strings.Repeat("*", 13) + " "))
 	b.WriteString(keyStatus)
 	b.WriteString("\n\n")
-	b.WriteString(shared.MutedStyle.Render("Press 'c' to reconfigure provider/model"))
+
+	cursor := "  "
+	line := "Arrow Keys Resize Panels: off"
+	if m.resizePanelsWithArrows {
+		line = "Arrow Keys Resize Panels: on"
+	}
+	if m.section == SectionGeneral {
+		cursor = shared.RunningStyle.Render("| ")
+		line = shared.SelectedStyle.Render(cursor + line)
+	} else {
+		line = cursor + line
+	}
+	b.WriteString(line)
+	b.WriteString("\n\n")
+	if m.section == SectionGeneral {
+		b.WriteString(shared.MutedStyle.Render("[space] toggle  [c] reconfigure provider/model"))
+	} else {
+		b.WriteString(shared.MutedStyle.Render("Press 'c' to reconfigure provider/model"))
+	}
 
 	return b.String()
 }

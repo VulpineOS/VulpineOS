@@ -78,6 +78,7 @@ type Agent struct {
 	args           []string          // args used to start this agent
 	waitState      *agentWaitState
 	stopStatus     string
+	sessionLogPath string
 }
 
 type agentWaitState struct {
@@ -190,6 +191,10 @@ func (a *Agent) start(binary string, args []string) error {
 			}
 		}
 	}()
+
+	if a.sessionLogPath != "" {
+		go a.streamSessionEvents()
+	}
 
 	// Read JSON objects from stdout using a streaming decoder.
 	// OpenClaw outputs pretty-printed multi-line JSON, so a line-based
@@ -336,6 +341,199 @@ func (a *Agent) handleOutput(output AgentOutput) {
 	}
 
 	a.emitStatusLocked()
+}
+
+type sessionLogLine struct {
+	Type    string `json:"type"`
+	Message *struct {
+		Role       string `json:"role"`
+		ToolName   string `json:"toolName"`
+		ToolCallID string `json:"toolCallId"`
+		Content    []struct {
+			Type      string                 `json:"type"`
+			Text      string                 `json:"text"`
+			Thinking  string                 `json:"thinking"`
+			ID        string                 `json:"id"`
+			Name      string                 `json:"name"`
+			Arguments map[string]interface{} `json:"arguments"`
+		} `json:"content"`
+		Details map[string]interface{} `json:"details"`
+	} `json:"message"`
+}
+
+func (a *Agent) streamSessionEvents() {
+	path := a.sessionLogPath
+	offset := int64(0)
+	if info, err := os.Stat(path); err == nil {
+		offset = info.Size()
+	} else if !os.IsNotExist(err) {
+		return
+	}
+
+	var pending string
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-a.doneCh:
+			return
+		case <-ticker.C:
+			data, newOffset, err := readSessionChunk(path, offset)
+			if err != nil {
+				continue
+			}
+			offset = newOffset
+			if len(data) == 0 {
+				continue
+			}
+			blob := pending + string(data)
+			lines := strings.Split(blob, "\n")
+			pending = ""
+			if !strings.HasSuffix(blob, "\n") {
+				pending = lines[len(lines)-1]
+				lines = lines[:len(lines)-1]
+			}
+			for _, line := range lines {
+				line = strings.TrimSpace(line)
+				if line == "" {
+					continue
+				}
+				a.handleSessionLogLine(line)
+			}
+		}
+	}
+}
+
+func readSessionChunk(path string, offset int64) ([]byte, int64, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, offset, err
+	}
+	defer file.Close()
+
+	if _, err := file.Seek(offset, io.SeekStart); err != nil {
+		return nil, offset, err
+	}
+	data, err := io.ReadAll(file)
+	if err != nil {
+		return nil, offset, err
+	}
+	return data, offset + int64(len(data)), nil
+}
+
+func (a *Agent) handleSessionLogLine(line string) {
+	var event sessionLogLine
+	if err := json.Unmarshal([]byte(line), &event); err != nil {
+		return
+	}
+	if event.Type != "message" || event.Message == nil {
+		return
+	}
+
+	switch event.Message.Role {
+	case "assistant":
+		for _, item := range event.Message.Content {
+			if item.Type != "toolCall" {
+				continue
+			}
+			if msg := summarizeToolCall(item.Name, item.Arguments); msg != "" {
+				a.emitConversation(ConversationMsg{
+					AgentID: a.ID,
+					Role:    "system",
+					Content: msg,
+				})
+			}
+		}
+	case "toolResult":
+		if msg := summarizeToolResult(event.Message.ToolName, event.Message.Content, event.Message.Details); msg != "" {
+			a.emitConversation(ConversationMsg{
+				AgentID: a.ID,
+				Role:    "system",
+				Content: msg,
+			})
+		}
+	}
+}
+
+func summarizeToolCall(name string, args map[string]interface{}) string {
+	if name == "" {
+		return ""
+	}
+	switch name {
+	case "browser":
+		action, _ := args["action"].(string)
+		if action == "" {
+			return "Running browser action"
+		}
+		if url, _ := args["url"].(string); url != "" {
+			return fmt.Sprintf("Running browser action: %s %s", action, url)
+		}
+		return fmt.Sprintf("Running browser action: %s", action)
+	default:
+		argText := compactJSON(args)
+		if argText == "" {
+			return fmt.Sprintf("Running tool: %s", name)
+		}
+		return fmt.Sprintf("Running tool: %s %s", name, truncate(argText, 180))
+	}
+}
+
+func summarizeToolResult(name string, content []struct {
+	Type      string                 `json:"type"`
+	Text      string                 `json:"text"`
+	Thinking  string                 `json:"thinking"`
+	ID        string                 `json:"id"`
+	Name      string                 `json:"name"`
+	Arguments map[string]interface{} `json:"arguments"`
+}, details map[string]interface{}) string {
+	if name == "" {
+		name = "tool"
+	}
+	if status, _ := details["status"].(string); status != "" {
+		if status == "error" {
+			if errText, _ := details["error"].(string); errText != "" {
+				return fmt.Sprintf("Tool failed: %s — %s", name, truncate(singleLine(errText), 180))
+			}
+			return fmt.Sprintf("Tool failed: %s", name)
+		}
+		return fmt.Sprintf("Tool completed: %s", name)
+	}
+
+	for _, item := range content {
+		if item.Type != "text" || item.Text == "" {
+			continue
+		}
+		var payload map[string]interface{}
+		if json.Unmarshal([]byte(item.Text), &payload) == nil {
+			if status, _ := payload["status"].(string); status == "error" {
+				if errText, _ := payload["error"].(string); errText != "" {
+					return fmt.Sprintf("Tool failed: %s — %s", name, truncate(singleLine(errText), 180))
+				}
+				return fmt.Sprintf("Tool failed: %s", name)
+			}
+			if status, _ := payload["status"].(string); status != "" {
+				return fmt.Sprintf("Tool completed: %s", name)
+			}
+		}
+	}
+
+	return fmt.Sprintf("Tool completed: %s", name)
+}
+
+func compactJSON(v interface{}) string {
+	if v == nil {
+		return ""
+	}
+	data, err := json.Marshal(v)
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
+
+func singleLine(s string) string {
+	return strings.Join(strings.Fields(strings.TrimSpace(s)), " ")
 }
 
 func (a *Agent) emitStatus() {

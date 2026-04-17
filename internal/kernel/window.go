@@ -1,6 +1,7 @@
 package kernel
 
 import (
+	"fmt"
 	"os/exec"
 	"runtime"
 	"strconv"
@@ -10,10 +11,9 @@ import (
 
 // WindowController manages browser window visibility.
 type WindowController struct {
-	visible   bool
-	pid       int
-	processName string // resolved macOS process name
-	mu        sync.Mutex
+	visible bool
+	pid     int
+	mu      sync.Mutex
 }
 
 // NewWindowController creates a window controller for the given browser PID.
@@ -29,33 +29,43 @@ func (w *WindowController) IsVisible() bool {
 }
 
 // Toggle shows the window if hidden, hides if shown.
-func (w *WindowController) Toggle() bool {
+func (w *WindowController) Toggle() (bool, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.visible {
-		w.hide()
+		if err := w.hide(); err != nil {
+			return w.visible, err
+		}
 		w.visible = false
 	} else {
-		w.show()
+		if err := w.show(); err != nil {
+			return w.visible, err
+		}
 		w.visible = true
 	}
-	return w.visible
+	return w.visible, nil
 }
 
 // Show brings the browser window to the front.
-func (w *WindowController) Show() {
+func (w *WindowController) Show() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	w.show()
+	if err := w.show(); err != nil {
+		return err
+	}
 	w.visible = true
+	return nil
 }
 
 // Hide sends the browser window to the background.
-func (w *WindowController) Hide() {
+func (w *WindowController) Hide() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	w.hide()
+	if err := w.hide(); err != nil {
+		return err
+	}
 	w.visible = false
+	return nil
 }
 
 // HideWhenReady waits for the browser window to appear, then hides it.
@@ -67,67 +77,39 @@ func (w *WindowController) HideWhenReady() {
 	// Poll until the process has a window, then hide it
 	for i := 0; i < 30; i++ { // up to 15 seconds
 		time.Sleep(500 * time.Millisecond)
-		name := w.resolveProcessName()
-		if name != "" {
-			w.mu.Lock()
-			w.processName = name
-			w.hide()
-			w.visible = false
-			w.mu.Unlock()
+		if err := w.Hide(); err == nil {
 			return
 		}
 	}
 }
 
-// resolveProcessName finds the macOS process name for our PID.
-// Camoufox may register as "camoufox", "firefox", or "Camoufox" in System Events.
-func (w *WindowController) resolveProcessName() string {
-	if w.processName != "" {
-		return w.processName
+func (w *WindowController) show() error {
+	if runtime.GOOS != "darwin" {
+		return nil
 	}
-
-	// Ask System Events for the process name matching our PID
-	out, err := exec.Command("osascript", "-e",
-		`tell application "System Events" to get name of first process whose unix id is `+strconv.Itoa(w.pid),
-	).Output()
-	if err == nil {
-		name := string(out)
-		// Trim whitespace/newline
-		for len(name) > 0 && (name[len(name)-1] == '\n' || name[len(name)-1] == '\r' || name[len(name)-1] == ' ') {
-			name = name[:len(name)-1]
-		}
-		if name != "" {
-			return name
-		}
+	pid := strconv.Itoa(w.pid)
+	if err := exec.Command("osascript", "-e",
+		`tell application "System Events" to set visible of first process whose unix id is `+pid+` to true`,
+	).Run(); err != nil {
+		return fmt.Errorf("show browser process %d: %w", w.pid, err)
 	}
-	return ""
+	if err := exec.Command("osascript", "-e",
+		`tell application "System Events" to set frontmost of first process whose unix id is `+pid+` to true`,
+	).Run(); err != nil {
+		return fmt.Errorf("focus browser process %d: %w", w.pid, err)
+	}
+	return nil
 }
 
-func (w *WindowController) show() {
+func (w *WindowController) hide() error {
 	if runtime.GOOS != "darwin" {
-		return
+		return nil
 	}
-	name := w.resolveProcessName()
-	if name == "" {
-		return
+	pid := strconv.Itoa(w.pid)
+	if err := exec.Command("osascript", "-e",
+		`tell application "System Events" to set visible of first process whose unix id is `+pid+` to false`,
+	).Run(); err != nil {
+		return fmt.Errorf("hide browser process %d: %w", w.pid, err)
 	}
-	exec.Command("osascript", "-e",
-		`tell application "System Events" to set visible of process "`+name+`" to true`,
-	).Run()
-	exec.Command("osascript", "-e",
-		`tell application "System Events" to set frontmost of process "`+name+`" to true`,
-	).Run()
-}
-
-func (w *WindowController) hide() {
-	if runtime.GOOS != "darwin" {
-		return
-	}
-	name := w.resolveProcessName()
-	if name == "" {
-		return
-	}
-	exec.Command("osascript", "-e",
-		`tell application "System Events" to set visible of process "`+name+`" to false`,
-	).Run()
+	return nil
 }
