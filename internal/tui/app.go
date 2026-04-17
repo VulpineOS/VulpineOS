@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -31,6 +32,10 @@ import (
 	"vulpineos/internal/tui/systeminfo"
 	"vulpineos/internal/vault"
 )
+
+var startExternalCommand = func(name string, args ...string) error {
+	return exec.Command(name, args...).Start()
+}
 
 // Focus panel identifiers.
 const (
@@ -329,7 +334,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "new-agent-desc":
 			return a.updateDescInput(msg)
 		case "chat":
-			if a.conversation.Focused() || (msg.String() != "v" && msg.String() != "t") {
+			if a.conversation.Focused() || (msg.String() != "v" && msg.String() != "t" && msg.String() != "o") {
 				return a.updateChatInput(msg)
 			}
 		}
@@ -474,11 +479,30 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Fallback: open URL in system browser
 				url := a.contextList.SelectedURL()
 				if url != "" && url != "about:blank" {
-					exec.Command("open", url).Start()
+					_ = startExternalCommand("open", url)
 					a.notice = "Opened " + url
 					a.noticeTTL = 3
 				}
 			}
+		case "o":
+			if a.selectedAgentID == "" {
+				a.notice = "No agent selected"
+				a.noticeTTL = 3
+				return a, nil
+			}
+			logPath := agentSessionLogPath(a.selectedAgentID)
+			if _, err := os.Stat(logPath); err != nil {
+				a.notice = "No session log yet for selected agent"
+				a.noticeTTL = 4
+				return a, nil
+			}
+			if err := startExternalCommand("open", logPath); err != nil {
+				a.notice = "Failed to open session log: " + err.Error()
+				a.noticeTTL = 4
+				return a, nil
+			}
+			a.notice = "Opened session log"
+			a.noticeTTL = 3
 		case "enter":
 			switch a.focus {
 			case FocusAgentList, FocusAgentDetail, FocusConversation:
@@ -1165,7 +1189,7 @@ func (a App) renderStatusBar() string {
 	bar := shared.TitleStyle.Render("VULPINE") +
 		shared.MutedStyle.Render(" | ") +
 		shared.RunningStyle.Render("* "+mode) +
-		shared.MutedStyle.Render("  n:new  p/r:agent  P/R:all  X:kill-all  x:del  v:view  m:mode  S:settings  Enter:chat  Tab:focus  ") +
+		shared.MutedStyle.Render("  n:new  p/r:agent  P/R:all  X:kill-all  x:del  v:view  o:log  m:mode  S:settings  Enter:chat  Tab:focus  ") +
 		shared.MutedStyle.Render("t:trace  ") +
 		arrowMode +
 		shared.MutedStyle.Render("  q:quit") +
@@ -1541,6 +1565,10 @@ func shortContextID(contextID string) string {
 		return contextID
 	}
 	return contextID[:12]
+}
+
+func agentSessionLogPath(agentID string) string {
+	return filepath.Join(config.OpenClawProfileDir(), "agents", "main", "sessions", "vulpine-"+agentID+".jsonl")
 }
 
 func (a App) selectedAgentStatus() string {

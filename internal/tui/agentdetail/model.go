@@ -194,7 +194,7 @@ func (m Model) View() string {
 
 	// Controls
 	b.WriteString("\n")
-	b.WriteString(shared.MutedStyle.Render("[Enter] chat  [p/r] agent  [P/R] all  [x] delete"))
+	b.WriteString(shared.MutedStyle.Render("[Enter] chat  [p/r] agent  [o] log  [P/R] all  [x] delete"))
 
 	// Truncate to allocated height so the panel never overflows
 	result := b.String()
