@@ -215,6 +215,49 @@ func TestDeletingSelectedAgentLoadsNextPersistedConversation(t *testing.T) {
 	}
 }
 
+func TestDeletingOnlySelectedAgentClearsWorkbenchState(t *testing.T) {
+	db := openTestVault(t)
+
+	agent, err := db.CreateAgent("solo-agent", "solo task", "{}")
+	if err != nil {
+		t.Fatalf("create agent: %v", err)
+	}
+	if err := db.AppendMessage(agent.ID, "assistant", "solo persisted reply", 1); err != nil {
+		t.Fatalf("append message: %v", err)
+	}
+
+	app := NewApp(nil, nil, nil, db, nil, nil)
+	app.conversation.SetSize(80, 20)
+	app.agentDetail.SetSize(40, 8)
+	app.selectedAgentID = agent.ID
+	app.conversation.SetAgentID(agent.ID)
+	app.conversation.LoadMessages([]vault.AgentMessage{
+		{Role: "assistant", Content: "solo persisted reply"},
+	})
+	app.agentDetail.SetAgent(agent.ID, "solo-agent", "solo task", "paused", 0, "", "", time.Now())
+
+	model, _ := app.Update(shared.AgentDeletedMsg{AgentID: agent.ID})
+	app = model.(App)
+
+	if app.selectedAgentID != "" {
+		t.Fatalf("selected agent = %q, want empty", app.selectedAgentID)
+	}
+	if app.conversation.AgentID() != "" {
+		t.Fatalf("conversation agent id = %q, want empty", app.conversation.AgentID())
+	}
+	if app.agentDetail.HasAgent() {
+		t.Fatal("expected agent detail to clear after deleting final agent")
+	}
+	conversationView := app.conversation.View()
+	if !strings.Contains(conversationView, "to create a new agent") {
+		t.Fatalf("expected empty conversation prompt, got:\n%s", conversationView)
+	}
+	detailView := app.agentDetail.View()
+	if !strings.Contains(detailView, "to create a new agent") {
+		t.Fatalf("expected empty detail prompt, got:\n%s", detailView)
+	}
+}
+
 func TestPauseResumeKeybindings(t *testing.T) {
 	db := openTestVault(t)
 
