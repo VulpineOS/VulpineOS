@@ -221,7 +221,7 @@ A React SPA served from the Go binary — no separate frontend deployment needed
 
 **35 API endpoints** covering: agent CRUD, bulk agent controls, config management, cost tracking, webhooks, proxy management, agent bus (pending/approve/reject/policies), session recording, fingerprints, system status, and runtime audit history plus retention/export controls.
 
-Agent Detail includes separate conversation, action trace, recording, and fingerprint views so operator-visible tool activity is inspectable without exposing hidden reasoning.
+Agent Detail includes separate conversation, action trace, raw session log, recording, and fingerprint views so operator-visible tool activity is inspectable without exposing hidden reasoning.
 
 Access via `--serve --port 8443 --api-key KEY` or through the remote client.
 

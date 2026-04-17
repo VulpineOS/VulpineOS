@@ -3,6 +3,8 @@ package remote
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -59,6 +61,8 @@ func (api *PanelAPI) HandleMessage(method string, params json.RawMessage) (json.
 		return api.agentsKillMany(params)
 	case "agents.getMessages":
 		return api.agentsGetMessages(params)
+	case "agents.getSessionLog":
+		return api.agentsGetSessionLog(params)
 
 	// --- Config ---
 	case "config.get":
@@ -455,6 +459,30 @@ func (api *PanelAPI) agentsGetMessages(params json.RawMessage) (json.RawMessage,
 		return nil, err
 	}
 	return json.Marshal(map[string]interface{}{"messages": msgs})
+}
+
+func (api *PanelAPI) agentsGetSessionLog(params json.RawMessage) (json.RawMessage, error) {
+	var p struct {
+		AgentID string `json:"agentId"`
+	}
+	if err := json.Unmarshal(params, &p); err != nil {
+		return nil, fmt.Errorf("invalid params: %w", err)
+	}
+	if strings.TrimSpace(p.AgentID) == "" {
+		return nil, fmt.Errorf("agentId is required")
+	}
+	path := filepath.Join(config.OpenClawProfileDir(), "agents", "main", "sessions", "vulpine-"+p.AgentID+".jsonl")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("session log not found")
+		}
+		return nil, err
+	}
+	return json.Marshal(map[string]interface{}{
+		"path":    path,
+		"content": string(data),
+	})
 }
 
 // ---------------------------------------------------------------------------

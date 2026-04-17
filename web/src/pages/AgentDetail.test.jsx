@@ -31,6 +31,9 @@ describe('AgentDetail page', () => {
       if (method === 'recording.getTimeline') {
         return { actions: [] }
       }
+      if (method === 'agents.getSessionLog') {
+        return { content: '{"type":"message","message":{"role":"assistant"}}\n' }
+      }
       if (method === 'fingerprints.get') {
         return {}
       }
@@ -72,6 +75,10 @@ describe('AgentDetail page', () => {
     fireEvent.click(screen.getByText('Trace'))
     expect(screen.getByText('Action Trace')).toBeInTheDocument()
     expect(screen.getByText('Running browser action: open https://example.com')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Raw'))
+    expect(await screen.findByText('Raw Session Log')).toBeInTheDocument()
+    expect(screen.getByText('{"type":"message","message":{"role":"assistant"}}')).toBeInTheDocument()
 
     fireEvent.click(screen.getByText('Conversation'))
     fireEvent.change(screen.getByPlaceholderText('Send message to agent...'), { target: { value: 'continue' } })

@@ -7,6 +7,7 @@ export default function AgentDetail({ ws }) {
   const [messages, setMessages] = useState([])
   const [timeline, setTimeline] = useState([])
   const [fingerprint, setFingerprint] = useState(null)
+  const [sessionLog, setSessionLog] = useState('')
   const [input, setInput] = useState('')
   const [tab, setTab] = useState('conversation')
 
@@ -37,9 +38,24 @@ export default function AgentDetail({ ws }) {
     ws.call('fingerprints.get', { agentId: id }).then(r => setFingerprint(r)).catch(() => {})
   }
 
+  const loadSessionLog = async () => {
+    try {
+      const result = await ws.call('agents.getSessionLog', { agentId: id })
+      setSessionLog(result?.content || '')
+    } catch (e) {
+      alert(e.message)
+    }
+  }
+
   useEffect(() => {
     refresh()
   }, [ws.connected, id])
+
+  useEffect(() => {
+    if (tab === 'raw' && sessionLog === '') {
+      loadSessionLog()
+    }
+  }, [tab, sessionLog, id])
 
   useEffect(() => {
     if (!id) return
@@ -124,7 +140,7 @@ export default function AgentDetail({ ws }) {
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        {['conversation', 'trace', 'recording', 'fingerprint'].map(t => (
+        {['conversation', 'trace', 'raw', 'recording', 'fingerprint'].map(t => (
           <button key={t} className={`btn ${tab === t ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab(t)}>
             {t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
@@ -175,6 +191,22 @@ export default function AgentDetail({ ws }) {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {tab === 'raw' && (
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <h3 style={{ margin: 0 }}>Raw Session Log</h3>
+            <button className="btn btn-ghost" onClick={loadSessionLog}>Refresh</button>
+          </div>
+          {sessionLog === '' ? (
+            <p style={{ color: '#666' }}>No raw session log loaded yet.</p>
+          ) : (
+            <pre style={{ fontSize: 12, color: '#aaa', overflow: 'auto', maxHeight: 500, whiteSpace: 'pre-wrap' }}>
+              {sessionLog}
+            </pre>
+          )}
         </div>
       )}
 
