@@ -16,6 +16,8 @@ type Model struct {
 	running        bool
 	pid            int
 	uptime         time.Duration
+	headless       bool
+	browserRoute   string
 	memoryMB       float64
 	eventLoopLag   float64
 	detectionRisk  float64
@@ -65,6 +67,8 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.running = msg.Running
 		m.pid = msg.PID
 		m.uptime = msg.Uptime
+		m.headless = msg.Headless
+		m.browserRoute = msg.BrowserRoute
 	case shared.TelemetryMsg:
 		m.memoryMB = msg.MemoryMB
 		m.eventLoopLag = msg.EventLoopLagMs
@@ -157,6 +161,16 @@ func (m Model) View() string {
 	upStr := formatDuration(m.uptime)
 	b.WriteString(shared.MutedStyle.Render(fmt.Sprintf("Up %s", upStr)))
 	b.WriteString("\n")
+	modeLabel := "GUI"
+	if m.headless {
+		modeLabel = "HEADLESS"
+	}
+	b.WriteString(shared.MutedStyle.Render(fmt.Sprintf("Mode %s", modeLabel)))
+	b.WriteString("\n")
+	if strings.TrimSpace(m.browserRoute) != "" {
+		b.WriteString(shared.MutedStyle.Render(fmt.Sprintf("Route %s", m.browserRoute)))
+		b.WriteString("\n")
+	}
 	b.WriteString("\n")
 
 	b.WriteString(fmt.Sprintf("MEM %s\n", meterBar(m.memoryMB, 1024, fmt.Sprintf("%.0f", m.memoryMB))))
