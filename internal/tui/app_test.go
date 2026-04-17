@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -496,6 +497,57 @@ func TestReconfigureShortcutQueuesWizardWithoutClearingConfig(t *testing.T) {
 	}
 	if updated.notice != "" {
 		t.Fatalf("unexpected notice after queuing reconfigure: %q", updated.notice)
+	}
+}
+
+func TestUnfocusedChatAllowsOpenLogShortcut(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	cfg := &config.Config{}
+	db := openTestVault(t)
+	agent, err := db.CreateAgent("agent", "task", "{}")
+	if err != nil {
+		t.Fatalf("create agent: %v", err)
+	}
+
+	logPath := agentSessionLogPath(agent.ID)
+	if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
+		t.Fatalf("mkdir log dir: %v", err)
+	}
+	if err := os.WriteFile(logPath, []byte("{}\n"), 0644); err != nil {
+		t.Fatalf("write session log: %v", err)
+	}
+
+	original := startExternalCommand
+	defer func() { startExternalCommand = original }()
+	var opened []string
+	startExternalCommand = func(name string, args ...string) error {
+		opened = append([]string{name}, args...)
+		return nil
+	}
+
+	app := NewApp(nil, nil, nil, db, cfg, nil)
+	app.conversation.SetSize(80, 20)
+	app.selectedAgentID = agent.ID
+	app.conversation.SetAgentID(agent.ID)
+	app.conversation.SetAgentName(agent.Name)
+	app.conversation.SetAwake(true)
+	app.conversation.Blur()
+	app.focus = FocusConversation
+	app.inputMode = "chat"
+
+	model, _ := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'o'}})
+	updated := model.(App)
+
+	if got := updated.conversation.TextInput().Value(); got != "" {
+		t.Fatalf("conversation input = %q, want empty when open-log shortcut is used", got)
+	}
+	if len(opened) != 2 || opened[0] != "open" || opened[1] != logPath {
+		t.Fatalf("unexpected open command: %#v", opened)
+	}
+	if updated.notice != "Opened session log" {
+		t.Fatalf("notice = %q, want %q", updated.notice, "Opened session log")
 	}
 }
 
