@@ -64,6 +64,7 @@ type Model struct {
 	entries       []Entry
 	agentID       string
 	agentName     string
+	traceOnly     bool
 	thinking      bool // true while waiting for agent response
 	awake         bool // true after agent has sent its first message
 	textInput     textinput.Model
@@ -71,16 +72,27 @@ type Model struct {
 	height        int
 	scroll        int  // scroll offset in rendered lines (not entries)
 	autoScroll    bool // whether to auto-scroll to bottom on new messages
-	spinnerFrame  int    // current spinner animation frame
-	phraseIdx     int    // current thinking phrase index
-	shimmerOffset int    // shimmer position for the gradient effect
-	phraseTicks   int    // ticks since last phrase change
+	spinnerFrame  int  // current spinner animation frame
+	phraseIdx     int  // current thinking phrase index
+	shimmerOffset int  // shimmer position for the gradient effect
+	phraseTicks   int  // ticks since last phrase change
 
 }
 
 // SetAgentName sets the display name for the agent.
 func (m *Model) SetAgentName(name string) {
 	m.agentName = name
+}
+
+// SetTraceOnly switches the panel between mixed conversation and action-trace mode.
+func (m *Model) SetTraceOnly(enabled bool) {
+	m.traceOnly = enabled
+	m.scrollToBottom()
+}
+
+// TraceOnly reports whether the panel is showing action-trace mode.
+func (m Model) TraceOnly() bool {
+	return m.traceOnly
 }
 
 // SetAwake marks the agent as having sent its first message.
@@ -324,16 +336,21 @@ func (m Model) visibleLines() int {
 // getDisplayLines builds display lines from pre-rendered entries.
 func (m Model) getDisplayLines() []string {
 	var rendered []string
-	for i, e := range m.entries {
+	matched := 0
+	for _, e := range m.entries {
+		if m.traceOnly && e.Role != "system" {
+			continue
+		}
 		lines := e.renderedLines
 		if len(lines) == 0 {
 			lines = []string{e.Content}
 		}
 
 		// Add spacing between messages (not before first)
-		if i > 0 {
+		if matched > 0 {
 			rendered = append(rendered, "")
 		}
+		matched++
 
 		switch e.Role {
 		case "user":
@@ -377,6 +394,9 @@ func (m Model) getDisplayLines() []string {
 			}
 		}
 	}
+	if m.traceOnly && len(rendered) == 0 {
+		rendered = append(rendered, shared.MutedStyle.Render("No action trace yet."))
+	}
 	return rendered
 }
 
@@ -414,7 +434,6 @@ func (m *Model) scrollToBottom() {
 		m.scroll = 0
 	}
 }
-
 
 // View renders the conversation panel.
 // Messages are bottom-aligned: empty space at top, messages grow upward from the input box.
@@ -512,7 +531,11 @@ func (m Model) View() string {
 	// === BUILD OUTPUT ===
 
 	// 1. Title
-	b.WriteString(shared.TitleStyle.Render("CONVERSATION"))
+	title := "CONVERSATION"
+	if m.traceOnly {
+		title = "ACTION TRACE"
+	}
+	b.WriteString(shared.TitleStyle.Render(title))
 	b.WriteString("\n")
 
 	// 2. Empty space (bottom-align messages)
