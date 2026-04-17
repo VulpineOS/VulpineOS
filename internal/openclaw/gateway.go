@@ -85,7 +85,10 @@ func (g *Gateway) waitReady(openclawBin string) error {
 	var lastErr error
 
 	for time.Now().Before(deadline) {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		// The OpenClaw health CLI regularly takes ~2.5s wall time on this host
+		// even when the gateway probe itself reports "OK (0ms)". Give the probe
+		// enough headroom so Gateway.Start does not fail on a false timeout.
+		ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 		cmd := exec.CommandContext(ctx, openclawBin, "--profile", "vulpine", "gateway", "health")
 		if err := cmd.Run(); err == nil {
 			cancel()

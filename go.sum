@@ -1,5 +1,9 @@
 github.com/VulpineOS/foxbridge v0.1.1 h1:6lmGcwaYwBk5y9th/OdUQsgAp9ud5TE+5Q1R/xtHTRM=
 github.com/VulpineOS/foxbridge v0.1.1/go.mod h1:WEAs/DHBRgEPBZ9nYxI7Fql+ZQsgMP00Fh2hdjiLbBc=
+github.com/VulpineOS/foxbridge v0.1.2-0.20260417084422-54a1f26e7a6d h1:T7RQT8ua1HTurfugvfxBkyLptJ/ao0ex6rjmYv0t8mg=
+github.com/VulpineOS/foxbridge v0.1.2-0.20260417084422-54a1f26e7a6d/go.mod h1:WEAs/DHBRgEPBZ9nYxI7Fql+ZQsgMP00Fh2hdjiLbBc=
+github.com/VulpineOS/foxbridge v0.1.2-0.20260417085801-ad38b9ed2056 h1:Qyimf+nBWdhKeB+pPGnGBS73b2sBWqDdEGCESW1ToGI=
+github.com/VulpineOS/foxbridge v0.1.2-0.20260417085801-ad38b9ed2056/go.mod h1:WEAs/DHBRgEPBZ9nYxI7Fql+ZQsgMP00Fh2hdjiLbBc=
 github.com/VulpineOS/mobilebridge v0.1.0 h1:nyAkPYnFcMui6i53lr+3bstf4XcTurAFdSANbMHFgiw=
 github.com/VulpineOS/mobilebridge v0.1.0/go.mod h1:/dYC0xaP6T5YDaJcWvOfj0d1KmSkKbJoTC+p1nKUxkE=
 github.com/atotto/clipboard v0.1.4 h1:EH0zSVneZPSuFR11BlR9YppQTVDbh5+16AmcJi4g1z4=

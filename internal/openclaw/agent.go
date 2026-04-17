@@ -434,6 +434,15 @@ func (a *Agent) handleSessionLogLine(line string) {
 	switch event.Message.Role {
 	case "assistant":
 		for _, item := range event.Message.Content {
+			if item.Type == "text" && strings.TrimSpace(item.Text) != "" {
+				a.emitConversation(ConversationMsg{
+					AgentID: a.ID,
+					Role:    "assistant",
+					Content: item.Text,
+				})
+			}
+		}
+		for _, item := range event.Message.Content {
 			if item.Type != "toolCall" {
 				continue
 			}

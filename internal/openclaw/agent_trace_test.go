@@ -69,3 +69,22 @@ func TestSummarizeToolResultBrowserOpenSuccess(t *testing.T) {
 		t.Fatalf("summarizeToolResult = %q, want %q", got, want)
 	}
 }
+
+func TestHandleSessionLogLine_EmitsAssistantText(t *testing.T) {
+	agent := newAgent("agent-1", "ctx-1", make(chan AgentStatus, 1))
+
+	line := `{"type":"message","message":{"role":"assistant","content":[{"type":"thinking","thinking":"internal"},{"type":"text","text":"STATUS:clicked"}]}}`
+	agent.handleSessionLogLine(line)
+
+	select {
+	case msg := <-agent.conversationCh:
+		if msg.Role != "assistant" {
+			t.Fatalf("role = %q, want assistant", msg.Role)
+		}
+		if msg.Content != "STATUS:clicked" {
+			t.Fatalf("content = %q, want STATUS:clicked", msg.Content)
+		}
+	default:
+		t.Fatal("expected assistant text to be emitted from session log")
+	}
+}
