@@ -775,7 +775,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.updateAgentDetail(&agentCopy)
 		a.focus = FocusConversation
 		a.inputMode = "chat"
-		a.conversation.SetAwake(true)
+		a.conversation.SetAwake(msg.Agent.Status != "active")
 		a.noticeTTL = 3
 		cmds = append(cmds, a.conversation.Focus())
 		cmds = append(cmds, a.waitForEvent())
