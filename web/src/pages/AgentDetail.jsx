@@ -9,6 +9,16 @@ export default function AgentDetail({ ws }) {
   const [fingerprint, setFingerprint] = useState(null)
   const [input, setInput] = useState('')
   const [tab, setTab] = useState('conversation')
+
+  const traceMessages = messages.filter(m => m.role === 'system')
+
+  function traceTone(content) {
+    if (!content) return '#9ca3af'
+    if (content.startsWith('Tool failed:')) return '#f87171'
+    if (content.startsWith('Tool completed:')) return '#34d399'
+    if (content.startsWith('Running ')) return '#fbbf24'
+    return '#9ca3af'
+  }
   const recentEvents = useMemo(() => ws.events.slice(-200), [ws.events])
 
   const refresh = () => {
@@ -106,7 +116,7 @@ export default function AgentDetail({ ws }) {
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        {['conversation', 'recording', 'fingerprint'].map(t => (
+        {['conversation', 'trace', 'recording', 'fingerprint'].map(t => (
           <button key={t} className={`btn ${tab === t ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab(t)}>
             {t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
@@ -131,6 +141,25 @@ export default function AgentDetail({ ws }) {
             <input className="input" value={input} onChange={e => setInput(e.target.value)}
               placeholder="Send message to agent..." onKeyDown={e => e.key === 'Enter' && sendMessage()} />
             <button className="btn btn-primary" onClick={sendMessage}>Send</button>
+          </div>
+        </div>
+      )}
+
+      {tab === 'trace' && (
+        <div className="card">
+          <h3>Action Trace</h3>
+          <div style={{ maxHeight: 500, overflowY: 'auto', marginBottom: 12 }}>
+            {traceMessages.length === 0 && <p style={{ color: '#666' }}>No action trace yet.</p>}
+            {traceMessages.map((m, i) => (
+              <div key={i} style={{ padding: '8px 0', borderBottom: '1px solid #1e1e2e' }}>
+                <span style={{ color: traceTone(m.content), fontWeight: 600, fontSize: 12 }}>
+                  SYSTEM
+                </span>
+                <div style={{ fontSize: 13, color: '#ccc', marginTop: 4, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
+                  {m.content}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

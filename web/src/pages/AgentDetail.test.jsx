@@ -15,13 +15,18 @@ function renderDetail(ws) {
 }
 
 describe('AgentDetail page', () => {
-  it('appends live conversation events and exposes resume controls', async () => {
+  it('appends live conversation events, exposes trace entries, and exposes resume controls', async () => {
     const call = vi.fn(async (method) => {
       if (method === 'agents.list') {
         return { agents: [{ id: 'agent-1', name: 'Agent One', status: 'paused', contextId: '', totalTokens: 0 }] }
       }
       if (method === 'agents.getMessages') {
-        return { messages: [{ role: 'user', content: 'hello' }] }
+        return {
+          messages: [
+            { role: 'user', content: 'hello' },
+            { role: 'system', content: 'Running browser action: open https://example.com' },
+          ],
+        }
       }
       if (method === 'recording.getTimeline') {
         return { actions: [] }
@@ -63,6 +68,11 @@ describe('AgentDetail page', () => {
     await waitFor(() => expect(screen.getByText('done')).toBeInTheDocument())
     expect(screen.getByText('active')).toBeInTheDocument()
 
+    fireEvent.click(screen.getByText('Trace'))
+    expect(screen.getByText('Action Trace')).toBeInTheDocument()
+    expect(screen.getByText('Running browser action: open https://example.com')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Conversation'))
     fireEvent.change(screen.getByPlaceholderText('Send message to agent...'), { target: { value: 'continue' } })
     fireEvent.click(screen.getByText('Send'))
 
