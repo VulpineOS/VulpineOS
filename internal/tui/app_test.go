@@ -174,6 +174,47 @@ func TestConversationUnreadCountsTrackNonSelectedAgents(t *testing.T) {
 	}
 }
 
+func TestDeletingSelectedAgentLoadsNextPersistedConversation(t *testing.T) {
+	db := openTestVault(t)
+
+	first, err := db.CreateAgent("first-agent", "first task", "{}")
+	if err != nil {
+		t.Fatalf("create first agent: %v", err)
+	}
+	if err := db.AppendMessage(first.ID, "assistant", "first persisted reply", 1); err != nil {
+		t.Fatalf("append first message: %v", err)
+	}
+
+	second, err := db.CreateAgent("second-agent", "second task", "{}")
+	if err != nil {
+		t.Fatalf("create second agent: %v", err)
+	}
+	if err := db.AppendMessage(second.ID, "assistant", "second persisted reply", 2); err != nil {
+		t.Fatalf("append second message: %v", err)
+	}
+
+	app := NewApp(nil, nil, nil, db, nil, nil)
+	app.conversation.SetSize(80, 20)
+	app.selectedAgentID = first.ID
+	app.conversation.SetAgentID(first.ID)
+	app.conversation.LoadMessages([]vault.AgentMessage{
+		{Role: "assistant", Content: "first persisted reply"},
+	})
+
+	model, _ := app.Update(shared.AgentDeletedMsg{AgentID: first.ID})
+	app = model.(App)
+
+	if app.selectedAgentID != second.ID {
+		t.Fatalf("selected agent = %q, want %q", app.selectedAgentID, second.ID)
+	}
+	if !strings.Contains(app.conversation.View(), "second persisted reply") {
+		t.Fatalf("expected conversation to reload second agent messages, got:\n%s", app.conversation.View())
+	}
+	if app.notice != "Agent deleted" {
+		t.Fatalf("notice = %q, want %q", app.notice, "Agent deleted")
+	}
+}
+
 func TestPauseResumeKeybindings(t *testing.T) {
 	db := openTestVault(t)
 
