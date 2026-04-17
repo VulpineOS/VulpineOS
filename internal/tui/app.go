@@ -412,14 +412,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			a.noticeTTL = 3
 		case "t":
-			enabled := !a.conversation.TraceOnly()
-			a.conversation.SetTraceOnly(enabled)
-			if enabled {
-				a.notice = "Trace mode enabled — showing tool actions and results"
-			} else {
-				a.notice = "Trace mode disabled — showing full conversation"
-			}
-			a.noticeTTL = 3
+			a.handleTraceToggle()
 		case "j":
 			switch a.focus {
 			case FocusAgentList:
@@ -462,48 +455,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		case "v":
-			// View: toggle browser window visibility
-			if a.kernel != nil && a.kernel.Window() != nil {
-				visible, err := a.kernel.Window().Toggle()
-				if err != nil {
-					a.notice = "Browser toggle failed: " + err.Error()
-				} else if visible {
-					a.notice = "Browser window shown — press v to hide"
-				} else {
-					a.notice = "Browser window hidden"
-				}
-				a.noticeTTL = 3
-			} else if a.kernel != nil && a.kernel.IsHeadless() {
-				a.notice = "Cannot show browser in headless mode — run without --headless"
-				a.noticeTTL = 4
-			} else {
-				// Fallback: open URL in system browser
-				url := a.contextList.SelectedURL()
-				if url != "" && url != "about:blank" {
-					_ = startExternalCommand("open", url)
-					a.notice = "Opened " + url
-					a.noticeTTL = 3
-				}
-			}
+			a.handleBrowserToggle()
 		case "o":
-			if a.selectedAgentID == "" {
-				a.notice = "No agent selected"
-				a.noticeTTL = 3
-				return a, nil
-			}
-			logPath := agentSessionLogPath(a.selectedAgentID)
-			if _, err := os.Stat(logPath); err != nil {
-				a.notice = "No session log yet for selected agent"
-				a.noticeTTL = 4
-				return a, nil
-			}
-			if err := startExternalCommand("open", logPath); err != nil {
-				a.notice = "Failed to open session log: " + err.Error()
-				a.noticeTTL = 4
-				return a, nil
-			}
-			a.notice = "Opened session log"
-			a.noticeTTL = 3
+			a.handleOpenSessionLog()
 		case "enter":
 			switch a.focus {
 			case FocusAgentList, FocusAgentDetail, FocusConversation:
@@ -1002,6 +956,15 @@ func (a App) updateDescInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // updateChatInput handles keystrokes in "chat" mode.
 func (a App) updateChatInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
+	case "ctrl+v":
+		a.handleBrowserToggle()
+		return a, nil
+	case "ctrl+o":
+		a.handleOpenSessionLog()
+		return a, nil
+	case "ctrl+t":
+		a.handleTraceToggle()
+		return a, nil
 	case "enter":
 		text := a.conversation.InputValue()
 		if text != "" && a.selectedAgentID != "" {
@@ -1036,6 +999,64 @@ func (a App) updateChatInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		*ti, cmd = ti.Update(msg)
 		return a, cmd
 	}
+}
+
+func (a *App) handleBrowserToggle() {
+	if a.kernel != nil && a.kernel.Window() != nil {
+		visible, err := a.kernel.Window().Toggle()
+		if err != nil {
+			a.notice = "Browser toggle failed: " + err.Error()
+		} else if visible {
+			a.notice = "Browser window shown — press v to hide"
+		} else {
+			a.notice = "Browser window hidden"
+		}
+		a.noticeTTL = 3
+		return
+	}
+	if a.kernel != nil && a.kernel.IsHeadless() {
+		a.notice = "Cannot show browser in headless mode — run without --headless"
+		a.noticeTTL = 4
+		return
+	}
+	url := a.contextList.SelectedURL()
+	if url != "" && url != "about:blank" {
+		_ = startExternalCommand("open", url)
+		a.notice = "Opened " + url
+		a.noticeTTL = 3
+	}
+}
+
+func (a *App) handleOpenSessionLog() {
+	if a.selectedAgentID == "" {
+		a.notice = "No agent selected"
+		a.noticeTTL = 3
+		return
+	}
+	logPath := agentSessionLogPath(a.selectedAgentID)
+	if _, err := os.Stat(logPath); err != nil {
+		a.notice = "No session log yet for selected agent"
+		a.noticeTTL = 4
+		return
+	}
+	if err := startExternalCommand("open", logPath); err != nil {
+		a.notice = "Failed to open session log: " + err.Error()
+		a.noticeTTL = 4
+		return
+	}
+	a.notice = "Opened session log"
+	a.noticeTTL = 3
+}
+
+func (a *App) handleTraceToggle() {
+	enabled := !a.conversation.TraceOnly()
+	a.conversation.SetTraceOnly(enabled)
+	if enabled {
+		a.notice = "Trace mode enabled — showing tool actions and results"
+	} else {
+		a.notice = "Trace mode disabled — showing full conversation"
+	}
+	a.noticeTTL = 3
 }
 
 // detailHeight is the fixed height for the agent detail area.

@@ -503,6 +503,32 @@ func TestUnfocusedChatAllowsViewShortcut(t *testing.T) {
 	}
 }
 
+func TestFocusedChatAllowsCtrlViewShortcut(t *testing.T) {
+	db := openTestVault(t)
+	cfg := &config.Config{}
+	app := NewApp(nil, nil, nil, db, cfg, nil)
+	app.conversation.SetSize(80, 20)
+
+	agent, err := db.CreateAgent("Scraper", "Scrape prices", "{}")
+	if err != nil {
+		t.Fatalf("create agent: %v", err)
+	}
+	app.selectedAgentID = agent.ID
+	app.focus = FocusConversation
+	app.inputMode = "chat"
+	app.conversation.SetAgentID(agent.ID)
+	app.conversation.SetAgentName(agent.Name)
+	app.conversation.SetAwake(true)
+	app.conversation.Focus()
+
+	model, _ := app.Update(tea.KeyMsg{Type: tea.KeyCtrlV})
+	app = model.(App)
+
+	if got := app.conversation.TextInput().Value(); got != "" {
+		t.Fatalf("conversation input = %q, want empty when ctrl+v shortcut is used", got)
+	}
+}
+
 func TestUnfocusedChatAllowsTraceShortcut(t *testing.T) {
 	db := openTestVault(t)
 	cfg := &config.Config{}
@@ -606,6 +632,54 @@ func TestUnfocusedChatAllowsOpenLogShortcut(t *testing.T) {
 	}
 	if updated.notice != "Opened session log" {
 		t.Fatalf("notice = %q, want %q", updated.notice, "Opened session log")
+	}
+}
+
+func TestFocusedChatAllowsCtrlOpenLogShortcut(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	cfg := &config.Config{}
+	db := openTestVault(t)
+	agent, err := db.CreateAgent("agent", "task", "{}")
+	if err != nil {
+		t.Fatalf("create agent: %v", err)
+	}
+
+	logPath := agentSessionLogPath(agent.ID)
+	if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
+		t.Fatalf("mkdir log dir: %v", err)
+	}
+	if err := os.WriteFile(logPath, []byte("{}\n"), 0644); err != nil {
+		t.Fatalf("write session log: %v", err)
+	}
+
+	original := startExternalCommand
+	defer func() { startExternalCommand = original }()
+	var opened []string
+	startExternalCommand = func(name string, args ...string) error {
+		opened = append([]string{name}, args...)
+		return nil
+	}
+
+	app := NewApp(nil, nil, nil, db, cfg, nil)
+	app.conversation.SetSize(80, 20)
+	app.selectedAgentID = agent.ID
+	app.conversation.SetAgentID(agent.ID)
+	app.conversation.SetAgentName(agent.Name)
+	app.conversation.SetAwake(true)
+	app.focus = FocusConversation
+	app.inputMode = "chat"
+	app.conversation.Focus()
+
+	model, _ := app.Update(tea.KeyMsg{Type: tea.KeyCtrlO})
+	updated := model.(App)
+
+	if got := updated.conversation.TextInput().Value(); got != "" {
+		t.Fatalf("conversation input = %q, want empty when ctrl+o shortcut is used", got)
+	}
+	if len(opened) != 2 || opened[0] != "open" || opened[1] != logPath {
+		t.Fatalf("unexpected open command: %#v", opened)
 	}
 }
 
