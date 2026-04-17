@@ -100,16 +100,14 @@ describe('Agents page', () => {
 
     fireEvent.click(screen.getByText('Pause Selected'))
     await waitFor(() => {
-      expect(calls).toHaveBeenCalledWith('agents.pause', { agentId: 'agent-1' })
-      expect(calls).toHaveBeenCalledWith('agents.pause', { agentId: 'agent-2' })
+      expect(calls).toHaveBeenCalledWith('agents.pauseMany', { agentIds: ['agent-1', 'agent-2'] })
     })
 
     fireEvent.click(checkboxes[1])
     fireEvent.click(checkboxes[2])
     fireEvent.click(screen.getByText('Resume Selected'))
     await waitFor(() => {
-      expect(calls).toHaveBeenCalledWith('agents.resume', { agentId: 'agent-1' })
-      expect(calls).toHaveBeenCalledWith('agents.resume', { agentId: 'agent-2' })
+      expect(calls).toHaveBeenCalledWith('agents.resumeMany', { agentIds: ['agent-1', 'agent-2'] })
     })
   })
 })

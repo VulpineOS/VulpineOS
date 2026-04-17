@@ -81,9 +81,8 @@ export default function Agents({ ws }) {
     if (selectedIDs.length === 0) return
     try {
       if (action === 'kill' && !confirm(`Kill ${selectedIDs.length} selected agents?`)) return
-      for (const id of selectedIDs) {
-        await ws.call(`agents.${action}`, { agentId: id })
-      }
+      const method = action === 'pause' ? 'agents.pauseMany' : action === 'resume' ? 'agents.resumeMany' : 'agents.killMany'
+      await ws.call(method, { agentIds: selectedIDs })
       setSelected({})
       refresh()
     } catch (e) { alert(e.message) }
