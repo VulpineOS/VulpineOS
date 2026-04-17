@@ -49,6 +49,24 @@ var (
 	stderr io.Writer = os.Stderr
 )
 
+var startGatewayIfAvailable = func(cfg *config.Config) *openclaw.Gateway {
+	mgr := openclaw.NewManager("")
+	if !mgr.OpenClawInstalled() {
+		return nil
+	}
+	gw := openclaw.NewGateway("")
+	if err := gw.Start(); err != nil {
+		log.Printf("Warning: OpenClaw gateway failed to start: %v (browser tools won't work)", err)
+		return nil
+	}
+	if cfg != nil {
+		if err := config.RepairOpenClawProfile(cfg.FoxbridgeCDPURL); err != nil {
+			log.Printf("Warning: could not repair OpenClaw profile after gateway start: %v", err)
+		}
+	}
+	return gw
+}
+
 func startLocalSessionLogging(baseDir string) (restore func(), path string) {
 	prevWriter := log.Writer()
 	prevFlags := log.Flags()
@@ -389,15 +407,7 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 
 			// Start OpenClaw gateway for browser support
 			if startErr == nil {
-				mgr := openclaw.NewManager("")
-				if mgr.OpenClawInstalled() {
-					gw = openclaw.NewGateway("")
-					if gwErr := gw.Start(); gwErr != nil {
-						log.Printf("Warning: OpenClaw gateway failed to start: %v (browser tools won't work)", gwErr)
-					} else if repairErr := config.RepairOpenClawProfile(cfg.FoxbridgeCDPURL); repairErr != nil {
-						log.Printf("Warning: could not repair OpenClaw profile after gateway start: %v", repairErr)
-					}
-				}
+				gw = startGatewayIfAvailable(cfg)
 			}
 
 			loaderProg.Send(loading.DoneMsg{})
@@ -751,6 +761,11 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 			log.Printf("Warning: could not repair OpenClaw profile after foxbridge start: %v", err)
 		}
 		log.Printf("foxbridge CDP on %s", fb.CDPURL())
+	}
+
+	gw := startGatewayIfAvailable(cfg)
+	if gw != nil {
+		defer gw.Stop()
 	}
 
 	log.Printf("VulpineOS kernel running (PID %d)", k.PID())
