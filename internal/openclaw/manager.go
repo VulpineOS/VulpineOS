@@ -120,10 +120,16 @@ func (m *Manager) SendMessageOrRespawn(agentID, text, sessionName string) error 
 
 // ResumeWithSession reactivates a saved session without forcing a model turn.
 func (m *Manager) ResumeWithSession(agentID, sessionName, configPath string) (string, error) {
+	return m.ResumeWithSessionIsolated(agentID, sessionName, configPath, nil)
+}
+
+// ResumeWithSessionIsolated reactivates a saved session without forcing a model turn
+// and ties any scoped runtime cleanup to the managed agent lifecycle.
+func (m *Manager) ResumeWithSessionIsolated(agentID, sessionName, configPath string, cleanup func()) (string, error) {
 	if strings.TrimSpace(configPath) == "" {
 		configPath = config.OpenClawConfigPath()
 	}
-	return m.SpawnWithSession(agentID, "Continue from the saved session and resume the current task.", sessionName, configPath)
+	return m.SpawnWithSessionIsolated(agentID, "Continue from the saved session and resume the current task.", sessionName, configPath, cleanup)
 }
 
 // PauseAgent saves state and stops an agent.

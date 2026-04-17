@@ -360,7 +360,18 @@ func (api *PanelAPI) agentsResume(params json.RawMessage) (json.RawMessage, erro
 		_ = api.Vault.UpdateAgentStatus(p.AgentID, "active")
 		return json.Marshal(map[string]string{"agentId": id})
 	}
-	id, err := api.Orchestrator.Agents.ResumeWithSession(p.AgentID, p.SessionName, config.OpenClawConfigPath())
+	if api.Vault == nil {
+		return nil, fmt.Errorf("vault not available")
+	}
+	agent, err := api.Vault.GetAgent(p.AgentID)
+	if err != nil {
+		return nil, err
+	}
+	configPath, cleanup, err := api.agentRuntimeConfig(agent)
+	if err != nil {
+		return nil, err
+	}
+	id, err := api.Orchestrator.Agents.ResumeWithSessionIsolated(p.AgentID, p.SessionName, configPath, cleanup)
 	if err != nil {
 		return nil, err
 	}
@@ -395,15 +406,9 @@ func (api *PanelAPI) agentsResumeMany(params json.RawMessage) (json.RawMessage, 
 			continue
 		}
 		sessionName := "vulpine-" + agentID
-		if _, err := api.Orchestrator.Agents.ResumeWithSession(agentID, sessionName, configPath); err != nil {
-			if cleanup != nil {
-				cleanup()
-			}
+		if _, err := api.Orchestrator.Agents.ResumeWithSessionIsolated(agentID, sessionName, configPath, cleanup); err != nil {
 			failures[agentID] = err.Error()
 			continue
-		}
-		if cleanup != nil {
-			cleanup()
 		}
 		_ = api.Vault.UpdateAgentStatus(agentID, "active")
 		resumed++
