@@ -648,3 +648,86 @@ func TestReconfigureRequestLifecycle(t *testing.T) {
 		t.Fatal("reconfigure request should be cleared")
 	}
 }
+
+func TestLoadHydratesFromOpenClawProfile(t *testing.T) {
+	withTempHome(t)
+
+	if err := os.MkdirAll(Dir(), 0700); err != nil {
+		t.Fatalf("mkdir config dir: %v", err)
+	}
+	if err := os.WriteFile(Path(), []byte(`{"provider":"","apiKey":"","model":"","setupComplete":false}`), 0600); err != nil {
+		t.Fatalf("write blank config: %v", err)
+	}
+
+	if err := os.MkdirAll(OpenClawProfileDir(), 0700); err != nil {
+		t.Fatalf("mkdir openclaw dir: %v", err)
+	}
+	profile := map[string]interface{}{
+		"env": map[string]interface{}{
+			"ZAI_API_KEY": "zai-test-key",
+		},
+		"agents": map[string]interface{}{
+			"defaults": map[string]interface{}{
+				"model": map[string]interface{}{
+					"primary": "zai/glm-4.7",
+				},
+			},
+		},
+		"browser": map[string]interface{}{
+			"enabled": true,
+			"cdpUrl":  "ws://127.0.0.1:9222",
+		},
+	}
+	data, err := json.Marshal(profile)
+	if err != nil {
+		t.Fatalf("marshal profile: %v", err)
+	}
+	if err := os.WriteFile(OpenClawConfigPath(), data, 0600); err != nil {
+		t.Fatalf("write openclaw profile: %v", err)
+	}
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Provider != "zai" {
+		t.Fatalf("provider = %q, want zai", cfg.Provider)
+	}
+	if cfg.Model != "zai/glm-4.7" {
+		t.Fatalf("model = %q, want zai/glm-4.7", cfg.Model)
+	}
+	if cfg.APIKey != "zai-test-key" {
+		t.Fatalf("apiKey = %q, want zai-test-key", cfg.APIKey)
+	}
+	if !cfg.SetupComplete {
+		t.Fatal("setupComplete = false, want true")
+	}
+}
+
+func TestOpenClawProfileBrowserRoute(t *testing.T) {
+	withTempHome(t)
+
+	if got := OpenClawProfileBrowserRoute(); got != "" {
+		t.Fatalf("route without profile = %q, want empty", got)
+	}
+
+	if err := os.MkdirAll(OpenClawProfileDir(), 0700); err != nil {
+		t.Fatalf("mkdir profile dir: %v", err)
+	}
+	for name, browser := range map[string]map[string]interface{}{
+		"camoufox": {"enabled": true, "cdpUrl": "ws://127.0.0.1:9222"},
+		"headless": {"enabled": true, "headless": true},
+		"direct":   {"enabled": true, "headless": false},
+	} {
+		data, err := json.Marshal(map[string]interface{}{"browser": browser})
+		if err != nil {
+			t.Fatalf("marshal %s browser config: %v", name, err)
+		}
+		if err := os.WriteFile(OpenClawConfigPath(), data, 0600); err != nil {
+			t.Fatalf("write %s browser config: %v", name, err)
+		}
+		if got := OpenClawProfileBrowserRoute(); got != name {
+			t.Fatalf("route for %s browser config = %q, want %q", name, got, name)
+		}
+	}
+}
