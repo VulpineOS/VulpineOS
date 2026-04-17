@@ -11,6 +11,7 @@ import (
 	"vulpineos/internal/costtrack"
 	"vulpineos/internal/juggler"
 	"vulpineos/internal/kernel"
+	"vulpineos/internal/openclaw"
 	"vulpineos/internal/orchestrator"
 	"vulpineos/internal/proxy"
 	"vulpineos/internal/recording"
@@ -1056,12 +1057,17 @@ func (api *PanelAPI) agentRuntimeConfig(agent *vault.Agent) (string, func(), err
 	if agent == nil {
 		return "", nil, fmt.Errorf("agent not found")
 	}
+	if api.Config != nil {
+		if err := config.RepairOpenClawProfile(api.Config.FoxbridgeCDPURL); err != nil {
+			return "", nil, fmt.Errorf("repair openclaw profile: %w", err)
+		}
+	}
 	meta, err := vault.ParseAgentMetadata(agent.Metadata)
 	if err != nil {
 		return "", nil, fmt.Errorf("parse agent metadata: %w", err)
 	}
 	if meta.ContextID == "" {
-		return config.OpenClawConfigPath(), nil, nil
+		return openclaw.PrepareRuntimeConfig(config.OpenClawConfigPath())
 	}
 	if api.Orchestrator == nil {
 		return "", nil, fmt.Errorf("orchestrator not available")

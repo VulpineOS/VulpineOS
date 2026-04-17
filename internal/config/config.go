@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Config holds VulpineOS user configuration.
@@ -384,6 +385,34 @@ func (c *Config) GenerateOpenClawConfig(vulpineosBinary, camoufoxBinary string) 
 	return os.WriteFile(path, data, 0644)
 }
 
+// RepairOpenClawProfile restores VulpineOS-required OpenClaw profile fields after
+// OpenClaw rewrites openclaw.json and strips custom settings.
+func RepairOpenClawProfile(cdpURL string) error {
+	profileDir := OpenClawProfileDir()
+	if err := os.MkdirAll(profileDir, 0700); err != nil {
+		return fmt.Errorf("create openclaw profile dir: %w", err)
+	}
+	if err := ensureOpenClawWorkspace(); err != nil {
+		return fmt.Errorf("create openclaw workspace: %w", err)
+	}
+	if err := ensureOpenClawProfileSkills(); err != nil {
+		return fmt.Errorf("create openclaw profile skills: %w", err)
+	}
+
+	existing, err := readExistingOpenClawConfig()
+	if err != nil {
+		return fmt.Errorf("read openclaw config: %w", err)
+	}
+	applyOpenClawProfileDefaults(existing, cdpURL)
+
+	data, err := json.MarshalIndent(existing, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal repaired openclaw config: %w", err)
+	}
+
+	return os.WriteFile(OpenClawConfigPath(), data, 0644)
+}
+
 // OpenClawProfileDir returns the OpenClaw profile directory for VulpineOS.
 func OpenClawProfileDir() string {
 	home, _ := os.UserHomeDir()
@@ -438,6 +467,34 @@ func preservedCommandsConfig(existing map[string]interface{}) map[string]interfa
 		}
 	}
 	return commands
+}
+
+func applyOpenClawProfileDefaults(cfg map[string]interface{}, cdpURL string) {
+	agents, ok := cfg["agents"].(map[string]interface{})
+	if !ok || agents == nil {
+		agents = make(map[string]interface{})
+		cfg["agents"] = agents
+	}
+	defaults, ok := agents["defaults"].(map[string]interface{})
+	if !ok || defaults == nil {
+		defaults = make(map[string]interface{})
+		agents["defaults"] = defaults
+	}
+	defaults["workspace"] = OpenClawWorkspaceDir()
+	if _, ok := defaults["compaction"].(map[string]interface{}); !ok {
+		defaults["compaction"] = map[string]interface{}{"mode": "safeguard"}
+	}
+
+	browser, ok := cfg["browser"].(map[string]interface{})
+	if !ok || browser == nil {
+		browser = make(map[string]interface{})
+		cfg["browser"] = browser
+	}
+	browser["enabled"] = true
+	browser["headless"] = true
+	if strings.TrimSpace(cdpURL) != "" {
+		browser["cdpUrl"] = cdpURL
+	}
 }
 
 func ensureOpenClawWorkspace() error {
