@@ -919,12 +919,15 @@ func (api *PanelAPI) statusGet() (json.RawMessage, error) {
 	out := map[string]interface{}{}
 
 	if api.Kernel != nil {
+		route, source := api.browserRoute()
 		out["kernelUp"] = api.Kernel.Running()
 		out["kernelPid"] = api.Kernel.PID()
 		out["kernel_running"] = api.Kernel.Running()
 		out["kernel_pid"] = api.Kernel.PID()
 		out["kernel_headless"] = api.Kernel.IsHeadless()
-		out["browser_route"] = api.browserRoute()
+		out["browser_route"] = route
+		out["browser_route_source"] = source
+		out["browser_window"] = api.browserWindow()
 	}
 	if api.Orchestrator != nil {
 		status := api.Orchestrator.Status()
@@ -943,17 +946,38 @@ func (api *PanelAPI) statusGet() (json.RawMessage, error) {
 	return json.Marshal(out)
 }
 
-func (api *PanelAPI) browserRoute() string {
+func (api *PanelAPI) browserRoute() (string, string) {
 	switch {
 	case api.Config != nil && strings.TrimSpace(api.Config.FoxbridgeCDPURL) != "":
-		return "camoufox"
+		return "camoufox", "runtime"
 	case config.OpenClawProfileBrowserRoute() != "":
-		return config.OpenClawProfileBrowserRoute()
+		return config.OpenClawProfileBrowserRoute(), "profile"
 	case api.Kernel != nil && api.Kernel.IsHeadless():
-		return "headless"
+		return "headless", "kernel"
 	default:
-		return "direct"
+		return "direct", "kernel"
 	}
+}
+
+func (api *PanelAPI) browserWindow() string {
+	if api.Kernel == nil {
+		return ""
+	}
+	if api.Kernel.IsHeadless() {
+		return "headless"
+	}
+	w := api.Kernel.Window()
+	if w == nil {
+		return "unavailable"
+	}
+	visible, found := w.Status()
+	if !found {
+		return "unavailable"
+	}
+	if visible {
+		return "visible"
+	}
+	return "hidden"
 }
 
 func (api *PanelAPI) runtimeList(params json.RawMessage) (json.RawMessage, error) {

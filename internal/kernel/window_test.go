@@ -104,3 +104,33 @@ func TestToggleRefreshesVisibleStateBeforeShowing(t *testing.T) {
 		t.Fatalf("unexpected call order: %#v", calls)
 	}
 }
+
+func TestStatusRefreshesVisibleState(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("macOS-specific window visibility test")
+	}
+
+	original := runWindowCommand
+	defer func() { runWindowCommand = original }()
+
+	runWindowCommand = func(name string, args ...string) (string, error) {
+		call := name + " " + strings.Join(args, " ")
+		switch {
+		case name == "ps":
+			return "123 1 camoufox\n", nil
+		case strings.Contains(call, "get visible of first process whose unix id is 123"):
+			return "true\n", nil
+		default:
+			return "", nil
+		}
+	}
+
+	w := NewWindowController(123)
+	visible, found := w.Status()
+	if !found {
+		t.Fatal("Status() found = false, want true")
+	}
+	if !visible {
+		t.Fatal("Status() visible = false, want true")
+	}
+}

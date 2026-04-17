@@ -84,7 +84,13 @@ export default function Settings({ ws }) {
             <div>Browser: Camoufox (Firefox 146.0.1)</div>
             <div>Protocol: Juggler + foxbridge CDP proxy</div>
             <div>OpenClaw integration: {cfg.setupComplete ? 'Configured' : 'Not configured'}</div>
-            <div>Route: {(status.browser_route || 'unknown').toUpperCase()} · {status.kernel_headless ? 'HEADLESS' : 'GUI'}</div>
+            <div>
+              Route: {(status.browser_route || 'unknown').toUpperCase()}
+              {status.browser_route_source ? ` (${status.browser_route_source})` : ''}
+              {' · '}
+              {status.kernel_headless ? 'HEADLESS' : 'GUI'}
+            </div>
+            <div>Window: {(status.browser_window || 'unknown').toUpperCase()}</div>
           </div>
         </div>
       </div>

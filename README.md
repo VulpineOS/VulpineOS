@@ -193,7 +193,8 @@ New-agent introduction turns now also assert the assigned runtime name explicitl
 Those bootstrap files also force exact action/result reporting and explicitly forbid claiming a browser action succeeded after an error, timeout, or incomplete result.
 The footer always shows the current arrow-key mode as `mode:navigate` or `mode:resize`.
 The system panel now shows both the browser mode (`GUI` or `HEADLESS`) and the active browser route (`CAMOUFOX` when OpenClaw is attached through foxbridge into Camoufox), so the operator can verify the runtime path without checking logs.
-The web panel now surfaces the same route and mode signal on Dashboard and Settings, so local TUI and panel stay aligned about whether OpenClaw is actually attached to Camoufox.
+The TUI also shows the current browser window state (`VISIBLE`, `HIDDEN`, `HEADLESS`, or `N/A`) so `v` no longer feels opaque when the window controller cannot act.
+The web panel now surfaces the same route and mode signal on Dashboard and Settings, including whether that route came from live runtime state or only from the shared OpenClaw profile.
 If an older machine already has a valid `~/.openclaw-vulpine/openclaw.json` but a stale or blank `~/.vulpineos/config.json`, VulpineOS now backfills the local provider/model/key state from the OpenClaw profile instead of pretending the installation is unconfigured.
 Saving provider settings from the web panel now also marks setup complete and regenerates the shared OpenClaw profile immediately, so panel edits apply to the next agent run without waiting for a separate reconfigure pass.
 If the conversation panel is awake but the cursor has dropped out of the input, the next typed character re-focuses chat automatically, while `v` still works as a browser show or hide shortcut from that unfocused state.

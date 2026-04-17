@@ -28,6 +28,12 @@ func TestStatusGetIncludesBrowserRoute(t *testing.T) {
 	if got := result["browser_route"]; got != "camoufox" {
 		t.Fatalf("browser_route = %v, want camoufox", got)
 	}
+	if got := result["browser_route_source"]; got != "runtime" {
+		t.Fatalf("browser_route_source = %v, want runtime", got)
+	}
+	if got := result["browser_window"]; got != "unavailable" {
+		t.Fatalf("browser_window = %v, want unavailable", got)
+	}
 	if got := result["kernel_headless"]; got != false {
 		t.Fatalf("kernel_headless = %v, want false", got)
 	}
@@ -60,5 +66,8 @@ func TestStatusGetFallsBackToOpenClawProfileRoute(t *testing.T) {
 
 	if got := result["browser_route"]; got != "camoufox" {
 		t.Fatalf("browser_route = %v, want camoufox", got)
+	}
+	if got := result["browser_route_source"]; got != "profile" {
+		t.Fatalf("browser_route_source = %v, want profile", got)
 	}
 }

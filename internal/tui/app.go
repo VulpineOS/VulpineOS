@@ -636,11 +636,12 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if a.kernel != nil {
 			ksMsg := shared.KernelStatusMsg{
-				Running:      a.kernel.Running(),
-				PID:          a.kernel.PID(),
-				Uptime:       a.kernel.Uptime(),
-				Headless:     a.kernel.IsHeadless(),
-				BrowserRoute: a.browserRouteLabel(),
+				Running:       a.kernel.Running(),
+				PID:           a.kernel.PID(),
+				Uptime:        a.kernel.Uptime(),
+				Headless:      a.kernel.IsHeadless(),
+				BrowserRoute:  a.browserRouteLabel(),
+				BrowserWindow: a.browserWindowLabel(),
 			}
 			a.systemInfo, _ = a.systemInfo.Update(ksMsg)
 		}
@@ -1057,6 +1058,27 @@ func (a *App) handleTraceToggle() {
 		a.notice = "Trace mode disabled — showing full conversation"
 	}
 	a.noticeTTL = 3
+}
+
+func (a *App) browserWindowLabel() string {
+	if a.kernel == nil {
+		return ""
+	}
+	if a.kernel.IsHeadless() {
+		return "HEADLESS"
+	}
+	w := a.kernel.Window()
+	if w == nil {
+		return "N/A"
+	}
+	visible, found := w.Status()
+	if !found {
+		return "N/A"
+	}
+	if visible {
+		return "VISIBLE"
+	}
+	return "HIDDEN"
 }
 
 // detailHeight is the fixed height for the agent detail area.

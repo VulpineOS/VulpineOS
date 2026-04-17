@@ -36,6 +36,13 @@ func (w *WindowController) IsVisible() bool {
 	return w.visible
 }
 
+// Status returns the latest visible state and whether a window process could be found.
+func (w *WindowController) Status() (bool, bool) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.visible, w.refreshVisibleLocked()
+}
+
 // Toggle shows the window if hidden, hides if shown.
 func (w *WindowController) Toggle() (bool, error) {
 	w.mu.Lock()
@@ -194,9 +201,9 @@ func (w *WindowController) candidatePIDs() []int {
 	return ordered
 }
 
-func (w *WindowController) refreshVisibleLocked() {
+func (w *WindowController) refreshVisibleLocked() bool {
 	if runtime.GOOS != "darwin" {
-		return
+		return true
 	}
 	for _, pid := range w.candidatePIDs() {
 		out, err := runWindowCommand("osascript", "-e",
@@ -211,8 +218,9 @@ func (w *WindowController) refreshVisibleLocked() {
 		}
 		w.targetPID = pid
 		w.visible = visible
-		return
+		return true
 	}
+	return false
 }
 
 func parseAppleScriptBool(out string) (bool, bool) {

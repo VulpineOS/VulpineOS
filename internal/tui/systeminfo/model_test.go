@@ -13,11 +13,12 @@ func TestKernelStatusViewShowsModeAndRoute(t *testing.T) {
 	model.SetHeight(20)
 
 	updated, _ := model.Update(shared.KernelStatusMsg{
-		Running:      true,
-		PID:          1234,
-		Uptime:       2 * time.Minute,
-		Headless:     false,
-		BrowserRoute: "CAMOUFOX",
+		Running:       true,
+		PID:           1234,
+		Uptime:        2 * time.Minute,
+		Headless:      false,
+		BrowserRoute:  "CAMOUFOX",
+		BrowserWindow: "HIDDEN",
 	})
 
 	view := updated.View()
@@ -26,5 +27,8 @@ func TestKernelStatusViewShowsModeAndRoute(t *testing.T) {
 	}
 	if !strings.Contains(view, "Route CAMOUFOX") {
 		t.Fatalf("expected CAMOUFOX route in view, got:\n%s", view)
+	}
+	if !strings.Contains(view, "Win HIDDEN") {
+		t.Fatalf("expected window state in view, got:\n%s", view)
 	}
 }

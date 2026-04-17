@@ -30,7 +30,13 @@ export default function Dashboard({ ws }) {
           <h3>Kernel</h3>
           <div className="stat-value">{s.kernel_running ? '●' : '○'}</div>
           <div className="stat-label">PID {s.kernel_pid || '—'} · {t.memoryMB ? `${t.memoryMB}MB` : '—'}</div>
-          <div className="stat-label">{(s.browser_route || 'unknown').toUpperCase()} · {s.kernel_headless ? 'HEADLESS' : 'GUI'}</div>
+          <div className="stat-label">
+            {(s.browser_route || 'unknown').toUpperCase()}
+            {s.browser_route_source ? ` (${s.browser_route_source})` : ''}
+            {' · '}
+            {s.kernel_headless ? 'HEADLESS' : 'GUI'}
+          </div>
+          <div className="stat-label">Window: {(s.browser_window || 'unknown').toUpperCase()}</div>
         </div>
         <div className="card">
           <h3>Agents</h3>
