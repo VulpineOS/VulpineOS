@@ -201,6 +201,7 @@ Saving provider settings from the web panel now also marks setup complete and re
 The web panel Settings page now loads the live provider registry from the runtime and presents provider/model dropdowns instead of raw free-text IDs, reducing config typos.
 Served mode now starts the OpenClaw gateway with the same repair path as local mode, so browser-backed agents do not silently lose gateway support when you move from the local TUI to the hosted panel/server path.
 Gateway start, stop, and profile-repair failures now also land in the runtime audit stream, so startup problems appear in the system panel/runtime views instead of only in raw log files.
+Pause/resume flows now keep scoped OpenClaw runtime configs alive for the full resumed agent lifecycle, so a context-pinned agent does not silently fall back to the shared browser route after resume.
 If the conversation panel is awake but the cursor has dropped out of the input, the next typed character re-focuses chat automatically, while `v` still works as a browser show or hide shortcut from that unfocused state.
 After a newly created agent sends its first real reply, VulpineOS automatically snaps focus back to the chat box so the conversation is immediately writable again.
 If the startup turn ends without an assistant reply, the first terminal agent status now also re-focuses chat so the input does not stay visually awake but functionally locked.

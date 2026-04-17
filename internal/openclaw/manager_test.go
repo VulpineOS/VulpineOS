@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"vulpineos/internal/config"
 )
 
 func TestNewManager(t *testing.T) {
@@ -157,5 +159,25 @@ func TestRuntimeEnvForConfigOmitsMissingGatewayToken(t *testing.T) {
 	}
 	if _, ok := env["OPENCLAW_GATEWAY_TOKEN"]; ok {
 		t.Fatalf("OPENCLAW_GATEWAY_TOKEN should be omitted when token is absent: %#v", env)
+	}
+}
+
+func TestResumeWithSessionIsolatedRunsCleanupOnStartFailure(t *testing.T) {
+	badBin := filepath.Join(t.TempDir(), "broken-openclaw")
+	if err := os.WriteFile(badBin, []byte("not-a-real-binary"), 0755); err != nil {
+		t.Fatalf("write broken binary: %v", err)
+	}
+
+	m := NewManager(badBin)
+	called := false
+
+	_, err := m.ResumeWithSessionIsolated("agent-1", "session-1", config.OpenClawConfigPath(), func() {
+		called = true
+	})
+	if err == nil {
+		t.Fatal("expected resume to fail with bad binary")
+	}
+	if !called {
+		t.Fatal("expected cleanup to run on start failure")
 	}
 }

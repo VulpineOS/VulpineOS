@@ -1518,10 +1518,7 @@ func (a App) resumeAgent(agentID string) tea.Cmd {
 		if err != nil {
 			return statusNotice{text: "Resume failed: " + err.Error()}
 		}
-		_, err = a.orch.Agents.ResumeWithSession(agentID, sessionName, configPath)
-		if cleanup != nil {
-			cleanup()
-		}
+		_, err = a.orch.Agents.ResumeWithSessionIsolated(agentID, sessionName, configPath, cleanup)
 		if err != nil {
 			return statusNotice{text: "Resume failed: " + err.Error()}
 		}
@@ -1729,10 +1726,7 @@ func (a App) resumePausedAgents() tea.Cmd {
 				continue
 			}
 			sessionName := "vulpine-" + agents[i].ID
-			if _, err := a.orch.Agents.ResumeWithSession(agents[i].ID, sessionName, configPath); err == nil {
-				if cleanup != nil {
-					cleanup()
-				}
+			if _, err := a.orch.Agents.ResumeWithSessionIsolated(agents[i].ID, sessionName, configPath, cleanup); err == nil {
 				_ = a.vault.UpdateAgentStatus(agents[i].ID, "active")
 				resumed++
 				affected = append(affected, agents[i].ID)
