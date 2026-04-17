@@ -20,6 +20,13 @@ export default function AgentDetail({ ws }) {
     if (content.startsWith('Running ')) return '#fbbf24'
     return '#9ca3af'
   }
+
+  function formatTimestamp(value) {
+    if (!value) return null
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return null
+    return date.toLocaleTimeString()
+  }
   const recentEvents = useMemo(() => ws.events.slice(-200), [ws.events])
 
   const refresh = () => {
@@ -134,6 +141,9 @@ export default function AgentDetail({ ws }) {
                 <span style={{ color: m.role === 'user' ? '#60a5fa' : m.role === 'assistant' ? '#a78bfa' : '#666', fontWeight: 600, fontSize: 12 }}>
                   {m.role?.toUpperCase()}
                 </span>
+                {formatTimestamp(m.timestamp) && (
+                  <span style={{ color: '#666', fontSize: 11, marginLeft: 8 }}>{formatTimestamp(m.timestamp)}</span>
+                )}
                 <div style={{ fontSize: 13, color: '#ccc', marginTop: 4, whiteSpace: 'pre-wrap' }}>{m.content}</div>
               </div>
             ))}
@@ -156,6 +166,9 @@ export default function AgentDetail({ ws }) {
                 <span style={{ color: traceTone(m.content), fontWeight: 600, fontSize: 12 }}>
                   SYSTEM
                 </span>
+                {formatTimestamp(m.timestamp) && (
+                  <span style={{ color: '#666', fontSize: 11, marginLeft: 8 }}>{formatTimestamp(m.timestamp)}</span>
+                )}
                 <div style={{ fontSize: 13, color: '#ccc', marginTop: 4, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
                   {m.content}
                 </div>
