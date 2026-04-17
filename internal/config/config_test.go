@@ -258,6 +258,13 @@ func TestGenerateOpenClawConfig(t *testing.T) {
 	if !strings.Contains(string(identityData), "Use the name assigned by the current user message") {
 		t.Fatalf("unexpected IDENTITY.md contents:\n%s", string(identityData))
 	}
+	agentsData, err := os.ReadFile(filepath.Join(OpenClawWorkspaceDir(), "AGENTS.md"))
+	if err != nil {
+		t.Fatalf("expected isolated workspace agents file: %v", err)
+	}
+	if !strings.Contains(string(agentsData), "Never claim an action succeeded when the tool returned an error") {
+		t.Fatalf("expected AGENTS.md to forbid fake success reporting, got:\n%s", string(agentsData))
+	}
 	skillPath := filepath.Join(OpenClawProfileDir(), "skills", "vulpine-browser", "SKILL.md")
 	skillData, err := os.ReadFile(skillPath)
 	if err != nil {
@@ -265,6 +272,9 @@ func TestGenerateOpenClawConfig(t *testing.T) {
 	}
 	if !strings.Contains(string(skillData), "Do not call `vulpineos-browser`") {
 		t.Fatalf("expected skill to forbid vulpineos-browser helper, got:\n%s", string(skillData))
+	}
+	if !strings.Contains(string(skillData), "Never reply with a requested success string if the browser action failed") {
+		t.Fatalf("expected skill to forbid fake success strings, got:\n%s", string(skillData))
 	}
 }
 
@@ -390,6 +400,9 @@ func TestGenerateOpenClawConfigRewritesStaleVulpineBrowserSkill(t *testing.T) {
 	if !strings.Contains(body, "Do not call `vulpineos-browser`") {
 		t.Fatalf("expected rewritten skill to forbid helper command, got:\n%s", body)
 	}
+	if !strings.Contains(body, "Never reply with a requested success string if the browser action failed") {
+		t.Fatalf("expected rewritten skill to forbid fake success strings, got:\n%s", body)
+	}
 }
 
 func TestRepairOpenClawProfileRestoresWorkspaceAndSkill(t *testing.T) {
@@ -465,6 +478,9 @@ func TestRepairOpenClawProfileRestoresWorkspaceAndSkill(t *testing.T) {
 	}
 	if !strings.Contains(string(skillData), "Use the `browser` tool directly") {
 		t.Fatalf("expected repaired skill to instruct browser tool, got:\n%s", string(skillData))
+	}
+	if !strings.Contains(string(skillData), "Never reply with a requested success string if the browser action failed") {
+		t.Fatalf("expected repaired skill to forbid fake success strings, got:\n%s", string(skillData))
 	}
 }
 

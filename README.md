@@ -189,6 +189,7 @@ A terminal-based command center for managing AI agents, browser contexts, and id
 Arrow keys navigate the agent list and conversation by default. If you want panel resizing on arrow keys, enable **Arrow Keys Resize Panels** in `Settings -> General` or press `m` to toggle modes directly from the TUI footer.
 
 The generated OpenClaw workspace under `~/.openclaw-vulpine/workspace` is refreshed with VulpineOS-owned bootstrap files so agents follow the current assigned name and task instead of inheriting an older persona from a stale workspace.
+Those bootstrap files also force exact action/result reporting and explicitly forbid claiming a browser action succeeded after an error, timeout, or incomplete result.
 The footer always shows the current arrow-key mode as `mode:navigate` or `mode:resize`.
 
 The agent list shows unread reply counts for non-selected agents so background work does not disappear while you are focused elsewhere.

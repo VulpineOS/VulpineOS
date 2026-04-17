@@ -1,6 +1,7 @@
 package openclaw
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os"
@@ -394,9 +395,7 @@ func (m *Manager) startManagedAgent(agentID, contextID, openclawBin string, args
 		agent.sessionLogPath = filepath.Join(config.OpenClawProfileDir(), "agents", "main", "sessions", sessionID+".jsonl")
 	}
 	if configPath != "" {
-		agent.env = map[string]string{
-			"OPENCLAW_CONFIG_PATH": configPath,
-		}
+		agent.env = runtimeEnvForConfig(configPath)
 	}
 	if err := agent.start(openclawBin, args); err != nil {
 		if cleanup != nil {
@@ -487,6 +486,43 @@ func (m *Manager) logRuntimeEvent(level, event, message string, metadata map[str
 	if _, err := audit.Log("openclaw", level, event, message, metadata); err != nil {
 		fmt.Printf("runtime audit openclaw %s: %v\n", event, err)
 	}
+}
+
+func runtimeEnvForConfig(configPath string) map[string]string {
+	if strings.TrimSpace(configPath) == "" {
+		return nil
+	}
+
+	env := map[string]string{
+		"OPENCLAW_CONFIG_PATH": configPath,
+	}
+	if token, err := gatewayAuthToken(configPath); err == nil && strings.TrimSpace(token) != "" {
+		env["OPENCLAW_GATEWAY_TOKEN"] = token
+	}
+	return env
+}
+
+func gatewayAuthToken(configPath string) (string, error) {
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return "", err
+	}
+
+	var cfg map[string]interface{}
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return "", err
+	}
+
+	gateway, ok := cfg["gateway"].(map[string]interface{})
+	if !ok || gateway == nil {
+		return "", nil
+	}
+	auth, ok := gateway["auth"].(map[string]interface{})
+	if !ok || auth == nil {
+		return "", nil
+	}
+	token, _ := auth["token"].(string)
+	return token, nil
 }
 
 func (m *Manager) fanOutStatus() {

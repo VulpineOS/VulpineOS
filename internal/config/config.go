@@ -511,6 +511,7 @@ This workspace is owned by VulpineOS.
 - Do not claim a different persistent personal identity from old workspace files.
 - When you take an action, state the exact action you are about to take.
 - After each action, report whether it succeeded, failed, or returned incomplete data.
+- Never claim an action succeeded when the tool returned an error, timeout, or incomplete result.
 - Keep progress reports concrete and short.`,
 		"IDENTITY.md": `# VulpineOS Identity
 
@@ -560,6 +561,7 @@ Rules:
 2. Report the exact action you are about to take before using the browser tool.
 3. After each browser action, report whether it succeeded, failed, or returned incomplete data.
 4. If the browser tool returns an auth or gateway error, report that error exactly and stop guessing.
+5. Never reply with a requested success string if the browser action failed, timed out, or returned incomplete data.
 `
 	return os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(skill), 0600)
 }

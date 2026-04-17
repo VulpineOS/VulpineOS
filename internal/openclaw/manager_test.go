@@ -1,6 +1,8 @@
 package openclaw
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -123,5 +125,37 @@ func TestSpawnFailsWithBadBinary(t *testing.T) {
 	_, err := m.Spawn("ctx-1", "")
 	if err == nil {
 		t.Error("expected error when spawning with non-executable binary")
+	}
+}
+
+func TestRuntimeEnvForConfigIncludesGatewayToken(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "openclaw.json")
+	if err := os.WriteFile(configPath, []byte(`{"gateway":{"auth":{"mode":"token","token":"token-123"}}}`), 0600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	env := runtimeEnvForConfig(configPath)
+	if env["OPENCLAW_CONFIG_PATH"] != configPath {
+		t.Fatalf("OPENCLAW_CONFIG_PATH = %q, want %q", env["OPENCLAW_CONFIG_PATH"], configPath)
+	}
+	if env["OPENCLAW_GATEWAY_TOKEN"] != "token-123" {
+		t.Fatalf("OPENCLAW_GATEWAY_TOKEN = %q, want %q", env["OPENCLAW_GATEWAY_TOKEN"], "token-123")
+	}
+}
+
+func TestRuntimeEnvForConfigOmitsMissingGatewayToken(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "openclaw.json")
+	if err := os.WriteFile(configPath, []byte(`{"gateway":{"mode":"local"}}`), 0600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	env := runtimeEnvForConfig(configPath)
+	if env["OPENCLAW_CONFIG_PATH"] != configPath {
+		t.Fatalf("OPENCLAW_CONFIG_PATH = %q, want %q", env["OPENCLAW_CONFIG_PATH"], configPath)
+	}
+	if _, ok := env["OPENCLAW_GATEWAY_TOKEN"]; ok {
+		t.Fatalf("OPENCLAW_GATEWAY_TOKEN should be omitted when token is absent: %#v", env)
 	}
 }
