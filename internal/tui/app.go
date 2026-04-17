@@ -339,7 +339,13 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "new-agent-desc":
 			return a.updateDescInput(msg)
 		case "chat":
-			if a.conversation.Focused() || (msg.String() != "v" && msg.String() != "t" && msg.String() != "o") {
+			if a.conversation.Focused() {
+				if a.allowFocusedChatShortcut(msg) {
+					break
+				}
+				return a.updateChatInput(msg)
+			}
+			if msg.String() != "v" && msg.String() != "t" && msg.String() != "o" {
 				return a.updateChatInput(msg)
 			}
 		}
@@ -1006,6 +1012,15 @@ func (a App) updateChatInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		*ti, cmd = ti.Update(msg)
 		return a, cmd
+	}
+}
+
+func (a App) allowFocusedChatShortcut(msg tea.KeyMsg) bool {
+	switch msg.String() {
+	case "v", "t", "o":
+		return strings.TrimSpace(a.conversation.InputValue()) == ""
+	default:
+		return false
 	}
 }
 
