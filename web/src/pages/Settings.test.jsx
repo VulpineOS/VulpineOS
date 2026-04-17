@@ -12,6 +12,7 @@ describe('Settings page', () => {
           return {
             provider: 'anthropic',
             model: 'claude-sonnet-4-6',
+            hasKey: true,
             setupComplete: true,
           }
         }
@@ -34,5 +35,6 @@ describe('Settings page', () => {
     expect(screen.getByText('Window: HIDDEN')).toBeInTheDocument()
     expect(screen.getByText('Gateway: RUNNING')).toBeInTheDocument()
     expect(screen.getByText('OpenClaw integration: Configured')).toBeInTheDocument()
+    expect(screen.getByText('A key is already stored locally. Leave this blank to keep it.')).toBeInTheDocument()
   })
 })

@@ -47,6 +47,13 @@ export default function Settings({ ws }) {
             <div>
               <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>API Key</label>
               <input className="input" type="password" value={cfg.apiKey || ''} onChange={e => setCfg({ ...cfg, apiKey: e.target.value })} placeholder="sk-..." />
+              <p style={{ fontSize: 11, color: '#555', marginTop: 4 }}>
+                {cfg.apiKey
+                  ? 'New key entered; saving will replace the stored key.'
+                  : cfg.hasKey
+                    ? 'A key is already stored locally. Leave this blank to keep it.'
+                    : 'No key stored yet.'}
+              </p>
             </div>
             <button className="btn btn-primary" onClick={saveConfig}>Save Provider</button>
           </div>
