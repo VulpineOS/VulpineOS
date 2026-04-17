@@ -8,6 +8,7 @@ export default function Agents({ ws }) {
   const [costs, setCosts] = useState([])
   const [contexts, setContexts] = useState([])
   const [selectedContext, setSelectedContext] = useState(localStorage.getItem('vulpine_context_id') || '')
+  const [notice, setNotice] = useState('')
 
   const refresh = () => {
     ws.call('agents.list').then(r => setAgents(r?.agents || [])).catch(() => {})
@@ -82,7 +83,15 @@ export default function Agents({ ws }) {
     try {
       if (action === 'kill' && !confirm(`Kill ${selectedIDs.length} selected agents?`)) return
       const method = action === 'pause' ? 'agents.pauseMany' : action === 'resume' ? 'agents.resumeMany' : 'agents.killMany'
-      await ws.call(method, { agentIds: selectedIDs })
+      const result = await ws.call(method, { agentIds: selectedIDs })
+      const actionKey = action === 'pause' ? 'paused' : action === 'resume' ? 'resumed' : 'killed'
+      const failures = Object.keys(result?.failures || {}).length
+      const completed = result?.[actionKey] ?? (failures === 0 ? selectedIDs.length : 0)
+      if (failures > 0) {
+        setNotice(`${actionKey.charAt(0).toUpperCase() + actionKey.slice(1)} ${completed} agents, ${failures} failed`)
+      } else {
+        setNotice(`${actionKey.charAt(0).toUpperCase() + actionKey.slice(1)} ${completed} agents`)
+      }
       setSelected({})
       refresh()
     } catch (e) { alert(e.message) }
@@ -126,6 +135,12 @@ export default function Agents({ ws }) {
           <button className="btn btn-ghost" onClick={refresh}>↻</button>
         </div>
       </div>
+
+      {notice && (
+        <div className="card" style={{ marginBottom: 16, padding: 12, color: '#ccc' }}>
+          {notice}
+        </div>
+      )}
 
       <div className="card">
         <table className="table">
