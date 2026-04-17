@@ -91,6 +91,7 @@ export default function Settings({ ws }) {
               {status.kernel_headless ? 'HEADLESS' : 'GUI'}
             </div>
             <div>Window: {(status.browser_window || 'unknown').toUpperCase()}</div>
+            <div>Gateway: {status.gateway_running ? 'RUNNING' : 'STOPPED'}</div>
           </div>
         </div>
       </div>

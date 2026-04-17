@@ -23,6 +23,10 @@ import (
 )
 
 // PanelAPI handles control messages from the web panel, dispatching to subsystems.
+type gatewayStatus interface {
+	Running() bool
+}
+
 type PanelAPI struct {
 	Orchestrator *orchestrator.Orchestrator
 	Config       *config.Config
@@ -33,6 +37,7 @@ type PanelAPI struct {
 	Recorder     *recording.Recorder
 	Rotator      *proxy.Rotator
 	Kernel       *kernel.Kernel
+	Gateway      gatewayStatus
 	Client       *juggler.Client
 	Contexts     *ContextRegistry
 	RuntimeAudit *runtimeaudit.Manager
@@ -928,6 +933,9 @@ func (api *PanelAPI) statusGet() (json.RawMessage, error) {
 		out["browser_route"] = route
 		out["browser_route_source"] = source
 		out["browser_window"] = api.browserWindow()
+	}
+	if api.Gateway != nil {
+		out["gateway_running"] = api.Gateway.Running()
 	}
 	if api.Orchestrator != nil {
 		status := api.Orchestrator.Status()
