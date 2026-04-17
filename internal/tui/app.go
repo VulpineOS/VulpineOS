@@ -632,10 +632,11 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return a, nil
 		case "c":
-			// Mark config as needing setup, then quit — next launch shows wizard
-			if a.cfg != nil {
-				a.cfg.SetupComplete = false
-				a.cfg.Save()
+			// Request the setup wizard on next launch without mutating the active config first.
+			if err := config.RequestReconfigure(); err != nil {
+				a.notice = "Failed to queue reconfigure: " + err.Error()
+				a.noticeTTL = 4
+				return a, nil
 			}
 			a.gracefulShutdown()
 			return a, tea.Quit
