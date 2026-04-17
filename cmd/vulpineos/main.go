@@ -49,6 +49,40 @@ var (
 	stderr io.Writer = os.Stderr
 )
 
+func startLocalSessionLogging(baseDir string) (restore func(), path string) {
+	prevWriter := log.Writer()
+	prevFlags := log.Flags()
+	prevPrefix := log.Prefix()
+
+	restore = func() {
+		log.SetOutput(prevWriter)
+		log.SetFlags(prevFlags)
+		log.SetPrefix(prevPrefix)
+	}
+
+	logDir := filepath.Join(baseDir, "logs")
+	if err := os.MkdirAll(logDir, 0700); err != nil {
+		log.SetOutput(io.Discard)
+		return restore, ""
+	}
+
+	path = filepath.Join(logDir, "local-tui.log")
+	logFile, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
+	if err != nil {
+		log.SetOutput(io.Discard)
+		return restore, ""
+	}
+
+	log.SetOutput(logFile)
+	restore = func() {
+		_ = logFile.Close()
+		log.SetOutput(prevWriter)
+		log.SetFlags(prevFlags)
+		log.SetPrefix(prevPrefix)
+	}
+	return restore, path
+}
+
 func enableBrowser(client *juggler.Client, label string) error {
 	var lastErr error
 	time.Sleep(1 * time.Second)
@@ -179,6 +213,9 @@ func runMCPServer(binaryPath string, headless bool, profileDir string) error {
 
 // runLocal starts the kernel and TUI locally.
 func runLocal(binaryPath string, headless bool, profileDir string, noBrowser bool) error {
+	restoreLogs, _ := startLocalSessionLogging(config.Dir())
+	defer restoreLogs()
+
 	// Check if first-time setup is needed
 	cfg, err := config.Load()
 	if err != nil {
@@ -233,6 +270,7 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 	var gw *openclaw.Gateway
 	var fb *foxbridge.Process
 	var wd *kernel.Watchdog
+	var browserEnabled bool
 	var startErr error
 
 	if !noBrowser {
@@ -259,68 +297,73 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 			})
 			if startErr == nil {
 				client = k.Client()
-				if audit != nil {
-					_, _ = audit.Log("kernel", "info", "started", "kernel started", map[string]string{
-						"pid":      fmt.Sprintf("%d", k.PID()),
-						"headless": fmt.Sprintf("%t", headless),
-					})
-					wd = kernel.NewWatchdog(k, false)
-					wd.SetConfig(kernel.Config{
-						BinaryPath: binaryPath,
-						Headless:   headless,
-						ProfileDir: profileDir,
-					})
-					wd.OnEvent(func(event kernel.WatchdogEvent) {
-						level := "warn"
-						message := "kernel event"
-						switch event.Type {
-						case "crashed":
-							level = "error"
-							message = "kernel exited unexpectedly"
-						case "restart_success":
-							level = "warn"
-							message = "kernel restarted"
-						case "restart_failed":
-							level = "error"
-							message = "kernel restart failed"
-						}
-						metadata := map[string]string{}
-						if event.Attempt > 0 {
-							metadata["attempt"] = fmt.Sprintf("%d", event.Attempt)
-						}
-						if event.Err != nil {
-							metadata["error"] = event.Err.Error()
-						}
-						if _, err := audit.Log("kernel", level, event.Type, message, metadata); err != nil {
-							log.Printf("runtime audit kernel %s: %v", event.Type, err)
-						}
-					})
-					wd.Start()
-				}
-
-				// Create orchestrator with optional subsystems
-				if v != nil {
-					model := ""
-					if cfg != nil {
-						model = cfg.Model
-					}
-					orch = orchestrator.New(k, client, v, pool.DefaultConfig(), "openclaw", orchestrator.Opts{
-						AgentBus:  agentbus.New(),
-						Costs:     costtrack.New(model),
-						Webhooks:  webhooks.New(),
-						Recording: recording.NewRecorder(),
-						PageCache: pagecache.New(filepath.Join(config.Dir(), "pagecache")),
-					})
+				if err := enableBrowser(client, "Browser.enable"); err != nil {
+					startErr = err
+				} else {
+					browserEnabled = true
 					if audit != nil {
-						orch.Agents.SetRuntimeAudit(audit)
+						_, _ = audit.Log("kernel", "info", "started", "kernel started", map[string]string{
+							"pid":      fmt.Sprintf("%d", k.PID()),
+							"headless": fmt.Sprintf("%t", headless),
+						})
+						wd = kernel.NewWatchdog(k, false)
+						wd.SetConfig(kernel.Config{
+							BinaryPath: binaryPath,
+							Headless:   headless,
+							ProfileDir: profileDir,
+						})
+						wd.OnEvent(func(event kernel.WatchdogEvent) {
+							level := "warn"
+							message := "kernel event"
+							switch event.Type {
+							case "crashed":
+								level = "error"
+								message = "kernel exited unexpectedly"
+							case "restart_success":
+								level = "warn"
+								message = "kernel restarted"
+							case "restart_failed":
+								level = "error"
+								message = "kernel restart failed"
+							}
+							metadata := map[string]string{}
+							if event.Attempt > 0 {
+								metadata["attempt"] = fmt.Sprintf("%d", event.Attempt)
+							}
+							if event.Err != nil {
+								metadata["error"] = event.Err.Error()
+							}
+							if _, err := audit.Log("kernel", level, event.Type, message, metadata); err != nil {
+								log.Printf("runtime audit kernel %s: %v", event.Type, err)
+							}
+						})
+						wd.Start()
 					}
-					orch.Start()
+
+					// Create orchestrator with optional subsystems
+					if v != nil {
+						model := ""
+						if cfg != nil {
+							model = cfg.Model
+						}
+						orch = orchestrator.New(k, client, v, pool.DefaultConfig(), "openclaw", orchestrator.Opts{
+							AgentBus:  agentbus.New(),
+							Costs:     costtrack.New(model),
+							Webhooks:  webhooks.New(),
+							Recording: recording.NewRecorder(),
+							PageCache: pagecache.New(filepath.Join(config.Dir(), "pagecache")),
+						})
+						if audit != nil {
+							orch.Agents.SetRuntimeAudit(audit)
+						}
+						orch.Start()
+					}
 				}
 			}
 
 			// Start foxbridge as an embedded CDP server sharing the kernel's Juggler client.
 			// This avoids launching a second Firefox — OpenClaw connects to the same kernel.
-			if client != nil {
+			if startErr == nil && client != nil {
 				fb = foxbridge.New()
 				fb.SetRuntimeAudit(audit)
 				fbErr := fb.StartEmbeddedMode(client, 9222)
@@ -337,11 +380,13 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 			}
 
 			// Start OpenClaw gateway for browser support
-			mgr := openclaw.NewManager("")
-			if mgr.OpenClawInstalled() {
-				gw = openclaw.NewGateway("")
-				if gwErr := gw.Start(); gwErr != nil {
-					log.Printf("Warning: OpenClaw gateway failed to start: %v (browser tools won't work)", gwErr)
+			if startErr == nil {
+				mgr := openclaw.NewManager("")
+				if mgr.OpenClawInstalled() {
+					gw = openclaw.NewGateway("")
+					if gwErr := gw.Start(); gwErr != nil {
+						log.Printf("Warning: OpenClaw gateway failed to start: %v (browser tools won't work)", gwErr)
+					}
 				}
 			}
 
@@ -363,7 +408,7 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 			return nil
 		}
 		if startErr != nil {
-			return fmt.Errorf("start kernel: %w", startErr)
+			return startErr
 		}
 		defer func() {
 			if audit != nil {
@@ -393,7 +438,7 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 		}
 	}
 
-	// Create TUI with event subscriptions in place before Browser.enable
+	// Create the TUI after startup subsystems are fully initialized.
 	app := tui.NewApp(k, client, orch, v, cfg, audit)
 
 	if client != nil {
@@ -401,8 +446,11 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 		// providers. On the default public build this is a no-op
 		// because privateProviders is zero-valued.
 		extensions.InitWithClient(client)
-		if err := enableBrowser(client, "Browser.enable"); err != nil {
-			return err
+		if !browserEnabled {
+			if err := enableBrowser(client, "Browser.enable"); err != nil {
+				return err
+			}
+			browserEnabled = true
 		}
 	}
 	p := tea.NewProgram(app, tea.WithAltScreen())

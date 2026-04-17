@@ -2,6 +2,9 @@ package main
 
 import (
 	"bytes"
+	"log"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -31,5 +34,27 @@ func TestRun_VersionFlag(t *testing.T) {
 	}
 	if strings.TrimSpace(out) == "" {
 		t.Errorf("Run(--version) produced empty stdout")
+	}
+}
+
+func TestStartLocalSessionLoggingWritesToFile(t *testing.T) {
+	restore, path := startLocalSessionLogging(t.TempDir())
+	if path == "" {
+		t.Fatal("startLocalSessionLogging returned empty path")
+	}
+
+	log.Print("startup log redirected")
+	restore()
+
+	if filepath.Base(path) != "local-tui.log" {
+		t.Fatalf("log path = %q, want local-tui.log", path)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read log file: %v", err)
+	}
+	if !strings.Contains(string(data), "startup log redirected") {
+		t.Fatalf("log file %q missing redirected message: %q", path, string(data))
 	}
 }
