@@ -72,6 +72,8 @@ func (api *PanelAPI) HandleMessage(method string, params json.RawMessage) (json.
 	// --- Config ---
 	case "config.get":
 		return api.configGet()
+	case "config.providers":
+		return api.configProviders()
 	case "config.set":
 		return api.configSet(params)
 
@@ -513,6 +515,29 @@ func (api *PanelAPI) configGet() (json.RawMessage, error) {
 		BinaryPath:    api.Config.BinaryPath,
 	}
 	return json.Marshal(out)
+}
+
+func (api *PanelAPI) configProviders() (json.RawMessage, error) {
+	type providerInfo struct {
+		ID           string   `json:"id"`
+		Name         string   `json:"name"`
+		EnvVar       string   `json:"envVar"`
+		DefaultModel string   `json:"defaultModel"`
+		Models       []string `json:"models"`
+		NeedsKey     bool     `json:"needsKey"`
+	}
+	out := make([]providerInfo, 0, len(config.Providers))
+	for _, provider := range config.Providers {
+		out = append(out, providerInfo{
+			ID:           provider.ID,
+			Name:         provider.Name,
+			EnvVar:       provider.EnvVar,
+			DefaultModel: provider.DefaultModel,
+			Models:       provider.Models,
+			NeedsKey:     provider.NeedsKey,
+		})
+	}
+	return json.Marshal(map[string]interface{}{"providers": out})
 }
 
 func (api *PanelAPI) configSet(params json.RawMessage) (json.RawMessage, error) {

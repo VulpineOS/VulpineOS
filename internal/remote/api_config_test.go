@@ -44,3 +44,29 @@ func TestConfigSetMarksSetupCompleteAndRegeneratesProfile(t *testing.T) {
 		t.Fatalf("expected generated openclaw.json: %v", err)
 	}
 }
+
+func TestConfigProvidersReturnsRegistry(t *testing.T) {
+	api := &PanelAPI{}
+
+	payload, err := api.HandleMessage("config.providers", nil)
+	if err != nil {
+		t.Fatalf("HandleMessage: %v", err)
+	}
+
+	var result struct {
+		Providers []struct {
+			ID       string `json:"id"`
+			Name     string `json:"name"`
+			NeedsKey bool   `json:"needsKey"`
+		} `json:"providers"`
+	}
+	if err := json.Unmarshal(payload, &result); err != nil {
+		t.Fatalf("Unmarshal result: %v", err)
+	}
+	if len(result.Providers) == 0 {
+		t.Fatal("providers = empty, want registry entries")
+	}
+	if result.Providers[0].ID == "" || result.Providers[0].Name == "" {
+		t.Fatalf("unexpected first provider: %#v", result.Providers[0])
+	}
+}

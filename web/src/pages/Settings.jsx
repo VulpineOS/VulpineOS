@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 
 export default function Settings({ ws }) {
   const [cfg, setCfg] = useState({})
+  const [providers, setProviders] = useState([])
   const [status, setStatus] = useState({})
   const [memLimit, setMemLimit] = useState('512')
   const [budgetLimit, setBudgetLimit] = useState('1.00')
@@ -9,6 +10,7 @@ export default function Settings({ ws }) {
 
   useEffect(() => {
     if (ws.connected) {
+      ws.call('config.providers').then(r => setProviders(r?.providers || [])).catch(() => {})
       ws.call('config.get').then(r => {
         setCfg(r || {})
         if (r?.model) setCfg(prev => ({ ...prev, ...r }))
@@ -16,6 +18,18 @@ export default function Settings({ ws }) {
       ws.call('status.get').then(r => setStatus(r || {})).catch(() => {})
     }
   }, [ws.connected])
+
+  const selectedProvider = providers.find(p => p.id === cfg.provider) || null
+  const modelOptions = selectedProvider?.models?.length ? selectedProvider.models : (cfg.model ? [cfg.model] : [])
+
+  const updateProvider = (providerId) => {
+    const provider = providers.find(p => p.id === providerId)
+    setCfg(prev => ({
+      ...prev,
+      provider: providerId,
+      model: provider?.defaultModel || prev.model || '',
+    }))
+  }
 
   const saveConfig = async () => {
     try {
@@ -38,14 +52,26 @@ export default function Settings({ ws }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div>
               <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>Provider</label>
-              <input className="input" value={cfg.provider || ''} onChange={e => setCfg({ ...cfg, provider: e.target.value })} placeholder="anthropic" />
+              <select className="input" value={cfg.provider || ''} onChange={e => updateProvider(e.target.value)}>
+                <option value="">Select provider...</option>
+                {providers.map(provider => (
+                  <option key={provider.id} value={provider.id}>{provider.name}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>Model</label>
-              <input className="input" value={cfg.model || ''} onChange={e => setCfg({ ...cfg, model: e.target.value })} placeholder="claude-sonnet-4-6" />
+              <select className="input" value={cfg.model || ''} onChange={e => setCfg({ ...cfg, model: e.target.value })}>
+                <option value="">Select model...</option>
+                {modelOptions.map(model => (
+                  <option key={model} value={model}>{model}</option>
+                ))}
+              </select>
             </div>
             <div>
-              <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>API Key</label>
+              <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>
+                API Key {selectedProvider?.envVar ? `(${selectedProvider.envVar})` : ''}
+              </label>
               <input className="input" type="password" value={cfg.apiKey || ''} onChange={e => setCfg({ ...cfg, apiKey: e.target.value })} placeholder="sk-..." />
               <p style={{ fontSize: 11, color: '#555', marginTop: 4 }}>
                 {cfg.apiKey
