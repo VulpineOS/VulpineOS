@@ -78,6 +78,7 @@ describe('AgentDetail page', () => {
 
     fireEvent.click(screen.getByText('Raw'))
     expect(await screen.findByText('Raw Session Log')).toBeInTheDocument()
+    expect(screen.getByText('Auto-refreshing')).toBeInTheDocument()
     expect(screen.getByText('{"type":"message","message":{"role":"assistant"}}')).toBeInTheDocument()
 
     fireEvent.click(screen.getByText('Conversation'))

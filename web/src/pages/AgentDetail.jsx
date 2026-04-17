@@ -52,10 +52,13 @@ export default function AgentDetail({ ws }) {
   }, [ws.connected, id])
 
   useEffect(() => {
-    if (tab === 'raw' && sessionLog === '') {
+    if (tab !== 'raw' || !ws.connected || !id) return
+    loadSessionLog()
+    const interval = setInterval(() => {
       loadSessionLog()
-    }
-  }, [tab, sessionLog, id])
+    }, 2000)
+    return () => clearInterval(interval)
+  }, [tab, ws.connected, id])
 
   useEffect(() => {
     if (!id) return
@@ -198,7 +201,10 @@ export default function AgentDetail({ ws }) {
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <h3 style={{ margin: 0 }}>Raw Session Log</h3>
-            <button className="btn btn-ghost" onClick={loadSessionLog}>Refresh</button>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span style={{ fontSize: 11, color: '#666' }}>Auto-refreshing</span>
+              <button className="btn btn-ghost" onClick={loadSessionLog}>Refresh</button>
+            </div>
           </div>
           {sessionLog === '' ? (
             <p style={{ color: '#666' }}>No raw session log loaded yet.</p>
