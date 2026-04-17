@@ -7,7 +7,7 @@ func TestSummarizeToolCall(t *testing.T) {
 		"action": "open",
 		"url":    "https://example.com",
 	})
-	want := "Running browser action: open https://example.com"
+	want := "Running browser open https://example.com"
 	if got != want {
 		t.Fatalf("summarizeToolCall = %q, want %q", got, want)
 	}
@@ -24,7 +24,7 @@ func TestSummarizeToolCallExec(t *testing.T) {
 }
 
 func TestSummarizeToolResultError(t *testing.T) {
-	got := summarizeToolResult("browser", nil, map[string]interface{}{
+	got := summarizeToolResult("browser", toolCallInfo{}, false, nil, map[string]interface{}{
 		"status": "error",
 		"error":  "gateway token mismatch",
 	})
@@ -45,7 +45,7 @@ func TestSummarizeToolResultSuccessFromJSONText(t *testing.T) {
 	}{
 		{Type: "text", Text: `{"status":"completed"}`},
 	}
-	got := summarizeToolResult("web_fetch", content, nil)
+	got := summarizeToolResult("web_fetch", toolCallInfo{}, false, content, nil)
 	want := "Tool completed: web_fetch"
 	if got != want {
 		t.Fatalf("summarizeToolResult = %q, want %q", got, want)
@@ -63,7 +63,7 @@ func TestSummarizeToolResultBrowserOpenSuccess(t *testing.T) {
 	}{
 		{Type: "text", Text: `{"status":"ok","targetId":"abc123","url":"https://pbtech.co.nz"}`},
 	}
-	got := summarizeToolResult("browser", content, nil)
+	got := summarizeToolResult("browser", toolCallInfo{}, false, content, nil)
 	want := "Tool completed: browser — opened https://pbtech.co.nz"
 	if got != want {
 		t.Fatalf("summarizeToolResult = %q, want %q", got, want)
@@ -81,7 +81,7 @@ func TestSummarizeToolResultTreatsNonZeroExitCodeAsError(t *testing.T) {
 	}{
 		{Type: "text", Text: "node: command not found"},
 	}
-	got := summarizeToolResult("exec", content, map[string]interface{}{
+	got := summarizeToolResult("exec", toolCallInfo{}, false, content, map[string]interface{}{
 		"status":     "completed",
 		"exitCode":   1,
 		"aggregated": "node: command not found",
@@ -95,7 +95,7 @@ func TestSummarizeToolResultTreatsNonZeroExitCodeAsError(t *testing.T) {
 func TestHandleSessionLogLine_EmitsAssistantText(t *testing.T) {
 	agent := newAgent("agent-1", "ctx-1", make(chan AgentStatus, 1))
 
-	line := `{"type":"message","message":{"role":"assistant","content":[{"type":"thinking","thinking":"internal"},{"type":"text","text":"STATUS:clicked"}]}}`
+	line := `{"type":"message","message":{"role":"assistant","content":[{"type":"text","text":"STATUS:clicked"}]}}`
 	agent.handleSessionLogLine(line)
 
 	select {
@@ -108,6 +108,23 @@ func TestHandleSessionLogLine_EmitsAssistantText(t *testing.T) {
 		}
 	default:
 		t.Fatal("expected assistant text to be emitted from session log")
+	}
+}
+
+func TestHandleSessionLogLine_EmitsThinkingIntoTrace(t *testing.T) {
+	agent := newAgent("agent-1", "ctx-1", make(chan AgentStatus, 1))
+
+	line := `{"type":"message","message":{"role":"assistant","content":[{"type":"thinking","thinking":"Inspecting the loaded page state"},{"type":"text","text":"Done"}]}}`
+	agent.handleSessionLogLine(line)
+
+	msg1 := <-agent.conversationCh
+	if msg1.Role != "system" || msg1.Content != "Thinking: Inspecting the loaded page state" {
+		t.Fatalf("first message = %#v", msg1)
+	}
+
+	msg2 := <-agent.conversationCh
+	if msg2.Role != "assistant" || msg2.Content != "Done" {
+		t.Fatalf("second message = %#v", msg2)
 	}
 }
 
@@ -191,5 +208,25 @@ func TestHandleSessionLogLine_TreatsNonZeroExitCodeAsFailure(t *testing.T) {
 	msg3 := <-agent.conversationCh
 	if msg3.Role != "assistant" || msg3.Content != "Done" {
 		t.Fatalf("third message = %#v", msg3)
+	}
+}
+
+func TestHandleSessionLogLine_UsesToolCallContextInResultSummary(t *testing.T) {
+	agent := newAgent("agent-1", "ctx-1", make(chan AgentStatus, 1))
+
+	call := `{"type":"message","message":{"role":"assistant","content":[{"type":"toolCall","id":"call-1","name":"browser","arguments":{"action":"click","selector":"button.buy"}}]}}`
+	result := `{"type":"message","message":{"role":"toolResult","toolName":"browser","toolCallId":"call-1","content":[{"type":"text","text":"{\"status\":\"completed\"}"}],"details":{"status":"completed"}}}`
+
+	agent.handleSessionLogLine(call)
+	agent.handleSessionLogLine(result)
+
+	msg1 := <-agent.conversationCh
+	if msg1.Content != "Running browser click button.buy" {
+		t.Fatalf("first message = %#v", msg1)
+	}
+
+	msg2 := <-agent.conversationCh
+	if msg2.Content != "Tool completed: browser click button.buy" {
+		t.Fatalf("second message = %#v", msg2)
 	}
 }

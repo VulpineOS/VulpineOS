@@ -695,6 +695,13 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if msg.Status == "completed" || msg.Status == "error" {
 				a.conversation.SetThinking(false)
 			}
+			if a.pendingChatFocusAgentID == msg.AgentID && msg.Status != "starting" && msg.Status != "running" && msg.Status != "active" && msg.Status != "thinking" {
+				a.pendingChatFocusAgentID = ""
+				a.focus = FocusConversation
+				a.inputMode = "chat"
+				a.conversation.SetAwake(true)
+				cmds = append(cmds, a.conversation.Focus())
+			}
 			a.refreshAgentDetail(msg.AgentID)
 			if a.focus == FocusConversation && a.inputMode == "chat" && !a.conversation.Focused() {
 				cmds = append(cmds, a.conversation.Focus())
@@ -1446,7 +1453,7 @@ func (a *App) createAgent(name, description, contextID string) tea.Cmd {
 		}
 
 		// Spawn first turn — agent introduces itself
-		introMsg := "You are an AI agent named '" + name + "'. Your assigned runtime name for this session is exactly '" + name + "' and you must not claim a different name or inherited persona. Your purpose: " + description + ". Introduce yourself briefly (1-2 sentences), use the assigned name exactly, and ask how you can help."
+		introMsg := openclaw.IntroMessage(name, description)
 		sessionName := "vulpine-" + agent.ID
 		configPath, cleanup, configErr := a.agentRuntimeConfig(agent)
 		if configErr != nil {

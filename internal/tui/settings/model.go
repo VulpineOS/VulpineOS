@@ -351,10 +351,12 @@ func (m Model) viewGeneral() string {
 	b.WriteString(line)
 	b.WriteString("\n\n")
 	if m.section == SectionGeneral {
-		b.WriteString(shared.MutedStyle.Render("[space] toggle  [c] reconfigure provider/model"))
+		b.WriteString(shared.MutedStyle.Render("[space] toggle saved default  [c] reconfigure provider/model"))
 	} else {
 		b.WriteString(shared.MutedStyle.Render("Press 'c' to reconfigure provider/model"))
 	}
+	b.WriteString("\n")
+	b.WriteString(shared.MutedStyle.Render("Press 'm' in the main TUI to switch the current session between navigate and resize mode."))
 
 	return b.String()
 }

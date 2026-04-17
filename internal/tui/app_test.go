@@ -448,6 +448,44 @@ func TestPendingStartupReplyRefocusesChatInput(t *testing.T) {
 	}
 }
 
+func TestPendingStartupTerminalStatusRefocusesChatInput(t *testing.T) {
+	db := openTestVault(t)
+	cfg := &config.Config{}
+	app := NewApp(nil, nil, nil, db, cfg, nil)
+	app.conversation.SetSize(80, 20)
+
+	agent, err := db.CreateAgent("Scraper", "Scrape prices", "{}")
+	if err != nil {
+		t.Fatalf("create agent: %v", err)
+	}
+	app.selectedAgentID = agent.ID
+	app.focus = FocusAgentDetail
+	app.inputMode = ""
+	app.pendingChatFocusAgentID = agent.ID
+	app.conversation.SetAgentID(agent.ID)
+	app.conversation.SetAgentName(agent.Name)
+	app.conversation.Blur()
+
+	model, cmd := app.Update(shared.AgentStatusMsg{
+		AgentID: agent.ID,
+		Status:  "completed",
+	})
+	app = model.(App)
+
+	if cmd == nil {
+		t.Fatal("expected terminal status to return a focus command")
+	}
+	if app.focus != FocusConversation {
+		t.Fatalf("focus = %d, want conversation", app.focus)
+	}
+	if app.inputMode != "chat" {
+		t.Fatalf("inputMode = %q, want chat", app.inputMode)
+	}
+	if app.pendingChatFocusAgentID != "" {
+		t.Fatalf("pendingChatFocusAgentID = %q, want cleared", app.pendingChatFocusAgentID)
+	}
+}
+
 func TestChatInputKeystrokeRefocusesAndCapturesFirstRune(t *testing.T) {
 	db := openTestVault(t)
 	cfg := &config.Config{}

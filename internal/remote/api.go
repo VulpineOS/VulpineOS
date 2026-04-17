@@ -241,7 +241,7 @@ func (api *PanelAPI) agentsSpawn(params json.RawMessage) (json.RawMessage, error
 			agent.Metadata = metadata
 		}
 	}
-	initialPrompt := task
+	initialPrompt := openclaw.IntroMessage(name, task)
 	sessionName := "vulpine-" + agent.ID
 	configPath, cleanup, err := api.agentRuntimeConfig(agent)
 	if err != nil {
