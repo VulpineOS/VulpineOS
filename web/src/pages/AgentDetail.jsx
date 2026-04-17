@@ -10,6 +10,7 @@ export default function AgentDetail({ ws }) {
   const [input, setInput] = useState('')
   const [tab, setTab] = useState('conversation')
 
+  const conversationMessages = messages.filter(m => m.role !== 'system')
   const traceMessages = messages.filter(m => m.role === 'system')
 
   function traceTone(content) {
@@ -127,8 +128,8 @@ export default function AgentDetail({ ws }) {
         <div className="card">
           <h3>Conversation</h3>
           <div style={{ maxHeight: 500, overflowY: 'auto', marginBottom: 12 }}>
-            {messages.length === 0 && <p style={{ color: '#666' }}>No messages yet.</p>}
-            {messages.map((m, i) => (
+            {conversationMessages.length === 0 && <p style={{ color: '#666' }}>No messages yet.</p>}
+            {conversationMessages.map((m, i) => (
               <div key={i} style={{ padding: '8px 0', borderBottom: '1px solid #1e1e2e' }}>
                 <span style={{ color: m.role === 'user' ? '#60a5fa' : m.role === 'assistant' ? '#a78bfa' : '#666', fontWeight: 600, fontSize: 12 }}>
                   {m.role?.toUpperCase()}

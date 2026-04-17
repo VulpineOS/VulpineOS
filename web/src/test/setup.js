@@ -1,4 +1,6 @@
 import '@testing-library/jest-dom/vitest'
+import { cleanup } from '@testing-library/react'
+import { afterEach } from 'vitest'
 
 const storage = new Map()
 
@@ -10,4 +12,9 @@ Object.defineProperty(window, 'localStorage', {
     clear: () => storage.clear(),
   },
   writable: true,
+})
+
+afterEach(() => {
+  cleanup()
+  storage.clear()
 })

@@ -67,6 +67,7 @@ describe('AgentDetail page', () => {
 
     await waitFor(() => expect(screen.getByText('done')).toBeInTheDocument())
     expect(screen.getByText('active')).toBeInTheDocument()
+    expect(screen.queryByText('Running browser action: open https://example.com')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByText('Trace'))
     expect(screen.getByText('Action Trace')).toBeInTheDocument()
