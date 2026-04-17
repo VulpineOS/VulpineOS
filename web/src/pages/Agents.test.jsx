@@ -25,6 +25,8 @@ describe('Agents page', () => {
       }
       if (method === 'costs.getAll') return { usage: [] }
       if (method === 'contexts.list') return { contexts: [] }
+      if (method === 'agents.pauseMany') return { status: 'ok', paused: 2, failures: {} }
+      if (method === 'agents.resumeMany') return { status: 'ok', resumed: 2, failures: {} }
       return { status: 'ok' }
     })
 
@@ -94,7 +96,7 @@ describe('Agents page', () => {
 
     expect(await screen.findByText('Agent One')).toBeInTheDocument()
 
-    const checkboxes = screen.getAllByRole('checkbox')
+    let checkboxes = screen.getAllByRole('checkbox')
     fireEvent.click(checkboxes[1])
     fireEvent.click(checkboxes[2])
 
@@ -102,12 +104,15 @@ describe('Agents page', () => {
     await waitFor(() => {
       expect(calls).toHaveBeenCalledWith('agents.pauseMany', { agentIds: ['agent-1', 'agent-2'] })
     })
+    expect(screen.getByText('Paused 2 agents')).toBeInTheDocument()
 
+    checkboxes = screen.getAllByRole('checkbox')
     fireEvent.click(checkboxes[1])
     fireEvent.click(checkboxes[2])
     fireEvent.click(screen.getByText('Resume Selected'))
     await waitFor(() => {
       expect(calls).toHaveBeenCalledWith('agents.resumeMany', { agentIds: ['agent-1', 'agent-2'] })
     })
+    expect(screen.getByText('Resumed 2 agents')).toBeInTheDocument()
   })
 })
