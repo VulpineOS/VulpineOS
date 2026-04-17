@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 
 export default function Settings({ ws }) {
   const [cfg, setCfg] = useState({})
+  const [status, setStatus] = useState({})
   const [memLimit, setMemLimit] = useState('512')
   const [budgetLimit, setBudgetLimit] = useState('1.00')
   const [saved, setSaved] = useState('')
@@ -12,6 +13,7 @@ export default function Settings({ ws }) {
         setCfg(r || {})
         if (r?.model) setCfg(prev => ({ ...prev, ...r }))
       }).catch(() => {})
+      ws.call('status.get').then(r => setStatus(r || {})).catch(() => {})
     }
   }, [ws.connected])
 
@@ -82,6 +84,7 @@ export default function Settings({ ws }) {
             <div>Browser: Camoufox (Firefox 146.0.1)</div>
             <div>Protocol: Juggler + foxbridge CDP proxy</div>
             <div>OpenClaw integration: {cfg.setupComplete ? 'Configured' : 'Not configured'}</div>
+            <div>Route: {(status.browser_route || 'unknown').toUpperCase()} · {status.kernel_headless ? 'HEADLESS' : 'GUI'}</div>
           </div>
         </div>
       </div>

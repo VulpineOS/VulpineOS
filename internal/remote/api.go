@@ -909,6 +909,15 @@ func (api *PanelAPI) statusGet() (json.RawMessage, error) {
 		out["kernelPid"] = api.Kernel.PID()
 		out["kernel_running"] = api.Kernel.Running()
 		out["kernel_pid"] = api.Kernel.PID()
+		out["kernel_headless"] = api.Kernel.IsHeadless()
+		switch {
+		case api.Config != nil && strings.TrimSpace(api.Config.FoxbridgeCDPURL) != "":
+			out["browser_route"] = "camoufox"
+		case api.Kernel.IsHeadless():
+			out["browser_route"] = "headless"
+		default:
+			out["browser_route"] = "direct"
+		}
 	}
 	if api.Orchestrator != nil {
 		status := api.Orchestrator.Status()
