@@ -191,6 +191,7 @@ Arrow keys navigate the agent list and conversation by default. If you want pane
 The generated OpenClaw workspace under `~/.openclaw-vulpine/workspace` is refreshed with VulpineOS-owned bootstrap files so agents follow the current assigned name and task instead of inheriting an older persona from a stale workspace.
 Those bootstrap files also force exact action/result reporting and explicitly forbid claiming a browser action succeeded after an error, timeout, or incomplete result.
 The footer always shows the current arrow-key mode as `mode:navigate` or `mode:resize`.
+If the conversation panel is awake but the cursor has dropped out of the input, the next typed character re-focuses chat automatically, while `v` still works as a browser show or hide shortcut from that unfocused state.
 
 The agent list shows unread reply counts for non-selected agents so background work does not disappear while you are focused elsewhere.
 

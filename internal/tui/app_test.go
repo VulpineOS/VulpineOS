@@ -389,6 +389,61 @@ func TestSelectedAssistantReplyRefocusesChatInput(t *testing.T) {
 	}
 }
 
+func TestChatInputKeystrokeRefocusesAndCapturesFirstRune(t *testing.T) {
+	db := openTestVault(t)
+	cfg := &config.Config{}
+	app := NewApp(nil, nil, nil, db, cfg, nil)
+	app.conversation.SetSize(80, 20)
+
+	agent, err := db.CreateAgent("Scraper", "Scrape prices", "{}")
+	if err != nil {
+		t.Fatalf("create agent: %v", err)
+	}
+	app.selectedAgentID = agent.ID
+	app.focus = FocusConversation
+	app.inputMode = "chat"
+	app.conversation.SetAgentID(agent.ID)
+	app.conversation.SetAgentName(agent.Name)
+	app.conversation.SetAwake(true)
+	app.conversation.Blur()
+
+	model, _ := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
+	app = model.(App)
+
+	if !app.conversation.Focused() {
+		t.Fatal("conversation input should refocus on first chat keystroke")
+	}
+	if got := app.conversation.TextInput().Value(); got != "h" {
+		t.Fatalf("conversation input = %q, want %q", got, "h")
+	}
+}
+
+func TestUnfocusedChatAllowsViewShortcut(t *testing.T) {
+	db := openTestVault(t)
+	cfg := &config.Config{}
+	app := NewApp(nil, nil, nil, db, cfg, nil)
+	app.conversation.SetSize(80, 20)
+
+	agent, err := db.CreateAgent("Scraper", "Scrape prices", "{}")
+	if err != nil {
+		t.Fatalf("create agent: %v", err)
+	}
+	app.selectedAgentID = agent.ID
+	app.focus = FocusConversation
+	app.inputMode = "chat"
+	app.conversation.SetAgentID(agent.ID)
+	app.conversation.SetAgentName(agent.Name)
+	app.conversation.SetAwake(true)
+	app.conversation.Blur()
+
+	model, _ := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}})
+	app = model.(App)
+
+	if got := app.conversation.TextInput().Value(); got != "" {
+		t.Fatalf("conversation input = %q, want empty when view shortcut is used", got)
+	}
+}
+
 func TestPauseResumeKeybindings(t *testing.T) {
 	db := openTestVault(t)
 

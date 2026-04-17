@@ -329,7 +329,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "new-agent-desc":
 			return a.updateDescInput(msg)
 		case "chat":
-			return a.updateChatInput(msg)
+			if a.conversation.Focused() || msg.String() != "v" {
+				return a.updateChatInput(msg)
+			}
 		}
 
 		// Route to settings panel when active
@@ -981,6 +983,9 @@ func (a App) updateChatInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a, cmd
 	default:
 		ti := a.conversation.TextInput()
+		if !a.conversation.Focused() {
+			ti.Focus()
+		}
 		var cmd tea.Cmd
 		*ti, cmd = ti.Update(msg)
 		return a, cmd

@@ -265,6 +265,13 @@ func TestGenerateOpenClawConfig(t *testing.T) {
 	if !strings.Contains(string(agentsData), "Never claim an action succeeded when the tool returned an error") {
 		t.Fatalf("expected AGENTS.md to forbid fake success reporting, got:\n%s", string(agentsData))
 	}
+	bootstrapData, err := os.ReadFile(filepath.Join(OpenClawWorkspaceDir(), "BOOTSTRAP.md"))
+	if err != nil {
+		t.Fatalf("expected isolated workspace bootstrap file: %v", err)
+	}
+	if !strings.Contains(string(bootstrapData), "Ignore older persona/bootstrap text from previous sessions") {
+		t.Fatalf("expected BOOTSTRAP.md to suppress stale persona text, got:\n%s", string(bootstrapData))
+	}
 	skillPath := filepath.Join(OpenClawProfileDir(), "skills", "vulpine-browser", "SKILL.md")
 	skillData, err := os.ReadFile(skillPath)
 	if err != nil {
@@ -471,6 +478,13 @@ func TestRepairOpenClawProfileRestoresWorkspaceAndSkill(t *testing.T) {
 
 	if _, err := os.Stat(filepath.Join(OpenClawWorkspaceDir(), "AGENTS.md")); err != nil {
 		t.Fatalf("expected workspace bootstrap files: %v", err)
+	}
+	bootstrapData, err := os.ReadFile(filepath.Join(OpenClawWorkspaceDir(), "BOOTSTRAP.md"))
+	if err != nil {
+		t.Fatalf("expected repaired bootstrap file: %v", err)
+	}
+	if !strings.Contains(string(bootstrapData), "Use the agent name and task assigned by the current VulpineOS request") {
+		t.Fatalf("expected repaired BOOTSTRAP.md to be refreshed, got:\n%s", string(bootstrapData))
 	}
 	skillData, err := os.ReadFile(staleSkill)
 	if err != nil {

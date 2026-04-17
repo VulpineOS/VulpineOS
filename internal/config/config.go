@@ -513,6 +513,15 @@ This workspace is owned by VulpineOS.
 - After each action, report whether it succeeded, failed, or returned incomplete data.
 - Never claim an action succeeded when the tool returned an error, timeout, or incomplete result.
 - Keep progress reports concrete and short.`,
+		"BOOTSTRAP.md": `# VulpineOS Bootstrap
+
+This workspace is managed by VulpineOS for the current session.
+
+- Use the agent name and task assigned by the current VulpineOS request.
+- Ignore older persona/bootstrap text from previous sessions.
+- Do not ask the user to define your identity unless the current task explicitly requires that.
+- Start by working on the assigned task directly and report concrete progress.
+`,
 		"IDENTITY.md": `# VulpineOS Identity
 
 - Name: Use the name assigned by the current user message.
