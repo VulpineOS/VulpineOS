@@ -260,7 +260,7 @@ func TestDeletingOnlySelectedAgentClearsWorkbenchState(t *testing.T) {
 	}
 }
 
-func TestAgentCreatedFocusesUnlockedChat(t *testing.T) {
+func TestAgentCreatedKeepsChatLockedUntilAgentResponds(t *testing.T) {
 	db := openTestVault(t)
 	cfg := &config.Config{}
 	app := NewApp(nil, nil, nil, db, cfg, nil)
@@ -281,8 +281,14 @@ func TestAgentCreatedFocusesUnlockedChat(t *testing.T) {
 	if app.inputMode != "chat" {
 		t.Fatalf("inputMode = %q, want chat", app.inputMode)
 	}
-	if !app.conversation.IsAwake() {
-		t.Fatal("conversation should be awake after agent creation")
+	if app.conversation.IsAwake() {
+		t.Fatal("conversation should stay locked while a new active agent is still starting")
+	}
+	if app.pendingChatFocusAgentID != agent.ID {
+		t.Fatalf("pendingChatFocusAgentID = %q, want %q", app.pendingChatFocusAgentID, agent.ID)
+	}
+	if view := app.conversation.View(); !strings.Contains(view, "Chat available after agent responds") {
+		t.Fatalf("expected startup lock message, got:\n%s", view)
 	}
 }
 
