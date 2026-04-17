@@ -7,13 +7,11 @@ import (
 	"path/filepath"
 )
 
-// PrepareScopedConfig clones an existing OpenClaw config and points the browser at cdpURL.
+// PrepareScopedConfig clones an existing OpenClaw config and, when cdpURL is set,
+// points the browser at that CDP endpoint.
 func PrepareScopedConfig(baseConfigPath, cdpURL string) (string, func(), error) {
 	if baseConfigPath == "" {
 		return "", nil, fmt.Errorf("base OpenClaw config path is required")
-	}
-	if cdpURL == "" {
-		return "", nil, fmt.Errorf("cdp url is required")
 	}
 
 	data, err := os.ReadFile(baseConfigPath)
@@ -33,7 +31,9 @@ func PrepareScopedConfig(baseConfigPath, cdpURL string) (string, func(), error) 
 	}
 	browser["enabled"] = true
 	browser["headless"] = true
-	browser["cdpUrl"] = cdpURL
+	if cdpURL != "" {
+		browser["cdpUrl"] = cdpURL
+	}
 
 	tmpDir, err := os.MkdirTemp("", "vulpine-openclaw-*")
 	if err != nil {
@@ -55,4 +55,10 @@ func PrepareScopedConfig(baseConfigPath, cdpURL string) (string, func(), error) 
 		_ = os.RemoveAll(tmpDir)
 	}
 	return path, cleanup, nil
+}
+
+// PrepareRuntimeConfig clones an existing OpenClaw config without mutating the shared
+// profile file, allowing OpenClaw to rewrite the per-run config in isolation.
+func PrepareRuntimeConfig(baseConfigPath string) (string, func(), error) {
+	return PrepareScopedConfig(baseConfigPath, "")
 }

@@ -386,6 +386,8 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 					gw = openclaw.NewGateway("")
 					if gwErr := gw.Start(); gwErr != nil {
 						log.Printf("Warning: OpenClaw gateway failed to start: %v (browser tools won't work)", gwErr)
+					} else if repairErr := config.RepairOpenClawProfile(cfg.FoxbridgeCDPURL); repairErr != nil {
+						log.Printf("Warning: could not repair OpenClaw profile after gateway start: %v", repairErr)
 					}
 				}
 			}

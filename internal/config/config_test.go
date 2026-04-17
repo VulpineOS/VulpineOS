@@ -385,6 +385,82 @@ func TestGenerateOpenClawConfigRewritesStaleVulpineBrowserSkill(t *testing.T) {
 	}
 }
 
+func TestRepairOpenClawProfileRestoresWorkspaceAndSkill(t *testing.T) {
+	withTempHome(t)
+
+	if err := os.MkdirAll(OpenClawProfileDir(), 0700); err != nil {
+		t.Fatalf("mkdir profile: %v", err)
+	}
+	stale := map[string]interface{}{
+		"env": map[string]interface{}{"ZAI_API_KEY": "test"},
+		"browser": map[string]interface{}{
+			"enabled": true,
+		},
+		"gateway": map[string]interface{}{
+			"mode": "local",
+			"auth": map[string]interface{}{
+				"mode":  "token",
+				"token": "keep-me",
+			},
+		},
+	}
+	data, err := json.Marshal(stale)
+	if err != nil {
+		t.Fatalf("marshal stale config: %v", err)
+	}
+	if err := os.WriteFile(OpenClawConfigPath(), data, 0600); err != nil {
+		t.Fatalf("write stale config: %v", err)
+	}
+
+	staleSkillDir := filepath.Join(OpenClawProfileDir(), "skills", "vulpine-browser")
+	if err := os.MkdirAll(staleSkillDir, 0700); err != nil {
+		t.Fatalf("mkdir stale skill dir: %v", err)
+	}
+	staleSkill := filepath.Join(staleSkillDir, "SKILL.md")
+	if err := os.WriteFile(staleSkill, []byte("Use vulpineos-browser shell command for everything."), 0600); err != nil {
+		t.Fatalf("write stale skill: %v", err)
+	}
+
+	if err := RepairOpenClawProfile("ws://127.0.0.1:9222"); err != nil {
+		t.Fatalf("RepairOpenClawProfile: %v", err)
+	}
+
+	out, err := os.ReadFile(OpenClawConfigPath())
+	if err != nil {
+		t.Fatalf("read repaired config: %v", err)
+	}
+	var cfg map[string]interface{}
+	if err := json.Unmarshal(out, &cfg); err != nil {
+		t.Fatalf("parse repaired config: %v", err)
+	}
+
+	browser := cfg["browser"].(map[string]interface{})
+	if browser["cdpUrl"] != "ws://127.0.0.1:9222" {
+		t.Fatalf("browser.cdpUrl = %v, want ws://127.0.0.1:9222", browser["cdpUrl"])
+	}
+	agents := cfg["agents"].(map[string]interface{})
+	defaults := agents["defaults"].(map[string]interface{})
+	if defaults["workspace"] != OpenClawWorkspaceDir() {
+		t.Fatalf("workspace = %v, want %q", defaults["workspace"], OpenClawWorkspaceDir())
+	}
+	gateway := cfg["gateway"].(map[string]interface{})
+	auth := gateway["auth"].(map[string]interface{})
+	if auth["token"] != "keep-me" {
+		t.Fatalf("gateway auth token = %v, want keep-me", auth["token"])
+	}
+
+	if _, err := os.Stat(filepath.Join(OpenClawWorkspaceDir(), "AGENTS.md")); err != nil {
+		t.Fatalf("expected workspace bootstrap files: %v", err)
+	}
+	skillData, err := os.ReadFile(staleSkill)
+	if err != nil {
+		t.Fatalf("read repaired skill: %v", err)
+	}
+	if !strings.Contains(string(skillData), "Use the `browser` tool directly") {
+		t.Fatalf("expected repaired skill to instruct browser tool, got:\n%s", string(skillData))
+	}
+}
+
 func TestGenerateOpenClawConfigPreservesGatewayAuthAndCommands(t *testing.T) {
 	withTempHome(t)
 

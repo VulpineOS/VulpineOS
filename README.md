@@ -225,7 +225,7 @@ Access via `--serve --port 8443 --api-key KEY` or through the remote client.
 - Fetch domain with request/response interception
 - Embedded into VulpineOS startup — OpenClaw agents automatically use Camoufox
 - OpenClaw is pinned to an isolated VulpineOS workspace under `~/.openclaw-vulpine/workspace` so personal OpenClaw identities and memories do not leak into VulpineOS agents
-- VulpineOS preserves the OpenClaw gateway auth token when regenerating `openclaw.json`, preventing browser gateway token drift during runtime config updates
+- VulpineOS repairs the shared OpenClaw profile after gateway startup and runs agents against per-run cloned configs, preventing gateway token drift and stale workspace/skill leakage
 - On macOS and Linux, VulpineOS launches OpenClaw in its own process group so pause and kill also tear down descendant agent processes cleanly
 
 ---
