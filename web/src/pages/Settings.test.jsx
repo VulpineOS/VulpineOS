@@ -20,6 +20,7 @@ describe('Settings page', () => {
             browser_route: 'camoufox',
             browser_route_source: 'runtime',
             browser_window: 'hidden',
+            gateway_running: true,
             kernel_headless: false,
           }
         }
@@ -31,6 +32,7 @@ describe('Settings page', () => {
 
     expect(await screen.findByText('Route: CAMOUFOX (runtime) · GUI')).toBeInTheDocument()
     expect(screen.getByText('Window: HIDDEN')).toBeInTheDocument()
+    expect(screen.getByText('Gateway: RUNNING')).toBeInTheDocument()
     expect(screen.getByText('OpenClaw integration: Configured')).toBeInTheDocument()
   })
 })

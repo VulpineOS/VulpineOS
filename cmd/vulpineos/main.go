@@ -631,7 +631,7 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 	server := remote.NewServer(addr, apiKey, client)
 
 	// Wire PanelAPI for control message handling
-	server.SetPanelAPI(&remote.PanelAPI{
+	panelAPI := &remote.PanelAPI{
 		Orchestrator: orch,
 		Config:       cfg,
 		Vault:        v,
@@ -644,7 +644,8 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 		Client:       client,
 		Contexts:     contexts,
 		RuntimeAudit: audit,
-	})
+	}
+	server.SetPanelAPI(panelAPI)
 
 	// Forward telemetry events to connected clients
 	for _, event := range []string{
@@ -765,6 +766,7 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 
 	gw := startGatewayIfAvailable(cfg)
 	if gw != nil {
+		panelAPI.Gateway = gw
 		defer gw.Stop()
 	}
 

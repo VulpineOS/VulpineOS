@@ -9,10 +9,17 @@ import (
 	"vulpineos/internal/kernel"
 )
 
+type stubGateway struct{ running bool }
+
+func (s stubGateway) Running() bool { return s.running }
+
 func TestStatusGetIncludesBrowserRoute(t *testing.T) {
 	api := &PanelAPI{
 		Kernel: kernel.New(),
 		Config: &config.Config{FoxbridgeCDPURL: "ws://127.0.0.1:9222"},
+		Gateway: stubGateway{
+			running: true,
+		},
 	}
 
 	payload, err := api.HandleMessage("status.get", nil)
@@ -33,6 +40,9 @@ func TestStatusGetIncludesBrowserRoute(t *testing.T) {
 	}
 	if got := result["browser_window"]; got != "unavailable" {
 		t.Fatalf("browser_window = %v, want unavailable", got)
+	}
+	if got := result["gateway_running"]; got != true {
+		t.Fatalf("gateway_running = %v, want true", got)
 	}
 	if got := result["kernel_headless"]; got != false {
 		t.Fatalf("kernel_headless = %v, want false", got)

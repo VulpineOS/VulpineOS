@@ -194,7 +194,7 @@ Those bootstrap files also force exact action/result reporting and explicitly fo
 The footer always shows the current arrow-key mode as `mode:navigate` or `mode:resize`.
 The system panel now shows both the browser mode (`GUI` or `HEADLESS`) and the active browser route (`CAMOUFOX` when OpenClaw is attached through foxbridge into Camoufox), so the operator can verify the runtime path without checking logs.
 The TUI also shows the current browser window state (`VISIBLE`, `HIDDEN`, `HEADLESS`, or `N/A`) so `v` no longer feels opaque when the window controller cannot act.
-The web panel now surfaces the same route and mode signal on Dashboard and Settings, including whether that route came from live runtime state or only from the shared OpenClaw profile.
+The web panel now surfaces the same route and mode signal on Dashboard and Settings, including whether that route came from live runtime state or only from the shared OpenClaw profile, plus whether the OpenClaw gateway daemon is currently running.
 If an older machine already has a valid `~/.openclaw-vulpine/openclaw.json` but a stale or blank `~/.vulpineos/config.json`, VulpineOS now backfills the local provider/model/key state from the OpenClaw profile instead of pretending the installation is unconfigured.
 Saving provider settings from the web panel now also marks setup complete and regenerates the shared OpenClaw profile immediately, so panel edits apply to the next agent run without waiting for a separate reconfigure pass.
 Served mode now starts the OpenClaw gateway with the same repair path as local mode, so browser-backed agents do not silently lose gateway support when you move from the local TUI to the hosted panel/server path.

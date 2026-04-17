@@ -37,6 +37,7 @@ export default function Dashboard({ ws }) {
             {s.kernel_headless ? 'HEADLESS' : 'GUI'}
           </div>
           <div className="stat-label">Window: {(s.browser_window || 'unknown').toUpperCase()}</div>
+          <div className="stat-label">Gateway: {s.gateway_running ? 'RUNNING' : 'STOPPED'}</div>
         </div>
         <div className="card">
           <h3>Agents</h3>

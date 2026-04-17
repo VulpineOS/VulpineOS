@@ -17,6 +17,7 @@ describe('Dashboard page', () => {
             browser_route: 'camoufox',
             browser_route_source: 'runtime',
             browser_window: 'hidden',
+            gateway_running: true,
             kernel_headless: false,
           }
         }
@@ -28,6 +29,7 @@ describe('Dashboard page', () => {
 
     expect(await screen.findByText('CAMOUFOX (runtime) · GUI')).toBeInTheDocument()
     expect(screen.getByText('Window: HIDDEN')).toBeInTheDocument()
+    expect(screen.getByText('Gateway: RUNNING')).toBeInTheDocument()
     expect(screen.getByText('PID 1234 · 512MB')).toBeInTheDocument()
   })
 })
