@@ -329,7 +329,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "new-agent-desc":
 			return a.updateDescInput(msg)
 		case "chat":
-			if a.conversation.Focused() || msg.String() != "v" {
+			if a.conversation.Focused() || (msg.String() != "v" && msg.String() != "t") {
 				return a.updateChatInput(msg)
 			}
 		}
@@ -403,6 +403,15 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.notice = "Resize mode enabled — arrow keys resize panels"
 			} else {
 				a.notice = "Resize mode disabled — arrow keys navigate and scroll"
+			}
+			a.noticeTTL = 3
+		case "t":
+			enabled := !a.conversation.TraceOnly()
+			a.conversation.SetTraceOnly(enabled)
+			if enabled {
+				a.notice = "Trace mode enabled — showing tool actions and results"
+			} else {
+				a.notice = "Trace mode disabled — showing full conversation"
 			}
 			a.noticeTTL = 3
 		case "j":
@@ -1156,6 +1165,7 @@ func (a App) renderStatusBar() string {
 		shared.MutedStyle.Render(" | ") +
 		shared.RunningStyle.Render("* "+mode) +
 		shared.MutedStyle.Render("  n:new  p/r:agent  P/R:all  X:kill-all  x:del  v:view  m:mode  S:settings  Enter:chat  Tab:focus  ") +
+		shared.MutedStyle.Render("t:trace  ") +
 		arrowMode +
 		shared.MutedStyle.Render("  q:quit") +
 		ctxHint

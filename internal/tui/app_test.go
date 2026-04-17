@@ -444,6 +444,59 @@ func TestUnfocusedChatAllowsViewShortcut(t *testing.T) {
 	}
 }
 
+func TestUnfocusedChatAllowsTraceShortcut(t *testing.T) {
+	db := openTestVault(t)
+	cfg := &config.Config{}
+	app := NewApp(nil, nil, nil, db, cfg, nil)
+	app.conversation.SetSize(80, 20)
+
+	agent, err := db.CreateAgent("Scraper", "Scrape prices", "{}")
+	if err != nil {
+		t.Fatalf("create agent: %v", err)
+	}
+	app.selectedAgentID = agent.ID
+	app.focus = FocusConversation
+	app.inputMode = "chat"
+	app.conversation.SetAgentID(agent.ID)
+	app.conversation.SetAgentName(agent.Name)
+	app.conversation.SetAwake(true)
+	app.conversation.Blur()
+
+	model, _ := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'t'}})
+	app = model.(App)
+
+	if !app.conversation.TraceOnly() {
+		t.Fatal("trace shortcut should enable trace mode from unfocused chat state")
+	}
+	if got := app.conversation.TextInput().Value(); got != "" {
+		t.Fatalf("conversation input = %q, want empty when trace shortcut is used", got)
+	}
+}
+
+func TestTraceModeHotkeyTogglesConversationTrace(t *testing.T) {
+	db := openTestVault(t)
+	cfg := &config.Config{}
+	app := NewApp(nil, nil, nil, db, cfg, nil)
+
+	model, _ := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'t'}})
+	app = model.(App)
+	if !app.conversation.TraceOnly() {
+		t.Fatal("trace mode should be enabled after pressing t")
+	}
+	if !strings.Contains(app.notice, "Trace mode enabled") {
+		t.Fatalf("unexpected trace enable notice: %q", app.notice)
+	}
+
+	model, _ = app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'t'}})
+	app = model.(App)
+	if app.conversation.TraceOnly() {
+		t.Fatal("trace mode should be disabled after pressing t again")
+	}
+	if !strings.Contains(app.notice, "Trace mode disabled") {
+		t.Fatalf("unexpected trace disable notice: %q", app.notice)
+	}
+}
+
 func TestPauseResumeKeybindings(t *testing.T) {
 	db := openTestVault(t)
 

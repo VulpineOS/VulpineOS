@@ -184,7 +184,7 @@ A terminal-based command center for managing AI agents, browser contexts, and id
 └───────────────┴──────────────────────────────┴─────────────────┘
 ```
 
-**Keybinds:** `n` new agent · `j/k` navigate · `Enter` chat · `p/r` pause or resume selected agent · `P/R` pause or resume all agents · `X` kill all live agents · `x` delete · `v` show or hide Camoufox · `m` toggle arrow-key mode · `S` settings · `q` quit
+**Keybinds:** `n` new agent · `j/k` navigate · `Enter` chat · `p/r` pause or resume selected agent · `P/R` pause or resume all agents · `X` kill all live agents · `x` delete · `v` show or hide Camoufox · `t` toggle action trace · `m` toggle arrow-key mode · `S` settings · `q` quit
 
 Arrow keys navigate the agent list and conversation by default. If you want panel resizing on arrow keys, enable **Arrow Keys Resize Panels** in `Settings -> General` or press `m` to toggle modes directly from the TUI footer.
 
@@ -192,6 +192,7 @@ The generated OpenClaw workspace under `~/.openclaw-vulpine/workspace` is refres
 Those bootstrap files also force exact action/result reporting and explicitly forbid claiming a browser action succeeded after an error, timeout, or incomplete result.
 The footer always shows the current arrow-key mode as `mode:navigate` or `mode:resize`.
 If the conversation panel is awake but the cursor has dropped out of the input, the next typed character re-focuses chat automatically, while `v` still works as a browser show or hide shortcut from that unfocused state.
+Press `t` to switch the center panel into a trace-only view of system tool events so browser/tool starts, completions, and failures are easy to inspect without mixing them into the full conversation stream.
 
 The agent list shows unread reply counts for non-selected agents so background work does not disappear while you are focused elsewhere.
 
