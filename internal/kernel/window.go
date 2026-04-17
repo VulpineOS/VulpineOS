@@ -103,19 +103,25 @@ func (w *WindowController) show() error {
 	if runtime.GOOS != "darwin" {
 		return nil
 	}
+	var lastErr error
 	for _, pid := range w.candidatePIDs() {
 		if _, err := runWindowCommand("osascript", "-e",
 			`tell application "System Events" to set visible of first process whose unix id is `+strconv.Itoa(pid)+` to true`,
 		); err != nil {
+			lastErr = err
 			continue
 		}
 		if _, err := runWindowCommand("osascript", "-e",
 			`tell application "System Events" to set frontmost of first process whose unix id is `+strconv.Itoa(pid)+` to true`,
 		); err != nil {
+			lastErr = err
 			continue
 		}
 		w.targetPID = pid
 		return nil
+	}
+	if lastErr != nil {
+		return fmt.Errorf("show browser process tree rooted at %d: %w", w.pid, lastErr)
 	}
 	return fmt.Errorf("show browser process tree rooted at %d", w.pid)
 }
@@ -124,14 +130,19 @@ func (w *WindowController) hide() error {
 	if runtime.GOOS != "darwin" {
 		return nil
 	}
+	var lastErr error
 	for _, pid := range w.candidatePIDs() {
 		if _, err := runWindowCommand("osascript", "-e",
 			`tell application "System Events" to set visible of first process whose unix id is `+strconv.Itoa(pid)+` to false`,
 		); err != nil {
+			lastErr = err
 			continue
 		}
 		w.targetPID = pid
 		return nil
+	}
+	if lastErr != nil {
+		return fmt.Errorf("hide browser process tree rooted at %d: %w", w.pid, lastErr)
 	}
 	return fmt.Errorf("hide browser process tree rooted at %d", w.pid)
 }

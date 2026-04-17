@@ -201,6 +201,7 @@ Served mode now starts the OpenClaw gateway with the same repair path as local m
 If the conversation panel is awake but the cursor has dropped out of the input, the next typed character re-focuses chat automatically, while `v` still works as a browser show or hide shortcut from that unfocused state.
 After a newly created agent sends its first real reply, VulpineOS automatically snaps focus back to the chat box so the conversation is immediately writable again.
 The `v` shortcut now refreshes the actual macOS window visibility before toggling, so a stale cached state no longer turns the first show or hide into a no-op.
+When the macOS window-controller path fails, the toggle notice now preserves the underlying `osascript` error so permission problems and missing process targets are visible instead of being collapsed into a generic failure.
 Press `t` to switch the center panel into a trace-only view of system tool events so browser/tool starts, completions, and failures are easy to inspect without mixing them into the full conversation stream.
 If a tool fails and the agent still replies as if the task succeeded, VulpineOS now injects an explicit warning into that trace so false-success replies are visible immediately.
 Non-zero command exits in OpenClaw tool results are now classified as failures even when the upstream payload reports `status:"completed"`, so trace output stays aligned with the real action result.
