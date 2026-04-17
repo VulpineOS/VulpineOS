@@ -682,9 +682,11 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if a.kernel != nil {
 			ksMsg := shared.KernelStatusMsg{
-				Running: a.kernel.Running(),
-				PID:     a.kernel.PID(),
-				Uptime:  a.kernel.Uptime(),
+				Running:      a.kernel.Running(),
+				PID:          a.kernel.PID(),
+				Uptime:       a.kernel.Uptime(),
+				Headless:     a.kernel.IsHeadless(),
+				BrowserRoute: a.browserRouteLabel(),
 			}
 			a.systemInfo, _ = a.systemInfo.Update(ksMsg)
 		}
@@ -1268,6 +1270,19 @@ func (a *App) updatePanelSizes() {
 
 func (a *App) resizeModeEnabled() bool {
 	return a.resizeMode
+}
+
+func (a *App) browserRouteLabel() string {
+	if a.cfg != nil && strings.TrimSpace(a.cfg.FoxbridgeCDPURL) != "" {
+		return "CAMOUFOX"
+	}
+	if a.kernel != nil && a.kernel.IsHeadless() {
+		return "HEADLESS"
+	}
+	if a.kernel != nil {
+		return "DIRECT"
+	}
+	return ""
 }
 
 // updateAgentDetail populates the agent detail panel from an Agent struct.

@@ -10,9 +10,11 @@ import (
 
 // KernelStatusMsg updates kernel process status.
 type KernelStatusMsg struct {
-	Running bool
-	PID     int
-	Uptime  time.Duration
+	Running      bool
+	PID          int
+	Uptime       time.Duration
+	Headless     bool
+	BrowserRoute string
 }
 
 // TelemetryMsg carries engine telemetry data.
