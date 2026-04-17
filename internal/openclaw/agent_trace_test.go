@@ -70,6 +70,28 @@ func TestSummarizeToolResultBrowserOpenSuccess(t *testing.T) {
 	}
 }
 
+func TestSummarizeToolResultTreatsNonZeroExitCodeAsError(t *testing.T) {
+	content := []struct {
+		Type      string                 `json:"type"`
+		Text      string                 `json:"text"`
+		Thinking  string                 `json:"thinking"`
+		ID        string                 `json:"id"`
+		Name      string                 `json:"name"`
+		Arguments map[string]interface{} `json:"arguments"`
+	}{
+		{Type: "text", Text: "node: command not found"},
+	}
+	got := summarizeToolResult("exec", content, map[string]interface{}{
+		"status":     "completed",
+		"exitCode":   1,
+		"aggregated": "node: command not found",
+	})
+	want := "Tool failed: exec — node: command not found"
+	if got != want {
+		t.Fatalf("summarizeToolResult = %q, want %q", got, want)
+	}
+}
+
 func TestHandleSessionLogLine_EmitsAssistantText(t *testing.T) {
 	agent := newAgent("agent-1", "ctx-1", make(chan AgentStatus, 1))
 
@@ -144,5 +166,30 @@ func TestHandleSessionLogLine_SuccessfulToolClearsFailureWarning(t *testing.T) {
 	case extra := <-agent.conversationCh:
 		t.Fatalf("unexpected extra warning after successful tool: %#v", extra)
 	default:
+	}
+}
+
+func TestHandleSessionLogLine_TreatsNonZeroExitCodeAsFailure(t *testing.T) {
+	agent := newAgent("agent-1", "ctx-1", make(chan AgentStatus, 1))
+
+	toolResult := `{"type":"message","message":{"role":"toolResult","toolName":"exec","isError":false,"content":[{"type":"text","text":"node: command not found"}],"details":{"status":"completed","exitCode":1,"aggregated":"node: command not found"}}}`
+	assistant := `{"type":"message","message":{"role":"assistant","content":[{"type":"text","text":"Done"}]}}`
+
+	agent.handleSessionLogLine(toolResult)
+	agent.handleSessionLogLine(assistant)
+
+	msg1 := <-agent.conversationCh
+	if msg1.Role != "system" || msg1.Content != "Tool failed: exec — node: command not found" {
+		t.Fatalf("first message = %#v", msg1)
+	}
+
+	msg2 := <-agent.conversationCh
+	if msg2.Role != "system" || msg2.Content != "Warning: assistant replied after failed exec action — node: command not found" {
+		t.Fatalf("second message = %#v", msg2)
+	}
+
+	msg3 := <-agent.conversationCh
+	if msg3.Role != "assistant" || msg3.Content != "Done" {
+		t.Fatalf("third message = %#v", msg3)
 	}
 }

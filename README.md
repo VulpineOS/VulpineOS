@@ -197,6 +197,7 @@ After a newly created agent sends its first real reply, VulpineOS automatically 
 The `v` shortcut now refreshes the actual macOS window visibility before toggling, so a stale cached state no longer turns the first show or hide into a no-op.
 Press `t` to switch the center panel into a trace-only view of system tool events so browser/tool starts, completions, and failures are easy to inspect without mixing them into the full conversation stream.
 If a tool fails and the agent still replies as if the task succeeded, VulpineOS now injects an explicit warning into that trace so false-success replies are visible immediately.
+Non-zero command exits in OpenClaw tool results are now classified as failures even when the upstream payload reports `status:"completed"`, so trace output stays aligned with the real action result.
 Press `o` to open the selected agent's raw OpenClaw session log in the system viewer for full JSONL trace inspection, including provider-emitted thinking blocks when the provider writes them.
 
 The agent list shows unread reply counts for non-selected agents so background work does not disappear while you are focused elsewhere.
