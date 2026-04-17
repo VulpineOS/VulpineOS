@@ -88,3 +88,61 @@ func TestHandleSessionLogLine_EmitsAssistantText(t *testing.T) {
 		t.Fatal("expected assistant text to be emitted from session log")
 	}
 }
+
+func TestHandleSessionLogLine_WarnsAfterFailedToolThenAssistantReply(t *testing.T) {
+	agent := newAgent("agent-1", "ctx-1", make(chan AgentStatus, 1))
+
+	toolResult := `{"type":"message","message":{"role":"toolResult","toolName":"browser","content":[{"type":"text","text":"{\"status\":\"error\",\"error\":\"gateway token mismatch\"}"}],"details":{"status":"error","error":"gateway token mismatch"}}}`
+	assistant := `{"type":"message","message":{"role":"assistant","content":[{"type":"text","text":"STATUS:clicked"}]}}`
+
+	agent.handleSessionLogLine(toolResult)
+	agent.handleSessionLogLine(assistant)
+
+	msg1 := <-agent.conversationCh
+	if msg1.Role != "system" || msg1.Content != "Tool failed: browser — gateway token mismatch" {
+		t.Fatalf("first message = %#v", msg1)
+	}
+
+	msg2 := <-agent.conversationCh
+	if msg2.Role != "system" || msg2.Content != "Warning: assistant replied after failed browser action — gateway token mismatch" {
+		t.Fatalf("second message = %#v", msg2)
+	}
+
+	msg3 := <-agent.conversationCh
+	if msg3.Role != "assistant" || msg3.Content != "STATUS:clicked" {
+		t.Fatalf("third message = %#v", msg3)
+	}
+}
+
+func TestHandleSessionLogLine_SuccessfulToolClearsFailureWarning(t *testing.T) {
+	agent := newAgent("agent-1", "ctx-1", make(chan AgentStatus, 1))
+
+	failed := `{"type":"message","message":{"role":"toolResult","toolName":"browser","content":[{"type":"text","text":"{\"status\":\"error\",\"error\":\"gateway token mismatch\"}"}],"details":{"status":"error","error":"gateway token mismatch"}}}`
+	success := `{"type":"message","message":{"role":"toolResult","toolName":"browser","content":[{"type":"text","text":"{\"status\":\"ok\",\"url\":\"https://example.com\"}"}],"details":{"status":"ok","url":"https://example.com"}}}`
+	assistant := `{"type":"message","message":{"role":"assistant","content":[{"type":"text","text":"Done"}]}}`
+
+	agent.handleSessionLogLine(failed)
+	agent.handleSessionLogLine(success)
+	agent.handleSessionLogLine(assistant)
+
+	msg1 := <-agent.conversationCh
+	if msg1.Content != "Tool failed: browser — gateway token mismatch" {
+		t.Fatalf("first message = %#v", msg1)
+	}
+
+	msg2 := <-agent.conversationCh
+	if msg2.Content != "Tool completed: browser — at https://example.com" {
+		t.Fatalf("second message = %#v", msg2)
+	}
+
+	msg3 := <-agent.conversationCh
+	if msg3.Role != "assistant" || msg3.Content != "Done" {
+		t.Fatalf("third message = %#v", msg3)
+	}
+
+	select {
+	case extra := <-agent.conversationCh:
+		t.Fatalf("unexpected extra warning after successful tool: %#v", extra)
+	default:
+	}
+}

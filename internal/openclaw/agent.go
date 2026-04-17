@@ -79,6 +79,9 @@ type Agent struct {
 	waitState      *agentWaitState
 	stopStatus     string
 	sessionLogPath string
+	lastToolName   string
+	lastToolFailed bool
+	lastToolError  string
 }
 
 type agentWaitState struct {
@@ -433,6 +436,14 @@ func (a *Agent) handleSessionLogLine(line string) {
 
 	switch event.Message.Role {
 	case "assistant":
+		if a.lastToolFailed {
+			a.emitConversation(ConversationMsg{
+				AgentID: a.ID,
+				Role:    "system",
+				Content: formatPostFailureWarning(a.lastToolName, a.lastToolError),
+			})
+			a.lastToolFailed = false
+		}
 		for _, item := range event.Message.Content {
 			if item.Type == "text" && strings.TrimSpace(item.Text) != "" {
 				a.emitConversation(ConversationMsg{
@@ -446,6 +457,9 @@ func (a *Agent) handleSessionLogLine(line string) {
 			if item.Type != "toolCall" {
 				continue
 			}
+			a.lastToolName = item.Name
+			a.lastToolFailed = false
+			a.lastToolError = ""
 			if msg := summarizeToolCall(item.Name, item.Arguments); msg != "" {
 				a.emitConversation(ConversationMsg{
 					AgentID: a.ID,
@@ -462,7 +476,26 @@ func (a *Agent) handleSessionLogLine(line string) {
 				Content: msg,
 			})
 		}
+		status, errText := toolResultStatus(event.Message.Content, event.Message.Details)
+		a.lastToolName = event.Message.ToolName
+		if status == "error" {
+			a.lastToolFailed = true
+			a.lastToolError = errText
+		} else if status != "" {
+			a.lastToolFailed = false
+			a.lastToolError = ""
+		}
 	}
+}
+
+func formatPostFailureWarning(toolName, errText string) string {
+	if toolName == "" {
+		toolName = "tool"
+	}
+	if errText != "" {
+		return fmt.Sprintf("Warning: assistant replied after failed %s action — %s", toolName, truncate(singleLine(errText), 180))
+	}
+	return fmt.Sprintf("Warning: assistant replied after failed %s action with no successful retry recorded", toolName)
 }
 
 func summarizeToolCall(name string, args map[string]interface{}) string {
@@ -513,9 +546,9 @@ func summarizeToolResult(name string, content []struct {
 	if name == "" {
 		name = "tool"
 	}
-	if status, _ := details["status"].(string); status != "" {
+	if status, errText := toolResultStatus(content, details); status != "" {
 		if status == "error" {
-			if errText, _ := details["error"].(string); errText != "" {
+			if errText != "" {
 				return fmt.Sprintf("Tool failed: %s — %s", name, truncate(singleLine(errText), 180))
 			}
 			return fmt.Sprintf("Tool failed: %s", name)
@@ -523,7 +556,35 @@ func summarizeToolResult(name string, content []struct {
 		if msg := summarizeToolSuccess(name, details); msg != "" {
 			return msg
 		}
+		for _, item := range content {
+			if item.Type != "text" || item.Text == "" {
+				continue
+			}
+			var payload map[string]interface{}
+			if json.Unmarshal([]byte(item.Text), &payload) != nil {
+				continue
+			}
+			if msg := summarizeToolSuccess(name, payload); msg != "" {
+				return msg
+			}
+		}
 		return fmt.Sprintf("Tool completed: %s", name)
+	}
+
+	return fmt.Sprintf("Tool completed: %s", name)
+}
+
+func toolResultStatus(content []struct {
+	Type      string                 `json:"type"`
+	Text      string                 `json:"text"`
+	Thinking  string                 `json:"thinking"`
+	ID        string                 `json:"id"`
+	Name      string                 `json:"name"`
+	Arguments map[string]interface{} `json:"arguments"`
+}, details map[string]interface{}) (status string, errText string) {
+	if status, _ = details["status"].(string); status != "" {
+		errText, _ = details["error"].(string)
+		return status, errText
 	}
 
 	for _, item := range content {
@@ -531,23 +592,17 @@ func summarizeToolResult(name string, content []struct {
 			continue
 		}
 		var payload map[string]interface{}
-		if json.Unmarshal([]byte(item.Text), &payload) == nil {
-			if status, _ := payload["status"].(string); status == "error" {
-				if errText, _ := payload["error"].(string); errText != "" {
-					return fmt.Sprintf("Tool failed: %s — %s", name, truncate(singleLine(errText), 180))
-				}
-				return fmt.Sprintf("Tool failed: %s", name)
-			}
-			if status, _ := payload["status"].(string); status != "" {
-				if msg := summarizeToolSuccess(name, payload); msg != "" {
-					return msg
-				}
-				return fmt.Sprintf("Tool completed: %s", name)
-			}
+		if json.Unmarshal([]byte(item.Text), &payload) != nil {
+			continue
+		}
+		status, _ = payload["status"].(string)
+		errText, _ = payload["error"].(string)
+		if status != "" {
+			return status, errText
 		}
 	}
 
-	return fmt.Sprintf("Tool completed: %s", name)
+	return "", ""
 }
 
 func summarizeBrowserCall(args map[string]interface{}) string {

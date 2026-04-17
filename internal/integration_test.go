@@ -49,12 +49,13 @@ func skipIfNoBrowser(t *testing.T) string {
 func requireLiveOpenClaw(t *testing.T) {
 	t.Helper()
 	if strings.TrimSpace(os.Getenv("VULPINEOS_RUN_LIVE")) == "" {
-		t.Skip("set VULPINEOS_RUN_LIVE=1 to run live OpenClaw integration tests")
+		t.Skip("set VULPINEOS_RUN_LIVE=1 to run live VulpineOS integration tests")
 	}
 }
 
 // startKernel launches Camoufox in headless mode and returns the kernel + client.
 func startKernel(t *testing.T) (*kernel.Kernel, *juggler.Client) {
+	requireLiveOpenClaw(t)
 	binary := skipIfNoBrowser(t)
 
 	k := kernel.New()

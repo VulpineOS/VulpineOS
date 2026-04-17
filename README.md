@@ -193,6 +193,7 @@ Those bootstrap files also force exact action/result reporting and explicitly fo
 The footer always shows the current arrow-key mode as `mode:navigate` or `mode:resize`.
 If the conversation panel is awake but the cursor has dropped out of the input, the next typed character re-focuses chat automatically, while `v` still works as a browser show or hide shortcut from that unfocused state.
 Press `t` to switch the center panel into a trace-only view of system tool events so browser/tool starts, completions, and failures are easy to inspect without mixing them into the full conversation stream.
+If a tool fails and the agent still replies as if the task succeeded, VulpineOS now injects an explicit warning into that trace so false-success replies are visible immediately.
 
 The agent list shows unread reply counts for non-selected agents so background work does not disappear while you are focused elsewhere.
 
@@ -204,7 +205,7 @@ OpenClaw session log streaming is used as a fallback conversation source, so fin
 
 The live operator path is covered by env-gated soak tests in `internal/agent_soak_integration_test.go` and `internal/remote/panel_agent_soak_test.go`, including persisted-session resume plus panel-driven pause and kill flows.
 
-Live OpenClaw integration tests in `internal/integration_test.go` are gated behind `VULPINEOS_RUN_LIVE=1` so the default `go test` and CI path stay hermetic.
+Live browser and OpenClaw integration tests in `internal/integration_test.go` are gated behind `VULPINEOS_RUN_LIVE=1` so the default `go test` and CI path stay hermetic even on machines that already have Camoufox installed.
 
 ---
 
