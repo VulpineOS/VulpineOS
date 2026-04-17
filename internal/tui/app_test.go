@@ -473,6 +473,32 @@ func TestUnfocusedChatAllowsTraceShortcut(t *testing.T) {
 	}
 }
 
+func TestReconfigureShortcutQueuesWizardWithoutClearingConfig(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	cfg := &config.Config{
+		Provider:      "anthropic",
+		APIKey:        "sk-test",
+		Model:         "anthropic/claude-sonnet-4-6",
+		SetupComplete: true,
+	}
+	app := NewApp(nil, nil, nil, nil, cfg, nil)
+
+	model, _ := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	updated := model.(App)
+
+	if !cfg.SetupComplete {
+		t.Fatal("reconfigure shortcut should not clear setupComplete on the active config")
+	}
+	if !config.ReconfigureRequested() {
+		t.Fatal("reconfigure shortcut should queue the setup wizard for next launch")
+	}
+	if updated.notice != "" {
+		t.Fatalf("unexpected notice after queuing reconfigure: %q", updated.notice)
+	}
+}
+
 func TestTraceModeHotkeyTogglesConversationTrace(t *testing.T) {
 	db := openTestVault(t)
 	cfg := &config.Config{}

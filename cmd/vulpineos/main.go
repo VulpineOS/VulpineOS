@@ -222,10 +222,11 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 		log.Printf("Warning: could not load config: %v", err)
 		cfg = &config.Config{}
 	}
+	reconfigureRequested := config.ReconfigureRequested()
 
-	if cfg.NeedsSetup() {
+	if cfg.NeedsSetup() || reconfigureRequested {
 		// Run setup wizard
-		setupModel := setup.New()
+		setupModel := setup.NewWithConfig(cfg)
 		p := tea.NewProgram(setupModel, tea.WithAltScreen())
 		result, err := p.Run()
 		if err != nil {
@@ -233,12 +234,14 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 		}
 		finalModel := result.(setup.Model)
 		if !finalModel.Done() {
+			_ = config.ClearReconfigureRequest()
 			return nil // user quit setup
 		}
 		cfg = finalModel.Config()
 		if err := cfg.Save(); err != nil {
 			return fmt.Errorf("save config: %w", err)
 		}
+		_ = config.ClearReconfigureRequest()
 
 		// Generate OpenClaw config
 		exe, _ := os.Executable()

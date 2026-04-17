@@ -255,6 +255,12 @@ func Path() string {
 	return filepath.Join(Dir(), "config.json")
 }
 
+// ReconfigureFlagPath returns the sentinel path used to request the setup wizard
+// on the next launch without mutating the active config first.
+func ReconfigureFlagPath() string {
+	return filepath.Join(Dir(), "reconfigure")
+}
+
 // Load reads the config from disk. Returns a zero Config if file doesn't exist.
 func Load() (*Config, error) {
 	data, err := os.ReadFile(Path())
@@ -289,6 +295,29 @@ func (c *Config) Save() error {
 	}
 
 	return os.WriteFile(Path(), data, 0600)
+}
+
+// RequestReconfigure asks the next launch to run the setup wizard while keeping
+// the current config intact until the wizard completes successfully.
+func RequestReconfigure() error {
+	if err := os.MkdirAll(Dir(), 0700); err != nil {
+		return fmt.Errorf("create config dir: %w", err)
+	}
+	return os.WriteFile(ReconfigureFlagPath(), []byte("1\n"), 0600)
+}
+
+// ReconfigureRequested reports whether the next launch should open the setup wizard.
+func ReconfigureRequested() bool {
+	_, err := os.Stat(ReconfigureFlagPath())
+	return err == nil
+}
+
+// ClearReconfigureRequest removes the reconfigure sentinel if present.
+func ClearReconfigureRequest() error {
+	if err := os.Remove(ReconfigureFlagPath()); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
 
 // GenerateOpenClawConfig writes an openclaw.json that uses VulpineOS as the browser.

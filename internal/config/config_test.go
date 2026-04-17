@@ -627,3 +627,24 @@ func TestNeedsSetup(t *testing.T) {
 		t.Error("config with setupComplete should not need setup")
 	}
 }
+
+func TestReconfigureRequestLifecycle(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	if ReconfigureRequested() {
+		t.Fatal("reconfigure request should start cleared")
+	}
+	if err := RequestReconfigure(); err != nil {
+		t.Fatalf("RequestReconfigure: %v", err)
+	}
+	if !ReconfigureRequested() {
+		t.Fatal("reconfigure request should be visible after RequestReconfigure")
+	}
+	if err := ClearReconfigureRequest(); err != nil {
+		t.Fatalf("ClearReconfigureRequest: %v", err)
+	}
+	if ReconfigureRequested() {
+		t.Fatal("reconfigure request should be cleared")
+	}
+}

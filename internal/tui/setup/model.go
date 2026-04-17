@@ -45,17 +45,55 @@ type Model struct {
 
 // New creates a new setup wizard.
 func New() Model {
+	return NewWithConfig(nil)
+}
+
+// NewWithConfig creates a setup wizard seeded from an existing config.
+func NewWithConfig(existing *config.Config) Model {
 	ti := textinput.New()
 	ti.Placeholder = "Paste your API key here..."
 	ti.CharLimit = 200
 	ti.Width = 50
 
-	return Model{
+	m := Model{
 		step:        stepProvider,
 		providers:   config.Providers,
 		apiKeyInput: ti,
 		cfg:         &config.Config{},
 	}
+	if existing == nil {
+		return m
+	}
+
+	m.cfg.Provider = existing.Provider
+	m.cfg.APIKey = existing.APIKey
+	m.cfg.Model = existing.Model
+	m.cfg.BinaryPath = existing.BinaryPath
+	m.cfg.ResizePanelsWithArrows = existing.ResizePanelsWithArrows
+	m.cfg.GlobalSkills = append([]config.SkillEntry(nil), existing.GlobalSkills...)
+	if len(existing.AgentSkills) > 0 {
+		m.cfg.AgentSkills = make(map[string][]config.SkillEntry, len(existing.AgentSkills))
+		for agentID, skills := range existing.AgentSkills {
+			m.cfg.AgentSkills[agentID] = append([]config.SkillEntry(nil), skills...)
+		}
+	}
+	if strings.TrimSpace(existing.APIKey) != "" {
+		m.apiKeyInput.SetValue(existing.APIKey)
+	}
+	for i, p := range m.providers {
+		if p.ID != existing.Provider {
+			continue
+		}
+		m.providerIdx = i
+		for idx, model := range p.Models {
+			if model == existing.Model {
+				m.modelIdx = idx
+				break
+			}
+		}
+		break
+	}
+	return m
 }
 
 // Config returns the completed config.
