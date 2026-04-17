@@ -48,8 +48,14 @@ func (api *PanelAPI) HandleMessage(method string, params json.RawMessage) (json.
 		return api.agentsKill(params)
 	case "agents.pause":
 		return api.agentsPause(params)
+	case "agents.pauseMany":
+		return api.agentsPauseMany(params)
 	case "agents.resume":
 		return api.agentsResume(params)
+	case "agents.resumeMany":
+		return api.agentsResumeMany(params)
+	case "agents.killMany":
+		return api.agentsKillMany(params)
 	case "agents.getMessages":
 		return api.agentsGetMessages(params)
 
@@ -277,6 +283,36 @@ func (api *PanelAPI) agentsPause(params json.RawMessage) (json.RawMessage, error
 	return json.Marshal(map[string]string{"status": "ok"})
 }
 
+func (api *PanelAPI) agentsPauseMany(params json.RawMessage) (json.RawMessage, error) {
+	if api.Orchestrator == nil || api.Vault == nil {
+		return nil, fmt.Errorf("orchestrator not available")
+	}
+	var p struct {
+		AgentIDs []string `json:"agentIds"`
+	}
+	if err := json.Unmarshal(params, &p); err != nil {
+		return nil, fmt.Errorf("invalid params: %w", err)
+	}
+	paused := 0
+	failures := map[string]string{}
+	for _, agentID := range p.AgentIDs {
+		if strings.TrimSpace(agentID) == "" {
+			continue
+		}
+		if err := api.Orchestrator.Agents.PauseAgent(agentID); err != nil {
+			failures[agentID] = err.Error()
+			continue
+		}
+		_ = api.Vault.UpdateAgentStatus(agentID, "paused")
+		paused++
+	}
+	return json.Marshal(map[string]interface{}{
+		"status":   "ok",
+		"paused":   paused,
+		"failures": failures,
+	})
+}
+
 func (api *PanelAPI) agentsResume(params json.RawMessage) (json.RawMessage, error) {
 	if api.Orchestrator == nil {
 		return nil, fmt.Errorf("orchestrator not available")
@@ -318,6 +354,82 @@ func (api *PanelAPI) agentsResume(params json.RawMessage) (json.RawMessage, erro
 	}
 	_ = api.Vault.UpdateAgentStatus(p.AgentID, "active")
 	return json.Marshal(map[string]string{"agentId": id})
+}
+
+func (api *PanelAPI) agentsResumeMany(params json.RawMessage) (json.RawMessage, error) {
+	if api.Orchestrator == nil || api.Vault == nil {
+		return nil, fmt.Errorf("orchestrator not available")
+	}
+	var p struct {
+		AgentIDs []string `json:"agentIds"`
+	}
+	if err := json.Unmarshal(params, &p); err != nil {
+		return nil, fmt.Errorf("invalid params: %w", err)
+	}
+	resumed := 0
+	failures := map[string]string{}
+	for _, agentID := range p.AgentIDs {
+		if strings.TrimSpace(agentID) == "" {
+			continue
+		}
+		agent, err := api.Vault.GetAgent(agentID)
+		if err != nil {
+			failures[agentID] = err.Error()
+			continue
+		}
+		configPath, cleanup, err := api.agentRuntimeConfig(agent)
+		if err != nil {
+			failures[agentID] = err.Error()
+			continue
+		}
+		sessionName := "vulpine-" + agentID
+		if _, err := api.Orchestrator.Agents.ResumeWithSession(agentID, sessionName, configPath); err != nil {
+			if cleanup != nil {
+				cleanup()
+			}
+			failures[agentID] = err.Error()
+			continue
+		}
+		if cleanup != nil {
+			cleanup()
+		}
+		_ = api.Vault.UpdateAgentStatus(agentID, "active")
+		resumed++
+	}
+	return json.Marshal(map[string]interface{}{
+		"status":   "ok",
+		"resumed":  resumed,
+		"failures": failures,
+	})
+}
+
+func (api *PanelAPI) agentsKillMany(params json.RawMessage) (json.RawMessage, error) {
+	if api.Orchestrator == nil || api.Vault == nil {
+		return nil, fmt.Errorf("orchestrator not available")
+	}
+	var p struct {
+		AgentIDs []string `json:"agentIds"`
+	}
+	if err := json.Unmarshal(params, &p); err != nil {
+		return nil, fmt.Errorf("invalid params: %w", err)
+	}
+	killed := 0
+	failures := map[string]string{}
+	for _, agentID := range p.AgentIDs {
+		if strings.TrimSpace(agentID) == "" {
+			continue
+		}
+		if err := api.Orchestrator.KillAgent(agentID); err != nil {
+			failures[agentID] = err.Error()
+			continue
+		}
+		killed++
+	}
+	return json.Marshal(map[string]interface{}{
+		"status":   "ok",
+		"killed":   killed,
+		"failures": failures,
+	})
 }
 
 func (api *PanelAPI) agentsGetMessages(params json.RawMessage) (json.RawMessage, error) {

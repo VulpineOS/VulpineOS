@@ -63,7 +63,7 @@ VulpineOS builds on Camoufox's battle-tested stealth foundation (Firefox 146.0.1
 │                                                              │
 │  Go Runtime (36 packages, 350+ tests)                         │
 │  ├── Bubbletea TUI (3-column agent workbench)                 │
-│  ├── Web Panel (React SPA, 11 pages, 32 API endpoints)        │
+│  ├── Web Panel (React SPA, 11 pages, 35 API endpoints)        │
 │  ├── Identity Vault (SQLite — citizens, templates, sessions)  │
 │  ├── Context Pool (pre-warm, recycle, memory limits)           │
 │  ├── Orchestrator (spawn citizens + nomads, auto-release)      │
@@ -206,7 +206,7 @@ A React SPA served from the Go binary — no separate frontend deployment needed
 
 **11 pages:** Dashboard, Agents, Agent Detail, Contexts, Proxies, Security, Webhooks, Scripts, Settings, Logs, Login
 
-**32 API endpoints** covering: agent CRUD, config management, cost tracking, webhooks, proxy management, agent bus (pending/approve/reject/policies), session recording, fingerprints, system status, and runtime audit history plus retention/export controls.
+**35 API endpoints** covering: agent CRUD, bulk agent controls, config management, cost tracking, webhooks, proxy management, agent bus (pending/approve/reject/policies), session recording, fingerprints, system status, and runtime audit history plus retention/export controls.
 
 Agent Detail includes separate conversation, action trace, recording, and fingerprint views so operator-visible tool activity is inspectable without exposing hidden reasoning.
 
