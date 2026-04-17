@@ -462,14 +462,23 @@ func summarizeToolCall(name string, args map[string]interface{}) string {
 	}
 	switch name {
 	case "browser":
-		action, _ := args["action"].(string)
-		if action == "" {
-			return "Running browser action"
-		}
+		return summarizeBrowserCall(args)
+	case "web_fetch":
 		if url, _ := args["url"].(string); url != "" {
-			return fmt.Sprintf("Running browser action: %s %s", action, url)
+			return fmt.Sprintf("Running tool: web_fetch %s", url)
 		}
-		return fmt.Sprintf("Running browser action: %s", action)
+	case "web_search":
+		if query, _ := args["query"].(string); query != "" {
+			return fmt.Sprintf("Running tool: web_search %s", truncate(singleLine(query), 180))
+		}
+	case "read", "write":
+		if path, _ := args["path"].(string); path != "" {
+			return fmt.Sprintf("Running tool: %s %s", name, truncate(path, 180))
+		}
+	case "exec":
+		if command, _ := args["command"].(string); command != "" {
+			return fmt.Sprintf("Running tool: exec %s", truncate(singleLine(command), 180))
+		}
 	default:
 		argText := compactJSON(args)
 		if argText == "" {
@@ -477,6 +486,11 @@ func summarizeToolCall(name string, args map[string]interface{}) string {
 		}
 		return fmt.Sprintf("Running tool: %s %s", name, truncate(argText, 180))
 	}
+	argText := compactJSON(args)
+	if argText == "" {
+		return fmt.Sprintf("Running tool: %s", name)
+	}
+	return fmt.Sprintf("Running tool: %s %s", name, truncate(argText, 180))
 }
 
 func summarizeToolResult(name string, content []struct {
@@ -497,6 +511,9 @@ func summarizeToolResult(name string, content []struct {
 			}
 			return fmt.Sprintf("Tool failed: %s", name)
 		}
+		if msg := summarizeToolSuccess(name, details); msg != "" {
+			return msg
+		}
 		return fmt.Sprintf("Tool completed: %s", name)
 	}
 
@@ -513,12 +530,82 @@ func summarizeToolResult(name string, content []struct {
 				return fmt.Sprintf("Tool failed: %s", name)
 			}
 			if status, _ := payload["status"].(string); status != "" {
+				if msg := summarizeToolSuccess(name, payload); msg != "" {
+					return msg
+				}
 				return fmt.Sprintf("Tool completed: %s", name)
 			}
 		}
 	}
 
 	return fmt.Sprintf("Tool completed: %s", name)
+}
+
+func summarizeBrowserCall(args map[string]interface{}) string {
+	action, _ := args["action"].(string)
+	if action == "" {
+		return "Running browser action"
+	}
+	switch action {
+	case "open":
+		if url, _ := args["url"].(string); url != "" {
+			return fmt.Sprintf("Running browser action: open %s", url)
+		}
+	case "snapshot":
+		if targetID, _ := args["targetId"].(string); targetID != "" {
+			return fmt.Sprintf("Running browser action: snapshot target %s", truncate(targetID, 24))
+		}
+		return "Running browser action: snapshot"
+	case "click":
+		if text, _ := args["text"].(string); text != "" {
+			return fmt.Sprintf("Running browser action: click %s", truncate(text, 120))
+		}
+		if selector, _ := args["selector"].(string); selector != "" {
+			return fmt.Sprintf("Running browser action: click %s", truncate(selector, 120))
+		}
+	case "type":
+		if text, _ := args["text"].(string); text != "" {
+			return fmt.Sprintf("Running browser action: type %s", truncate(singleLine(text), 120))
+		}
+	case "scroll":
+		if direction, _ := args["direction"].(string); direction != "" {
+			return fmt.Sprintf("Running browser action: scroll %s", direction)
+		}
+	case "status", "start", "stop", "close":
+		return fmt.Sprintf("Running browser action: %s", action)
+	}
+	argText := compactJSON(args)
+	if argText == "" {
+		return fmt.Sprintf("Running browser action: %s", action)
+	}
+	return fmt.Sprintf("Running browser action: %s %s", action, truncate(argText, 160))
+}
+
+func summarizeToolSuccess(name string, payload map[string]interface{}) string {
+	switch name {
+	case "browser":
+		if targetID, _ := payload["targetId"].(string); targetID != "" {
+			if url, _ := payload["url"].(string); url != "" {
+				return fmt.Sprintf("Tool completed: browser — opened %s", truncate(url, 160))
+			}
+			return fmt.Sprintf("Tool completed: browser — opened target %s", truncate(targetID, 24))
+		}
+		if url, _ := payload["url"].(string); url != "" {
+			return fmt.Sprintf("Tool completed: browser — at %s", truncate(url, 160))
+		}
+		if title, _ := payload["title"].(string); title != "" {
+			return fmt.Sprintf("Tool completed: browser — %s", truncate(title, 160))
+		}
+	case "web_fetch":
+		if url, _ := payload["url"].(string); url != "" {
+			return fmt.Sprintf("Tool completed: web_fetch — fetched %s", truncate(url, 160))
+		}
+	case "web_search":
+		if query, _ := payload["query"].(string); query != "" {
+			return fmt.Sprintf("Tool completed: web_search — %s", truncate(query, 160))
+		}
+	}
+	return ""
 }
 
 func compactJSON(v interface{}) string {

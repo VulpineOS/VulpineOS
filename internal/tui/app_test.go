@@ -325,10 +325,67 @@ func TestStatusBarShowsResizeModeWhenEnabled(t *testing.T) {
 	db := openTestVault(t)
 	cfg := &config.Config{ResizePanelsWithArrows: true}
 	app := NewApp(nil, nil, nil, db, cfg, nil)
-	app.width = 120
+	app.width = 180
 
 	if !strings.Contains(app.renderStatusBar(), "mode:resize") {
 		t.Fatalf("status bar missing resize mode: %s", app.renderStatusBar())
+	}
+}
+
+func TestModeHotkeyTogglesResizeMode(t *testing.T) {
+	db := openTestVault(t)
+	cfg := &config.Config{ResizePanelsWithArrows: false}
+	app := NewApp(nil, nil, nil, db, cfg, nil)
+
+	model, _ := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'m'}})
+	app = model.(App)
+	if !app.resizeModeEnabled() {
+		t.Fatal("resize mode should be enabled after pressing m")
+	}
+	if app.notice == "" || !strings.Contains(app.notice, "Resize mode enabled") {
+		t.Fatalf("unexpected notice after enabling resize mode: %q", app.notice)
+	}
+
+	model, _ = app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'m'}})
+	app = model.(App)
+	if app.resizeModeEnabled() {
+		t.Fatal("resize mode should be disabled after pressing m again")
+	}
+	if app.notice == "" || !strings.Contains(app.notice, "Resize mode disabled") {
+		t.Fatalf("unexpected notice after disabling resize mode: %q", app.notice)
+	}
+}
+
+func TestSelectedAssistantReplyRefocusesChatInput(t *testing.T) {
+	db := openTestVault(t)
+	cfg := &config.Config{}
+	app := NewApp(nil, nil, nil, db, cfg, nil)
+	app.conversation.SetSize(80, 20)
+
+	agent, err := db.CreateAgent("Scraper", "Scrape prices", "{}")
+	if err != nil {
+		t.Fatalf("create agent: %v", err)
+	}
+	app.selectedAgentID = agent.ID
+	app.focus = FocusConversation
+	app.inputMode = "chat"
+	app.conversation.SetAgentID(agent.ID)
+	app.conversation.SetAgentName(agent.Name)
+	app.conversation.SetAwake(true)
+	app.conversation.Blur()
+
+	model, cmd := app.Update(shared.ConversationEntryMsg{
+		AgentID: agent.ID,
+		Role:    "assistant",
+		Content: "Ready",
+	})
+	app = model.(App)
+
+	if cmd == nil {
+		t.Fatal("expected selected assistant reply to return a focus command")
+	}
+	if !app.conversation.IsAwake() {
+		t.Fatal("conversation should stay awake after assistant reply")
 	}
 }
 

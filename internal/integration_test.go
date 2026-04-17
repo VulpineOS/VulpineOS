@@ -884,6 +884,71 @@ func TestIntegration_AgentBrowserClicksLocalPage(t *testing.T) {
 	waitForAssistantContains(t, mgr.ConversationChan(), agentID, "STATUS:clicked", 180*time.Second)
 }
 
+func TestIntegration_AgentBrowserDefaultProfileConfig(t *testing.T) {
+	requireLiveOpenClaw(t)
+	mgr := openclaw.NewManager("")
+	if !mgr.OpenClawInstalled() {
+		t.Skip("OpenClaw not installed")
+	}
+
+	cfg, err := config.Load()
+	if err != nil || !cfg.SetupComplete {
+		t.Skip("VulpineOS not configured — run setup wizard first")
+	}
+
+	k, client := startKernel(t)
+	defer k.Stop()
+
+	fb := foxbridge.New()
+	if err := fb.StartEmbeddedMode(client, 9222); err != nil {
+		t.Fatalf("StartEmbeddedMode failed: %v", err)
+	}
+	defer fb.Stop()
+
+	gw := openclaw.NewGateway("")
+	if err := gw.Start(); err != nil {
+		t.Fatalf("Gateway.Start failed: %v", err)
+	}
+	defer gw.Stop()
+
+	cfg.FoxbridgeCDPURL = fb.CDPURL()
+	if err := cfg.GenerateOpenClawConfig("", cfg.BinaryPath); err != nil {
+		t.Fatalf("GenerateOpenClawConfig: %v", err)
+	}
+	if err := config.RepairOpenClawProfile(fb.CDPURL()); err != nil {
+		t.Fatalf("RepairOpenClawProfile: %v", err)
+	}
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `<!doctype html>
+<html>
+<head><title>Default Browser Path</title></head>
+<body>
+  <button id="action" onclick="document.getElementById('status').textContent='clicked'">Action Button</button>
+  <div id="status">ready</div>
+</body>
+</html>`)
+	}))
+	server.Listener = listener
+	server.Start()
+	defer server.Close()
+
+	agentID := "test-browser-default"
+	sessionName := "vulpine-test-browser-default"
+	task := fmt.Sprintf("Use the browser to open %s, click Action Button, and reply exactly STATUS:clicked. Do not explain.", server.URL)
+
+	_, err = mgr.SpawnWithSession(agentID, task, sessionName, config.OpenClawConfigPath())
+	if err != nil {
+		t.Fatalf("SpawnWithSession failed: %v", err)
+	}
+
+	waitForAssistantContains(t, mgr.ConversationChan(), agentID, "STATUS:clicked", 180*time.Second)
+}
+
 func waitForAssistantContains(t *testing.T, convCh <-chan openclaw.ConversationMsg, agentID, want string, timeout time.Duration) {
 	t.Helper()
 

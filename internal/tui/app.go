@@ -390,6 +390,19 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "tab":
 			// Cycle: AgentList → Conversation → AgentDetail → ContextList → AgentList
 			a.focus = (a.focus + 1) % FocusNormalCount
+		case "m":
+			enabled := !a.resizeModeEnabled()
+			if a.cfg != nil {
+				a.cfg.ResizePanelsWithArrows = enabled
+				_ = a.cfg.Save()
+				a.settings.SetConfig(a.cfg)
+			}
+			if enabled {
+				a.notice = "Resize mode enabled — arrow keys resize panels"
+			} else {
+				a.notice = "Resize mode disabled — arrow keys navigate and scroll"
+			}
+			a.noticeTTL = 3
 		case "j":
 			switch a.focus {
 			case FocusAgentList:
@@ -689,6 +702,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.conversation.SetThinking(false)
 			}
 			a.refreshAgentDetail(msg.AgentID)
+			if a.focus == FocusConversation && a.inputMode == "chat" && !a.conversation.Focused() {
+				cmds = append(cmds, a.conversation.Focus())
+			}
 		}
 		cmds = append(cmds, a.waitForEvent())
 
@@ -706,6 +722,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.conversation.SetThinking(false)
 			a.conversation.AddEntry(msg.Role, msg.Content)
 			a.agentList.ClearUnread(msg.AgentID)
+			if a.focus == FocusConversation && a.inputMode == "chat" && !a.conversation.Focused() {
+				cmds = append(cmds, a.conversation.Focus())
+			}
 		} else {
 			a.agentList.MarkUnread(msg.AgentID)
 		}
@@ -1131,7 +1150,7 @@ func (a App) renderStatusBar() string {
 	bar := shared.TitleStyle.Render("VULPINE") +
 		shared.MutedStyle.Render(" | ") +
 		shared.RunningStyle.Render("* "+mode) +
-		shared.MutedStyle.Render("  n:new  p/r:agent  P/R:all  X:kill-all  x:del  v:view  S:settings  Enter:chat  Tab:focus  ") +
+		shared.MutedStyle.Render("  n:new  p/r:agent  P/R:all  X:kill-all  x:del  v:view  m:mode  S:settings  Enter:chat  Tab:focus  ") +
 		arrowMode +
 		shared.MutedStyle.Render("  q:quit") +
 		ctxHint

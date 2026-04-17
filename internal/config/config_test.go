@@ -251,6 +251,13 @@ func TestGenerateOpenClawConfig(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(OpenClawWorkspaceDir(), "AGENTS.md")); err != nil {
 		t.Fatalf("expected isolated workspace bootstrap files: %v", err)
 	}
+	identityData, err := os.ReadFile(filepath.Join(OpenClawWorkspaceDir(), "IDENTITY.md"))
+	if err != nil {
+		t.Fatalf("expected isolated workspace identity file: %v", err)
+	}
+	if !strings.Contains(string(identityData), "Use the name assigned by the current user message") {
+		t.Fatalf("unexpected IDENTITY.md contents:\n%s", string(identityData))
+	}
 	skillPath := filepath.Join(OpenClawProfileDir(), "skills", "vulpine-browser", "SKILL.md")
 	skillData, err := os.ReadFile(skillPath)
 	if err != nil {

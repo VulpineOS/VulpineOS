@@ -1,6 +1,7 @@
 package openclaw
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -61,11 +62,7 @@ func (g *Gateway) Start() error {
 	}
 
 	log.Printf("OpenClaw gateway started (PID %d), log: %s", g.cmd.Process.Pid, logPath)
-
-	// Wait for it to bind
-	time.Sleep(3 * time.Second)
-
-	return nil
+	return g.waitReady(openclawBin)
 }
 
 // Stop kills the gateway process.
@@ -81,4 +78,27 @@ func (g *Gateway) Stop() {
 // Running returns true if the gateway process is alive.
 func (g *Gateway) Running() bool {
 	return g.cmd != nil && g.cmd.ProcessState == nil
+}
+
+func (g *Gateway) waitReady(openclawBin string) error {
+	deadline := time.Now().Add(15 * time.Second)
+	var lastErr error
+
+	for time.Now().Before(deadline) {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		cmd := exec.CommandContext(ctx, openclawBin, "--profile", "vulpine", "gateway", "health")
+		if err := cmd.Run(); err == nil {
+			cancel()
+			return nil
+		} else {
+			lastErr = err
+		}
+		cancel()
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	if lastErr == nil {
+		lastErr = fmt.Errorf("gateway health probe timed out")
+	}
+	return fmt.Errorf("wait for gateway readiness: %w", lastErr)
 }
