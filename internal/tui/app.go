@@ -1122,11 +1122,17 @@ func (a App) renderStatusBar() string {
 	if contextID := a.contextList.SelectedContextID(); contextID != "" && a.focus == FocusContextList {
 		ctxHint = shared.MutedStyle.Render("  n:new-in-ctx " + shortContextID(contextID))
 	}
+	arrowMode := shared.MutedStyle.Render("mode:navigate")
+	if a.resizeModeEnabled() {
+		arrowMode = shared.WarmingStyle.Render("mode:resize")
+	}
 
 	bar := shared.TitleStyle.Render("VULPINE") +
 		shared.MutedStyle.Render(" | ") +
 		shared.RunningStyle.Render("* "+mode) +
-		shared.MutedStyle.Render("  n:new  p/r:agent  P/R:all  X:kill-all  x:del  v:view  S:settings  Enter:chat  Tab:focus  ↑↓:scroll  q:quit") +
+		shared.MutedStyle.Render("  n:new  p/r:agent  P/R:all  X:kill-all  x:del  v:view  S:settings  Enter:chat  Tab:focus  ") +
+		arrowMode +
+		shared.MutedStyle.Render("  q:quit") +
 		ctxHint
 
 	return lipgloss.NewStyle().MaxWidth(a.width).Render(bar)

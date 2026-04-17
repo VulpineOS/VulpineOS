@@ -316,6 +316,20 @@ func TestArrowKeysNavigateAgentsWhenResizeModeDisabled(t *testing.T) {
 	if app.selectedAgentID != second.ID {
 		t.Fatalf("selected agent = %q, want %q after down arrow", app.selectedAgentID, second.ID)
 	}
+	if !strings.Contains(app.renderStatusBar(), "mode:navigate") {
+		t.Fatalf("status bar missing navigate mode: %s", app.renderStatusBar())
+	}
+}
+
+func TestStatusBarShowsResizeModeWhenEnabled(t *testing.T) {
+	db := openTestVault(t)
+	cfg := &config.Config{ResizePanelsWithArrows: true}
+	app := NewApp(nil, nil, nil, db, cfg, nil)
+	app.width = 120
+
+	if !strings.Contains(app.renderStatusBar(), "mode:resize") {
+		t.Fatalf("status bar missing resize mode: %s", app.renderStatusBar())
+	}
 }
 
 func TestPauseResumeKeybindings(t *testing.T) {
