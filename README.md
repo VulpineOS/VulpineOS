@@ -194,6 +194,8 @@ Those bootstrap files also force exact action/result reporting and explicitly fo
 The footer always shows the current arrow-key mode as `mode:navigate` or `mode:resize`.
 The system panel now shows both the browser mode (`GUI` or `HEADLESS`) and the active browser route (`CAMOUFOX` when OpenClaw is attached through foxbridge into Camoufox), so the operator can verify the runtime path without checking logs.
 The web panel now surfaces the same route and mode signal on Dashboard and Settings, so local TUI and panel stay aligned about whether OpenClaw is actually attached to Camoufox.
+If an older machine already has a valid `~/.openclaw-vulpine/openclaw.json` but a stale or blank `~/.vulpineos/config.json`, VulpineOS now backfills the local provider/model/key state from the OpenClaw profile instead of pretending the installation is unconfigured.
+Saving provider settings from the web panel now also marks setup complete and regenerates the shared OpenClaw profile immediately, so panel edits apply to the next agent run without waiting for a separate reconfigure pass.
 If the conversation panel is awake but the cursor has dropped out of the input, the next typed character re-focuses chat automatically, while `v` still works as a browser show or hide shortcut from that unfocused state.
 After a newly created agent sends its first real reply, VulpineOS automatically snaps focus back to the chat box so the conversation is immediately writable again.
 The `v` shortcut now refreshes the actual macOS window visibility before toggling, so a stale cached state no longer turns the first show or hide into a no-op.

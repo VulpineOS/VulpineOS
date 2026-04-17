@@ -495,13 +495,17 @@ func (api *PanelAPI) configGet() (json.RawMessage, error) {
 	}
 	// Return a safe view (mask the API key)
 	out := struct {
-		Provider string `json:"provider"`
-		Model    string `json:"model"`
-		HasKey   bool   `json:"hasKey"`
+		Provider      string `json:"provider"`
+		Model         string `json:"model"`
+		HasKey        bool   `json:"hasKey"`
+		SetupComplete bool   `json:"setupComplete"`
+		BinaryPath    string `json:"binaryPath,omitempty"`
 	}{
-		Provider: api.Config.Provider,
-		Model:    api.Config.Model,
-		HasKey:   api.Config.APIKey != "",
+		Provider:      api.Config.Provider,
+		Model:         api.Config.Model,
+		HasKey:        api.Config.APIKey != "",
+		SetupComplete: api.Config.SetupComplete,
+		BinaryPath:    api.Config.BinaryPath,
 	}
 	return json.Marshal(out)
 }
@@ -527,8 +531,18 @@ func (api *PanelAPI) configSet(params json.RawMessage) (json.RawMessage, error) 
 	if p.APIKey != "" {
 		api.Config.APIKey = p.APIKey
 	}
+	api.Config.RefreshSetupComplete()
 	if err := api.Config.Save(); err != nil {
 		return nil, fmt.Errorf("save config: %w", err)
+	}
+	if api.Config.SetupComplete {
+		exe, _ := os.Executable()
+		if err := api.Config.GenerateOpenClawConfig(exe, api.Config.BinaryPath); err != nil {
+			return nil, fmt.Errorf("generate openclaw config: %w", err)
+		}
+		if err := config.RepairOpenClawProfile(api.Config.FoxbridgeCDPURL); err != nil {
+			return nil, fmt.Errorf("repair openclaw profile: %w", err)
+		}
 	}
 	return json.Marshal(map[string]string{"status": "ok"})
 }
@@ -910,14 +924,7 @@ func (api *PanelAPI) statusGet() (json.RawMessage, error) {
 		out["kernel_running"] = api.Kernel.Running()
 		out["kernel_pid"] = api.Kernel.PID()
 		out["kernel_headless"] = api.Kernel.IsHeadless()
-		switch {
-		case api.Config != nil && strings.TrimSpace(api.Config.FoxbridgeCDPURL) != "":
-			out["browser_route"] = "camoufox"
-		case api.Kernel.IsHeadless():
-			out["browser_route"] = "headless"
-		default:
-			out["browser_route"] = "direct"
-		}
+		out["browser_route"] = api.browserRoute()
 	}
 	if api.Orchestrator != nil {
 		status := api.Orchestrator.Status()
@@ -934,6 +941,19 @@ func (api *PanelAPI) statusGet() (json.RawMessage, error) {
 	}
 
 	return json.Marshal(out)
+}
+
+func (api *PanelAPI) browserRoute() string {
+	switch {
+	case api.Config != nil && strings.TrimSpace(api.Config.FoxbridgeCDPURL) != "":
+		return "camoufox"
+	case config.OpenClawProfileBrowserRoute() != "":
+		return config.OpenClawProfileBrowserRoute()
+	case api.Kernel != nil && api.Kernel.IsHeadless():
+		return "headless"
+	default:
+		return "direct"
+	}
 }
 
 func (api *PanelAPI) runtimeList(params json.RawMessage) (json.RawMessage, error) {

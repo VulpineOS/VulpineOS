@@ -266,7 +266,9 @@ func Load() (*Config, error) {
 	data, err := os.ReadFile(Path())
 	if err != nil {
 		if os.IsNotExist(err) {
-			return &Config{}, nil
+			cfg := &Config{}
+			cfg.HydrateFromOpenClawProfile()
+			return cfg, nil
 		}
 		return nil, fmt.Errorf("read config: %w", err)
 	}
@@ -275,6 +277,7 @@ func Load() (*Config, error) {
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
+	cfg.HydrateFromOpenClawProfile()
 	return &cfg, nil
 }
 
@@ -295,6 +298,59 @@ func (c *Config) Save() error {
 	}
 
 	return os.WriteFile(Path(), data, 0600)
+}
+
+// RefreshSetupComplete recomputes whether the config is complete enough to skip setup.
+func (c *Config) RefreshSetupComplete() bool {
+	providerID := strings.TrimSpace(c.Provider)
+	model := strings.TrimSpace(c.Model)
+	if providerID == "" || model == "" {
+		c.SetupComplete = false
+		return false
+	}
+	provider := GetProvider(providerID)
+	if provider == nil {
+		c.SetupComplete = false
+		return false
+	}
+	if provider.NeedsKey && strings.TrimSpace(c.APIKey) == "" {
+		c.SetupComplete = false
+		return false
+	}
+	c.SetupComplete = true
+	return true
+}
+
+// HydrateFromOpenClawProfile backfills missing local config values from the
+// generated OpenClaw profile when that profile is already configured.
+func (c *Config) HydrateFromOpenClawProfile() bool {
+	existing, err := readExistingOpenClawConfig()
+	if err != nil {
+		return false
+	}
+
+	changed := false
+	if strings.TrimSpace(c.Model) == "" {
+		if model := openClawPrimaryModel(existing); model != "" {
+			c.Model = model
+			changed = true
+		}
+	}
+	if strings.TrimSpace(c.Provider) == "" {
+		if providerID := providerIDFromModel(c.Model); providerID != "" {
+			c.Provider = providerID
+			changed = true
+		}
+	}
+	if strings.TrimSpace(c.APIKey) == "" {
+		if apiKey := openClawAPIKey(existing, c.Provider); apiKey != "" {
+			c.APIKey = apiKey
+			changed = true
+		}
+	}
+	before := c.SetupComplete
+	c.RefreshSetupComplete()
+	return changed || c.SetupComplete != before
 }
 
 // RequestReconfigure asks the next launch to run the setup wizard while keeping
@@ -458,6 +514,29 @@ func OpenClawWorkspaceDir() string {
 	return filepath.Join(OpenClawProfileDir(), "workspace")
 }
 
+// OpenClawProfileBrowserRoute returns the route implied by the generated
+// OpenClaw profile: "camoufox", "headless", "direct", or "" when unavailable.
+func OpenClawProfileBrowserRoute() string {
+	existing, err := readExistingOpenClawConfig()
+	if err != nil {
+		return ""
+	}
+	browser, ok := existing["browser"].(map[string]interface{})
+	if !ok || browser == nil {
+		return ""
+	}
+	if strings.TrimSpace(stringDetail(browser["cdpUrl"])) != "" {
+		return "camoufox"
+	}
+	if boolDetail(browser["headless"]) {
+		return "headless"
+	}
+	if boolDetail(browser["enabled"]) {
+		return "direct"
+	}
+	return ""
+}
+
 func readExistingOpenClawConfig() (map[string]interface{}, error) {
 	data, err := os.ReadFile(OpenClawConfigPath())
 	if err != nil {
@@ -468,6 +547,59 @@ func readExistingOpenClawConfig() (map[string]interface{}, error) {
 		return nil, err
 	}
 	return cfg, nil
+}
+
+func openClawPrimaryModel(existing map[string]interface{}) string {
+	agents, ok := existing["agents"].(map[string]interface{})
+	if !ok || agents == nil {
+		return ""
+	}
+	defaults, ok := agents["defaults"].(map[string]interface{})
+	if !ok || defaults == nil {
+		return ""
+	}
+	model, ok := defaults["model"].(map[string]interface{})
+	if !ok || model == nil {
+		return ""
+	}
+	return strings.TrimSpace(stringDetail(model["primary"]))
+}
+
+func providerIDFromModel(model string) string {
+	model = strings.TrimSpace(model)
+	if model == "" {
+		return ""
+	}
+	providerID, _, ok := strings.Cut(model, "/")
+	if !ok {
+		return ""
+	}
+	if GetProvider(providerID) == nil {
+		return ""
+	}
+	return providerID
+}
+
+func openClawAPIKey(existing map[string]interface{}, providerID string) string {
+	provider := GetProvider(strings.TrimSpace(providerID))
+	if provider == nil || provider.EnvVar == "" {
+		return ""
+	}
+	env, ok := existing["env"].(map[string]interface{})
+	if !ok || env == nil {
+		return ""
+	}
+	return strings.TrimSpace(stringDetail(env[provider.EnvVar]))
+}
+
+func stringDetail(v interface{}) string {
+	s, _ := v.(string)
+	return s
+}
+
+func boolDetail(v interface{}) bool {
+	b, _ := v.(bool)
+	return b
 }
 
 func preservedGatewayConfig(existing map[string]interface{}) map[string]interface{} {

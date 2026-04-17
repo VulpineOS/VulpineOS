@@ -222,6 +222,11 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 		log.Printf("Warning: could not load config: %v", err)
 		cfg = &config.Config{}
 	}
+	if cfg.HydrateFromOpenClawProfile() {
+		if saveErr := cfg.Save(); saveErr != nil {
+			log.Printf("Warning: could not persist repaired config: %v", saveErr)
+		}
+	}
 	reconfigureRequested := config.ReconfigureRequested()
 
 	if cfg.NeedsSetup() || reconfigureRequested {
@@ -495,6 +500,11 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 		log.Printf("Warning: could not load config: %v", err)
 		cfg = &config.Config{}
 	}
+	if cfg.HydrateFromOpenClawProfile() {
+		if saveErr := cfg.Save(); saveErr != nil {
+			log.Printf("Warning: could not persist repaired config: %v", saveErr)
+		}
+	}
 
 	var audit *runtimeaudit.Manager
 	k := kernel.New()
@@ -733,6 +743,13 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 		log.Printf("foxbridge: %v (CDP proxy not available)", err)
 	} else {
 		defer fb.Stop()
+		cfg.FoxbridgeCDPURL = fb.CDPURL()
+		exe, _ := os.Executable()
+		if err := cfg.GenerateOpenClawConfig(exe, cfg.BinaryPath); err != nil {
+			log.Printf("Warning: could not generate OpenClaw config: %v", err)
+		} else if err := config.RepairOpenClawProfile(cfg.FoxbridgeCDPURL); err != nil {
+			log.Printf("Warning: could not repair OpenClaw profile after foxbridge start: %v", err)
+		}
 		log.Printf("foxbridge CDP on %s", fb.CDPURL())
 	}
 
