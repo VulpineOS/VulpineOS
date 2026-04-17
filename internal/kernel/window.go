@@ -11,6 +11,11 @@ import (
 	"time"
 )
 
+var runWindowCommand = func(name string, args ...string) (string, error) {
+	out, err := exec.Command(name, args...).CombinedOutput()
+	return string(out), err
+}
+
 // WindowController manages browser window visibility.
 type WindowController struct {
 	visible   bool
@@ -35,6 +40,7 @@ func (w *WindowController) IsVisible() bool {
 func (w *WindowController) Toggle() (bool, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	w.refreshVisibleLocked()
 	if w.visible {
 		if err := w.hide(); err != nil {
 			return w.visible, err
@@ -91,14 +97,14 @@ func (w *WindowController) show() error {
 		return nil
 	}
 	for _, pid := range w.candidatePIDs() {
-		if err := exec.Command("osascript", "-e",
+		if _, err := runWindowCommand("osascript", "-e",
 			`tell application "System Events" to set visible of first process whose unix id is `+strconv.Itoa(pid)+` to true`,
-		).Run(); err != nil {
+		); err != nil {
 			continue
 		}
-		if err := exec.Command("osascript", "-e",
+		if _, err := runWindowCommand("osascript", "-e",
 			`tell application "System Events" to set frontmost of first process whose unix id is `+strconv.Itoa(pid)+` to true`,
-		).Run(); err != nil {
+		); err != nil {
 			continue
 		}
 		w.targetPID = pid
@@ -112,9 +118,9 @@ func (w *WindowController) hide() error {
 		return nil
 	}
 	for _, pid := range w.candidatePIDs() {
-		if err := exec.Command("osascript", "-e",
+		if _, err := runWindowCommand("osascript", "-e",
 			`tell application "System Events" to set visible of first process whose unix id is `+strconv.Itoa(pid)+` to false`,
-		).Run(); err != nil {
+		); err != nil {
 			continue
 		}
 		w.targetPID = pid
@@ -124,7 +130,7 @@ func (w *WindowController) hide() error {
 }
 
 func (w *WindowController) candidatePIDs() []int {
-	out, err := exec.Command("ps", "-axo", "pid=,ppid=,comm=").Output()
+	out, err := runWindowCommand("ps", "-axo", "pid=,ppid=,comm=")
 	if err != nil {
 		if w.targetPID != 0 {
 			return []int{w.targetPID, w.pid}
@@ -133,7 +139,7 @@ func (w *WindowController) candidatePIDs() []int {
 	}
 
 	children := make(map[int][]int)
-	for _, line := range strings.Split(string(out), "\n") {
+	for _, line := range strings.Split(out, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
@@ -186,4 +192,36 @@ func (w *WindowController) candidatePIDs() []int {
 		return filtered
 	}
 	return ordered
+}
+
+func (w *WindowController) refreshVisibleLocked() {
+	if runtime.GOOS != "darwin" {
+		return
+	}
+	for _, pid := range w.candidatePIDs() {
+		out, err := runWindowCommand("osascript", "-e",
+			`tell application "System Events" to get visible of first process whose unix id is `+strconv.Itoa(pid),
+		)
+		if err != nil {
+			continue
+		}
+		visible, ok := parseAppleScriptBool(out)
+		if !ok {
+			continue
+		}
+		w.targetPID = pid
+		w.visible = visible
+		return
+	}
+}
+
+func parseAppleScriptBool(out string) (bool, bool) {
+	switch strings.ToLower(strings.TrimSpace(out)) {
+	case "true":
+		return true, true
+	case "false":
+		return false, true
+	default:
+		return false, false
+	}
 }
