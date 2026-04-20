@@ -219,6 +219,7 @@ Tool-result summaries now preserve the exact tool-call context when available, s
 Press `o` to open the selected agent's raw OpenClaw session log in the system viewer for full JSONL trace inspection, including provider-emitted thinking blocks when the provider writes them.
 The web panel's Raw tab now auto-refreshes while it is open, so long-running agent/tool sessions can be inspected without manually reloading every update.
 The web panel's Raw tab now redacts provider hidden-reasoning fields and signatures while preserving the surrounding session timeline, so operators can inspect execution history without dumping the model's private chain-of-thought payload.
+Agent Detail now consumes only new websocket events for the selected agent, so live conversation and trace rows do not replay the same status or assistant line on every rerender.
 While the chat input is focused, `Ctrl+V`, `Ctrl+O`, and `Ctrl+T` trigger browser toggle, raw log open, and trace toggle without stealing ordinary typed letters. Plain `v`, `o`, and `t` also work from a focused chat box when the input is still empty.
 
 The agent list shows unread reply counts for non-selected agents so background work does not disappear while you are focused elsewhere.

@@ -73,6 +73,30 @@ describe('AgentDetail page', () => {
     await waitFor(() => expect(screen.getByText('done')).toBeInTheDocument())
     expect(screen.getByText('active')).toBeInTheDocument()
     expect(screen.queryByText('Running browser action: open https://example.com')).not.toBeInTheDocument()
+    expect(screen.getAllByText('done')).toHaveLength(1)
+
+    rerender(
+      <MemoryRouter initialEntries={['/agents/agent-1']}>
+        <Routes>
+          <Route
+            path="/agents/:id"
+            element={
+              <AgentDetail
+                ws={{
+                  ...ws,
+                  events: [
+                    { method: 'Vulpine.agentStatus', params: { agentId: 'agent-1', status: 'active', tokens: 12 } },
+                    { method: 'Vulpine.conversation', params: { agentId: 'agent-1', role: 'assistant', content: 'done', tokens: 4 } },
+                  ],
+                }}
+              />
+            }
+          />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => expect(screen.getAllByText('done')).toHaveLength(1))
 
     fireEvent.click(screen.getByText('Trace'))
     expect(screen.getByText('Action Trace')).toBeInTheDocument()

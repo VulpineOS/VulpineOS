@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 
 export default function AgentDetail({ ws }) {
@@ -10,6 +10,7 @@ export default function AgentDetail({ ws }) {
   const [sessionLog, setSessionLog] = useState('')
   const [input, setInput] = useState('')
   const [tab, setTab] = useState('conversation')
+  const lastEventCountRef = useRef(0)
 
   const conversationMessages = messages.filter(m => m.role !== 'system')
   const traceMessages = messages.filter(m => m.role === 'system')
@@ -32,8 +33,6 @@ export default function AgentDetail({ ws }) {
     if (Number.isNaN(date.getTime())) return null
     return date.toLocaleTimeString()
   }
-  const recentEvents = useMemo(() => ws.events.slice(-200), [ws.events])
-
   const refresh = () => {
     if (!ws.connected || !id) return
     ws.call('agents.list').then(r => setAgent((r?.agents || []).find(a => a.id === id) || null)).catch(() => {})
@@ -56,6 +55,10 @@ export default function AgentDetail({ ws }) {
   }, [ws.connected, id])
 
   useEffect(() => {
+    lastEventCountRef.current = 0
+  }, [id])
+
+  useEffect(() => {
     if (tab !== 'raw' || !ws.connected || !id) return
     loadSessionLog()
     const interval = setInterval(() => {
@@ -66,7 +69,12 @@ export default function AgentDetail({ ws }) {
 
   useEffect(() => {
     if (!id) return
-    for (const event of recentEvents) {
+    if (ws.events.length < lastEventCountRef.current) {
+      lastEventCountRef.current = 0
+    }
+    const nextEvents = ws.events.slice(lastEventCountRef.current)
+    lastEventCountRef.current = ws.events.length
+    for (const event of nextEvents) {
       if (event.method === 'Vulpine.agentStatus' && event.params?.agentId === id) {
         setAgent(prev => ({
           ...(prev || { id }),
@@ -93,7 +101,7 @@ export default function AgentDetail({ ws }) {
         })
       }
     }
-  }, [recentEvents, id])
+  }, [ws.events, id])
 
   const pause = async () => {
     try {
