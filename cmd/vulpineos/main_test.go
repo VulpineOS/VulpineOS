@@ -58,3 +58,38 @@ func TestStartLocalSessionLoggingWritesToFile(t *testing.T) {
 		t.Fatalf("log file %q missing redirected message: %q", path, string(data))
 	}
 }
+
+func TestNormalizeRemotePanelURL(t *testing.T) {
+	got, err := normalizeRemotePanelURL("wss://example.com:8443/ws", "secret")
+	if err != nil {
+		t.Fatalf("normalizeRemotePanelURL error: %v", err)
+	}
+	want := "https://example.com:8443/?token=secret"
+	if got != want {
+		t.Fatalf("normalizeRemotePanelURL = %q, want %q", got, want)
+	}
+}
+
+func TestNormalizeRemoteTUIURL(t *testing.T) {
+	got, err := normalizeRemoteTUIURL("https://example.com:8443")
+	if err != nil {
+		t.Fatalf("normalizeRemoteTUIURL error: %v", err)
+	}
+	want := "wss://example.com:8443/ws"
+	if got != want {
+		t.Fatalf("normalizeRemoteTUIURL = %q, want %q", got, want)
+	}
+}
+
+func TestEnsureAccessKeyGeneratesWhenMissing(t *testing.T) {
+	key, generated, err := ensureAccessKey("")
+	if err != nil {
+		t.Fatalf("ensureAccessKey error: %v", err)
+	}
+	if !generated {
+		t.Fatal("expected generated key")
+	}
+	if len(key) != 32 {
+		t.Fatalf("generated key length = %d, want 32", len(key))
+	}
+}

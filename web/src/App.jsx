@@ -14,8 +14,21 @@ import Scripts from './pages/Scripts'
 import Login from './pages/Login'
 import './App.css'
 
+function bootstrapPanelKey() {
+  const params = new URLSearchParams(window.location.search)
+  const token = params.get('token')
+  if (token) {
+    localStorage.setItem('vulpine_key', token)
+    params.delete('token')
+    const next = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}${window.location.hash}`
+    window.history.replaceState({}, document.title, next)
+    return token
+  }
+  return localStorage.getItem('vulpine_key') || ''
+}
+
 export default function App() {
-  const [apiKey, setApiKey] = useState(localStorage.getItem('vulpine_key') || '')
+  const [apiKey, setApiKey] = useState(() => bootstrapPanelKey())
   const ws = useWebSocket(apiKey)
   const location = useLocation()
 

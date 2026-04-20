@@ -251,7 +251,7 @@ A React SPA served from the Go binary — no separate frontend deployment needed
 
 Agent Detail includes separate conversation, action trace, raw session log, recording, and fingerprint views so operator-visible tool activity is inspectable without exposing hidden reasoning.
 
-Access via `--serve --port 8443 --api-key KEY` or through the remote client.
+Access via `vulpineos panel`, `vulpineos serve`, or through the remote client.
 
 ---
 
@@ -289,19 +289,62 @@ go build -o vulpineos ./cmd/vulpineos
 
 ### Run
 
-```bash
-./vulpineos --binary /path/to/camoufox
-```
-
-If you have already built Camoufox inside this repo, prefer the repo-local
-build output over an older copy in `~/Downloads`:
+Local TUI:
 
 ```bash
-./vulpineos --binary ./camoufox-146.0.1-beta.25/obj-aarch64-apple-darwin/dist/bin/camoufox
+./vulpineos
+# or
+./vulpineos tui
 ```
 
-When no `--binary` flag is provided, VulpineOS now prefers a repo-local
-`camoufox-*/obj-*/dist` build before falling back to older installed copies.
+Local web panel:
+
+```bash
+./vulpineos panel
+```
+
+`vulpineos panel` binds to `127.0.0.1`, prints a direct panel URL, and
+opens the browser when possible. If no `--api-key` is provided, VulpineOS
+generates one for the session and includes it in the printed panel URL.
+
+Networked serve mode:
+
+```bash
+./vulpineos serve --host 0.0.0.0 --port 8443
+```
+
+Explicit access key:
+
+```bash
+./vulpineos serve --host 0.0.0.0 --port 8443 --api-key YOUR_KEY
+```
+
+If `--api-key` is omitted in serve mode, VulpineOS generates one at startup
+and prints both the access key and a direct panel URL containing the token.
+
+Remote panel shortcut:
+
+```bash
+./vulpineos remote panel --url https://your-host:8443 --api-key YOUR_KEY
+# `panel` is the default remote mode, so this also works:
+./vulpineos remote --url https://your-host:8443 --api-key YOUR_KEY
+```
+
+Remote TUI:
+
+```bash
+./vulpineos remote tui --url https://your-host:8443 --api-key YOUR_KEY
+```
+
+MCP server:
+
+```bash
+./vulpineos mcp
+```
+
+When no `--binary` flag is provided, VulpineOS prefers a repo-local
+`camoufox-*/obj-*/dist` build before falling back to a saved configured
+binary or older installed copies.
 
 First launch opens a setup wizard to configure your AI provider (Anthropic, OpenAI, Google, xAI, and 27 more).
 
@@ -313,7 +356,7 @@ CDP setups, see
 
 ```bash
 docker compose up -d
-vulpineos --remote wss://your-vps:8443/ws --api-key $VULPINE_API_KEY
+vulpineos remote tui --url https://your-vps:8443 --api-key $VULPINE_API_KEY
 ```
 
 ## Release notes

@@ -2,12 +2,16 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"log"
+	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -144,6 +148,17 @@ func main() {
 func Run(args []string) int {
 	fs := flag.NewFlagSet("vulpineos", flag.ContinueOnError)
 	fs.SetOutput(stderr)
+	fs.Usage = func() {
+		fmt.Fprintf(stderr, "Usage:\n")
+		fmt.Fprintf(stderr, "  vulpineos [flags]\n")
+		fmt.Fprintf(stderr, "  vulpineos tui [flags]\n")
+		fmt.Fprintf(stderr, "  vulpineos panel [flags]\n")
+		fmt.Fprintf(stderr, "  vulpineos serve [flags]\n")
+		fmt.Fprintf(stderr, "  vulpineos remote [panel|tui] [flags]\n")
+		fmt.Fprintf(stderr, "  vulpineos mcp [flags]\n\n")
+		fmt.Fprintf(stderr, "Legacy flags remain supported.\n\n")
+		fs.PrintDefaults()
+	}
 
 	var (
 		binaryPath = fs.String("binary", "", "Path to VulpineOS/Camoufox binary")
@@ -168,6 +183,9 @@ func Run(args []string) int {
 	var parseArgs []string
 	if len(args) > 1 {
 		parseArgs = args[1:]
+	}
+	if len(parseArgs) > 0 && !strings.HasPrefix(parseArgs[0], "-") {
+		return runSubcommand(args[0], parseArgs)
 	}
 	if err := fs.Parse(parseArgs); err != nil {
 		// ContinueOnError means Parse already printed to stderr.
@@ -196,7 +214,7 @@ func Run(args []string) int {
 	case *remoteAddr != "":
 		err = runRemote(*remoteAddr, *apiKey)
 	case *serve:
-		err = runServe(*binaryPath, *headless, *profileDir, *port, *apiKey, *tlsCert, *tlsKey, *noTLS, *noBrowser)
+		err = runServe(*binaryPath, *headless, *profileDir, "0.0.0.0", *port, *apiKey, *tlsCert, *tlsKey, *noTLS, *noBrowser, false)
 	default:
 		err = runLocal(*binaryPath, *headless, *profileDir, *noBrowser)
 	}
@@ -206,6 +224,298 @@ func Run(args []string) int {
 		return 1
 	}
 	return 0
+}
+
+func runSubcommand(program string, args []string) int {
+	switch args[0] {
+	case "tui":
+		return runTUISubcommand(args[1:])
+	case "panel":
+		return runPanelSubcommand(args[1:])
+	case "serve":
+		return runServeSubcommand(args[1:])
+	case "remote":
+		return runRemoteSubcommand(args[1:])
+	case "mcp":
+		return runMCPSubcommand(args[1:])
+	default:
+		fmt.Fprintf(stderr, "error: unknown subcommand %q\n", args[0])
+		return 2
+	}
+}
+
+func runTUISubcommand(args []string) int {
+	fs := flag.NewFlagSet("vulpineos tui", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	binaryPath := fs.String("binary", "", "Path to VulpineOS/Camoufox binary")
+	headless := fs.Bool("headless", false, "Run in headless mode")
+	profileDir := fs.String("profile", "", "Firefox profile directory")
+	noBrowser := fs.Bool("no-browser", false, "Start without launching browser/kernel")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if err := runLocal(*binaryPath, *headless, *profileDir, *noBrowser); err != nil {
+		fmt.Fprintf(stderr, "error: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+func runPanelSubcommand(args []string) int {
+	fs := flag.NewFlagSet("vulpineos panel", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	binaryPath := fs.String("binary", "", "Path to VulpineOS/Camoufox binary")
+	headless := fs.Bool("headless", false, "Run in headless mode")
+	profileDir := fs.String("profile", "", "Firefox profile directory")
+	port := fs.Int("port", 8443, "Panel port")
+	apiKey := fs.String("api-key", "", "Access key for panel auth (auto-generated if omitted)")
+	noBrowser := fs.Bool("no-browser", false, "Start without launching browser/kernel")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if err := runServe(*binaryPath, *headless, *profileDir, "127.0.0.1", *port, *apiKey, "", "", true, *noBrowser, true); err != nil {
+		fmt.Fprintf(stderr, "error: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+func runServeSubcommand(args []string) int {
+	fs := flag.NewFlagSet("vulpineos serve", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	binaryPath := fs.String("binary", "", "Path to VulpineOS/Camoufox binary")
+	headless := fs.Bool("headless", false, "Run in headless mode")
+	profileDir := fs.String("profile", "", "Firefox profile directory")
+	host := fs.String("host", "0.0.0.0", "Host/interface to bind")
+	port := fs.Int("port", 8443, "Server port")
+	apiKey := fs.String("api-key", "", "Access key for panel and remote auth (auto-generated if omitted)")
+	tlsCert := fs.String("tls-cert", "", "TLS certificate file")
+	tlsKey := fs.String("tls-key", "", "TLS key file")
+	noTLS := fs.Bool("no-tls", false, "Disable TLS (plain http/ws)")
+	noBrowser := fs.Bool("no-browser", false, "Start without launching browser/kernel")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if err := runServe(*binaryPath, *headless, *profileDir, *host, *port, *apiKey, *tlsCert, *tlsKey, *noTLS, *noBrowser, false); err != nil {
+		fmt.Fprintf(stderr, "error: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+func runRemoteSubcommand(args []string) int {
+	mode := "panel"
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		switch args[0] {
+		case "panel", "tui":
+			mode = args[0]
+			args = args[1:]
+		}
+	}
+
+	fs := flag.NewFlagSet("vulpineos remote", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	rawURL := fs.String("url", "", "Remote panel/server URL")
+	apiKey := fs.String("api-key", "", "Remote access key")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *rawURL == "" && fs.NArg() > 0 {
+		*rawURL = fs.Arg(0)
+	}
+
+	switch mode {
+	case "panel":
+		if err := runRemotePanel(*rawURL, *apiKey); err != nil {
+			fmt.Fprintf(stderr, "error: %v\n", err)
+			return 1
+		}
+		return 0
+	case "tui":
+		wsURL, err := normalizeRemoteTUIURL(*rawURL)
+		if err != nil {
+			fmt.Fprintf(stderr, "error: %v\n", err)
+			return 1
+		}
+		if err := runRemote(wsURL, *apiKey); err != nil {
+			fmt.Fprintf(stderr, "error: %v\n", err)
+			return 1
+		}
+		return 0
+	default:
+		fmt.Fprintf(stderr, "error: unknown remote mode %q (expected panel or tui)\n", mode)
+		return 2
+	}
+}
+
+func runMCPSubcommand(args []string) int {
+	fs := flag.NewFlagSet("vulpineos mcp", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	binaryPath := fs.String("binary", "", "Path to VulpineOS/Camoufox binary")
+	headless := fs.Bool("headless", false, "Run in headless mode")
+	profileDir := fs.String("profile", "", "Firefox profile directory")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if err := runMCPServer(*binaryPath, *headless, *profileDir); err != nil {
+		fmt.Fprintf(stderr, "error: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+func ensureAccessKey(apiKey string) (string, bool, error) {
+	apiKey = strings.TrimSpace(apiKey)
+	if apiKey != "" {
+		return apiKey, false, nil
+	}
+	buf := make([]byte, 16)
+	if _, err := rand.Read(buf); err != nil {
+		return "", false, err
+	}
+	return hex.EncodeToString(buf), true, nil
+}
+
+func panelDisplayHost(host string) string {
+	host = strings.TrimSpace(host)
+	switch host {
+	case "", "0.0.0.0", "::", "[::]":
+		return "localhost"
+	default:
+		return host
+	}
+}
+
+func buildPanelURL(host string, port int, useTLS bool, apiKey string) string {
+	scheme := "http"
+	if useTLS {
+		scheme = "https"
+	}
+	u := &url.URL{
+		Scheme: scheme,
+		Host:   fmt.Sprintf("%s:%d", panelDisplayHost(host), port),
+		Path:   "/",
+	}
+	if strings.TrimSpace(apiKey) != "" {
+		query := u.Query()
+		query.Set("token", apiKey)
+		u.RawQuery = query.Encode()
+	}
+	return u.String()
+}
+
+func normalizeRemotePanelURL(rawURL string, apiKey string) (string, error) {
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
+		rawURL = "http://127.0.0.1:8443"
+	}
+	if !strings.Contains(rawURL, "://") {
+		rawURL = "http://" + rawURL
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return "", err
+	}
+	switch u.Scheme {
+	case "ws":
+		u.Scheme = "http"
+	case "wss":
+		u.Scheme = "https"
+	case "http", "https":
+	default:
+		return "", fmt.Errorf("unsupported remote panel URL scheme %q", u.Scheme)
+	}
+	if strings.HasSuffix(u.Path, "/ws") {
+		u.Path = strings.TrimSuffix(u.Path, "/ws")
+	}
+	if u.Path == "" {
+		u.Path = "/"
+	}
+	if strings.TrimSpace(apiKey) != "" {
+		query := u.Query()
+		query.Set("token", apiKey)
+		u.RawQuery = query.Encode()
+	}
+	return u.String(), nil
+}
+
+func normalizeRemoteTUIURL(rawURL string) (string, error) {
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
+		return "ws://127.0.0.1:8443/ws", nil
+	}
+	if !strings.Contains(rawURL, "://") {
+		rawURL = "ws://" + rawURL
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return "", err
+	}
+	switch u.Scheme {
+	case "http":
+		u.Scheme = "ws"
+	case "https":
+		u.Scheme = "wss"
+	case "ws", "wss":
+	default:
+		return "", fmt.Errorf("unsupported remote TUI URL scheme %q", u.Scheme)
+	}
+	if u.Path == "" || u.Path == "/" {
+		u.Path = "/ws"
+	} else if !strings.HasSuffix(u.Path, "/ws") {
+		u.Path = strings.TrimRight(u.Path, "/") + "/ws"
+	}
+	return u.String(), nil
+}
+
+func printPanelAccess(host string, port int, useTLS bool, apiKey string, generated bool) string {
+	panelURL := buildPanelURL(host, port, useTLS, apiKey)
+	if normalized := strings.TrimSpace(host); normalized == "" || normalized == "0.0.0.0" || normalized == "::" || normalized == "[::]" {
+		if normalized == "" {
+			normalized = "0.0.0.0"
+		}
+		fmt.Fprintf(stdout, "Listening on: %s:%d\n", normalized, port)
+	}
+	fmt.Fprintf(stdout, "Panel URL: %s\n", panelURL)
+	if generated {
+		fmt.Fprintf(stdout, "API key: %s (generated)\n", apiKey)
+	} else if strings.TrimSpace(apiKey) != "" {
+		fmt.Fprintf(stdout, "API key: %s\n", apiKey)
+	}
+	return panelURL
+}
+
+func openBrowserURL(rawURL string) error {
+	candidates := [][]string{
+		{"open", rawURL},
+		{"xdg-open", rawURL},
+		{"rundll32", "url.dll,FileProtocolHandler", rawURL},
+	}
+	for _, candidate := range candidates {
+		if _, err := exec.LookPath(candidate[0]); err != nil {
+			continue
+		}
+		cmd := exec.Command(candidate[0], candidate[1:]...)
+		if err := cmd.Start(); err == nil {
+			return nil
+		}
+	}
+	return fmt.Errorf("no browser launcher available")
+}
+
+func runRemotePanel(rawURL string, apiKey string) error {
+	panelURL, err := normalizeRemotePanelURL(rawURL, apiKey)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(stdout, "Panel URL: %s\n", panelURL)
+	if strings.TrimSpace(apiKey) != "" {
+		fmt.Fprintf(stdout, "API key: %s\n", apiKey)
+	}
+	if err := openBrowserURL(panelURL); err != nil {
+		log.Printf("warning: could not open browser automatically: %v", err)
+	}
+	return nil
 }
 
 // runMCPServer runs as an MCP stdio server for OpenClaw integration.
@@ -552,7 +862,11 @@ func runRemote(addr string, apiKey string) error {
 }
 
 // runServe starts the kernel and exposes it via WebSocket server.
-func runServe(binaryPath string, headless bool, profileDir string, port int, apiKey string, tlsCert, tlsKey string, noTLS bool, noBrowser bool) error {
+func runServe(binaryPath string, headless bool, profileDir string, host string, port int, apiKey string, tlsCert, tlsKey string, noTLS bool, noBrowser bool, openPanel bool) error {
+	apiKey, generatedKey, err := ensureAccessKey(apiKey)
+	if err != nil {
+		return fmt.Errorf("generate access key: %w", err)
+	}
 	// Load config
 	cfg, err := config.Load()
 	if err != nil {
@@ -714,7 +1028,7 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 	rotator := proxy.NewRotator()
 	contexts := remote.NewContextRegistry()
 
-	addr := fmt.Sprintf(":%d", port)
+	addr := fmt.Sprintf("%s:%d", host, port)
 	server := remote.NewServer(addr, apiKey, client)
 
 	// Wire PanelAPI for control message handling
@@ -868,6 +1182,16 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 		log.Printf("VulpineOS kernel running (PID %d)", k.PID())
 	} else {
 		log.Printf("VulpineOS remote server running without kernel/browser")
+	}
+
+	panelURL := printPanelAccess(host, port, !noTLS, apiKey, generatedKey)
+	if openPanel {
+		go func() {
+			time.Sleep(500 * time.Millisecond)
+			if err := openBrowserURL(panelURL); err != nil {
+				log.Printf("warning: could not open browser automatically: %v", err)
+			}
+		}()
 	}
 
 	if noTLS {
