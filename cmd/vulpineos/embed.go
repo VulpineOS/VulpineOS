@@ -9,6 +9,7 @@ import (
 var panelFS embed.FS
 
 // PanelFS returns the embedded web panel filesystem (rooted at panel/).
+// The panel directory is refreshed from web/dist/ by `npm --prefix web run build`.
 // Returns nil if the panel directory doesn't exist in the embed.
 func PanelFS() fs.FS {
 	sub, err := fs.Sub(panelFS, "panel")

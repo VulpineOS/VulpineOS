@@ -9,7 +9,9 @@ import (
 )
 
 // ServePanel adds the web panel static files to an HTTP mux.
-// The panel files are embedded in the binary at build time from web/dist/.
+// The panel files are embedded in the binary at build time from
+// cmd/vulpineos/panel/, which is refreshed from web/dist/ by
+// `npm --prefix web run build`.
 // If webFS is nil, the panel is not available and requests get a 404.
 func ServePanel(mux *http.ServeMux, webFS fs.FS) {
 	if webFS == nil {

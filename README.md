@@ -196,10 +196,12 @@ The footer always shows the current arrow-key mode as `mode:navigate` or `mode:r
 The system panel now shows both the browser mode (`GUI` or `HEADLESS`) and the active browser route (`CAMOUFOX` when OpenClaw is attached through foxbridge into Camoufox), so the operator can verify the runtime path without checking logs.
 The TUI also shows the current browser window state (`VISIBLE`, `HIDDEN`, `HEADLESS`, or `N/A`) so `v` no longer feels opaque when the window controller cannot act.
 The web panel now surfaces the same route and mode signal on Dashboard and Settings, including whether that route came from live runtime state or only from the shared OpenClaw profile, plus whether the OpenClaw gateway daemon is currently running.
+Settings now separates `Agent model setup` from `OpenClaw profile`, so a machine can show a valid browser/profile route even when the current model credentials still need attention.
 If an older machine already has a valid `~/.openclaw-vulpine/openclaw.json` but a stale or blank `~/.vulpineos/config.json`, VulpineOS now backfills the local provider/model/key state from the OpenClaw profile instead of pretending the installation is unconfigured.
 Saving provider settings from the web panel now also marks setup complete and regenerates the shared OpenClaw profile immediately, so panel edits apply to the next agent run without waiting for a separate reconfigure pass.
 The web panel Settings page now loads the live provider registry from the runtime and presents provider/model dropdowns instead of raw free-text IDs, reducing config typos.
 Served mode now starts the OpenClaw gateway with the same repair path as local mode, so browser-backed agents do not silently lose gateway support when you move from the local TUI to the hosted panel/server path.
+Served mode also supports `--no-browser`, which keeps the panel and control API available without launching a kernel; the panel reports that state as `DISABLED` route/mode instead of crashing in `Browser.enable`.
 Gateway start, stop, and profile-repair failures now also land in the runtime audit stream, so startup problems appear in the system panel/runtime views instead of only in raw log files.
 Pause/resume flows now keep scoped OpenClaw runtime configs alive for the full resumed agent lifecycle, so a context-pinned agent does not silently fall back to the shared browser route after resume.
 If the conversation panel is awake but the cursor has dropped out of the input, the next typed character re-focuses chat automatically, while `v` still works as a browser show or hide shortcut from that unfocused state.
@@ -237,6 +239,8 @@ Live browser and OpenClaw integration tests in `internal/integration_test.go` ar
 ## Web Panel
 
 A React SPA served from the Go binary — no separate frontend deployment needed.
+
+`npm --prefix web run build` now refreshes both `web/dist/` and the embedded `cmd/vulpineos/panel/` assets, so a subsequent `go build -o vulpineos ./cmd/vulpineos` ships the current panel instead of stale frontend files.
 
 **11 pages:** Dashboard, Agents, Agent Detail, Contexts, Proxies, Security, Webhooks, Scripts, Settings, Logs, Login
 
