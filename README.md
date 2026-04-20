@@ -293,6 +293,16 @@ go build -o vulpineos ./cmd/vulpineos
 ./vulpineos --binary /path/to/camoufox
 ```
 
+If you have already built Camoufox inside this repo, prefer the repo-local
+build output over an older copy in `~/Downloads`:
+
+```bash
+./vulpineos --binary ./camoufox-146.0.1-beta.25/obj-aarch64-apple-darwin/dist/bin/camoufox
+```
+
+When no `--binary` flag is provided, VulpineOS now prefers a repo-local
+`camoufox-*/obj-*/dist` build before falling back to older installed copies.
+
 First launch opens a setup wizard to configure your AI provider (Anthropic, OpenAI, Google, xAI, and 27 more).
 
 For a minimal OpenClaw example project showing MCP-first and foxbridge

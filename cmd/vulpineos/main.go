@@ -8,11 +8,11 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-
-	"path/filepath"
 
 	"vulpineos/internal/agentbus"
 	"vulpineos/internal/config"
@@ -211,9 +211,17 @@ func Run(args []string) int {
 // runMCPServer runs as an MCP stdio server for OpenClaw integration.
 // It connects to a running VulpineOS kernel and translates MCP tool calls to Juggler protocol.
 func runMCPServer(binaryPath string, headless bool, profileDir string) error {
+	resolvedBinaryPath, err := kernel.ResolveBinaryPath(strings.TrimSpace(binaryPath))
+	if err != nil {
+		return err
+	}
+	if warning := kernel.DetectStaleBinary(resolvedBinaryPath); warning != nil {
+		log.Printf("Warning: %s", warning.Message())
+	}
+
 	k := kernel.New()
 	if err := k.Start(kernel.Config{
-		BinaryPath: binaryPath,
+		BinaryPath: resolvedBinaryPath,
 		Headless:   headless,
 		ProfileDir: profileDir,
 	}); err != nil {
@@ -259,6 +267,10 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 		}
 	}
 	reconfigureRequested := config.ReconfigureRequested()
+	resolvedBinaryPath := strings.TrimSpace(binaryPath)
+	if resolvedBinaryPath == "" && cfg != nil {
+		resolvedBinaryPath = strings.TrimSpace(cfg.BinaryPath)
+	}
 
 	if cfg.NeedsSetup() || reconfigureRequested {
 		// Run setup wizard
@@ -281,22 +293,30 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 
 		// Generate OpenClaw config
 		exe, _ := os.Executable()
-		camoufox := binaryPath
+		camoufox := resolvedBinaryPath
 		if err := cfg.GenerateOpenClawConfig(exe, camoufox); err != nil {
 			log.Printf("Warning: could not generate OpenClaw config: %v", err)
 		}
 	}
 
-	// Store binary path in config if provided
-	if binaryPath != "" && cfg.BinaryPath != binaryPath {
-		cfg.BinaryPath = binaryPath
+	if !noBrowser {
+		var resolveErr error
+		resolvedBinaryPath, resolveErr = kernel.ResolveBinaryPath(resolvedBinaryPath)
+		if resolveErr != nil {
+			return resolveErr
+		}
+	}
+
+	// Store resolved binary path in config when available.
+	if resolvedBinaryPath != "" && cfg.BinaryPath != resolvedBinaryPath {
+		cfg.BinaryPath = resolvedBinaryPath
 		cfg.Save()
 	}
 
 	// Always regenerate openclaw.json to ensure it matches current config
 	if cfg.SetupComplete {
 		exe, _ := os.Executable()
-		if genErr := cfg.GenerateOpenClawConfig(exe, cfg.BinaryPath); genErr != nil {
+		if genErr := cfg.GenerateOpenClawConfig(exe, resolvedBinaryPath); genErr != nil {
 			log.Printf("Warning: could not generate OpenClaw config: %v", genErr)
 		}
 	}
@@ -330,7 +350,7 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 			// Start kernel
 			k = kernel.New()
 			startErr = k.Start(kernel.Config{
-				BinaryPath: binaryPath,
+				BinaryPath: resolvedBinaryPath,
 				Headless:   headless,
 				ProfileDir: profileDir,
 			})
@@ -347,7 +367,7 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 						})
 						wd = kernel.NewWatchdog(k, false)
 						wd.SetConfig(kernel.Config{
-							BinaryPath: binaryPath,
+							BinaryPath: resolvedBinaryPath,
 							Headless:   headless,
 							ProfileDir: profileDir,
 						})
@@ -413,7 +433,7 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 					// Set CDP URL in config so OpenClaw routes through foxbridge
 					cfg.FoxbridgeCDPURL = fb.CDPURL()
 					exe, _ := os.Executable()
-					cfg.GenerateOpenClawConfig(exe, binaryPath)
+					cfg.GenerateOpenClawConfig(exe, resolvedBinaryPath)
 					log.Printf("foxbridge embedded — OpenClaw browser routed through Camoufox at %s", fb.CDPURL())
 				}
 			}
@@ -442,6 +462,17 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 		}
 		if startErr != nil {
 			return startErr
+		}
+		if warning := kernel.DetectStaleBinary(resolvedBinaryPath); warning != nil {
+			log.Printf("Warning: %s", warning.Message())
+			if audit != nil {
+				_, _ = audit.Log("kernel", "warn", "stale_binary", "selected browser binary is older than repo-local build", map[string]string{
+					"selected":      warning.SelectedPath,
+					"preferred":     warning.PreferredPath,
+					"selected_mod":  warning.SelectedMod.UTC().Format(time.RFC3339),
+					"preferred_mod": warning.PreferredMod.UTC().Format(time.RFC3339),
+				})
+			}
 		}
 		defer func() {
 			if audit != nil {
@@ -533,6 +564,10 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 			log.Printf("Warning: could not persist repaired config: %v", saveErr)
 		}
 	}
+	resolvedBinaryPath := strings.TrimSpace(binaryPath)
+	if resolvedBinaryPath == "" && cfg != nil {
+		resolvedBinaryPath = strings.TrimSpace(cfg.BinaryPath)
+	}
 
 	var (
 		audit  *runtimeaudit.Manager
@@ -553,9 +588,13 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 	}
 
 	if !noBrowser {
+		resolvedBinaryPath, err = kernel.ResolveBinaryPath(resolvedBinaryPath)
+		if err != nil {
+			return err
+		}
 		k = kernel.New()
 		if err := k.Start(kernel.Config{
-			BinaryPath: binaryPath,
+			BinaryPath: resolvedBinaryPath,
 			Headless:   headless,
 			ProfileDir: profileDir,
 		}); err != nil {
@@ -584,7 +623,7 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 		}
 		wd = kernel.NewWatchdog(k, false)
 		wd.SetConfig(kernel.Config{
-			BinaryPath: binaryPath,
+			BinaryPath: resolvedBinaryPath,
 			Headless:   headless,
 			ProfileDir: profileDir,
 		})
@@ -615,8 +654,26 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 		})
 		wd.Start()
 		defer wd.Stop()
+		if warning := kernel.DetectStaleBinary(resolvedBinaryPath); warning != nil {
+			log.Printf("Warning: %s", warning.Message())
+			if audit != nil {
+				_, _ = audit.Log("kernel", "warn", "stale_binary", "selected browser binary is older than repo-local build", map[string]string{
+					"selected":      warning.SelectedPath,
+					"preferred":     warning.PreferredPath,
+					"selected_mod":  warning.SelectedMod.UTC().Format(time.RFC3339),
+					"preferred_mod": warning.PreferredMod.UTC().Format(time.RFC3339),
+				})
+			}
+		}
 	} else {
 		log.Printf("browser disabled — serving panel/control API without kernel")
+	}
+
+	if resolvedBinaryPath != "" && cfg != nil && cfg.BinaryPath != resolvedBinaryPath {
+		cfg.BinaryPath = resolvedBinaryPath
+		if err := cfg.Save(); err != nil {
+			log.Printf("Warning: could not persist binary path: %v", err)
+		}
 	}
 
 	// Create orchestrator with subsystems
@@ -789,7 +846,7 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 			defer fb.Stop()
 			cfg.FoxbridgeCDPURL = fb.CDPURL()
 			exe, _ := os.Executable()
-			if err := cfg.GenerateOpenClawConfig(exe, cfg.BinaryPath); err != nil {
+			if err := cfg.GenerateOpenClawConfig(exe, resolvedBinaryPath); err != nil {
 				log.Printf("Warning: could not generate OpenClaw config: %v", err)
 			} else if err := config.RepairOpenClawProfile(cfg.FoxbridgeCDPURL); err != nil {
 				log.Printf("Warning: could not repair OpenClaw profile after foxbridge start: %v", err)

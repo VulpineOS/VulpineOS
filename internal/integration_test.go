@@ -23,18 +23,22 @@ import (
 
 // findCamoufox locates the Camoufox binary for integration tests.
 func findCamoufox() string {
+	if binary := strings.TrimSpace(os.Getenv("CAMOUFOX_BINARY")); binary != "" {
+		return binary
+	}
 	home, _ := os.UserHomeDir()
 	candidates := []string{
 		filepath.Join(home, "Downloads", "Camoufox.app", "Contents", "MacOS", "camoufox"),
 		filepath.Join(home, ".camoufox", "camoufox"),
 		"/usr/local/bin/camoufox",
 	}
-	for _, c := range candidates {
-		if _, err := os.Stat(c); err == nil {
-			return c
+	for _, candidate := range candidates {
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
 		}
 	}
-	return ""
+	binary, _ := kernel.ResolveBinaryPath("")
+	return binary
 }
 
 // skipIfNoBrowser skips the test if Camoufox is not available.
