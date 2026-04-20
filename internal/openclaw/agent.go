@@ -81,6 +81,7 @@ type Agent struct {
 	sessionLogPath string
 	lastToolName   string
 	lastToolFailed bool
+	lastToolStatus string
 	lastToolError  string
 	pendingTools   map[string]toolCallInfo
 }
@@ -448,9 +449,10 @@ func (a *Agent) handleSessionLogLine(line string) {
 			a.emitConversation(ConversationMsg{
 				AgentID: a.ID,
 				Role:    "system",
-				Content: formatPostFailureWarning(a.lastToolName, a.lastToolError),
+				Content: formatPostFailureWarning(a.lastToolName, a.lastToolStatus, a.lastToolError),
 			})
 			a.lastToolFailed = false
+			a.lastToolStatus = ""
 		}
 		for _, item := range event.Message.Content {
 			if item.Type == "thinking" && strings.TrimSpace(item.Thinking) != "" {
@@ -476,6 +478,7 @@ func (a *Agent) handleSessionLogLine(line string) {
 			}
 			a.lastToolName = item.Name
 			a.lastToolFailed = false
+			a.lastToolStatus = ""
 			a.lastToolError = ""
 			if item.ID != "" {
 				a.pendingTools[item.ID] = toolCallInfo{
@@ -505,24 +508,33 @@ func (a *Agent) handleSessionLogLine(line string) {
 		}
 		status, errText := toolResultStatus(event.Message.IsError, event.Message.Content, event.Message.Details)
 		a.lastToolName = event.Message.ToolName
-		if status == "error" {
+		if status == "error" || status == "timeout" || status == "incomplete" {
 			a.lastToolFailed = true
+			a.lastToolStatus = status
 			a.lastToolError = errText
 		} else if status != "" {
 			a.lastToolFailed = false
+			a.lastToolStatus = status
 			a.lastToolError = ""
 		}
 	}
 }
 
-func formatPostFailureWarning(toolName, errText string) string {
+func formatPostFailureWarning(toolName, status, errText string) string {
 	if toolName == "" {
 		toolName = "tool"
 	}
-	if errText != "" {
-		return fmt.Sprintf("Warning: assistant replied after failed %s action — %s", toolName, truncate(singleLine(errText), 180))
+	outcome := fmt.Sprintf("failed %s action", toolName)
+	switch status {
+	case "timeout":
+		outcome = fmt.Sprintf("timed out %s action", toolName)
+	case "incomplete":
+		outcome = fmt.Sprintf("incomplete %s action", toolName)
 	}
-	return fmt.Sprintf("Warning: assistant replied after failed %s action with no successful retry recorded", toolName)
+	if errText != "" {
+		return fmt.Sprintf("Warning: assistant replied after %s — %s", outcome, truncate(singleLine(errText), 180))
+	}
+	return fmt.Sprintf("Warning: assistant replied after %s with no successful retry recorded", outcome)
 }
 
 func summarizeToolCall(name string, args map[string]interface{}) string {
@@ -553,31 +565,42 @@ func summarizeToolResult(name string, call toolCallInfo, hasCall bool, content [
 			label = callLabel
 		}
 	}
-	if status, errText := toolResultStatus(false, content, details); status != "" {
-		if status == "error" {
-			if errText != "" {
-				return fmt.Sprintf("Tool failed: %s — %s", label, truncate(singleLine(errText), 180))
-			}
-			return fmt.Sprintf("Tool failed: %s", label)
+	payload := mergeToolResultPayload(details, content)
+	status, errText := toolResultStatus(false, content, details)
+	switch status {
+	case "error":
+		if errText == "" {
+			errText = toolResultSnippet(content, payload)
 		}
-		if msg := summarizeToolSuccess(name, details); msg != "" {
-			return msg
+		if errText != "" {
+			return fmt.Sprintf("Tool failed: %s — %s", label, truncate(singleLine(errText), 180))
 		}
-		for _, item := range content {
-			if item.Type != "text" || item.Text == "" {
-				continue
-			}
-			var payload map[string]interface{}
-			if json.Unmarshal([]byte(item.Text), &payload) != nil {
-				continue
-			}
-			if msg := summarizeToolSuccess(name, payload); msg != "" {
-				return msg
-			}
+		return fmt.Sprintf("Tool failed: %s", label)
+	case "timeout":
+		if errText == "" {
+			errText = toolResultSnippet(content, payload)
 		}
-		return fmt.Sprintf("Tool completed: %s", label)
+		if errText != "" {
+			return fmt.Sprintf("Tool timed out: %s — %s", label, truncate(singleLine(errText), 180))
+		}
+		return fmt.Sprintf("Tool timed out: %s", label)
+	case "incomplete":
+		if errText == "" {
+			errText = toolResultSnippet(content, payload)
+		}
+		if errText != "" {
+			return fmt.Sprintf("Tool incomplete: %s — %s", label, truncate(singleLine(errText), 180))
+		}
+		return fmt.Sprintf("Tool incomplete: %s", label)
+	case "":
+		// Fall through and treat missing status as a successful completion summary.
 	}
-
+	if msg := summarizeToolSuccess(name, label, payload); msg != "" {
+		return msg
+	}
+	if snippet := toolResultSnippet(content, payload); snippet != "" {
+		return fmt.Sprintf("Tool completed: %s — %s", label, truncate(singleLine(snippet), 180))
+	}
 	return fmt.Sprintf("Tool completed: %s", label)
 }
 
@@ -617,7 +640,7 @@ func toolResultStatus(isError bool, content []struct {
 
 	if status, _ = details["status"].(string); status != "" {
 		errText, _ = details["error"].(string)
-		return status, errText
+		return normalizeToolStatus(status), errText
 	}
 
 	for _, item := range content {
@@ -631,11 +654,29 @@ func toolResultStatus(isError bool, content []struct {
 		status, _ = payload["status"].(string)
 		errText, _ = payload["error"].(string)
 		if status != "" {
-			return status, errText
+			return normalizeToolStatus(status), errText
 		}
 	}
 
 	return "", ""
+}
+
+func normalizeToolStatus(status string) string {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "", "ok", "success", "succeeded", "completed", "complete":
+		if strings.TrimSpace(status) == "" {
+			return ""
+		}
+		return "completed"
+	case "error", "failed", "failure":
+		return "error"
+	case "timeout", "timed_out":
+		return "timeout"
+	case "incomplete", "partial", "needs_input":
+		return "incomplete"
+	default:
+		return strings.ToLower(strings.TrimSpace(status))
+	}
 }
 
 func numericDetail(v interface{}) (int, bool) {
@@ -724,29 +765,111 @@ func toolActionLabel(name string, args map[string]interface{}) string {
 	return fmt.Sprintf("%s %s", name, truncate(argText, 180))
 }
 
-func summarizeToolSuccess(name string, payload map[string]interface{}) string {
+func summarizeToolSuccess(name, label string, payload map[string]interface{}) string {
+	if label == "" {
+		label = name
+	}
 	switch name {
 	case "browser":
-		if targetID, _ := payload["targetId"].(string); targetID != "" {
-			if url, _ := payload["url"].(string); url != "" {
+		if url, _ := payload["url"].(string); url != "" {
+			if label == "browser" {
 				return fmt.Sprintf("Tool completed: browser — opened %s", truncate(url, 160))
 			}
-			return fmt.Sprintf("Tool completed: browser — opened target %s", truncate(targetID, 24))
-		}
-		if url, _ := payload["url"].(string); url != "" {
-			return fmt.Sprintf("Tool completed: browser — at %s", truncate(url, 160))
+			if strings.Contains(label, url) {
+				if title, _ := payload["title"].(string); title != "" {
+					return fmt.Sprintf("Tool completed: %s — %s", label, truncate(title, 160))
+				}
+				return fmt.Sprintf("Tool completed: %s", label)
+			}
+			return fmt.Sprintf("Tool completed: %s — at %s", label, truncate(url, 160))
 		}
 		if title, _ := payload["title"].(string); title != "" {
-			return fmt.Sprintf("Tool completed: browser — %s", truncate(title, 160))
+			return fmt.Sprintf("Tool completed: %s — %s", label, truncate(title, 160))
 		}
+		if targetID, _ := payload["targetId"].(string); targetID != "" {
+			return fmt.Sprintf("Tool completed: %s — target %s", label, truncate(targetID, 24))
+		}
+		return fmt.Sprintf("Tool completed: %s", label)
 	case "web_fetch":
 		if url, _ := payload["url"].(string); url != "" {
-			return fmt.Sprintf("Tool completed: web_fetch — fetched %s", truncate(url, 160))
+			if strings.Contains(label, url) {
+				return fmt.Sprintf("Tool completed: %s", label)
+			}
+			return fmt.Sprintf("Tool completed: %s — fetched %s", label, truncate(url, 160))
 		}
 	case "web_search":
 		if query, _ := payload["query"].(string); query != "" {
-			return fmt.Sprintf("Tool completed: web_search — %s", truncate(query, 160))
+			if strings.Contains(label, query) {
+				return fmt.Sprintf("Tool completed: %s", label)
+			}
+			return fmt.Sprintf("Tool completed: %s — %s", label, truncate(query, 160))
 		}
+	}
+	return ""
+}
+
+func mergeToolResultPayload(details map[string]interface{}, content []struct {
+	Type      string                 `json:"type"`
+	Text      string                 `json:"text"`
+	Thinking  string                 `json:"thinking"`
+	ID        string                 `json:"id"`
+	Name      string                 `json:"name"`
+	Arguments map[string]interface{} `json:"arguments"`
+}) map[string]interface{} {
+	payload := make(map[string]interface{})
+	for k, v := range details {
+		payload[k] = v
+	}
+	for _, item := range content {
+		if item.Type != "text" || strings.TrimSpace(item.Text) == "" {
+			continue
+		}
+		var parsed map[string]interface{}
+		if json.Unmarshal([]byte(item.Text), &parsed) != nil {
+			continue
+		}
+		for k, v := range parsed {
+			if existing, ok := payload[k]; ok && existing != nil && existing != "" {
+				continue
+			}
+			payload[k] = v
+		}
+	}
+	if len(payload) == 0 {
+		return nil
+	}
+	return payload
+}
+
+func toolResultSnippet(content []struct {
+	Type      string                 `json:"type"`
+	Text      string                 `json:"text"`
+	Thinking  string                 `json:"thinking"`
+	ID        string                 `json:"id"`
+	Name      string                 `json:"name"`
+	Arguments map[string]interface{} `json:"arguments"`
+}, payload map[string]interface{}) string {
+	for _, key := range []string{"aggregated", "output", "stdout", "stderr", "message", "text"} {
+		if payload != nil {
+			if value, _ := payload[key].(string); strings.TrimSpace(value) != "" {
+				return value
+			}
+		}
+	}
+	for _, item := range content {
+		if item.Type != "text" || strings.TrimSpace(item.Text) == "" {
+			continue
+		}
+		var parsed map[string]interface{}
+		if json.Unmarshal([]byte(item.Text), &parsed) == nil {
+			for _, key := range []string{"aggregated", "output", "stdout", "stderr", "message", "text"} {
+				if value, _ := parsed[key].(string); strings.TrimSpace(value) != "" {
+					return value
+				}
+			}
+			continue
+		}
+		return item.Text
 	}
 	return ""
 }

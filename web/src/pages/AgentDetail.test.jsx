@@ -24,7 +24,9 @@ describe('AgentDetail page', () => {
         return {
           messages: [
             { role: 'user', content: 'hello' },
-            { role: 'system', content: 'Running browser action: open https://example.com' },
+            { role: 'system', content: 'Running browser open https://example.com' },
+            { role: 'system', content: 'Thinking: Inspecting the loaded page state' },
+            { role: 'system', content: 'Tool incomplete: browser click button.buy — target became detached before click completed' },
           ],
         }
       }
@@ -74,7 +76,12 @@ describe('AgentDetail page', () => {
 
     fireEvent.click(screen.getByText('Trace'))
     expect(screen.getByText('Action Trace')).toBeInTheDocument()
-    expect(screen.getByText('Running browser action: open https://example.com')).toBeInTheDocument()
+    expect(screen.getByText('Running browser open https://example.com')).toBeInTheDocument()
+    expect(screen.getByText('Thinking: Inspecting the loaded page state')).toBeInTheDocument()
+    expect(screen.getByText('Tool incomplete: browser click button.buy — target became detached before click completed')).toBeInTheDocument()
+    expect(screen.getByText('RUN')).toBeInTheDocument()
+    expect(screen.getByText('THINK')).toBeInTheDocument()
+    expect(screen.getByText('PARTIAL')).toBeInTheDocument()
 
     fireEvent.click(screen.getByText('Raw'))
     expect(await screen.findByText('Raw Session Log')).toBeInTheDocument()

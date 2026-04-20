@@ -211,6 +211,7 @@ When the macOS window-controller path fails, the toggle notice now preserves the
 Press `t` to switch the center panel into a trace-only view of system tool events so browser/tool starts, completions, and failures are easy to inspect without mixing them into the full conversation stream.
 If a tool fails and the agent still replies as if the task succeeded, VulpineOS now injects an explicit warning into that trace so false-success replies are visible immediately.
 Non-zero command exits in OpenClaw tool results are now classified as failures even when the upstream payload reports `status:"completed"`, so trace output stays aligned with the real action result.
+Timeouts and incomplete tool results are now classified separately from hard failures, and the web panel labels trace rows as `RUN`, `OK`, `PARTIAL`, `TIMEOUT`, `FAIL`, `THINK`, or `WARN` instead of flattening everything into a generic system line.
 When OpenClaw writes provider thinking blocks into the session log, VulpineOS now exposes them inside the trace view as `Thinking:` entries instead of hiding them behind the raw JSONL.
 Tool-result summaries now preserve the exact tool-call context when available, so trace output says what action actually ran instead of falling back to generic `Tool completed: browser`.
 Press `o` to open the selected agent's raw OpenClaw session log in the system viewer for full JSONL trace inspection, including provider-emitted thinking blocks when the provider writes them.

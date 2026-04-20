@@ -92,6 +92,56 @@ func TestSummarizeToolResultTreatsNonZeroExitCodeAsError(t *testing.T) {
 	}
 }
 
+func TestSummarizeToolResultIncomplete(t *testing.T) {
+	got := summarizeToolResult("browser", toolCallInfo{
+		Name: "browser",
+		Arguments: map[string]interface{}{
+			"action":   "click",
+			"selector": "button.buy",
+		},
+	}, true, nil, map[string]interface{}{
+		"status": "incomplete",
+		"error":  "target became detached before click completed",
+	})
+	want := "Tool incomplete: browser click button.buy — target became detached before click completed"
+	if got != want {
+		t.Fatalf("summarizeToolResult = %q, want %q", got, want)
+	}
+}
+
+func TestSummarizeToolResultTimeout(t *testing.T) {
+	got := summarizeToolResult("browser", toolCallInfo{
+		Name: "browser",
+		Arguments: map[string]interface{}{
+			"action": "open",
+			"url":    "https://example.com",
+		},
+	}, true, nil, map[string]interface{}{
+		"status": "timeout",
+		"error":  "navigation exceeded 30s timeout",
+	})
+	want := "Tool timed out: browser open https://example.com — navigation exceeded 30s timeout"
+	if got != want {
+		t.Fatalf("summarizeToolResult = %q, want %q", got, want)
+	}
+}
+
+func TestSummarizeToolResultSuccessUsesOutputSnippet(t *testing.T) {
+	got := summarizeToolResult("exec", toolCallInfo{
+		Name: "exec",
+		Arguments: map[string]interface{}{
+			"command": "curl https://example.com",
+		},
+	}, true, nil, map[string]interface{}{
+		"status":     "completed",
+		"aggregated": "HTTP/2 200",
+	})
+	want := "Tool completed: exec curl https://example.com — HTTP/2 200"
+	if got != want {
+		t.Fatalf("summarizeToolResult = %q, want %q", got, want)
+	}
+}
+
 func TestHandleSessionLogLine_EmitsAssistantText(t *testing.T) {
 	agent := newAgent("agent-1", "ctx-1", make(chan AgentStatus, 1))
 
@@ -170,7 +220,7 @@ func TestHandleSessionLogLine_SuccessfulToolClearsFailureWarning(t *testing.T) {
 	}
 
 	msg2 := <-agent.conversationCh
-	if msg2.Content != "Tool completed: browser — at https://example.com" {
+	if msg2.Content != "Tool completed: browser — opened https://example.com" {
 		t.Fatalf("second message = %#v", msg2)
 	}
 
@@ -228,5 +278,50 @@ func TestHandleSessionLogLine_UsesToolCallContextInResultSummary(t *testing.T) {
 	msg2 := <-agent.conversationCh
 	if msg2.Content != "Tool completed: browser click button.buy" {
 		t.Fatalf("second message = %#v", msg2)
+	}
+}
+
+func TestHandleSessionLogLine_UsesTimeoutClassification(t *testing.T) {
+	agent := newAgent("agent-1", "ctx-1", make(chan AgentStatus, 1))
+
+	call := `{"type":"message","message":{"role":"assistant","content":[{"type":"toolCall","id":"call-1","name":"browser","arguments":{"action":"open","url":"https://example.com"}}]}}`
+	result := `{"type":"message","message":{"role":"toolResult","toolName":"browser","toolCallId":"call-1","content":[{"type":"text","text":"{\"status\":\"timeout\",\"error\":\"navigation exceeded 30s timeout\"}"}],"details":{"status":"timeout","error":"navigation exceeded 30s timeout"}}}`
+
+	agent.handleSessionLogLine(call)
+	agent.handleSessionLogLine(result)
+
+	msg1 := <-agent.conversationCh
+	if msg1.Content != "Running browser open https://example.com" {
+		t.Fatalf("first message = %#v", msg1)
+	}
+
+	msg2 := <-agent.conversationCh
+	if msg2.Content != "Tool timed out: browser open https://example.com — navigation exceeded 30s timeout" {
+		t.Fatalf("second message = %#v", msg2)
+	}
+}
+
+func TestHandleSessionLogLine_WarnsAfterIncompleteToolThenAssistantReply(t *testing.T) {
+	agent := newAgent("agent-1", "ctx-1", make(chan AgentStatus, 1))
+
+	toolResult := `{"type":"message","message":{"role":"toolResult","toolName":"browser","content":[{"type":"text","text":"{\"status\":\"incomplete\",\"error\":\"target became detached before click completed\"}"}],"details":{"status":"incomplete","error":"target became detached before click completed"}}}`
+	assistant := `{"type":"message","message":{"role":"assistant","content":[{"type":"text","text":"Done"}]}}`
+
+	agent.handleSessionLogLine(toolResult)
+	agent.handleSessionLogLine(assistant)
+
+	msg1 := <-agent.conversationCh
+	if msg1.Role != "system" || msg1.Content != "Tool incomplete: browser — target became detached before click completed" {
+		t.Fatalf("first message = %#v", msg1)
+	}
+
+	msg2 := <-agent.conversationCh
+	if msg2.Role != "system" || msg2.Content != "Warning: assistant replied after incomplete browser action — target became detached before click completed" {
+		t.Fatalf("second message = %#v", msg2)
+	}
+
+	msg3 := <-agent.conversationCh
+	if msg3.Role != "assistant" || msg3.Content != "Done" {
+		t.Fatalf("third message = %#v", msg3)
 	}
 }

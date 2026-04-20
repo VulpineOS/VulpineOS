@@ -14,12 +14,16 @@ export default function AgentDetail({ ws }) {
   const conversationMessages = messages.filter(m => m.role !== 'system')
   const traceMessages = messages.filter(m => m.role === 'system')
 
-  function traceTone(content) {
-    if (!content) return '#9ca3af'
-    if (content.startsWith('Tool failed:')) return '#f87171'
-    if (content.startsWith('Tool completed:')) return '#34d399'
-    if (content.startsWith('Running ')) return '#fbbf24'
-    return '#9ca3af'
+  function traceMeta(content) {
+    if (!content) return { label: 'TRACE', tone: '#9ca3af', bg: '#111827' }
+    if (content.startsWith('Tool failed:')) return { label: 'FAIL', tone: '#f87171', bg: '#2a1416' }
+    if (content.startsWith('Tool timed out:')) return { label: 'TIMEOUT', tone: '#fb923c', bg: '#2b1a12' }
+    if (content.startsWith('Tool incomplete:')) return { label: 'PARTIAL', tone: '#f59e0b', bg: '#2b2111' }
+    if (content.startsWith('Tool completed:')) return { label: 'OK', tone: '#34d399', bg: '#10231c' }
+    if (content.startsWith('Running ')) return { label: 'RUN', tone: '#fbbf24', bg: '#2a2111' }
+    if (content.startsWith('Thinking:')) return { label: 'THINK', tone: '#a78bfa', bg: '#1d1630' }
+    if (content.startsWith('Warning:')) return { label: 'WARN', tone: '#facc15', bg: '#2a240d' }
+    return { label: 'TRACE', tone: '#9ca3af', bg: '#111827' }
   }
 
   function formatTimestamp(value) {
@@ -180,10 +184,23 @@ export default function AgentDetail({ ws }) {
           <h3>Action Trace</h3>
           <div style={{ maxHeight: 500, overflowY: 'auto', marginBottom: 12 }}>
             {traceMessages.length === 0 && <p style={{ color: '#666' }}>No action trace yet.</p>}
-            {traceMessages.map((m, i) => (
+            {traceMessages.map((m, i) => {
+              const meta = traceMeta(m.content)
+              return (
               <div key={i} style={{ padding: '8px 0', borderBottom: '1px solid #1e1e2e' }}>
-                <span style={{ color: traceTone(m.content), fontWeight: 600, fontSize: 12 }}>
-                  SYSTEM
+                <span style={{
+                  color: meta.tone,
+                  background: meta.bg,
+                  border: `1px solid ${meta.tone}33`,
+                  fontWeight: 700,
+                  fontSize: 11,
+                  borderRadius: 6,
+                  padding: '2px 6px',
+                  display: 'inline-block',
+                  minWidth: 56,
+                  textAlign: 'center',
+                }}>
+                  {meta.label}
                 </span>
                 {formatTimestamp(m.timestamp) && (
                   <span style={{ color: '#666', fontSize: 11, marginLeft: 8 }}>{formatTimestamp(m.timestamp)}</span>
@@ -192,7 +209,7 @@ export default function AgentDetail({ ws }) {
                   {m.content}
                 </div>
               </div>
-            ))}
+            )})}
           </div>
         </div>
       )}
