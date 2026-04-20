@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && rm -rf ../cmd/vulpineos/panel && mkdir -p ../cmd/vulpineos/panel && cp -R dist/. ../cmd/vulpineos/panel/",
     "test": "vitest run",
     "preview": "vite preview"
   },
