@@ -156,7 +156,7 @@ func Run(args []string) int {
 		tlsCert    = fs.String("tls-cert", "", "TLS certificate file (with --serve)")
 		tlsKey     = fs.String("tls-key", "", "TLS key file (with --serve)")
 		noTLS      = fs.Bool("no-tls", false, "Disable TLS (plain ws:// instead of wss://)")
-		noBrowser  = fs.Bool("no-browser", false, "Start TUI without launching browser (demo mode)")
+		noBrowser  = fs.Bool("no-browser", false, "Start without launching browser/kernel (demo or panel-only mode)")
 		mcpServer  = fs.Bool("mcp-server", false, "Run as MCP stdio server (used by OpenClaw)")
 		mcpConnect = fs.String("mcp-connect", "", "WebSocket URL to connect MCP server to remote kernel")
 		_          = mcpConnect // M4 remote MCP — future use
@@ -196,7 +196,7 @@ func Run(args []string) int {
 	case *remoteAddr != "":
 		err = runRemote(*remoteAddr, *apiKey)
 	case *serve:
-		err = runServe(*binaryPath, *headless, *profileDir, *port, *apiKey, *tlsCert, *tlsKey, *noTLS)
+		err = runServe(*binaryPath, *headless, *profileDir, *port, *apiKey, *tlsCert, *tlsKey, *noTLS, *noBrowser)
 	default:
 		err = runLocal(*binaryPath, *headless, *profileDir, *noBrowser)
 	}
@@ -521,7 +521,7 @@ func runRemote(addr string, apiKey string) error {
 }
 
 // runServe starts the kernel and exposes it via WebSocket server.
-func runServe(binaryPath string, headless bool, profileDir string, port int, apiKey string, tlsCert, tlsKey string, noTLS bool) error {
+func runServe(binaryPath string, headless bool, profileDir string, port int, apiKey string, tlsCert, tlsKey string, noTLS bool, noBrowser bool) error {
 	// Load config
 	cfg, err := config.Load()
 	if err != nil {
@@ -534,29 +534,12 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 		}
 	}
 
-	var audit *runtimeaudit.Manager
-	k := kernel.New()
-	if err := k.Start(kernel.Config{
-		BinaryPath: binaryPath,
-		Headless:   headless,
-		ProfileDir: profileDir,
-	}); err != nil {
-		return fmt.Errorf("start kernel: %w", err)
-	}
-	defer func() {
-		if audit != nil {
-			_, _ = audit.Log("kernel", "info", "stopped", "kernel stopped", map[string]string{
-				"pid": fmt.Sprintf("%d", k.PID()),
-			})
-		}
-		_ = k.Stop()
-	}()
-
-	client := k.Client()
-	extensions.InitWithClient(client)
-	if err := enableBrowser(client, "Browser.enable"); err != nil {
-		return err
-	}
+	var (
+		audit  *runtimeaudit.Manager
+		k      *kernel.Kernel
+		client *juggler.Client
+		wd     *kernel.Watchdog
+	)
 
 	// Open vault
 	v, _ := vault.Open()
@@ -569,45 +552,72 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 		defer audit.Close()
 	}
 
-	if audit != nil {
-		_, _ = audit.Log("kernel", "info", "started", "kernel started", map[string]string{
-			"pid":      fmt.Sprintf("%d", k.PID()),
-			"headless": fmt.Sprintf("%t", headless),
+	if !noBrowser {
+		k = kernel.New()
+		if err := k.Start(kernel.Config{
+			BinaryPath: binaryPath,
+			Headless:   headless,
+			ProfileDir: profileDir,
+		}); err != nil {
+			return fmt.Errorf("start kernel: %w", err)
+		}
+		defer func() {
+			if audit != nil {
+				_, _ = audit.Log("kernel", "info", "stopped", "kernel stopped", map[string]string{
+					"pid": fmt.Sprintf("%d", k.PID()),
+				})
+			}
+			_ = k.Stop()
+		}()
+
+		client = k.Client()
+		extensions.InitWithClient(client)
+		if err := enableBrowser(client, "Browser.enable"); err != nil {
+			return err
+		}
+
+		if audit != nil {
+			_, _ = audit.Log("kernel", "info", "started", "kernel started", map[string]string{
+				"pid":      fmt.Sprintf("%d", k.PID()),
+				"headless": fmt.Sprintf("%t", headless),
+			})
+		}
+		wd = kernel.NewWatchdog(k, false)
+		wd.SetConfig(kernel.Config{
+			BinaryPath: binaryPath,
+			Headless:   headless,
+			ProfileDir: profileDir,
 		})
+		wd.OnEvent(func(event kernel.WatchdogEvent) {
+			if audit == nil {
+				return
+			}
+			level := "warn"
+			message := "kernel event"
+			switch event.Type {
+			case "crashed":
+				level = "error"
+				message = "kernel exited unexpectedly"
+			case "restart_success":
+				message = "kernel restarted"
+			case "restart_failed":
+				level = "error"
+				message = "kernel restart failed"
+			}
+			metadata := map[string]string{}
+			if event.Attempt > 0 {
+				metadata["attempt"] = fmt.Sprintf("%d", event.Attempt)
+			}
+			if event.Err != nil {
+				metadata["error"] = event.Err.Error()
+			}
+			_, _ = audit.Log("kernel", level, event.Type, message, metadata)
+		})
+		wd.Start()
+		defer wd.Stop()
+	} else {
+		log.Printf("browser disabled — serving panel/control API without kernel")
 	}
-	wd := kernel.NewWatchdog(k, false)
-	wd.SetConfig(kernel.Config{
-		BinaryPath: binaryPath,
-		Headless:   headless,
-		ProfileDir: profileDir,
-	})
-	wd.OnEvent(func(event kernel.WatchdogEvent) {
-		if audit == nil {
-			return
-		}
-		level := "warn"
-		message := "kernel event"
-		switch event.Type {
-		case "crashed":
-			level = "error"
-			message = "kernel exited unexpectedly"
-		case "restart_success":
-			message = "kernel restarted"
-		case "restart_failed":
-			level = "error"
-			message = "kernel restart failed"
-		}
-		metadata := map[string]string{}
-		if event.Attempt > 0 {
-			metadata["attempt"] = fmt.Sprintf("%d", event.Attempt)
-		}
-		if event.Err != nil {
-			metadata["error"] = event.Err.Error()
-		}
-		_, _ = audit.Log("kernel", level, event.Type, message, metadata)
-	})
-	wd.Start()
-	defer wd.Stop()
 
 	// Create orchestrator with subsystems
 	var orch *orchestrator.Orchestrator
@@ -624,20 +634,22 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 		costs = costtrack.New(model)
 		wh = webhooks.New()
 		rec = recording.NewRecorder()
-		orch = orchestrator.New(k, client, v, pool.DefaultConfig(), "openclaw", orchestrator.Opts{
-			AgentBus:  bus,
-			Costs:     costs,
-			Webhooks:  wh,
-			Recording: rec,
-			PageCache: pagecache.New(filepath.Join(config.Dir(), "pagecache")),
-		})
-		if audit != nil {
-			orch.Agents.SetRuntimeAudit(audit)
-		}
-		if startErr := orch.Start(); startErr != nil {
-			log.Printf("Warning: orchestrator start: %v", startErr)
-		} else {
-			defer orch.Close()
+		if k != nil && client != nil {
+			orch = orchestrator.New(k, client, v, pool.DefaultConfig(), "openclaw", orchestrator.Opts{
+				AgentBus:  bus,
+				Costs:     costs,
+				Webhooks:  wh,
+				Recording: rec,
+				PageCache: pagecache.New(filepath.Join(config.Dir(), "pagecache")),
+			})
+			if audit != nil {
+				orch.Agents.SetRuntimeAudit(audit)
+			}
+			if startErr := orch.Start(); startErr != nil {
+				log.Printf("Warning: orchestrator start: %v", startErr)
+			} else {
+				defer orch.Close()
+			}
 		}
 	}
 
@@ -666,42 +678,44 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 	server.SetPanelAPI(panelAPI)
 
 	// Forward telemetry events to connected clients
-	for _, event := range []string{
-		"Browser.telemetryUpdate",
-		"Browser.injectionAttemptDetected",
-		"Browser.trustWarmingStateChanged",
-		"Browser.attachedToTarget",
-		"Browser.detachedFromTarget",
-		"Page.navigationCommitted",
-		"Page.eventFired",
-		"Page.frameAttached",
-		"Runtime.executionContextCreated",
-		"Runtime.executionContextDestroyed",
-	} {
-		evt := event
-		client.Subscribe(evt, func(sessionID string, params json.RawMessage) {
-			switch evt {
-			case "Browser.attachedToTarget":
-				var payload struct {
-					SessionID  string `json:"sessionId"`
-					TargetInfo struct {
-						BrowserContextID string `json:"browserContextId"`
-						URL              string `json:"url"`
-					} `json:"targetInfo"`
+	if client != nil {
+		for _, event := range []string{
+			"Browser.telemetryUpdate",
+			"Browser.injectionAttemptDetected",
+			"Browser.trustWarmingStateChanged",
+			"Browser.attachedToTarget",
+			"Browser.detachedFromTarget",
+			"Page.navigationCommitted",
+			"Page.eventFired",
+			"Page.frameAttached",
+			"Runtime.executionContextCreated",
+			"Runtime.executionContextDestroyed",
+		} {
+			evt := event
+			client.Subscribe(evt, func(sessionID string, params json.RawMessage) {
+				switch evt {
+				case "Browser.attachedToTarget":
+					var payload struct {
+						SessionID  string `json:"sessionId"`
+						TargetInfo struct {
+							BrowserContextID string `json:"browserContextId"`
+							URL              string `json:"url"`
+						} `json:"targetInfo"`
+					}
+					if err := json.Unmarshal(params, &payload); err == nil {
+						contexts.Attached(payload.SessionID, payload.TargetInfo.BrowserContextID, payload.TargetInfo.URL)
+					}
+				case "Browser.detachedFromTarget":
+					var payload struct {
+						SessionID string `json:"sessionId"`
+					}
+					if err := json.Unmarshal(params, &payload); err == nil {
+						contexts.Detached(payload.SessionID)
+					}
 				}
-				if err := json.Unmarshal(params, &payload); err == nil {
-					contexts.Attached(payload.SessionID, payload.TargetInfo.BrowserContextID, payload.TargetInfo.URL)
-				}
-			case "Browser.detachedFromTarget":
-				var payload struct {
-					SessionID string `json:"sessionId"`
-				}
-				if err := json.Unmarshal(params, &payload); err == nil {
-					contexts.Detached(payload.SessionID)
-				}
-			}
-			server.BroadcastEvent(evt, sessionID, params)
-		})
+				server.BroadcastEvent(evt, sessionID, params)
+			})
+		}
 	}
 
 	if orch != nil && v != nil {
@@ -765,35 +779,39 @@ func runServe(binaryPath string, headless bool, profileDir string, port int, api
 		log.Println("web panel available at /")
 	}
 
-	// Start embedded foxbridge CDP server
-	fb := foxbridge.New()
-	fb.SetRuntimeAudit(audit)
-	if err := fb.StartEmbeddedMode(client, 9222); err != nil {
-		log.Printf("foxbridge: %v (CDP proxy not available)", err)
-	} else {
-		defer fb.Stop()
-		cfg.FoxbridgeCDPURL = fb.CDPURL()
-		exe, _ := os.Executable()
-		if err := cfg.GenerateOpenClawConfig(exe, cfg.BinaryPath); err != nil {
-			log.Printf("Warning: could not generate OpenClaw config: %v", err)
-		} else if err := config.RepairOpenClawProfile(cfg.FoxbridgeCDPURL); err != nil {
-			log.Printf("Warning: could not repair OpenClaw profile after foxbridge start: %v", err)
-		}
-		log.Printf("foxbridge CDP on %s", fb.CDPURL())
-	}
-
-	gw := startGatewayIfAvailable(cfg, audit)
-	if gw != nil {
-		panelAPI.Gateway = gw
-		defer func() {
-			if audit != nil {
-				_, _ = audit.Log("gateway", "info", "stopped", "OpenClaw gateway stopped", nil)
+	if client != nil {
+		// Start embedded foxbridge CDP server
+		fb := foxbridge.New()
+		fb.SetRuntimeAudit(audit)
+		if err := fb.StartEmbeddedMode(client, 9222); err != nil {
+			log.Printf("foxbridge: %v (CDP proxy not available)", err)
+		} else {
+			defer fb.Stop()
+			cfg.FoxbridgeCDPURL = fb.CDPURL()
+			exe, _ := os.Executable()
+			if err := cfg.GenerateOpenClawConfig(exe, cfg.BinaryPath); err != nil {
+				log.Printf("Warning: could not generate OpenClaw config: %v", err)
+			} else if err := config.RepairOpenClawProfile(cfg.FoxbridgeCDPURL); err != nil {
+				log.Printf("Warning: could not repair OpenClaw profile after foxbridge start: %v", err)
 			}
-			gw.Stop()
-		}()
-	}
+			log.Printf("foxbridge CDP on %s", fb.CDPURL())
+		}
 
-	log.Printf("VulpineOS kernel running (PID %d)", k.PID())
+		gw := startGatewayIfAvailable(cfg, audit)
+		if gw != nil {
+			panelAPI.Gateway = gw
+			defer func() {
+				if audit != nil {
+					_, _ = audit.Log("gateway", "info", "stopped", "OpenClaw gateway stopped", nil)
+				}
+				gw.Stop()
+			}()
+		}
+
+		log.Printf("VulpineOS kernel running (PID %d)", k.PID())
+	} else {
+		log.Printf("VulpineOS remote server running without kernel/browser")
+	}
 
 	if noTLS {
 		log.Printf("TLS disabled — serving plain ws:// on port %d", port)

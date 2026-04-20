@@ -165,7 +165,13 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 			if err := json.Unmarshal(env.Payload, &msg); err != nil {
 				continue
 			}
-			result, err := s.client.Call(msg.SessionID, msg.Method, msg.Params)
+			var result json.RawMessage
+			var err error
+			if s.client == nil {
+				err = fmt.Errorf("browser unavailable: server started without a kernel")
+			} else {
+				result, err = s.client.Call(msg.SessionID, msg.Method, msg.Params)
+			}
 			// Send response back
 			resp := &juggler.Message{ID: msg.ID, SessionID: msg.SessionID}
 			if err != nil {

@@ -951,18 +951,26 @@ func (api *PanelAPI) fingerprintsGenerate(params json.RawMessage) (json.RawMessa
 // ---------------------------------------------------------------------------
 
 func (api *PanelAPI) statusGet() (json.RawMessage, error) {
-	out := map[string]interface{}{}
+	route, source := api.browserRoute()
+	out := map[string]interface{}{
+		"kernelUp":                    false,
+		"kernelPid":                   0,
+		"kernel_running":              false,
+		"kernel_pid":                  0,
+		"kernel_headless":             false,
+		"browser_route":               route,
+		"browser_route_source":        source,
+		"browser_window":              api.browserWindow(),
+		"gateway_running":             false,
+		"openclaw_profile_configured": config.OpenClawProfileBrowserRoute() != "",
+	}
 
 	if api.Kernel != nil {
-		route, source := api.browserRoute()
 		out["kernelUp"] = api.Kernel.Running()
 		out["kernelPid"] = api.Kernel.PID()
 		out["kernel_running"] = api.Kernel.Running()
 		out["kernel_pid"] = api.Kernel.PID()
 		out["kernel_headless"] = api.Kernel.IsHeadless()
-		out["browser_route"] = route
-		out["browser_route_source"] = source
-		out["browser_window"] = api.browserWindow()
 	}
 	if api.Gateway != nil {
 		out["gateway_running"] = api.Gateway.Running()
@@ -990,6 +998,8 @@ func (api *PanelAPI) browserRoute() (string, string) {
 		return "camoufox", "runtime"
 	case config.OpenClawProfileBrowserRoute() != "":
 		return config.OpenClawProfileBrowserRoute(), "profile"
+	case api.Kernel == nil:
+		return "disabled", "server"
 	case api.Kernel != nil && api.Kernel.IsHeadless():
 		return "headless", "kernel"
 	default:
@@ -999,7 +1009,7 @@ func (api *PanelAPI) browserRoute() (string, string) {
 
 func (api *PanelAPI) browserWindow() string {
 	if api.Kernel == nil {
-		return ""
+		return "n/a"
 	}
 	if api.Kernel.IsHeadless() {
 		return "headless"
