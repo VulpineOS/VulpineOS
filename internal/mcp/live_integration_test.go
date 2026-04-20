@@ -57,15 +57,22 @@ func startLiveKernel(t *testing.T) (*kernel.Kernel, *juggler.Client) {
 		}
 
 		client := k.Client()
-		if _, err := client.Call("", "Browser.enable", map[string]interface{}{
-			"attachToDefaultContext": true,
-		}); err == nil {
-			return k, client
-		} else {
-			lastErr = err
-			k.Stop()
-			time.Sleep(500 * time.Millisecond)
+		deadline := time.Now().Add(5 * time.Second)
+		for {
+			if _, err := client.Call("", "Browser.enable", map[string]interface{}{
+				"attachToDefaultContext": true,
+			}); err == nil {
+				return k, client
+			} else {
+				lastErr = err
+			}
+			if time.Now().After(deadline) {
+				break
+			}
+			time.Sleep(300 * time.Millisecond)
 		}
+		k.Stop()
+		time.Sleep(500 * time.Millisecond)
 	}
 
 	t.Fatalf("Browser.enable: %v", lastErr)

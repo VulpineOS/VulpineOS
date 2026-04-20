@@ -342,6 +342,99 @@ func TestIntegration_CreatePageAndNavigate(t *testing.T) {
 	}
 }
 
+func TestIntegration_AnnotatedScreenshotReturnsClickableObject(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`<!doctype html>
+<html>
+<head><title>Label Demo</title></head>
+<body>
+  <button id="press" type="button">Press Me</button>
+  <div id="status">ready</div>
+  <script>
+    document.querySelector('#press').addEventListener('click', () => {
+      document.querySelector('#status').textContent = 'clicked';
+    });
+  </script>
+</body>
+</html>`))
+	}))
+	defer server.Close()
+
+	k, client := startKernel(t)
+	defer k.Stop()
+
+	sessionID := createPage(t, client)
+	navigateTo(t, client, sessionID, server.URL)
+	time.Sleep(2 * time.Second)
+
+	result, err := client.Call(sessionID, "Page.getAnnotatedScreenshot", mustJSON(map[string]interface{}{
+		"format":      "png",
+		"maxElements": 10,
+	}))
+	if err != nil {
+		if strings.Contains(err.Error(), "Page.getAnnotatedScreenshot") || strings.Contains(strings.ToLower(err.Error()), "method") {
+			t.Skipf("annotated screenshot requires rebuilt browser binary: %v", err)
+		}
+		t.Fatalf("Page.getAnnotatedScreenshot failed: %v", err)
+	}
+
+	var resp struct {
+		Image    string                   `json:"image"`
+		Elements []map[string]interface{} `json:"elements"`
+	}
+	if err := json.Unmarshal(result, &resp); err != nil {
+		t.Fatalf("decode annotated screenshot: %v", err)
+	}
+	if resp.Image == "" {
+		t.Fatal("annotated screenshot image is empty")
+	}
+	if len(resp.Elements) == 0 {
+		t.Fatal("annotated screenshot returned no elements")
+	}
+
+	var (
+		label    string
+		objectID string
+	)
+	for _, element := range resp.Elements {
+		text, _ := element["text"].(string)
+		if !strings.Contains(text, "Press Me") {
+			continue
+		}
+		label, _ = element["label"].(string)
+		objectID, _ = element["objectId"].(string)
+		break
+	}
+	if label == "" || objectID == "" {
+		t.Fatalf("missing label/objectId for Press Me button: %s", string(result))
+	}
+
+	if _, err := client.Call(sessionID, "Page.click", mustJSON(map[string]interface{}{
+		"objectId": objectID,
+	})); err != nil {
+		t.Fatalf("Page.click by objectId failed: %v", err)
+	}
+
+	time.Sleep(500 * time.Millisecond)
+
+	evalResult, err := callEval(t, client, sessionID, `document.querySelector("#status").textContent`)
+	if err != nil {
+		t.Fatalf("Runtime.evaluate after click failed: %v", err)
+	}
+
+	var eval struct {
+		Result struct {
+			Value string `json:"value"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(evalResult, &eval); err != nil {
+		t.Fatalf("decode evaluate result: %v", err)
+	}
+	if eval.Result.Value != "clicked" {
+		t.Fatalf("status text = %q, want clicked (label=%s objectId=%s)", eval.Result.Value, label, objectID)
+	}
+}
+
 func TestIntegration_Screenshot(t *testing.T) {
 	k, client := startKernel(t)
 	defer k.Stop()
