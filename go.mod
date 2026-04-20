@@ -3,7 +3,7 @@ module vulpineos
 go 1.26.1
 
 require (
-	github.com/VulpineOS/foxbridge v0.1.2-0.20260420161529-4a987d062d6d
+	github.com/VulpineOS/foxbridge v0.1.2-0.20260420170343-1eeb09ece6b6
 	github.com/VulpineOS/mobilebridge v0.1.0
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
