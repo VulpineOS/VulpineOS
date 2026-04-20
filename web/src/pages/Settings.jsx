@@ -21,6 +21,7 @@ export default function Settings({ ws }) {
 
   const selectedProvider = providers.find(p => p.id === cfg.provider) || null
   const modelOptions = selectedProvider?.models?.length ? selectedProvider.models : (cfg.model ? [cfg.model] : [])
+  const kernelMode = status.kernel_running ? (status.kernel_headless ? 'HEADLESS' : 'GUI') : 'DISABLED'
 
   const updateProvider = (providerId) => {
     const provider = providers.find(p => p.id === providerId)
@@ -116,12 +117,13 @@ export default function Settings({ ws }) {
             <div>VulpineOS — Agent Security Runtime</div>
             <div>Browser: Camoufox (Firefox 146.0.1)</div>
             <div>Protocol: Juggler + foxbridge CDP proxy</div>
-            <div>OpenClaw integration: {cfg.setupComplete ? 'Configured' : 'Not configured'}</div>
+            <div>Agent model setup: {cfg.setupComplete ? 'Configured' : 'Not configured'}</div>
+            <div>OpenClaw profile: {status.openclaw_profile_configured ? 'Configured' : 'Not configured'}</div>
             <div>
               Route: {(status.browser_route || 'unknown').toUpperCase()}
               {status.browser_route_source ? ` (${status.browser_route_source})` : ''}
               {' · '}
-              {status.kernel_headless ? 'HEADLESS' : 'GUI'}
+              {kernelMode}
             </div>
             <div>Window: {(status.browser_window || 'unknown').toUpperCase()}</div>
             <div>Gateway: {status.gateway_running ? 'RUNNING' : 'STOPPED'}</div>

@@ -27,7 +27,7 @@ describe('Settings page', () => {
             provider: 'anthropic',
             model: 'claude-sonnet-4-6',
             hasKey: true,
-            setupComplete: true,
+            setupComplete: false,
           }
         }
         if (method === 'status.get') {
@@ -37,6 +37,8 @@ describe('Settings page', () => {
             browser_window: 'hidden',
             gateway_running: true,
             kernel_headless: false,
+            kernel_running: true,
+            openclaw_profile_configured: true,
           }
         }
         return {}
@@ -48,7 +50,8 @@ describe('Settings page', () => {
     expect(await screen.findByText('Route: CAMOUFOX (runtime) · GUI')).toBeInTheDocument()
     expect(screen.getByText('Window: HIDDEN')).toBeInTheDocument()
     expect(screen.getByText('Gateway: RUNNING')).toBeInTheDocument()
-    expect(screen.getByText('OpenClaw integration: Configured')).toBeInTheDocument()
+    expect(screen.getByText('Agent model setup: Not configured')).toBeInTheDocument()
+    expect(screen.getByText('OpenClaw profile: Configured')).toBeInTheDocument()
     expect(screen.getByText('API Key (ANTHROPIC_API_KEY)')).toBeInTheDocument()
     expect(screen.getByText('A key is already stored locally. Leave this blank to keep it.')).toBeInTheDocument()
   })

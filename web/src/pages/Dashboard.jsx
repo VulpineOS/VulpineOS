@@ -15,6 +15,7 @@ export default function Dashboard({ ws }) {
   const t = ws.telemetry || {}
   const s = status || {}
   const recent = ws.events.slice(-15).reverse()
+  const kernelMode = s.kernel_running ? (s.kernel_headless ? 'HEADLESS' : 'GUI') : 'DISABLED'
 
   return (
     <div>
@@ -34,7 +35,7 @@ export default function Dashboard({ ws }) {
             {(s.browser_route || 'unknown').toUpperCase()}
             {s.browser_route_source ? ` (${s.browser_route_source})` : ''}
             {' · '}
-            {s.kernel_headless ? 'HEADLESS' : 'GUI'}
+            {kernelMode}
           </div>
           <div className="stat-label">Window: {(s.browser_window || 'unknown').toUpperCase()}</div>
           <div className="stat-label">Gateway: {s.gateway_running ? 'RUNNING' : 'STOPPED'}</div>
