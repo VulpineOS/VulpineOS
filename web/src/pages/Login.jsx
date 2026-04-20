@@ -25,7 +25,10 @@ export default function Login({ onLogin }) {
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
       <div className="card" style={{ width: 400 }}>
         <h2 style={{ color: '#a78bfa', marginBottom: 8 }}>VulpineOS</h2>
-        <p style={{ color: '#666', fontSize: 14, marginBottom: 24 }}>Enter your API key to connect</p>
+        <p style={{ color: '#666', fontSize: 14, marginBottom: 24 }}>
+          Enter the server access key configured at startup. If the server was started with
+          <code style={{ marginLeft: 4 }}>--api-key</code>, use that value here.
+        </p>
         <form onSubmit={handleSubmit}>
           <input
             className="input"
