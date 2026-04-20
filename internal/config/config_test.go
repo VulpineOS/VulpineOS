@@ -283,6 +283,9 @@ func TestGenerateOpenClawConfig(t *testing.T) {
 	if !strings.Contains(string(skillData), "Never reply with a requested success string if the browser action failed") {
 		t.Fatalf("expected skill to forbid fake success strings, got:\n%s", string(skillData))
 	}
+	if !strings.Contains(string(skillData), "On a fresh browser session, use `browser open <url>`") {
+		t.Fatalf("expected skill to require browser open on fresh sessions, got:\n%s", string(skillData))
+	}
 }
 
 func TestGenerateOpenClawConfigPreservesGatewayAndCommands(t *testing.T) {
@@ -495,6 +498,9 @@ func TestRepairOpenClawProfileRestoresWorkspaceAndSkill(t *testing.T) {
 	}
 	if !strings.Contains(string(skillData), "Never reply with a requested success string if the browser action failed") {
 		t.Fatalf("expected repaired skill to forbid fake success strings, got:\n%s", string(skillData))
+	}
+	if !strings.Contains(string(skillData), "On a fresh browser session, use `browser open <url>`") {
+		t.Fatalf("expected repaired skill to require browser open on fresh sessions, got:\n%s", string(skillData))
 	}
 }
 

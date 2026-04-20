@@ -10,7 +10,7 @@ const Cu = Components.utils;
 
 const {Helper} = ChromeUtils.importESModule('chrome://juggler/content/Helper.js');
 const {NetUtil} = ChromeUtils.importESModule('resource://gre/modules/NetUtil.sys.mjs');
-const {setTimeout} = ChromeUtils.importESModule('resource://gre/modules/Timer.sys.mjs');
+const {setTimeout, clearTimeout} = ChromeUtils.importESModule('resource://gre/modules/Timer.sys.mjs');
 
 const dragService = Cc["@mozilla.org/widget/dragservice;1"].getService(
   Ci.nsIDragService
@@ -91,7 +91,6 @@ async function waitForAXQuiet(docAcc) {
   };
   Services.obs.addObserver(eventObserver, "accessible-event");
   // Timeout after 5 seconds to prevent indefinite hang
-  const {setTimeout} = ChromeUtils.importESModule('resource://gre/modules/Timer.sys.mjs');
   const timeout = setTimeout(() => {
     try { Services.obs.removeObserver(eventObserver, "accessible-event"); } catch (e) {}
     resolve();

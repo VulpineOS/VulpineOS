@@ -697,6 +697,9 @@ Do not invent a separate persona when the user has assigned you a role for this 
 		"TOOLS.md": `# VulpineOS Tools
 
 Use the configured browser path first. If a tool or browser path fails, say exactly what failed.
+- On a fresh browser session, use ` + "`browser open <url>`" + ` for the first page load.
+- ` + "`browser navigate`" + ` without a target only works when a page already exists.
+- ` + "`browser start`" + ` starts the browser service but does not create a page by itself.
 `,
 	}
 	for name, content := range bootstrap {
@@ -732,6 +735,9 @@ Rules:
 3. After each browser action, report whether it succeeded, failed, or returned incomplete data.
 4. If the browser tool returns an auth or gateway error, report that error exactly and stop guessing.
 5. Never reply with a requested success string if the browser action failed, timed out, or returned incomplete data.
+6. On a fresh browser session, use ` + "`browser open <url>`" + ` for the first page load.
+7. ` + "`browser navigate`" + ` without a target assumes a page already exists.
+8. ` + "`browser start`" + ` starts the service but does not create a page.
 `
 	return os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(skill), 0600)
 }
