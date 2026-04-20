@@ -493,7 +493,7 @@ func (api *PanelAPI) agentsGetSessionLog(params json.RawMessage) (json.RawMessag
 	}
 	return json.Marshal(map[string]interface{}{
 		"path":    path,
-		"content": string(data),
+		"content": sanitizeSessionLog(string(data)),
 	})
 }
 

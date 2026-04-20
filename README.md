@@ -218,6 +218,7 @@ When OpenClaw writes provider thinking blocks into the session log, VulpineOS no
 Tool-result summaries now preserve the exact tool-call context when available, so trace output says what action actually ran instead of falling back to generic `Tool completed: browser`.
 Press `o` to open the selected agent's raw OpenClaw session log in the system viewer for full JSONL trace inspection, including provider-emitted thinking blocks when the provider writes them.
 The web panel's Raw tab now auto-refreshes while it is open, so long-running agent/tool sessions can be inspected without manually reloading every update.
+The web panel's Raw tab now redacts provider hidden-reasoning fields and signatures while preserving the surrounding session timeline, so operators can inspect execution history without dumping the model's private chain-of-thought payload.
 While the chat input is focused, `Ctrl+V`, `Ctrl+O`, and `Ctrl+T` trigger browser toggle, raw log open, and trace toggle without stealing ordinary typed letters. Plain `v`, `o`, and `t` also work from a focused chat box when the input is still empty.
 
 The agent list shows unread reply counts for non-selected agents so background work does not disappear while you are focused elsewhere.
@@ -229,6 +230,7 @@ Local TUI startup and runtime logs are written to `~/.vulpineos/logs/local-tui.l
 Pressing `c` now queues the setup wizard for the next launch without clearing the active config first, so cancelling reconfigure no longer leaves the machine stuck in an unconfigured state.
 
 OpenClaw session log streaming is used as a fallback conversation source, so final assistant replies still reach the TUI and tests even when the CLI omits the final `--json` payload on stdout.
+New agents now start by working on the assigned task immediately instead of spending the first turn on a canned self-introduction, and exact-output tasks are passed through as direct task instructions.
 
 The live operator path is covered by env-gated soak tests in `internal/agent_soak_integration_test.go` and `internal/remote/panel_agent_soak_test.go`, including persisted-session resume plus panel-driven pause and kill flows.
 
