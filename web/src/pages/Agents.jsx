@@ -132,7 +132,7 @@ export default function Agents({ ws }) {
           <input className="input" style={{ width: 300 }} placeholder="Task description..." value={task}
             onChange={e => setTask(e.target.value)} onKeyDown={e => e.key === 'Enter' && spawn()} />
           <button className="btn btn-primary" onClick={spawn}>Spawn</button>
-          <button className="btn btn-ghost" onClick={refresh}>↻</button>
+          <button className="btn btn-ghost" onClick={refresh}>Refresh</button>
         </div>
       </div>
 

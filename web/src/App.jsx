@@ -24,15 +24,15 @@ export default function App() {
   }
 
   const nav = [
-    { path: '/', label: 'Dashboard', icon: '📊' },
-    { path: '/agents', label: 'Agents', icon: '🤖' },
-    { path: '/contexts', label: 'Contexts', icon: '🔲' },
-    { path: '/proxies', label: 'Proxies', icon: '🌐' },
-    { path: '/security', label: 'Security', icon: '🛡️' },
-    { path: '/webhooks', label: 'Webhooks', icon: '🔔' },
-    { path: '/scripts', label: 'Scripts', icon: '📜' },
-    { path: '/logs', label: 'Logs', icon: '📋' },
-    { path: '/settings', label: 'Settings', icon: '⚙️' },
+    { path: '/', label: 'Dashboard' },
+    { path: '/agents', label: 'Agents' },
+    { path: '/contexts', label: 'Contexts' },
+    { path: '/proxies', label: 'Proxies' },
+    { path: '/security', label: 'Security' },
+    { path: '/webhooks', label: 'Webhooks' },
+    { path: '/scripts', label: 'Scripts' },
+    { path: '/logs', label: 'Logs' },
+    { path: '/settings', label: 'Settings' },
   ]
 
   return (
@@ -44,13 +44,11 @@ export default function App() {
         </div>
         {nav.map(n => (
           <Link key={n.path} to={n.path} className={`nav-item ${location.pathname === n.path ? 'active' : ''}`}>
-            <span className="nav-icon">{n.icon}</span>
             <span>{n.label}</span>
           </Link>
         ))}
         <div className="nav-spacer" />
         <button className="nav-item logout" onClick={() => { localStorage.removeItem('vulpine_key'); setApiKey('') }}>
-          <span className="nav-icon">🚪</span>
           <span>Logout</span>
         </button>
       </nav>

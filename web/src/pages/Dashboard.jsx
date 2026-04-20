@@ -29,8 +29,8 @@ export default function Dashboard({ ws }) {
       <div className="grid grid-4">
         <div className="card">
           <h3>Kernel</h3>
-          <div className="stat-value">{s.kernel_running ? '●' : '○'}</div>
-          <div className="stat-label">PID {s.kernel_pid || '—'} · {t.memoryMB ? `${t.memoryMB}MB` : '—'}</div>
+          <div className="stat-value">{s.kernel_running ? 'Running' : 'Stopped'}</div>
+          <div className="stat-label">PID {s.kernel_pid || 'N/A'} | {t.memoryMB ? `${t.memoryMB}MB` : 'N/A'}</div>
           <div className="stat-label">
             {(s.browser_route || 'unknown').toUpperCase()}
             {s.browser_route_source ? ` (${s.browser_route_source})` : ''}

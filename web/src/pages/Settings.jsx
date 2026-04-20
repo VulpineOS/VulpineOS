@@ -35,7 +35,7 @@ export default function Settings({ ws }) {
   const saveConfig = async () => {
     try {
       await ws.call('config.set', { provider: cfg.provider, model: cfg.model, apiKey: cfg.apiKey })
-      setSaved('Config saved ✓')
+      setSaved('Config saved')
       setTimeout(() => setSaved(''), 3000)
     } catch (e) { alert(e.message) }
   }

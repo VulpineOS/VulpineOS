@@ -40,7 +40,7 @@ export default function Proxies({ ws }) {
         <h1>Proxies ({proxies.length})</h1>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-ghost" onClick={() => setShowImport(!showImport)}>{showImport ? 'Cancel' : 'Import'}</button>
-          <button className="btn btn-ghost" onClick={refresh}>↻</button>
+          <button className="btn btn-ghost" onClick={refresh}>Refresh</button>
         </div>
       </div>
 

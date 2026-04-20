@@ -30,6 +30,6 @@ describe('Dashboard page', () => {
     expect(await screen.findByText('CAMOUFOX (runtime) · GUI')).toBeInTheDocument()
     expect(screen.getByText('Window: HIDDEN')).toBeInTheDocument()
     expect(screen.getByText('Gateway: RUNNING')).toBeInTheDocument()
-    expect(screen.getByText('PID 1234 · 512MB')).toBeInTheDocument()
+    expect(screen.getByText('PID 1234 | 512MB')).toBeInTheDocument()
   })
 })

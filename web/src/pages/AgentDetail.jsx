@@ -140,7 +140,7 @@ export default function AgentDetail({ ws }) {
     <div>
       <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Link to="/agents" style={{ color: '#666', textDecoration: 'none' }}>← Agents</Link>
+          <Link to="/agents" style={{ color: '#666', textDecoration: 'none' }}>Back to Agents</Link>
           <h1>Agent {id.substring(0, 12)}</h1>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>

@@ -119,6 +119,8 @@ describe('AgentDetail page', () => {
     await waitFor(() => {
       expect(call).toHaveBeenCalledWith('agents.resume', { agentId: 'agent-1', message: 'continue' })
     })
-    expect(screen.getByText('continue')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByText('continue')).toBeInTheDocument()
+    })
   })
 })

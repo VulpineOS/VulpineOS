@@ -31,22 +31,22 @@ export default function Scripts({ ws }) {
             break
           case 'extract':
             // Would use Runtime.evaluate via Juggler
-            setOutput(prev => prev + `  → extracted to \$\{${step.store}}\n`)
+            setOutput(prev => prev + `  extracted to \${${step.store}}\n`)
             break
           case 'screenshot':
-            setOutput(prev => prev + `  → screenshot saved\n`)
+            setOutput(prev => prev + '  screenshot saved\n')
             break
           case 'click':
-            setOutput(prev => prev + `  → clicked ${step.target}\n`)
+            setOutput(prev => prev + `  clicked ${step.target}\n`)
             break
           case 'type':
-            setOutput(prev => prev + `  → typed "${step.value}"\n`)
+            setOutput(prev => prev + `  typed "${step.value}"\n`)
             break
           default:
-            setOutput(prev => prev + `  → unknown action: ${step.action}\n`)
+            setOutput(prev => prev + `  unknown action: ${step.action}\n`)
         }
       }
-      setOutput(prev => prev + '\nDone! ✓\n')
+      setOutput(prev => prev + '\nDone.\n')
     } catch (e) {
       setOutput(prev => prev + `\nError: ${e.message}\n`)
     }
