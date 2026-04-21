@@ -1046,6 +1046,9 @@ func runServe(binaryPath string, headless bool, profileDir string, host string, 
 		Contexts:     contexts,
 		RuntimeAudit: audit,
 	}
+	if err := panelAPI.SyncPersistentState(); err != nil {
+		log.Printf("Warning: sync persistent state: %v", err)
+	}
 	server.SetPanelAPI(panelAPI)
 
 	// Forward telemetry events to connected clients
