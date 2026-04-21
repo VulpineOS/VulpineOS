@@ -10,15 +10,17 @@ import (
 
 // Config holds VulpineOS user configuration.
 type Config struct {
-	Provider               string                  `json:"provider"`
-	APIKey                 string                  `json:"apiKey"`
-	Model                  string                  `json:"model"`
-	SetupComplete          bool                    `json:"setupComplete"`
-	BinaryPath             string                  `json:"binaryPath,omitempty"`
-	ResizePanelsWithArrows bool                    `json:"resizePanelsWithArrows,omitempty"`
-	FoxbridgeCDPURL        string                  `json:"-"`                      // runtime-only: set when foxbridge is running
-	GlobalSkills           []SkillEntry            `json:"globalSkills,omitempty"` // skills enabled for all agents
-	AgentSkills            map[string][]SkillEntry `json:"agentSkills,omitempty"`  // agentID → skills for that agent only
+	Provider                string                  `json:"provider"`
+	APIKey                  string                  `json:"apiKey"`
+	Model                   string                  `json:"model"`
+	SetupComplete           bool                    `json:"setupComplete"`
+	BinaryPath              string                  `json:"binaryPath,omitempty"`
+	DefaultBudgetMaxCostUSD float64                 `json:"defaultBudgetMaxCostUsd,omitempty"`
+	DefaultBudgetMaxTokens  int64                   `json:"defaultBudgetMaxTokens,omitempty"`
+	ResizePanelsWithArrows  bool                    `json:"resizePanelsWithArrows,omitempty"`
+	FoxbridgeCDPURL         string                  `json:"-"`                      // runtime-only: set when foxbridge is running
+	GlobalSkills            []SkillEntry            `json:"globalSkills,omitempty"` // skills enabled for all agents
+	AgentSkills             map[string][]SkillEntry `json:"agentSkills,omitempty"`  // agentID → skills for that agent only
 }
 
 // SkillEntry describes a skill configuration.

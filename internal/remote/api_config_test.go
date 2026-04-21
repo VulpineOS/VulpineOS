@@ -15,7 +15,7 @@ func TestConfigSetMarksSetupCompleteAndRegeneratesProfile(t *testing.T) {
 		Config: &config.Config{},
 	}
 
-	params := json.RawMessage(`{"provider":"zai","model":"zai/glm-4.7","apiKey":"zai-test-key"}`)
+	params := json.RawMessage(`{"provider":"zai","model":"zai/glm-4.7","apiKey":"zai-test-key","defaultBudgetMaxCostUsd":1.25,"defaultBudgetMaxTokens":4000}`)
 	payload, err := api.HandleMessage("config.set", params)
 	if err != nil {
 		t.Fatalf("HandleMessage: %v", err)
@@ -38,6 +38,9 @@ func TestConfigSetMarksSetupCompleteAndRegeneratesProfile(t *testing.T) {
 	}
 	if cfg.Provider != "zai" || cfg.Model != "zai/glm-4.7" || cfg.APIKey != "zai-test-key" {
 		t.Fatalf("unexpected saved config: %#v", cfg)
+	}
+	if cfg.DefaultBudgetMaxCostUSD != 1.25 || cfg.DefaultBudgetMaxTokens != 4000 {
+		t.Fatalf("unexpected saved default budget: %#v", cfg)
 	}
 
 	if _, err := os.Stat(config.OpenClawConfigPath()); err != nil {

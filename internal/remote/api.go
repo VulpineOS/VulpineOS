@@ -102,6 +102,8 @@ func (api *PanelAPI) HandleMessage(method string, params json.RawMessage) (json.
 		return api.proxiesDelete(params)
 	case "proxies.test":
 		return api.proxiesTest(params)
+	case "proxies.getRotation":
+		return api.proxiesGetRotation(params)
 	case "proxies.setRotation":
 		return api.proxiesSetRotation(params)
 
@@ -116,6 +118,8 @@ func (api *PanelAPI) HandleMessage(method string, params json.RawMessage) (json.
 		return api.busPolicies()
 	case "bus.addPolicy":
 		return api.busAddPolicy(params)
+	case "bus.removePolicy":
+		return api.busRemovePolicy(params)
 
 	// --- Recording ---
 	case "recording.getTimeline":
@@ -167,18 +171,22 @@ func (api *PanelAPI) agentsList() (json.RawMessage, error) {
 		return nil, err
 	}
 	type agentSummary struct {
-		ID                 string `json:"id"`
-		Name               string `json:"name"`
-		Status             string `json:"status"`
-		Task               string `json:"task"`
-		TotalTokens        int    `json:"totalTokens"`
-		Fingerprint        string `json:"fingerprint"`
-		FingerprintSummary string `json:"fingerprintSummary"`
-		ContextID          string `json:"contextId,omitempty"`
+		ID                 string  `json:"id"`
+		Name               string  `json:"name"`
+		Status             string  `json:"status"`
+		Task               string  `json:"task"`
+		TotalTokens        int     `json:"totalTokens"`
+		Fingerprint        string  `json:"fingerprint"`
+		FingerprintSummary string  `json:"fingerprintSummary"`
+		ContextID          string  `json:"contextId,omitempty"`
+		BudgetMaxCostUSD   float64 `json:"budgetMaxCostUsd,omitempty"`
+		BudgetMaxTokens    int64   `json:"budgetMaxTokens,omitempty"`
+		BudgetSource       string  `json:"budgetSource,omitempty"`
 	}
 	out := make([]agentSummary, len(agents))
 	for i, a := range agents {
 		meta, _ := vault.ParseAgentMetadata(a.Metadata)
+		budgetCost, budgetTokens, budgetSource := api.effectiveBudget(meta)
 		out[i] = agentSummary{
 			ID:                 a.ID,
 			Name:               a.Name,
@@ -188,6 +196,9 @@ func (api *PanelAPI) agentsList() (json.RawMessage, error) {
 			Fingerprint:        a.Fingerprint,
 			FingerprintSummary: vault.FingerprintSummary(a.Fingerprint),
 			ContextID:          meta.ContextID,
+			BudgetMaxCostUSD:   budgetCost,
+			BudgetMaxTokens:    budgetTokens,
+			BudgetSource:       budgetSource,
 		}
 	}
 	return json.Marshal(map[string]interface{}{"agents": out})
@@ -241,6 +252,7 @@ func (api *PanelAPI) agentsSpawn(params json.RawMessage) (json.RawMessage, error
 			agent.Metadata = metadata
 		}
 	}
+	_ = api.syncAgentState(*agent)
 	initialPrompt := openclaw.IntroMessage(name, task)
 	sessionName := "vulpine-" + agent.ID
 	configPath, cleanup, err := api.agentRuntimeConfig(agent)
@@ -507,17 +519,21 @@ func (api *PanelAPI) configGet() (json.RawMessage, error) {
 	}
 	// Return a safe view (mask the API key)
 	out := struct {
-		Provider      string `json:"provider"`
-		Model         string `json:"model"`
-		HasKey        bool   `json:"hasKey"`
-		SetupComplete bool   `json:"setupComplete"`
-		BinaryPath    string `json:"binaryPath,omitempty"`
+		Provider                string  `json:"provider"`
+		Model                   string  `json:"model"`
+		HasKey                  bool    `json:"hasKey"`
+		SetupComplete           bool    `json:"setupComplete"`
+		BinaryPath              string  `json:"binaryPath,omitempty"`
+		DefaultBudgetMaxCostUSD float64 `json:"defaultBudgetMaxCostUsd,omitempty"`
+		DefaultBudgetMaxTokens  int64   `json:"defaultBudgetMaxTokens,omitempty"`
 	}{
-		Provider:      api.Config.Provider,
-		Model:         api.Config.Model,
-		HasKey:        api.Config.APIKey != "",
-		SetupComplete: api.Config.SetupComplete,
-		BinaryPath:    api.Config.BinaryPath,
+		Provider:                api.Config.Provider,
+		Model:                   api.Config.Model,
+		HasKey:                  api.Config.APIKey != "",
+		SetupComplete:           api.Config.SetupComplete,
+		BinaryPath:              api.Config.BinaryPath,
+		DefaultBudgetMaxCostUSD: api.Config.DefaultBudgetMaxCostUSD,
+		DefaultBudgetMaxTokens:  api.Config.DefaultBudgetMaxTokens,
 	}
 	return json.Marshal(out)
 }
@@ -550,9 +566,11 @@ func (api *PanelAPI) configSet(params json.RawMessage) (json.RawMessage, error) 
 		return nil, fmt.Errorf("config not available")
 	}
 	var p struct {
-		Provider string `json:"provider,omitempty"`
-		Model    string `json:"model,omitempty"`
-		APIKey   string `json:"apiKey,omitempty"`
+		Provider                string   `json:"provider,omitempty"`
+		Model                   string   `json:"model,omitempty"`
+		APIKey                  string   `json:"apiKey,omitempty"`
+		DefaultBudgetMaxCostUSD *float64 `json:"defaultBudgetMaxCostUsd,omitempty"`
+		DefaultBudgetMaxTokens  *int64   `json:"defaultBudgetMaxTokens,omitempty"`
 	}
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("invalid params: %w", err)
@@ -565,6 +583,12 @@ func (api *PanelAPI) configSet(params json.RawMessage) (json.RawMessage, error) 
 	}
 	if p.APIKey != "" {
 		api.Config.APIKey = p.APIKey
+	}
+	if p.DefaultBudgetMaxCostUSD != nil {
+		api.Config.DefaultBudgetMaxCostUSD = *p.DefaultBudgetMaxCostUSD
+	}
+	if p.DefaultBudgetMaxTokens != nil {
+		api.Config.DefaultBudgetMaxTokens = *p.DefaultBudgetMaxTokens
 	}
 	api.Config.RefreshSetupComplete()
 	if err := api.Config.Save(); err != nil {
@@ -579,6 +603,12 @@ func (api *PanelAPI) configSet(params json.RawMessage) (json.RawMessage, error) 
 			return nil, fmt.Errorf("repair openclaw profile: %w", err)
 		}
 	}
+	if api.Costs != nil {
+		api.Costs.SetModel(api.Config.Model)
+	}
+	if err := api.SyncPersistentState(); err != nil {
+		return nil, fmt.Errorf("sync persistent state: %w", err)
+	}
 	return json.Marshal(map[string]string{"status": "ok"})
 }
 
@@ -590,7 +620,17 @@ func (api *PanelAPI) costsGetAll() (json.RawMessage, error) {
 	if api.Costs == nil {
 		return nil, fmt.Errorf("cost tracker not available")
 	}
-	return json.Marshal(map[string]interface{}{"usage": api.Costs.AllUsage()})
+	defaultCost := 0.0
+	defaultTokens := int64(0)
+	if api.Config != nil {
+		defaultCost = api.Config.DefaultBudgetMaxCostUSD
+		defaultTokens = api.Config.DefaultBudgetMaxTokens
+	}
+	return json.Marshal(map[string]interface{}{
+		"usage":    api.Costs.AllUsage(),
+		"budgets":  api.Costs.AllBudgets(),
+		"defaults": map[string]interface{}{"maxCostUsd": defaultCost, "maxTokens": defaultTokens},
+	})
 }
 
 func (api *PanelAPI) costsSetBudget(params json.RawMessage) (json.RawMessage, error) {
@@ -598,15 +638,51 @@ func (api *PanelAPI) costsSetBudget(params json.RawMessage) (json.RawMessage, er
 		return nil, fmt.Errorf("cost tracker not available")
 	}
 	var p struct {
-		AgentID   string  `json:"agentId"`
-		MaxCost   float64 `json:"maxCostUsd"`
-		MaxTokens int64   `json:"maxTokens"`
+		AgentID        string  `json:"agentId"`
+		MaxCost        float64 `json:"maxCostUsd"`
+		MaxTokens      int64   `json:"maxTokens"`
+		InheritDefault bool    `json:"inheritDefault"`
 	}
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
-	api.Costs.SetBudget(p.AgentID, p.MaxCost, p.MaxTokens)
-	return json.Marshal(map[string]string{"status": "ok"})
+	if strings.TrimSpace(p.AgentID) == "" {
+		return nil, fmt.Errorf("agentId is required")
+	}
+	if api.Vault == nil {
+		return nil, fmt.Errorf("vault not available")
+	}
+	agent, err := api.Vault.GetAgent(p.AgentID)
+	if err != nil {
+		return nil, err
+	}
+	meta, err := vault.ParseAgentMetadata(agent.Metadata)
+	if err != nil {
+		return nil, fmt.Errorf("parse agent metadata: %w", err)
+	}
+	if p.InheritDefault {
+		meta.Budget = nil
+	} else {
+		meta.Budget = &vault.AgentBudgetMetadata{
+			Override:   true,
+			MaxCostUSD: p.MaxCost,
+			MaxTokens:  p.MaxTokens,
+		}
+	}
+	if err := api.Vault.UpdateAgentMetadata(p.AgentID, vault.MarshalAgentMetadata(meta)); err != nil {
+		return nil, err
+	}
+	if err := api.syncAgentState(vault.Agent{ID: agent.ID, Metadata: vault.MarshalAgentMetadata(meta)}); err != nil {
+		return nil, err
+	}
+	effectiveCost, effectiveTokens, source := api.effectiveBudget(meta)
+	return json.Marshal(map[string]interface{}{
+		"status":         "ok",
+		"maxCostUsd":     effectiveCost,
+		"maxTokens":      effectiveTokens,
+		"budgetSource":   source,
+		"inheritDefault": p.InheritDefault,
+	})
 }
 
 func (api *PanelAPI) costsTotal() (json.RawMessage, error) {
@@ -783,14 +859,59 @@ func (api *PanelAPI) proxiesSetRotation(params json.RawMessage) (json.RawMessage
 		return nil, fmt.Errorf("proxy rotator not available")
 	}
 	var p struct {
-		AgentID string               `json:"agentId"`
-		Config  proxy.RotationConfig `json:"config"`
+		AgentID string                `json:"agentId"`
+		Config  rotationConfigPayload `json:"config"`
 	}
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
-	api.Rotator.SetConfig(p.AgentID, &p.Config)
-	return json.Marshal(map[string]string{"status": "ok"})
+	if strings.TrimSpace(p.AgentID) == "" {
+		return nil, fmt.Errorf("agentId is required")
+	}
+	if api.Vault == nil {
+		return nil, fmt.Errorf("vault not available")
+	}
+	agent, err := api.Vault.GetAgent(p.AgentID)
+	if err != nil {
+		return nil, err
+	}
+	meta, err := vault.ParseAgentMetadata(agent.Metadata)
+	if err != nil {
+		return nil, fmt.Errorf("parse agent metadata: %w", err)
+	}
+	cfg := rotationConfigFromPayload(p.Config)
+	meta.ProxyRotation = rotationMetadataFromConfig(cfg)
+	metadata := vault.MarshalAgentMetadata(meta)
+	if err := api.Vault.UpdateAgentMetadata(p.AgentID, metadata); err != nil {
+		return nil, err
+	}
+	api.Rotator.SetConfig(p.AgentID, &cfg)
+	return json.Marshal(map[string]interface{}{"status": "ok", "config": rotationPayloadFromConfig(cfg)})
+}
+
+func (api *PanelAPI) proxiesGetRotation(params json.RawMessage) (json.RawMessage, error) {
+	var p struct {
+		AgentID string `json:"agentId"`
+	}
+	if err := json.Unmarshal(params, &p); err != nil {
+		return nil, fmt.Errorf("invalid params: %w", err)
+	}
+	if strings.TrimSpace(p.AgentID) == "" {
+		return nil, fmt.Errorf("agentId is required")
+	}
+	if api.Vault == nil {
+		return nil, fmt.Errorf("vault not available")
+	}
+	agent, err := api.Vault.GetAgent(p.AgentID)
+	if err != nil {
+		return nil, err
+	}
+	meta, err := vault.ParseAgentMetadata(agent.Metadata)
+	if err != nil {
+		return nil, fmt.Errorf("parse agent metadata: %w", err)
+	}
+	cfg, source := api.effectiveRotation(p.AgentID, meta)
+	return json.Marshal(map[string]interface{}{"config": rotationPayloadFromConfig(cfg), "source": source})
 }
 
 // ---------------------------------------------------------------------------
@@ -859,6 +980,21 @@ func (api *PanelAPI) busAddPolicy(params json.RawMessage) (json.RawMessage, erro
 	return json.Marshal(map[string]string{"status": "ok"})
 }
 
+func (api *PanelAPI) busRemovePolicy(params json.RawMessage) (json.RawMessage, error) {
+	if api.AgentBus == nil {
+		return nil, fmt.Errorf("agent bus not available")
+	}
+	var p struct {
+		FromAgent string `json:"fromAgent"`
+		ToAgent   string `json:"toAgent"`
+	}
+	if err := json.Unmarshal(params, &p); err != nil {
+		return nil, fmt.Errorf("invalid params: %w", err)
+	}
+	api.AgentBus.RemovePolicy(p.FromAgent, p.ToAgent)
+	return json.Marshal(map[string]string{"status": "ok"})
+}
+
 // ---------------------------------------------------------------------------
 // Recording
 // ---------------------------------------------------------------------------
@@ -894,7 +1030,11 @@ func (api *PanelAPI) recordingExport(params json.RawMessage) (json.RawMessage, e
 	if err != nil {
 		return nil, err
 	}
-	return data, nil
+	return json.Marshal(map[string]interface{}{
+		"content":     string(data),
+		"contentType": "application/json",
+		"fileName":    fmt.Sprintf("agent-%s-recording.json", p.AgentID),
+	})
 }
 
 // ---------------------------------------------------------------------------
@@ -931,7 +1071,8 @@ func (api *PanelAPI) fingerprintsGet(params json.RawMessage) (json.RawMessage, e
 
 func (api *PanelAPI) fingerprintsGenerate(params json.RawMessage) (json.RawMessage, error) {
 	var p struct {
-		Seed string `json:"seed"`
+		Seed    string `json:"seed"`
+		AgentID string `json:"agentId"`
 	}
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("invalid params: %w", err)
@@ -943,7 +1084,21 @@ func (api *PanelAPI) fingerprintsGenerate(params json.RawMessage) (json.RawMessa
 	if err != nil {
 		return nil, err
 	}
-	return json.Marshal(map[string]string{"fingerprint": fp})
+	applied := false
+	if strings.TrimSpace(p.AgentID) != "" {
+		if api.Vault == nil {
+			return nil, fmt.Errorf("vault not available")
+		}
+		if err := api.Vault.UpdateAgentFingerprint(p.AgentID, fp); err != nil {
+			return nil, err
+		}
+		applied = true
+	}
+	return json.Marshal(map[string]interface{}{
+		"fingerprint": fp,
+		"summary":     vault.FingerprintSummary(fp),
+		"applied":     applied,
+	})
 }
 
 // ---------------------------------------------------------------------------

@@ -72,9 +72,29 @@ type Agent struct {
 	Metadata    string    `json:"metadata"`
 }
 
+// AgentBudgetMetadata persists an agent-specific budget override.
+type AgentBudgetMetadata struct {
+	Override   bool    `json:"override,omitempty"`
+	MaxCostUSD float64 `json:"maxCostUsd,omitempty"`
+	MaxTokens  int64   `json:"maxTokens,omitempty"`
+}
+
+// AgentRotationMetadata persists an agent's proxy rotation settings.
+type AgentRotationMetadata struct {
+	Enabled               bool     `json:"enabled,omitempty"`
+	RotateOnRateLimit     bool     `json:"rotateOnRateLimit,omitempty"`
+	RotateOnBlock         bool     `json:"rotateOnBlock,omitempty"`
+	RotateIntervalSeconds int64    `json:"rotateIntervalSeconds,omitempty"`
+	SyncFingerprint       bool     `json:"syncFingerprint,omitempty"`
+	ProxyPool             []string `json:"proxyPool,omitempty"`
+	CurrentIndex          int      `json:"currentIndex,omitempty"`
+}
+
 // AgentMetadata holds optional runtime metadata for a persistent agent.
 type AgentMetadata struct {
-	ContextID string `json:"contextId,omitempty"`
+	ContextID     string                 `json:"contextId,omitempty"`
+	Budget        *AgentBudgetMetadata   `json:"budget,omitempty"`
+	ProxyRotation *AgentRotationMetadata `json:"proxyRotation,omitempty"`
 }
 
 // AgentMessage is a single message in an agent's conversation history.

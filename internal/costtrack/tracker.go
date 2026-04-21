@@ -20,10 +20,10 @@ type Usage struct {
 
 // Budget defines spending limits for an agent.
 type Budget struct {
-	AgentID       string  `json:"agentId"`
-	MaxCostUSD    float64 `json:"maxCostUsd"`    // 0 = unlimited
-	MaxTokens     int64   `json:"maxTokens"`     // 0 = unlimited
-	AlertPercent  float64 `json:"alertPercent"`   // alert at this % of budget (default 80)
+	AgentID      string  `json:"agentId"`
+	MaxCostUSD   float64 `json:"maxCostUsd"`   // 0 = unlimited
+	MaxTokens    int64   `json:"maxTokens"`    // 0 = unlimited
+	AlertPercent float64 `json:"alertPercent"` // alert at this % of budget (default 80)
 }
 
 // CostEvent is emitted when usage changes.
@@ -43,22 +43,22 @@ type ModelPricing struct {
 
 // Common model pricing (approximate, USD per 1M tokens)
 var DefaultPricing = map[string]ModelPricing{
-	"claude-sonnet-4-6":   {InputPer1M: 3.0, OutputPer1M: 15.0},
-	"claude-opus-4-6":     {InputPer1M: 15.0, OutputPer1M: 75.0},
-	"claude-haiku-4-5":    {InputPer1M: 0.80, OutputPer1M: 4.0},
-	"gpt-4o":              {InputPer1M: 2.5, OutputPer1M: 10.0},
-	"gpt-4o-mini":         {InputPer1M: 0.15, OutputPer1M: 0.6},
-	"gemini-2.5-pro":      {InputPer1M: 1.25, OutputPer1M: 10.0},
-	"gemini-2.5-flash":    {InputPer1M: 0.15, OutputPer1M: 0.6},
+	"claude-sonnet-4-6": {InputPer1M: 3.0, OutputPer1M: 15.0},
+	"claude-opus-4-6":   {InputPer1M: 15.0, OutputPer1M: 75.0},
+	"claude-haiku-4-5":  {InputPer1M: 0.80, OutputPer1M: 4.0},
+	"gpt-4o":            {InputPer1M: 2.5, OutputPer1M: 10.0},
+	"gpt-4o-mini":       {InputPer1M: 0.15, OutputPer1M: 0.6},
+	"gemini-2.5-pro":    {InputPer1M: 1.25, OutputPer1M: 10.0},
+	"gemini-2.5-flash":  {InputPer1M: 0.15, OutputPer1M: 0.6},
 }
 
 // Tracker manages cost tracking across agents.
 type Tracker struct {
-	mu       sync.RWMutex
-	usage    map[string]*Usage  // agentID → usage
-	budgets  map[string]*Budget // agentID → budget
-	model    string             // current model for pricing
-	events   chan CostEvent
+	mu      sync.RWMutex
+	usage   map[string]*Usage  // agentID → usage
+	budgets map[string]*Budget // agentID → budget
+	model   string             // current model for pricing
+	events  chan CostEvent
 }
 
 // New creates a new cost tracker.
@@ -69,6 +69,13 @@ func New(model string) *Tracker {
 		model:   model,
 		events:  make(chan CostEvent, 50),
 	}
+}
+
+// SetModel updates the model used for future pricing calculations.
+func (t *Tracker) SetModel(model string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.model = model
 }
 
 // Events returns the channel for cost events.
@@ -86,6 +93,13 @@ func (t *Tracker) SetBudget(agentID string, maxCost float64, maxTokens int64) {
 		MaxTokens:    maxTokens,
 		AlertPercent: 80,
 	}
+}
+
+// ClearBudget removes any configured budget for an agent.
+func (t *Tracker) ClearBudget(agentID string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	delete(t.budgets, agentID)
 }
 
 // RecordUsage adds token usage for an agent and returns whether budget allows it.
@@ -174,6 +188,17 @@ func (t *Tracker) AllUsage() []Usage {
 	result := make([]Usage, 0, len(t.usage))
 	for _, u := range t.usage {
 		result = append(result, *u)
+	}
+	return result
+}
+
+// AllBudgets returns budgets for all agents.
+func (t *Tracker) AllBudgets() []Budget {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	result := make([]Budget, 0, len(t.budgets))
+	for _, b := range t.budgets {
+		result = append(result, *b)
 	}
 	return result
 }
