@@ -21,6 +21,18 @@ type Script struct {
 	Steps []Step `json:"steps"`
 }
 
+// StepResult describes the outcome of a single executed step.
+type StepResult struct {
+	Index      int    `json:"index"`
+	Action     string `json:"action"`
+	Target     string `json:"target,omitempty"`
+	Value      string `json:"value,omitempty"`
+	Store      string `json:"store,omitempty"`
+	Status     string `json:"status"`
+	Output     string `json:"output,omitempty"`
+	DurationMS int64  `json:"durationMs"`
+}
+
 // Engine executes scripts against a Juggler client.
 type Engine struct {
 	client    *juggler.Client
@@ -68,6 +80,42 @@ func (e *Engine) Execute(script *Script) error {
 		}
 	}
 	return nil
+}
+
+// ExecuteWithResults runs all steps and returns per-step results.
+func (e *Engine) ExecuteWithResults(script *Script) ([]StepResult, error) {
+	results := make([]StepResult, 0, len(script.Steps))
+	for i, step := range script.Steps {
+		start := time.Now()
+		err := e.executeStep(step)
+		result := StepResult{
+			Index:      i,
+			Action:     step.Action,
+			Target:     step.Target,
+			Value:      step.Value,
+			Store:      step.Store,
+			Status:     "ok",
+			Output:     e.stepOutput(step),
+			DurationMS: time.Since(start).Milliseconds(),
+		}
+		if err != nil {
+			result.Status = "error"
+			result.Output = err.Error()
+			results = append(results, result)
+			return results, err
+		}
+		results = append(results, result)
+	}
+	return results, nil
+}
+
+// Vars returns a copy of the current script variables.
+func (e *Engine) Vars() map[string]string {
+	out := make(map[string]string, len(e.vars))
+	for key, value := range e.vars {
+		out[key] = value
+	}
+	return out
 }
 
 func (e *Engine) executeStep(step Step) error {
@@ -206,6 +254,24 @@ func (e *Engine) doIf(step Step) error {
 		return fmt.Errorf("condition failed: %s=%q, expected %q", step.Target, actual, expected)
 	}
 	return nil
+}
+
+func (e *Engine) stepOutput(step Step) string {
+	switch step.Action {
+	case "extract":
+		if step.Store != "" {
+			return e.vars[step.Store]
+		}
+	case "screenshot":
+		if step.Store != "" {
+			return e.vars[step.Store]
+		}
+	case "set":
+		return e.vars[step.Target]
+	case "if":
+		return "condition passed"
+	}
+	return "ok"
 }
 
 // expandVars replaces ${varName} references in a string with variable values.

@@ -124,3 +124,16 @@ func (r *ContextRegistry) List() []ContextInfo {
 	})
 	return out
 }
+
+// SessionForContext returns one attached session ID for the given browser context.
+func (r *ContextRegistry) SessionForContext(contextID string) string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	for sessionID, mapped := range r.sessionToContext {
+		if mapped == contextID {
+			return sessionID
+		}
+	}
+	return ""
+}
