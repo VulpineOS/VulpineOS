@@ -63,7 +63,7 @@ VulpineOS builds on Camoufox's battle-tested stealth foundation (Firefox 146.0.1
 │                                                              │
 │  Go Runtime (36 packages, 350+ tests)                         │
 │  ├── Bubbletea TUI (3-column agent workbench)                 │
-│  ├── Web Panel (React SPA, 11 pages, 35 API endpoints)        │
+│  ├── Web Panel (React SPA, 12 pages, 44 control messages)     │
 │  ├── Identity Vault (SQLite — citizens, templates, sessions)  │
 │  ├── Context Pool (pre-warm, recycle, memory limits)           │
 │  ├── Orchestrator (spawn citizens + nomads, auto-release)      │
@@ -150,7 +150,7 @@ Beyond the four core phases, VulpineOS includes hardened runtime security:
 
 | Feature | Description |
 |---------|-------------|
-| **Web Panel** | React SPA (Vite) with 11 pages — Dashboard, Agents, Contexts, Proxies, Security, Webhooks, Scripts, Settings, Logs, and more. 32 API endpoints over WebSocket, including persisted runtime audit history, retention controls, and filtered runtime-audit export. |
+| **Web Panel** | React SPA (Vite) with 12 pages — Dashboard, Agents, Agent Detail, Bus, Contexts, Proxies, Security, Webhooks, Scripts, Settings, Logs, and Login. 44 WebSocket control messages, including persisted runtime audit history, reconnect/session auth, budget controls, bus approvals, proxy rotation, and export actions. |
 | **Agent Bus** | Inter-agent communication (ask, delegate, reply, notify) with user-controlled approval policies and full audit trail |
 | **Cost Tracking** | Per-agent token usage and API cost tracking with budget limits. Built-in pricing for Claude, GPT-4o, Gemini. Alerts at configurable thresholds. |
 | **Session Recording** | Record browser actions as timestamped timelines. Export to JSON. Terminal-based replay at real speed. |
@@ -245,15 +245,21 @@ A React SPA served from the Go binary — no separate frontend deployment needed
 
 `npm --prefix web run build` now refreshes both `web/dist/` and the embedded `cmd/vulpineos/panel/` assets, so a subsequent `go build -o vulpineos ./cmd/vulpineos` ships the current panel instead of stale frontend files.
 
-**11 pages:** Dashboard, Agents, Agent Detail, Contexts, Proxies, Security, Webhooks, Scripts, Settings, Logs, Login
+**12 pages:** Dashboard, Agents, Agent Detail, Bus, Contexts, Proxies, Security, Webhooks, Scripts, Settings, Logs, Login
 
-**35 API endpoints** covering: agent CRUD, bulk agent controls, config management, cost tracking, webhooks, proxy management, agent bus (pending/approve/reject/policies), session recording, fingerprints, system status, and runtime audit history plus retention/export controls.
+**44 control messages** covering: agent CRUD plus bulk controls and session-log access; config get/set/providers; cost usage plus persisted per-agent/default budgets; webhooks; proxy management plus rotation get/set; agent bus pending/approve/reject/policies/add/remove; session recording export; fingerprint get/generate-and-apply; status; runtime audit history with retention/export controls; and context create/remove/list.
 
 Agent Detail includes separate conversation, action trace, raw session log, recording, and fingerprint views so operator-visible tool activity is inspectable without exposing hidden reasoning.
 
 The panel now validates access keys through `/auth/check`, keeps the key only
 for the current browser session, and surfaces connecting, reconnecting, and
 failed websocket states inline instead of relying on browser alerts.
+
+The panel now also includes:
+- a dedicated **Bus** page for pending approvals and communication policies
+- **Settings** controls for persisted default agent budgets
+- **Agent Detail** controls for per-agent budget overrides, recording export, and fingerprint regeneration
+- **Proxies** controls for persisted per-agent rotation rules
 
 Access via `vulpineos panel`, `vulpineos serve`, or through the remote client.
 

@@ -1,5 +1,5 @@
 import React from 'react'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import Settings from './Settings'
 
@@ -28,6 +28,8 @@ describe('Settings page', () => {
             model: 'claude-sonnet-4-6',
             hasKey: true,
             setupComplete: false,
+            defaultBudgetMaxCostUsd: 1.5,
+            defaultBudgetMaxTokens: 6000,
           }
         }
         if (method === 'status.get') {
@@ -54,5 +56,15 @@ describe('Settings page', () => {
     expect(screen.getByText('OpenClaw profile: Configured')).toBeInTheDocument()
     expect(screen.getByText('API Key (ANTHROPIC_API_KEY)')).toBeInTheDocument()
     expect(screen.getByText('A key is already stored locally. Leave this blank to keep it.')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('1.5')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('6000')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByDisplayValue('1.5'), { target: { value: '2.25' } })
+    fireEvent.change(screen.getByDisplayValue('6000'), { target: { value: '9000' } })
+    fireEvent.click(screen.getByText('Save Defaults'))
+
+    await waitFor(() => {
+      expect(ws.call).toHaveBeenCalledWith('config.set', { defaultBudgetMaxCostUsd: 2.25, defaultBudgetMaxTokens: 9000 })
+    })
   })
 })

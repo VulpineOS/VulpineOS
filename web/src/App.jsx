@@ -4,6 +4,7 @@ import { useWebSocket } from './hooks/useWebSocket'
 import Dashboard from './pages/Dashboard'
 import Agents from './pages/Agents'
 import AgentDetail from './pages/AgentDetail'
+import Bus from './pages/Bus'
 import Contexts from './pages/Contexts'
 import Proxies from './pages/Proxies'
 import Settings from './pages/Settings'
@@ -81,6 +82,7 @@ export default function App() {
   const nav = [
     { path: '/', label: 'Dashboard' },
     { path: '/agents', label: 'Agents' },
+    { path: '/bus', label: 'Bus' },
     { path: '/contexts', label: 'Contexts' },
     { path: '/proxies', label: 'Proxies' },
     { path: '/security', label: 'Security' },
@@ -142,6 +144,7 @@ export default function App() {
           <Route path="/" element={<Dashboard ws={panelWS} />} />
           <Route path="/agents" element={<Agents ws={panelWS} />} />
           <Route path="/agents/:id" element={<AgentDetail ws={panelWS} />} />
+          <Route path="/bus" element={<Bus ws={panelWS} />} />
           <Route path="/contexts" element={<Contexts ws={panelWS} />} />
           <Route path="/proxies" element={<Proxies ws={panelWS} />} />
           <Route path="/security" element={<Security ws={panelWS} />} />

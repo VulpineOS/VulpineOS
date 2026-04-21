@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup } from '@testing-library/react'
-import { afterEach } from 'vitest'
+import { afterEach, vi } from 'vitest'
 
 const storage = new Map()
 const session = new Map()
@@ -24,6 +24,18 @@ Object.defineProperty(window, 'sessionStorage', {
   },
   writable: true,
 })
+
+Object.defineProperty(window, 'URL', {
+  value: {
+    createObjectURL: vi.fn(() => 'blob:mock'),
+    revokeObjectURL: vi.fn(),
+  },
+  writable: true,
+})
+
+if (typeof HTMLAnchorElement !== 'undefined') {
+  HTMLAnchorElement.prototype.click = vi.fn()
+}
 
 afterEach(() => {
   cleanup()

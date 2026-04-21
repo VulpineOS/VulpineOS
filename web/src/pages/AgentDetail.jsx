@@ -1,5 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
+
+function downloadTextFile(content, fileName, contentType = 'application/json') {
+  const blob = new Blob([content || ''], { type: contentType })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
 
 export default function AgentDetail({ ws }) {
   const { id } = useParams()
@@ -10,6 +22,10 @@ export default function AgentDetail({ ws }) {
   const [sessionLog, setSessionLog] = useState('')
   const [input, setInput] = useState('')
   const [tab, setTab] = useState('conversation')
+  const [budgetCost, setBudgetCost] = useState('0')
+  const [budgetTokens, setBudgetTokens] = useState('0')
+  const [inheritDefaultBudget, setInheritDefaultBudget] = useState(true)
+  const [fingerprintSeed, setFingerprintSeed] = useState('')
   const lastEventCountRef = useRef(0)
 
   const conversationMessages = messages.filter(m => m.role !== 'system')
@@ -33,9 +49,13 @@ export default function AgentDetail({ ws }) {
     if (Number.isNaN(date.getTime())) return null
     return date.toLocaleTimeString()
   }
+
   const refresh = () => {
     if (!ws.connected || !id) return
-    ws.call('agents.list').then(r => setAgent((r?.agents || []).find(a => a.id === id) || null)).catch(() => {})
+    ws.call('agents.list').then(r => {
+      const nextAgent = (r?.agents || []).find(a => a.id === id) || null
+      setAgent(nextAgent)
+    }).catch(() => {})
     ws.call('agents.getMessages', { agentId: id }).then(r => setMessages(r?.messages || [])).catch(() => {})
     ws.call('recording.getTimeline', { agentId: id }).then(r => setTimeline(r?.actions || [])).catch(() => {})
     ws.call('fingerprints.get', { agentId: id }).then(r => setFingerprint(r)).catch(() => {})
@@ -53,6 +73,14 @@ export default function AgentDetail({ ws }) {
   useEffect(() => {
     refresh()
   }, [ws.connected, id])
+
+  useEffect(() => {
+    if (!agent) return
+    setBudgetCost(String(agent.budgetMaxCostUsd ?? 0))
+    setBudgetTokens(String(agent.budgetMaxTokens ?? 0))
+    setInheritDefaultBudget((agent.budgetSource || 'none') !== 'agent')
+    setFingerprintSeed(current => current || `${agent.name || id}-${Date.now()}`)
+  }, [agent?.id, agent?.budgetMaxCostUsd, agent?.budgetMaxTokens, agent?.budgetSource])
 
   useEffect(() => {
     lastEventCountRef.current = 0
@@ -93,7 +121,7 @@ export default function AgentDetail({ ws }) {
           tokens: event.params.tokens || 0,
         }
         setMessages(prev => {
-          const last = prev[prev.length-1]
+          const last = prev[prev.length - 1]
           if (last && last.role === nextMsg.role && last.content === nextMsg.content && (last.tokens || 0) === nextMsg.tokens) {
             return prev
           }
@@ -136,6 +164,49 @@ export default function AgentDetail({ ws }) {
     } catch (e) { ws.notify?.(e.message) }
   }
 
+  const saveBudget = async () => {
+    try {
+      const result = await ws.call('costs.setBudget', inheritDefaultBudget
+        ? { agentId: id, inheritDefault: true }
+        : {
+            agentId: id,
+            maxCostUsd: Number(budgetCost) || 0,
+            maxTokens: Number(budgetTokens) || 0,
+          })
+      setAgent(prev => prev ? {
+        ...prev,
+        budgetMaxCostUsd: result?.maxCostUsd ?? 0,
+        budgetMaxTokens: result?.maxTokens ?? 0,
+        budgetSource: result?.budgetSource || (inheritDefaultBudget ? 'default' : 'agent'),
+      } : prev)
+      ws.notify?.('Budget saved', 'success')
+    } catch (e) {
+      ws.notify?.(e.message)
+    }
+  }
+
+  const exportRecording = async () => {
+    try {
+      const result = await ws.call('recording.export', { agentId: id })
+      downloadTextFile(result?.content || '', result?.fileName || `agent-${id}-recording.json`, result?.contentType || 'application/json')
+      ws.notify?.('Recording exported', 'success')
+    } catch (e) {
+      ws.notify?.(e.message)
+    }
+  }
+
+  const regenerateFingerprint = async () => {
+    try {
+      await ws.call('fingerprints.generate', { agentId: id, seed: fingerprintSeed || `${id}-${Date.now()}` })
+      await ws.call('fingerprints.get', { agentId: id }).then(r => setFingerprint(r))
+      ws.notify?.('Fingerprint updated', 'success')
+      setFingerprintSeed(`${agent?.name || id}-${Date.now()}`)
+      refresh()
+    } catch (e) {
+      ws.notify?.(e.message)
+    }
+  }
+
   return (
     <div>
       <div className="page-header">
@@ -151,6 +222,28 @@ export default function AgentDetail({ ws }) {
           {agent?.status === 'paused' && <button className="btn btn-ghost" onClick={resume}>Resume</button>}
           {agent?.status !== 'completed' && <button className="btn btn-danger" onClick={kill}>Kill</button>}
           <button className="btn btn-ghost" onClick={refresh}>Refresh</button>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="page-header" style={{ marginBottom: 12 }}>
+          <h3 style={{ margin: 0 }}>Controls</h3>
+          <span className="badge badge-gray">budget: {agent?.budgetSource || 'none'}</span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr auto', gap: 12, alignItems: 'end' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#aaa' }}>
+            <input type="checkbox" checked={inheritDefaultBudget} onChange={e => setInheritDefaultBudget(e.target.checked)} />
+            Inherit default budget
+          </label>
+          <div>
+            <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>Max cost (USD)</label>
+            <input className="input" type="number" step="0.01" value={budgetCost} disabled={inheritDefaultBudget} onChange={e => setBudgetCost(e.target.value)} />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>Max tokens</label>
+            <input className="input" type="number" step="1" value={budgetTokens} disabled={inheritDefaultBudget} onChange={e => setBudgetTokens(e.target.value)} />
+          </div>
+          <button className="btn btn-primary" onClick={saveBudget}>Save Budget</button>
         </div>
       </div>
 
@@ -195,29 +288,30 @@ export default function AgentDetail({ ws }) {
             {traceMessages.map((m, i) => {
               const meta = traceMeta(m.content)
               return (
-              <div key={i} style={{ padding: '8px 0', borderBottom: '1px solid #1e1e2e' }}>
-                <span style={{
-                  color: meta.tone,
-                  background: meta.bg,
-                  border: `1px solid ${meta.tone}33`,
-                  fontWeight: 700,
-                  fontSize: 11,
-                  borderRadius: 6,
-                  padding: '2px 6px',
-                  display: 'inline-block',
-                  minWidth: 56,
-                  textAlign: 'center',
-                }}>
-                  {meta.label}
-                </span>
-                {formatTimestamp(m.timestamp) && (
-                  <span style={{ color: '#666', fontSize: 11, marginLeft: 8 }}>{formatTimestamp(m.timestamp)}</span>
-                )}
-                <div style={{ fontSize: 13, color: '#ccc', marginTop: 4, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
-                  {m.content}
+                <div key={i} style={{ padding: '8px 0', borderBottom: '1px solid #1e1e2e' }}>
+                  <span style={{
+                    color: meta.tone,
+                    background: meta.bg,
+                    border: `1px solid ${meta.tone}33`,
+                    fontWeight: 700,
+                    fontSize: 11,
+                    borderRadius: 6,
+                    padding: '2px 6px',
+                    display: 'inline-block',
+                    minWidth: 56,
+                    textAlign: 'center',
+                  }}>
+                    {meta.label}
+                  </span>
+                  {formatTimestamp(m.timestamp) && (
+                    <span style={{ color: '#666', fontSize: 11, marginLeft: 8 }}>{formatTimestamp(m.timestamp)}</span>
+                  )}
+                  <div style={{ fontSize: 13, color: '#ccc', marginTop: 4, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
+                    {m.content}
+                  </div>
                 </div>
-              </div>
-            )})}
+              )
+            })}
           </div>
         </div>
       )}
@@ -243,7 +337,10 @@ export default function AgentDetail({ ws }) {
 
       {tab === 'recording' && (
         <div className="card">
-          <h3>Action Timeline</h3>
+          <div className="page-header" style={{ marginBottom: 12 }}>
+            <h3 style={{ margin: 0 }}>Action Timeline</h3>
+            <button className="btn btn-primary" onClick={exportRecording}>Export JSON</button>
+          </div>
           <div style={{ fontFamily: 'monospace', fontSize: 12, lineHeight: 1.8 }}>
             {timeline.length === 0 && <p style={{ color: '#666' }}>No recorded actions.</p>}
             {timeline.map((a, i) => (
@@ -259,7 +356,19 @@ export default function AgentDetail({ ws }) {
 
       {tab === 'fingerprint' && (
         <div className="card">
-          <h3>Fingerprint</h3>
+          <div className="page-header" style={{ marginBottom: 12 }}>
+            <h3 style={{ margin: 0 }}>Fingerprint</h3>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                className="input"
+                style={{ width: 280 }}
+                value={fingerprintSeed}
+                onChange={e => setFingerprintSeed(e.target.value)}
+                placeholder="Fingerprint seed"
+              />
+              <button className="btn btn-primary" onClick={regenerateFingerprint}>Regenerate & Apply</button>
+            </div>
+          </div>
           {fingerprint ? (
             <pre style={{ fontSize: 12, color: '#aaa', overflow: 'auto', maxHeight: 400 }}>
               {JSON.stringify(fingerprint, null, 2)}
