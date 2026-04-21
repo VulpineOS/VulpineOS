@@ -380,9 +380,23 @@ CDP setups, see
 ### Docker (Vulpine-Box)
 
 ```bash
+export VULPINE_API_KEY=$(openssl rand -hex 32)
 docker compose up -d
-vulpineos remote tui --url https://your-vps:8443 --api-key $VULPINE_API_KEY
+vulpineos remote panel --url http://your-vps:8443 --api-key $VULPINE_API_KEY
+# or
+vulpineos remote tui --url http://your-vps:8443 --api-key $VULPINE_API_KEY
 ```
+
+`docker compose up -d` starts `vulpineos serve --binary ./browser/camoufox --port 8443`
+inside the container. By default the bundled `docker-compose.yml` exposes plain HTTP on
+port `8443`; add `VULPINE_TLS_CERT` and `VULPINE_TLS_KEY` plus mounted certificate files if
+you want HTTPS/WSS.
+
+The container reads its shared access key from `VULPINE_API_KEY`. Use the same value with
+`vulpineos remote panel` or `vulpineos remote tui` when connecting from another machine.
+If you want the full deployment notes, including required browser artifacts under
+`dist/camoufox-linux/`, persistent volumes, and optional TLS, see
+[vulpineos.com/docker](https://vulpineos.com/docker).
 
 ## Release notes
 
