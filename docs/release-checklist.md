@@ -88,6 +88,9 @@ For deferred browser rebuild work, link the release notes to the
 tracking issue rather than implying the browser binary already contains
 the patch set.
 
+For a repeatable off-laptop rebuild path, use
+[`docs/ec2-mac-builder.md`](ec2-mac-builder.md).
+
 ## Packaging
 
 Before publishing artifacts:

@@ -389,6 +389,9 @@ For public release gating and audit steps, see
 [docs/release-checklist.md](docs/release-checklist.md) and
 [docs/release-hygiene.md](docs/release-hygiene.md).
 
+For a standardized AWS Mac builder runbook and wrapper scripts, see
+[docs/ec2-mac-builder.md](docs/ec2-mac-builder.md).
+
 ---
 
 ## MCP Tools
