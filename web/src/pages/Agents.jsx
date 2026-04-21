@@ -41,23 +41,23 @@ export default function Agents({ ws }) {
       await ws.call('agents.spawn', { task, contextId: selectedContext || undefined })
       setTask('')
       setTimeout(refresh, 1000)
-    } catch (e) { alert('Spawn failed: ' + e.message) }
+    } catch (e) { ws.notify?.(`Spawn failed: ${e.message}`) }
   }
 
   const kill = async (id) => {
     if (!confirm('Kill agent ' + id.substring(0, 8) + '?')) return
     try { await ws.call('agents.kill', { agentId: id }); refresh() }
-    catch (e) { alert(e.message) }
+    catch (e) { ws.notify?.(e.message) }
   }
 
   const pause = async (id) => {
     try { await ws.call('agents.pause', { agentId: id }); refresh() }
-    catch (e) { alert(e.message) }
+    catch (e) { ws.notify?.(e.message) }
   }
 
   const resume = async (id) => {
     try { await ws.call('agents.resume', { agentId: id }); refresh() }
-    catch (e) { alert(e.message) }
+    catch (e) { ws.notify?.(e.message) }
   }
 
   const toggleSelected = (id) => {
@@ -94,7 +94,7 @@ export default function Agents({ ws }) {
       }
       setSelected({})
       refresh()
-    } catch (e) { alert(e.message) }
+    } catch (e) { ws.notify?.(e.message) }
   }
 
   const getCost = (id) => {

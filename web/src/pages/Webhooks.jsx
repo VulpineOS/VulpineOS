@@ -19,11 +19,11 @@ export default function Webhooks({ ws }) {
       await ws.call('webhooks.add', { url: url.trim(), events: eventList, secret })
       setUrl(''); setSecret(''); setEvents('')
       refresh()
-    } catch (e) { alert(e.message) }
+    } catch (e) { ws.notify?.(e.message) }
   }
 
   const removeHook = async (id) => {
-    try { await ws.call('webhooks.remove', { id }); refresh() } catch (e) { alert(e.message) }
+    try { await ws.call('webhooks.remove', { id }); refresh() } catch (e) { ws.notify?.(e.message) }
   }
 
   return (

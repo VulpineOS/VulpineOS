@@ -45,6 +45,14 @@ func NewServer(addr string, apiKey string, jugglerClient *juggler.Client) *Serve
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"status":"ok"}`))
 	})
+	mux.HandleFunc("/auth/check", func(w http.ResponseWriter, r *http.Request) {
+		if !s.auth.Validate(r) {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"status":"ok"}`))
+	})
 
 	s.mux = mux
 	s.server = &http.Server{

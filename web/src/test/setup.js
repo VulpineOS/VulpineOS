@@ -3,6 +3,7 @@ import { cleanup } from '@testing-library/react'
 import { afterEach } from 'vitest'
 
 const storage = new Map()
+const session = new Map()
 
 Object.defineProperty(window, 'localStorage', {
   value: {
@@ -14,7 +15,18 @@ Object.defineProperty(window, 'localStorage', {
   writable: true,
 })
 
+Object.defineProperty(window, 'sessionStorage', {
+  value: {
+    getItem: (key) => session.get(key) ?? null,
+    setItem: (key, value) => session.set(key, String(value)),
+    removeItem: (key) => session.delete(key),
+    clear: () => session.clear(),
+  },
+  writable: true,
+})
+
 afterEach(() => {
   cleanup()
   storage.clear()
+  session.clear()
 })

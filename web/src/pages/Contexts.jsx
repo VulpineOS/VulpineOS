@@ -31,7 +31,7 @@ export default function Contexts({ ws }) {
         refresh()
       }
     } catch (e) {
-      alert('Failed: ' + e.message)
+      ws.notify?.(`Failed: ${e.message}`)
     }
   }
 
@@ -44,7 +44,7 @@ export default function Contexts({ ws }) {
       }
       refresh()
     } catch (e) {
-      alert('Failed: ' + e.message)
+      ws.notify?.(`Failed: ${e.message}`)
     }
   }
 

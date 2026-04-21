@@ -16,13 +16,20 @@ export default function Dashboard({ ws }) {
   const s = status || {}
   const recent = ws.events.slice(-15).reverse()
   const kernelMode = s.kernel_running ? (s.kernel_headless ? 'HEADLESS' : 'GUI') : 'DISABLED'
+  const statusBadge = ws.connectionState === 'connected'
+    ? ['badge-green', 'Connected']
+    : ws.connectionState === 'reconnecting'
+      ? ['badge-yellow', 'Reconnecting']
+      : ws.connectionState === 'connecting'
+        ? ['badge-blue', 'Connecting']
+        : ['badge-red', 'Failed']
 
   return (
     <div>
       <div className="page-header">
         <h1>Dashboard</h1>
-        <span className={`badge ${ws.connected ? 'badge-green' : 'badge-red'}`}>
-          {ws.connected ? 'Connected' : 'Disconnected'}
+        <span className={`badge ${statusBadge[0]}`}>
+          {statusBadge[1]}
         </span>
       </div>
 

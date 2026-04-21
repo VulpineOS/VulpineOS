@@ -6,18 +6,25 @@ export default function Login({ onLogin }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!key.trim()) { setError('API key required'); return }
+    if (!key.trim()) { setError('Access key required'); return }
 
-    // Test the connection
     try {
-      const res = await fetch('/health')
+      const res = await fetch('/auth/check', {
+        headers: {
+          Authorization: `Bearer ${key.trim()}`,
+        },
+      })
       if (res.ok) {
         onLogin(key.trim())
-      } else {
-        setError('Server not reachable')
+        return
       }
+      if (res.status === 401) {
+        setError('Access key rejected')
+        return
+      }
+      setError('Server not reachable')
     } catch {
-      onLogin(key.trim()) // Try anyway — server might require WS auth only
+      setError('Server not reachable')
     }
   }
 
@@ -27,13 +34,13 @@ export default function Login({ onLogin }) {
         <h2 style={{ color: '#a78bfa', marginBottom: 8 }}>VulpineOS</h2>
         <p style={{ color: '#666', fontSize: 14, marginBottom: 24 }}>
           Enter the server access key configured at startup. If the server was started with
-          <code style={{ marginLeft: 4 }}>--api-key</code>, use that value here.
+          <code style={{ marginLeft: 4 }}>--api-key</code>, use that value here. The key is stored only for this browser session.
         </p>
         <form onSubmit={handleSubmit}>
           <input
             className="input"
             type="password"
-            placeholder="API Key"
+            placeholder="Access Key"
             value={key}
             onChange={e => { setKey(e.target.value); setError('') }}
             autoFocus

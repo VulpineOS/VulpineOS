@@ -24,14 +24,14 @@ export default function Proxies({ ws }) {
   const testProxy = async (id) => {
     try {
       const r = await ws.call('proxies.test', { proxyId: id })
-      alert(`Latency: ${r?.latencyMs || '?'}ms`)
+      ws.notify?.(`Latency: ${r?.latencyMs || '?'}ms`, 'success')
       refresh()
-    } catch (e) { alert('Test failed: ' + e.message) }
+    } catch (e) { ws.notify?.(`Test failed: ${e.message}`) }
   }
 
   const deleteProxy = async (id) => {
     try { await ws.call('proxies.delete', { proxyId: id }); refresh() }
-    catch (e) { alert(e.message) }
+    catch (e) { ws.notify?.(e.message) }
   }
 
   return (

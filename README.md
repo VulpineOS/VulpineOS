@@ -251,6 +251,10 @@ A React SPA served from the Go binary — no separate frontend deployment needed
 
 Agent Detail includes separate conversation, action trace, raw session log, recording, and fingerprint views so operator-visible tool activity is inspectable without exposing hidden reasoning.
 
+The panel now validates access keys through `/auth/check`, keeps the key only
+for the current browser session, and surfaces connecting, reconnecting, and
+failed websocket states inline instead of relying on browser alerts.
+
 Access via `vulpineos panel`, `vulpineos serve`, or through the remote client.
 
 ---
@@ -305,7 +309,9 @@ Local web panel:
 
 `vulpineos panel` binds to `127.0.0.1`, prints a direct panel URL, and
 opens the browser when possible. If no `--api-key` is provided, VulpineOS
-generates one for the session and includes it in the printed panel URL.
+generates one for the session and includes it in the printed panel URL. The
+panel bootstraps that token into session-scoped browser storage and removes it
+from the visible URL after load.
 
 Networked serve mode:
 
@@ -320,7 +326,9 @@ Explicit access key:
 ```
 
 If `--api-key` is omitted in serve mode, VulpineOS generates one at startup
-and prints both the access key and a direct panel URL containing the token.
+and prints both the access key and a direct panel URL containing the token. The
+panel login validates explicit keys through `/auth/check` before opening the
+websocket session.
 
 Remote panel shortcut:
 

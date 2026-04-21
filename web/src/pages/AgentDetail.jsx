@@ -46,7 +46,7 @@ export default function AgentDetail({ ws }) {
       const result = await ws.call('agents.getSessionLog', { agentId: id })
       setSessionLog(result?.content || '')
     } catch (e) {
-      alert(e.message)
+      ws.notify?.(e.message)
     }
   }
 
@@ -107,14 +107,14 @@ export default function AgentDetail({ ws }) {
     try {
       await ws.call('agents.pause', { agentId: id })
       setAgent(prev => prev ? { ...prev, status: 'paused' } : prev)
-    } catch (e) { alert(e.message) }
+    } catch (e) { ws.notify?.(e.message) }
   }
 
   const resume = async () => {
     try {
       await ws.call('agents.resume', { agentId: id })
       setAgent(prev => prev ? { ...prev, status: 'active' } : prev)
-    } catch (e) { alert(e.message) }
+    } catch (e) { ws.notify?.(e.message) }
   }
 
   const kill = async () => {
@@ -122,7 +122,7 @@ export default function AgentDetail({ ws }) {
     try {
       await ws.call('agents.kill', { agentId: id })
       setAgent(prev => prev ? { ...prev, status: 'interrupted' } : prev)
-    } catch (e) { alert(e.message) }
+    } catch (e) { ws.notify?.(e.message) }
   }
 
   const sendMessage = async () => {
@@ -133,7 +133,7 @@ export default function AgentDetail({ ws }) {
       setMessages(prev => [...prev, { role: 'user', content: text, tokens: 0 }])
       setAgent(prev => prev ? { ...prev, status: 'active' } : prev)
       setInput('')
-    } catch (e) { alert(e.message) }
+    } catch (e) { ws.notify?.(e.message) }
   }
 
   return (
