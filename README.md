@@ -358,6 +358,14 @@ MCP server:
 ./vulpineos mcp
 ```
 
+## Playwright MCP smoke
+
+The repo ships a repo-local panel smoke script for the local Playwright MCP:
+
+- `scripts/playwright/smoke-panel.js`
+
+Point it at a running panel with `VULPINE_PANEL_SMOKE_URL`. If the panel is not already bootstrapped with a tokenized URL, also set `VULPINE_PANEL_SMOKE_ACCESS_KEY`. By default the script writes a viewport screenshot to `/tmp/vulpineos-panel-smoke.png`.
+
 When no `--binary` flag is provided, VulpineOS prefers a repo-local
 `camoufox-*/obj-*/dist` build before falling back to a saved configured
 binary or older installed copies.
