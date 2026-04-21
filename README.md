@@ -150,7 +150,7 @@ Beyond the four core phases, VulpineOS includes hardened runtime security:
 
 | Feature | Description |
 |---------|-------------|
-| **Web Panel** | React SPA (Vite) with 12 pages — Dashboard, Agents, Agent Detail, Bus, Contexts, Proxies, Security, Webhooks, Scripts, Settings, Logs, and Login. 46 WebSocket control messages, including persisted runtime audit history, reconnect/session auth, budget controls, bus approvals, proxy rotation, runtime-backed security status, and real script execution. |
+| **Web Panel** | React SPA (Vite) with 12 pages — Dashboard, Agents, Agent Detail, Bus, Contexts, Proxies, Security, Webhooks, Scripts, Settings, Logs, and Login. 46 WebSocket control messages, including persisted runtime audit history, reconnect/session auth, budget controls, bus approvals, proxy rotation, runtime-backed security status, real script execution, and a denser operator dashboard shell with runtime alerts and quick actions. |
 | **Agent Bus** | Inter-agent communication (ask, delegate, reply, notify) with user-controlled approval policies and full audit trail |
 | **Cost Tracking** | Per-agent token usage and API cost tracking with budget limits. Built-in pricing for Claude, GPT-4o, Gemini. Alerts at configurable thresholds. |
 | **Session Recording** | Record browser actions as timestamped timelines. Export to JSON. Terminal-based replay at real speed. |
@@ -262,6 +262,7 @@ The panel now also includes:
 - **Proxies** controls for persisted per-agent rotation rules
 - **Scripts** execution against a real browser context through the server-side scripting engine
 - **Security** protection states sourced from runtime/config instead of fixed frontend flags
+- a richer **Dashboard** shell showing runtime route/mode/window, retained runtime alerts, active-work previews, and direct operator shortcuts
 
 Access via `vulpineos panel`, `vulpineos serve`, or through the remote client.
 

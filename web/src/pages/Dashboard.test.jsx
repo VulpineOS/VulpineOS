@@ -1,13 +1,15 @@
 import React from 'react'
 import { render, screen } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import Dashboard from './Dashboard'
 
 describe('Dashboard page', () => {
-  it('shows browser route and mode in the kernel card', async () => {
+  it('shows browser route, window state, and active work', async () => {
     const ws = {
       connected: true,
-      telemetry: { memoryMB: 512 },
+      connectionState: 'connected',
+      telemetry: { memoryMB: 512, activePages: 2, activeContexts: 1, detectionRiskScore: 7 },
       events: [],
       call: vi.fn(async (method) => {
         if (method === 'status.get') {
@@ -19,17 +21,53 @@ describe('Dashboard page', () => {
             browser_window: 'hidden',
             gateway_running: true,
             kernel_headless: false,
+            openclaw_profile_configured: true,
+            active_agents: 1,
+            pool_active: 1,
+            pool_total: 4,
+            pool_available: 3,
+            total_cost_usd: 1.25,
+            total_citizens: 2,
+            total_templates: 3,
+          }
+        }
+        if (method === 'agents.list') {
+          return {
+            agents: [
+              { id: 'agent-1', name: 'Scraper', status: 'active', contextId: 'ctx-1234567890', totalTokens: 4200 },
+            ],
+          }
+        }
+        if (method === 'runtime.list') {
+          return {
+            events: [
+              {
+                id: 1,
+                level: 'warn',
+                component: 'gateway',
+                event: 'profile_repair_failed',
+                message: 'Gateway profile repair failed',
+                timestamp: '2026-04-21T04:00:00Z',
+              },
+            ],
           }
         }
         return {}
       }),
     }
 
-    render(<Dashboard ws={ws} />)
+    render(
+      <MemoryRouter>
+        <Dashboard ws={ws} />
+      </MemoryRouter>,
+    )
 
-    expect(await screen.findByText('CAMOUFOX (runtime) · GUI')).toBeInTheDocument()
-    expect(screen.getByText('Window: HIDDEN')).toBeInTheDocument()
-    expect(screen.getByText('Gateway: RUNNING')).toBeInTheDocument()
-    expect(screen.getByText('PID 1234 | 512MB')).toBeInTheDocument()
+    expect(await screen.findByText('CAMOUFOX')).toBeInTheDocument()
+    expect(screen.getByText('runtime source · GUI · 512MB')).toBeInTheDocument()
+    expect(screen.getByText('HIDDEN')).toBeInTheDocument()
+    expect(screen.getByText('Gateway RUNNING · Profile READY')).toBeInTheDocument()
+    expect(screen.getByText('Scraper')).toBeInTheDocument()
+    expect(screen.getAllByText('Gateway profile repair failed').length).toBeGreaterThan(0)
+    expect(screen.getByText('Review agents')).toBeInTheDocument()
   })
 })

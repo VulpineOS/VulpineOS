@@ -48,6 +48,7 @@ function connectionMeta(ws) {
 export default function App() {
   const [apiKey, setApiKey] = useState(() => bootstrapPanelKey())
   const [notice, setNotice] = useState(null)
+  const [shellStatus, setShellStatus] = useState(null)
   const ws = useWebSocket(apiKey)
   const location = useLocation()
   const conn = connectionMeta(ws)
@@ -63,10 +64,29 @@ export default function App() {
     return () => clearTimeout(timeout)
   }, [notice])
 
+  useEffect(() => {
+    if (!apiKey || !ws.connected) return undefined
+    let cancelled = false
+    const refresh = () => {
+      ws.call('status.get')
+        .then((result) => {
+          if (!cancelled) setShellStatus(result || {})
+        })
+        .catch(() => {})
+    }
+    refresh()
+    const interval = setInterval(refresh, 10000)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [apiKey, ws.connected])
+
   const clearSession = useCallback(() => {
     sessionStorage.removeItem('vulpine_key')
     setApiKey('')
     setNotice(null)
+    setShellStatus(null)
   }, [])
 
   const panelWS = useMemo(() => ({
@@ -80,34 +100,98 @@ export default function App() {
   }
 
   const nav = [
-    { path: '/', label: 'Dashboard' },
-    { path: '/agents', label: 'Agents' },
-    { path: '/bus', label: 'Bus' },
-    { path: '/contexts', label: 'Contexts' },
-    { path: '/proxies', label: 'Proxies' },
-    { path: '/security', label: 'Security' },
-    { path: '/webhooks', label: 'Webhooks' },
-    { path: '/scripts', label: 'Scripts' },
-    { path: '/logs', label: 'Logs' },
-    { path: '/settings', label: 'Settings' },
+    {
+      title: 'Operate',
+      items: [
+        { path: '/', label: 'Dashboard' },
+        { path: '/agents', label: 'Agents' },
+        { path: '/bus', label: 'Bus' },
+        { path: '/contexts', label: 'Contexts' },
+        { path: '/proxies', label: 'Proxies' },
+      ],
+    },
+    {
+      title: 'Inspect',
+      items: [
+        { path: '/security', label: 'Security' },
+        { path: '/scripts', label: 'Scripts' },
+        { path: '/logs', label: 'Logs' },
+        { path: '/webhooks', label: 'Webhooks' },
+      ],
+    },
+    {
+      title: 'System',
+      items: [
+        { path: '/settings', label: 'Settings' },
+      ],
+    },
   ]
+
+  const shellMode = shellStatus?.kernel_running ? (shellStatus?.kernel_headless ? 'Headless' : 'GUI') : 'Disabled'
+  const shellConnectionLabel = ws.connectionState === 'connected'
+    ? 'Connected'
+    : ws.connectionState === 'reconnecting'
+      ? 'Reconnecting'
+      : ws.connectionState === 'connecting'
+        ? 'Connecting'
+        : 'Failed'
 
   return (
     <div className="app">
       <nav className="sidebar">
-        <div className="logo">
-          <h2>VulpineOS</h2>
-          <span className={`status-dot ${ws.connectionState}`} />
-          <span className="status-label">{ws.connectionState === 'connected' ? 'Connected' : ws.connectionState}</span>
+        <div className="sidebar-header">
+          <div className="logo">
+            <div className="logo-mark">VO</div>
+            <div className="logo-copy">
+              <h2>VulpineOS</h2>
+              <p>Operator panel</p>
+            </div>
+          </div>
+          <span className={`connection-pill connection-pill-${ws.connectionState}`}>
+            <span className={`status-dot ${ws.connectionState}`} />
+            <span>{shellConnectionLabel}</span>
+          </span>
         </div>
-        {nav.map(n => (
-          <Link key={n.path} to={n.path} className={`nav-item ${location.pathname === n.path ? 'active' : ''}`}>
-            <span>{n.label}</span>
-          </Link>
+        <div className="sidebar-runtime">
+          <div className="sidebar-runtime-row">
+            <span>Route</span>
+            <strong>{(shellStatus?.browser_route || 'unknown').toUpperCase()}</strong>
+          </div>
+          <div className="sidebar-runtime-row">
+            <span>Mode</span>
+            <strong>{shellMode}</strong>
+          </div>
+          <div className="sidebar-runtime-row">
+            <span>Window</span>
+            <strong>{(shellStatus?.browser_window || 'unknown').toUpperCase()}</strong>
+          </div>
+          <div className="sidebar-runtime-row">
+            <span>Gateway</span>
+            <strong>{shellStatus?.gateway_running ? 'RUNNING' : 'STOPPED'}</strong>
+          </div>
+          <div className="sidebar-runtime-row">
+            <span>Agents</span>
+            <strong>{shellStatus?.active_agents || 0}</strong>
+          </div>
+        </div>
+        {nav.map(section => (
+          <div key={section.title} className="sidebar-section">
+            <div className="sidebar-section-title">{section.title}</div>
+            <div className="nav-group">
+              {section.items.map(n => (
+                <Link key={n.path} to={n.path} className={`nav-item ${location.pathname === n.path ? 'active' : ''}`}>
+                  <span>{n.label}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
         ))}
         <div className="nav-spacer" />
+        <div className="sidebar-footer-note">
+          Session key is stored for this browser session only.
+        </div>
         <button className="nav-item logout" onClick={clearSession}>
-          <span>Logout</span>
+          <span>Clear session</span>
         </button>
       </nav>
       <main className="content">
