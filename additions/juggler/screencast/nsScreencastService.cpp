@@ -44,7 +44,7 @@ const int kMaxFramesInFlight = 1;
 
 StaticRefPtr<nsScreencastService> gScreencastService;
 
-rtc::scoped_refptr<webrtc::VideoCaptureModuleEx> CreateWindowCapturer(nsIWidget* widget) {
+webrtc::scoped_refptr<webrtc::VideoCaptureModuleEx> CreateWindowCapturer(nsIWidget* widget) {
   if (gfxPlatform::IsHeadless()) {
     HeadlessWidget* headlessWidget = static_cast<HeadlessWidget*>(widget);
     return HeadlessWindowCapturer::Create(headlessWidget);
@@ -58,7 +58,10 @@ rtc::scoped_refptr<webrtc::VideoCaptureModuleEx> CreateWindowCapturer(nsIWidget*
   windowId.AppendPrintf("%" PRIuPTR, rawWindowId);
   bool captureCursor = false;
   static int moduleId = 0;
-  return rtc::scoped_refptr<webrtc::VideoCaptureModuleEx>(webrtc::DesktopCaptureImpl::Create(++moduleId, windowId.get(), camera::CaptureDeviceType::Window, captureCursor));
+  return webrtc::scoped_refptr<webrtc::VideoCaptureModuleEx>(
+      webrtc::DesktopCaptureImpl::Create(++moduleId, windowId.get(),
+                                         camera::CaptureDeviceType::Window,
+                                         captureCursor));
 }
 
 nsresult generateUid(nsString& uid) {
@@ -79,12 +82,13 @@ nsresult generateUid(nsString& uid) {
 }
 }
 
-class nsScreencastService::Session : public rtc::VideoSinkInterface<webrtc::VideoFrame>,
+class nsScreencastService::Session
+    : public webrtc::VideoSinkInterface<webrtc::VideoFrame>,
                                      public webrtc::RawFrameCallback {
   Session(
     nsIScreencastServiceClient* client,
     nsIWidget* widget,
-    rtc::scoped_refptr<webrtc::VideoCaptureModuleEx>&& capturer,
+    webrtc::scoped_refptr<webrtc::VideoCaptureModuleEx>&& capturer,
     std::unique_ptr<ScreencastEncoder> encoder,
     int width, int height,
     int viewportWidth, int viewportHeight,
@@ -108,7 +112,7 @@ class nsScreencastService::Session : public rtc::VideoSinkInterface<webrtc::Vide
   static RefPtr<Session> Create(
     nsIScreencastServiceClient* client,
     nsIWidget* widget,
-    rtc::scoped_refptr<webrtc::VideoCaptureModuleEx>&& capturer,
+    webrtc::scoped_refptr<webrtc::VideoCaptureModuleEx>&& capturer,
     std::unique_ptr<ScreencastEncoder> encoder,
     int width, int height,
     int viewportWidth, int viewportHeight,
@@ -117,7 +121,8 @@ class nsScreencastService::Session : public rtc::VideoSinkInterface<webrtc::Vide
     return do_AddRef(new Session(client, widget, std::move(capturer), std::move(encoder), width, height, viewportWidth, viewportHeight, margin, jpegQuality));
   }
 
-  rtc::scoped_refptr<webrtc::VideoCaptureModuleEx> ReuseCapturer(nsIWidget* widget) {
+  webrtc::scoped_refptr<webrtc::VideoCaptureModuleEx> ReuseCapturer(
+      nsIWidget* widget) {
     if (mWidget == widget)
       return mCaptureModule;
     return nullptr;
@@ -289,7 +294,7 @@ class nsScreencastService::Session : public rtc::VideoSinkInterface<webrtc::Vide
  private:
   RefPtr<nsIScreencastServiceClient> mClient;
   nsIWidget* mWidget;
-  rtc::scoped_refptr<webrtc::VideoCaptureModuleEx> mCaptureModule;
+  webrtc::scoped_refptr<webrtc::VideoCaptureModuleEx> mCaptureModule;
   std::unique_ptr<ScreencastEncoder> mEncoder;
   uint32_t mJpegQuality;
   bool mStopped = false;
@@ -332,7 +337,7 @@ nsresult nsScreencastService::StartVideoRecording(nsIScreencastServiceClient* aC
     return NS_ERROR_UNEXPECTED;
   nsIWidget* widget = view->GetWidget();
 
-  rtc::scoped_refptr<webrtc::VideoCaptureModuleEx> capturer = nullptr;
+  webrtc::scoped_refptr<webrtc::VideoCaptureModuleEx> capturer = nullptr;
   for (auto& it : mIdToSession) {
     capturer = it.second->ReuseCapturer(widget);
     if (capturer)
