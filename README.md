@@ -21,6 +21,10 @@ VulpineOS is the operating system for AI browser agents — a Firefox/Camoufox-b
   <a href="https://github.com/VulpineOS/VulpineOS/issues">Issues</a>
 </p>
 
+<p align="center">
+  <img src="assets/panel-dashboard.png" alt="VulpineOS web panel dashboard" width="1100">
+</p>
+
 ---
 
 ## Why VulpineOS?
