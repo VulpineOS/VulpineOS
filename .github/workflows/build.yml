@@ -51,17 +51,17 @@ jobs:
           sudo apt-get autoremove -y > /dev/null
           sudo apt-get clean > /dev/null
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
       - name: Set up Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v6
         with:
           go-version: "1.23"
 
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
@@ -108,7 +108,7 @@ jobs:
         run: python3 ./multibuild.py --target ${{ matrix.target }} --arch ${{ matrix.arch }}
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: CamoufoxBuilds-${{ matrix.target }}-${{ matrix.arch }}
           path: dist/*
@@ -121,7 +121,7 @@ jobs:
 
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
 
