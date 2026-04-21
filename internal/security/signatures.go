@@ -41,6 +41,11 @@ func NewSignatureDB() *SignatureDB {
 	return db
 }
 
+// Count returns the number of loaded patterns.
+func (db *SignatureDB) Count() int {
+	return len(db.patterns)
+}
+
 // AddPattern adds a custom pattern to the database.
 func (db *SignatureDB) AddPattern(name, regex string, severity int, category string) error {
 	re, err := regexp.Compile(regex)

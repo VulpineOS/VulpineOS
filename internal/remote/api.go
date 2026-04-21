@@ -133,6 +133,14 @@ func (api *PanelAPI) HandleMessage(method string, params json.RawMessage) (json.
 	case "fingerprints.generate":
 		return api.fingerprintsGenerate(params)
 
+	// --- Scripts ---
+	case "scripts.run":
+		return api.scriptsRun(params)
+
+	// --- Security ---
+	case "security.status":
+		return api.securityStatus()
+
 	// --- Status ---
 	case "status.get":
 		return api.statusGet()

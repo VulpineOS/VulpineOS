@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 
 const EXAMPLE_SCRIPT = `{
   "steps": [
@@ -10,45 +10,43 @@ const EXAMPLE_SCRIPT = `{
 }`
 
 export default function Scripts({ ws }) {
+  const [contexts, setContexts] = useState([])
+  const [selectedContext, setSelectedContext] = useState('')
   const [script, setScript] = useState(EXAMPLE_SCRIPT)
   const [output, setOutput] = useState('')
+  const [vars, setVars] = useState({})
   const [running, setRunning] = useState(false)
+
+  useEffect(() => {
+    if (!ws.connected) return
+    ws.call('contexts.list')
+      .then(result => {
+        const nextContexts = result?.contexts || []
+        setContexts(nextContexts)
+        if (!selectedContext && nextContexts.length > 0) {
+          setSelectedContext(nextContexts[0].id)
+        }
+      })
+      .catch(() => {})
+  }, [ws.connected])
 
   const runScript = async () => {
     setRunning(true)
     setOutput('Running...\n')
+    setVars({})
     try {
-      const parsed = JSON.parse(script)
-      for (const step of parsed.steps) {
-        setOutput(prev => prev + `[${step.action}] ${step.target || step.value || ''}\n`)
-
-        switch (step.action) {
-          case 'navigate':
-            await ws.juggler('Page.navigate', { url: step.target })
-            break
-          case 'wait':
-            await new Promise(r => setTimeout(r, parseInt(step.value) || 1000))
-            break
-          case 'extract':
-            // Would use Runtime.evaluate via Juggler
-            setOutput(prev => prev + `  extracted to \${${step.store}}\n`)
-            break
-          case 'screenshot':
-            setOutput(prev => prev + '  screenshot saved\n')
-            break
-          case 'click':
-            setOutput(prev => prev + `  clicked ${step.target}\n`)
-            break
-          case 'type':
-            setOutput(prev => prev + `  typed "${step.value}"\n`)
-            break
-          default:
-            setOutput(prev => prev + `  unknown action: ${step.action}\n`)
-        }
+      const result = await ws.call('scripts.run', { script, contextId: selectedContext || '' })
+      const lines = (result?.results || []).map(step => {
+        const suffix = step.output ? ` -> ${step.output}` : ''
+        return `[${step.status}] ${step.action} ${step.target || step.value || ''}${suffix}`
+      })
+      setOutput(lines.join('\n') + `\n\n${result?.ok ? 'Done.' : `Error: ${result?.error || 'script failed'}`}\n`)
+      setVars(result?.vars || {})
+      if (result?.contextId && !selectedContext) {
+        setSelectedContext(result.contextId)
       }
-      setOutput(prev => prev + '\nDone.\n')
     } catch (e) {
-      setOutput(prev => prev + `\nError: ${e.message}\n`)
+      setOutput(`Error: ${e.message}\n`)
     }
     setRunning(false)
   }
@@ -57,9 +55,17 @@ export default function Scripts({ ws }) {
     <div>
       <div className="page-header">
         <h1>Scripts</h1>
-        <button className="btn btn-primary" onClick={runScript} disabled={running}>
-          {running ? 'Running...' : 'Run Script'}
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <select className="input" value={selectedContext} onChange={e => setSelectedContext(e.target.value)} style={{ minWidth: 220 }}>
+            <option value="">Auto context</option>
+            {contexts.map(context => (
+              <option key={context.id} value={context.id}>{context.id}</option>
+            ))}
+          </select>
+          <button className="btn btn-primary" onClick={runScript} disabled={running}>
+            {running ? 'Running...' : 'Run Script'}
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-2">
@@ -77,9 +83,13 @@ export default function Scripts({ ws }) {
           </p>
         </div>
         <div className="card">
-          <h3>Output</h3>
-          <pre style={{ fontFamily: "'SF Mono', 'Fira Code', monospace", fontSize: 12, color: '#aaa', whiteSpace: 'pre-wrap', minHeight: 300 }}>
-            {output || 'Click "Run Script" to execute.'}
+          <h3>Execution Output</h3>
+          <pre style={{ fontFamily: "'SF Mono', 'Fira Code', monospace", fontSize: 12, color: '#aaa', whiteSpace: 'pre-wrap', minHeight: 240 }}>
+            {output || 'Click "Run Script" to execute against a real browser context.'}
+          </pre>
+          <h3 style={{ marginTop: 16 }}>Variables</h3>
+          <pre style={{ fontFamily: "'SF Mono', 'Fira Code', monospace", fontSize: 12, color: '#aaa', whiteSpace: 'pre-wrap', minHeight: 120 }}>
+            {Object.keys(vars).length > 0 ? JSON.stringify(vars, null, 2) : 'No variables captured yet.'}
           </pre>
         </div>
       </div>
