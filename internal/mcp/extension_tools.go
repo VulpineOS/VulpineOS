@@ -237,12 +237,11 @@ func handleAnnotatedScreenshot(ctx context.Context, client *juggler.Client, args
 	}
 }
 
-// handleClickLabel looks up an objectID in the per-session label index
-// and clicks it via Page.click. Returns an error when the label is
+// handleClickLabel looks up an objectID/frameID in the per-session label index
+// and clicks it via the supported object-handle mouse path. Returns an error when the label is
 // unknown (e.g. no annotated screenshot has been taken in this session
 // yet) or when the underlying click call fails.
 func handleClickLabel(ctx context.Context, client *juggler.Client, args json.RawMessage) *ToolCallResult {
-	_ = ctx // reserved for future cancellation of Page.click
 	var p struct {
 		SessionID string `json:"session_id"`
 		Label     string `json:"label"`
@@ -256,16 +255,17 @@ func handleClickLabel(ctx context.Context, client *juggler.Client, args json.Raw
 	if p.SessionID == "" || p.Label == "" {
 		return errorResult(fmt.Errorf("click_label: session_id and label are required"))
 	}
-	objectID, ok := globalLabels.Get(p.SessionID, p.Label)
+	target, ok := globalLabels.Get(p.SessionID, p.Label)
 	if !ok {
 		return errorResult(fmt.Errorf("click_label: label %q not found for session %q (take an annotated screenshot first)", p.Label, p.SessionID))
 	}
-	if _, err := client.Call(p.SessionID, "Page.click", map[string]interface{}{
-		"objectId": objectID,
-	}); err != nil {
-		return errorResult(fmt.Errorf("click_label: Page.click %q: %w", objectID, err))
+	if target.ObjectID == "" || target.FrameID == "" {
+		return errorResult(fmt.Errorf("click_label: label %q is missing frame/object metadata", p.Label))
 	}
-	return textResult(fmt.Sprintf("clicked label %s (objectId=%s)", p.Label, objectID))
+	if err := client.ClickByObjectID(ctx, p.SessionID, target.FrameID, target.ObjectID); err != nil {
+		return errorResult(fmt.Errorf("click_label: click object %q: %w", target.ObjectID, err))
+	}
+	return textResult(fmt.Sprintf("clicked label %s (objectId=%s frameId=%s)", p.Label, target.ObjectID, target.FrameID))
 }
 
 func handleGetCredential(ctx context.Context, args json.RawMessage) *ToolCallResult {

@@ -389,3 +389,86 @@ func TestGetAnnotatedScreenshot_Error(t *testing.T) {
 		t.Fatal("expected error, got nil")
 	}
 }
+
+func TestClickByObjectID_HappyPath(t *testing.T) {
+	mt := newMemTransport()
+	r := newRouteResponder(t, mt)
+	r.on("Page.scrollIntoViewIfNeeded", func(req *Message) *Message {
+		var p struct {
+			FrameID  string `json:"frameId"`
+			ObjectID string `json:"objectId"`
+		}
+		if err := json.Unmarshal(req.Params, &p); err != nil {
+			t.Fatalf("unmarshal scroll params: %v", err)
+		}
+		if p.FrameID != "frame-1" || p.ObjectID != "obj-1" {
+			t.Fatalf("unexpected scroll params: %+v", p)
+		}
+		return okResult(t, map[string]interface{}{})
+	})
+	r.on("Page.getContentQuads", func(req *Message) *Message {
+		return okResult(t, map[string]interface{}{
+			"quads": []map[string]interface{}{
+				{
+					"p1": map[string]float64{"x": 10, "y": 20},
+					"p2": map[string]float64{"x": 30, "y": 20},
+					"p3": map[string]float64{"x": 30, "y": 40},
+					"p4": map[string]float64{"x": 10, "y": 40},
+				},
+			},
+		})
+	})
+	var dispatches []map[string]interface{}
+	r.on("Page.dispatchMouseEvent", func(req *Message) *Message {
+		var p map[string]interface{}
+		if err := json.Unmarshal(req.Params, &p); err != nil {
+			t.Fatalf("unmarshal mouse params: %v", err)
+		}
+		dispatches = append(dispatches, p)
+		return okResult(t, map[string]interface{}{})
+	})
+	r.run()
+
+	c := NewClient(mt)
+	defer c.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := c.ClickByObjectID(ctx, "sess-1", "frame-1", "obj-1"); err != nil {
+		t.Fatalf("ClickByObjectID: %v", err)
+	}
+	if len(dispatches) != 2 {
+		t.Fatalf("dispatch count = %d, want 2", len(dispatches))
+	}
+	if dispatches[0]["type"] != "mousedown" || dispatches[1]["type"] != "mouseup" {
+		t.Fatalf("unexpected dispatches: %#v", dispatches)
+	}
+	if dispatches[0]["x"] != 20.0 || dispatches[0]["y"] != 30.0 {
+		t.Fatalf("unexpected click coordinates: %#v", dispatches[0])
+	}
+}
+
+func TestClickByObjectID_NoQuads(t *testing.T) {
+	mt := newMemTransport()
+	r := newRouteResponder(t, mt)
+	r.on("Page.scrollIntoViewIfNeeded", func(req *Message) *Message {
+		return okResult(t, map[string]interface{}{})
+	})
+	r.on("Page.getContentQuads", func(req *Message) *Message {
+		return okResult(t, map[string]interface{}{"quads": []map[string]interface{}{}})
+	})
+	r.run()
+
+	c := NewClient(mt)
+	defer c.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	err := c.ClickByObjectID(ctx, "sess-1", "frame-1", "obj-1")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "no quads returned") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}

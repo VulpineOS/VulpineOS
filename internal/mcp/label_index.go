@@ -18,10 +18,15 @@ const MaxLabelSessions = 256
 // call vulpine_click_label to click an element by label rather than
 // juggling raw objectIDs. It is bounded to MaxLabelSessions entries
 // via an LRU policy on last access time.
+type labelTarget struct {
+	ObjectID string
+	FrameID  string
+}
+
 type labelIndex struct {
 	mu         sync.RWMutex
-	sessions   map[string]map[string]string // sessionID -> label -> objectID
-	lastAccess map[string]time.Time         // sessionID -> last touch time
+	sessions   map[string]map[string]labelTarget // sessionID -> label -> target
+	lastAccess map[string]time.Time              // sessionID -> last touch time
 }
 
 // touchLocked updates the access time for sessionID. Caller must hold
@@ -58,7 +63,7 @@ func (l *labelIndex) evictOldestLocked() {
 // either field are skipped. If the session count would exceed
 // MaxLabelSessions the least recently used session is evicted first.
 func (l *labelIndex) Set(sessionID string, elements []map[string]interface{}) {
-	next := map[string]string{}
+	next := map[string]labelTarget{}
 	for i, el := range elements {
 		label, _ := el["label"].(string)
 		if label == "" {
@@ -66,7 +71,8 @@ func (l *labelIndex) Set(sessionID string, elements []map[string]interface{}) {
 			label = fmt.Sprintf("@%d", i+1)
 		}
 		if obj, ok := el["objectId"].(string); ok && obj != "" {
-			next[label] = obj
+			frameID, _ := el["frameId"].(string)
+			next[label] = labelTarget{ObjectID: obj, FrameID: frameID}
 		}
 	}
 	l.mu.Lock()
@@ -80,20 +86,20 @@ func (l *labelIndex) Set(sessionID string, elements []map[string]interface{}) {
 	l.touchLocked(sessionID)
 }
 
-// Get returns the objectID mapped to label in sessionID, or ok=false
+// Get returns the target mapped to label in sessionID, or ok=false
 // if no such label is known. Touches the session access time on hit.
-func (l *labelIndex) Get(sessionID, label string) (string, bool) {
+func (l *labelIndex) Get(sessionID, label string) (labelTarget, bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	session, ok := l.sessions[sessionID]
 	if !ok {
-		return "", false
+		return labelTarget{}, false
 	}
-	obj, ok := session[label]
+	target, ok := session[label]
 	if ok {
 		l.touchLocked(sessionID)
 	}
-	return obj, ok
+	return target, ok
 }
 
 // Clear drops any label mappings for sessionID. Intended for use on
@@ -116,6 +122,6 @@ func (l *labelIndex) Len() int {
 // globalLabels is the process-wide label index shared between the
 // annotated screenshot tool and vulpine_click_label.
 var globalLabels = &labelIndex{
-	sessions:   map[string]map[string]string{},
+	sessions:   map[string]map[string]labelTarget{},
 	lastAccess: map[string]time.Time{},
 }

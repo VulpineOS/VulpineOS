@@ -1378,8 +1378,8 @@ export class PageAgent {
 
         // Create a durable handle: rawValueToRemoteObject stores the
         // element in the execution context's remote-object table and
-        // returns an objectId that Page.click({objectId}) will accept
-        // for the lifetime of the frame.
+        // returns an objectId that the runtime can resolve back into
+        // quads + mouse events for the lifetime of the frame.
         let objectId = '';
         try {
           const remote = executionContext.rawValueToRemoteObject(el);

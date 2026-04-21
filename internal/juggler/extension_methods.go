@@ -26,9 +26,9 @@ func (c *Client) SecureSetInputValueBySelector(ctx context.Context, sessionID, f
 		return fmt.Errorf("marshal selector: %w", err)
 	}
 	params := map[string]interface{}{
-		"expression":     fmt.Sprintf("document.querySelector(%s)", string(selectorJSON)),
-		"frameId":        frameID,
-		"returnByValue":  false,
+		"expression":    fmt.Sprintf("document.querySelector(%s)", string(selectorJSON)),
+		"frameId":       frameID,
+		"returnByValue": false,
 	}
 	raw, err := c.CallWithContext(ctx, sessionID, "Runtime.evaluate", params)
 	if err != nil {
@@ -186,4 +186,80 @@ func (c *Client) GetAnnotatedScreenshot(ctx context.Context, sessionID, format s
 		return nil, nil, fmt.Errorf("getAnnotatedScreenshot: decode base64 image: %w", err)
 	}
 	return decoded, resp.Elements, nil
+}
+
+// ClickByObjectID scrolls the target element into view, resolves a clickable
+// quad for it, and dispatches a mouse click at the quad centroid.
+func (c *Client) ClickByObjectID(ctx context.Context, sessionID, frameID, objectID string) error {
+	if frameID == "" || objectID == "" {
+		return fmt.Errorf("clickByObjectID: frameID and objectID are required")
+	}
+
+	params := map[string]interface{}{
+		"frameId":  frameID,
+		"objectId": objectID,
+	}
+	if _, err := c.CallWithContext(ctx, sessionID, "Page.scrollIntoViewIfNeeded", params); err != nil {
+		return fmt.Errorf("clickByObjectID: scrollIntoViewIfNeeded: %w", err)
+	}
+
+	raw, err := c.CallWithContext(ctx, sessionID, "Page.getContentQuads", params)
+	if err != nil {
+		return fmt.Errorf("clickByObjectID: getContentQuads: %w", err)
+	}
+
+	var resp struct {
+		Quads []struct {
+			P1 struct {
+				X float64 `json:"x"`
+				Y float64 `json:"y"`
+			} `json:"p1"`
+			P2 struct {
+				X float64 `json:"x"`
+				Y float64 `json:"y"`
+			} `json:"p2"`
+			P3 struct {
+				X float64 `json:"x"`
+				Y float64 `json:"y"`
+			} `json:"p3"`
+			P4 struct {
+				X float64 `json:"x"`
+				Y float64 `json:"y"`
+			} `json:"p4"`
+		} `json:"quads"`
+	}
+	if err := json.Unmarshal(raw, &resp); err != nil {
+		return fmt.Errorf("clickByObjectID: decode getContentQuads: %w", err)
+	}
+	if len(resp.Quads) == 0 {
+		return fmt.Errorf("clickByObjectID: no quads returned")
+	}
+
+	quad := resp.Quads[0]
+	x := (quad.P1.X + quad.P2.X + quad.P3.X + quad.P4.X) / 4
+	y := (quad.P1.Y + quad.P2.Y + quad.P3.Y + quad.P4.Y) / 4
+
+	if _, err := c.CallWithContext(ctx, sessionID, "Page.dispatchMouseEvent", map[string]interface{}{
+		"type":       "mousedown",
+		"x":          x,
+		"y":          y,
+		"button":     0,
+		"buttons":    1,
+		"clickCount": 1,
+		"modifiers":  0,
+	}); err != nil {
+		return fmt.Errorf("clickByObjectID: mousedown: %w", err)
+	}
+	if _, err := c.CallWithContext(ctx, sessionID, "Page.dispatchMouseEvent", map[string]interface{}{
+		"type":       "mouseup",
+		"x":          x,
+		"y":          y,
+		"button":     0,
+		"buttons":    0,
+		"clickCount": 1,
+		"modifiers":  0,
+	}); err != nil {
+		return fmt.Errorf("clickByObjectID: mouseup: %w", err)
+	}
+	return nil
 }

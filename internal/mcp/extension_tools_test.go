@@ -335,3 +335,53 @@ func TestAnnotatedScreenshotNilClient(t *testing.T) {
 		t.Fatalf("unexpected error: %q", res.Content[0].Text)
 	}
 }
+
+func TestClickLabelUsesObjectHandlePath(t *testing.T) {
+	sessionID := "sess-click"
+	globalLabels.Clear(sessionID)
+	globalLabels.Set(sessionID, []map[string]interface{}{
+		{"label": "@1", "objectId": "obj-1", "frameId": "frame-1"},
+	})
+
+	rt := newRoutedTransport()
+	rt.on("Page.scrollIntoViewIfNeeded", func(req *juggler.Message) *juggler.Message {
+		return okResultMessage(t, map[string]interface{}{})
+	})
+	rt.on("Page.getContentQuads", func(req *juggler.Message) *juggler.Message {
+		return okResultMessage(t, map[string]interface{}{
+			"quads": []map[string]interface{}{
+				{
+					"p1": map[string]float64{"x": 10, "y": 20},
+					"p2": map[string]float64{"x": 30, "y": 20},
+					"p3": map[string]float64{"x": 30, "y": 40},
+					"p4": map[string]float64{"x": 10, "y": 40},
+				},
+			},
+		})
+	})
+	dispatchCount := 0
+	rt.on("Page.dispatchMouseEvent", func(req *juggler.Message) *juggler.Message {
+		dispatchCount++
+		return okResultMessage(t, map[string]interface{}{})
+	})
+	client := juggler.NewClient(rt)
+	defer client.Close()
+
+	args, _ := json.Marshal(map[string]interface{}{
+		"session_id": sessionID,
+		"label":      "@1",
+	})
+	res, ok := handleExtensionTool(context.Background(), client, "vulpine_click_label", args)
+	if !ok {
+		t.Fatal("vulpine_click_label not dispatched")
+	}
+	if res.IsError {
+		t.Fatalf("expected success, got error: %+v", res.Content)
+	}
+	if dispatchCount != 2 {
+		t.Fatalf("dispatch count = %d, want 2", dispatchCount)
+	}
+	if !strings.Contains(res.Content[0].Text, "frameId=frame-1") {
+		t.Fatalf("unexpected success text: %q", res.Content[0].Text)
+	}
+}

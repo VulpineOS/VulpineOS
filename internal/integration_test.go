@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -395,6 +396,7 @@ func TestIntegration_AnnotatedScreenshotReturnsClickableObject(t *testing.T) {
 	var (
 		label    string
 		objectID string
+		frameID  string
 	)
 	for _, element := range resp.Elements {
 		text, _ := element["text"].(string)
@@ -403,16 +405,17 @@ func TestIntegration_AnnotatedScreenshotReturnsClickableObject(t *testing.T) {
 		}
 		label, _ = element["label"].(string)
 		objectID, _ = element["objectId"].(string)
+		frameID, _ = element["frameId"].(string)
 		break
 	}
-	if label == "" || objectID == "" {
+	if label == "" || objectID == "" || frameID == "" {
 		t.Fatalf("missing label/objectId for Press Me button: %s", string(result))
 	}
 
-	if _, err := client.Call(sessionID, "Page.click", mustJSON(map[string]interface{}{
-		"objectId": objectID,
-	})); err != nil {
-		t.Fatalf("Page.click by objectId failed: %v", err)
+	clickCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := client.ClickByObjectID(clickCtx, sessionID, frameID, objectID); err != nil {
+		t.Fatalf("ClickByObjectID failed: %v", err)
 	}
 
 	time.Sleep(500 * time.Millisecond)

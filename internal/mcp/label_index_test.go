@@ -33,30 +33,30 @@ func navigateHandlerClearsLabels() bool {
 }
 
 func TestLabelIndexSetGet(t *testing.T) {
-	idx := &labelIndex{sessions: map[string]map[string]string{}}
+	idx := &labelIndex{sessions: map[string]map[string]labelTarget{}}
 
 	elements := []map[string]interface{}{
-		{"label": "@1", "objectId": "obj-a"},
-		{"label": "@2", "objectId": "obj-b"},
+		{"label": "@1", "objectId": "obj-a", "frameId": "frame-a"},
+		{"label": "@2", "objectId": "obj-b", "frameId": "frame-b"},
 		// Missing objectId — must be skipped.
 		{"label": "@3"},
 		// Missing label — synthesized as @4 (index position 3 + 1 = @4).
-		{"objectId": "obj-d"},
+		{"objectId": "obj-d", "frameId": "frame-d"},
 	}
 	idx.Set("sess-1", elements)
 
 	got, ok := idx.Get("sess-1", "@1")
-	if !ok || got != "obj-a" {
+	if !ok || got.ObjectID != "obj-a" || got.FrameID != "frame-a" {
 		t.Errorf("Get(@1) = (%q, %v), want (obj-a, true)", got, ok)
 	}
 	got, ok = idx.Get("sess-1", "@2")
-	if !ok || got != "obj-b" {
+	if !ok || got.ObjectID != "obj-b" || got.FrameID != "frame-b" {
 		t.Errorf("Get(@2) = (%q, %v), want (obj-b, true)", got, ok)
 	}
 	if _, ok := idx.Get("sess-1", "@3"); ok {
 		t.Error("Get(@3) should be absent (no objectId)")
 	}
-	if got, ok := idx.Get("sess-1", "@4"); !ok || got != "obj-d" {
+	if got, ok := idx.Get("sess-1", "@4"); !ok || got.ObjectID != "obj-d" || got.FrameID != "frame-d" {
 		t.Errorf("Get(@4) synthesized = (%q, %v), want (obj-d, true)", got, ok)
 	}
 	if _, ok := idx.Get("sess-unknown", "@1"); ok {
@@ -65,12 +65,12 @@ func TestLabelIndexSetGet(t *testing.T) {
 
 	// Second Set replaces, not merges.
 	idx.Set("sess-1", []map[string]interface{}{
-		{"label": "@X", "objectId": "obj-x"},
+		{"label": "@X", "objectId": "obj-x", "frameId": "frame-x"},
 	})
 	if _, ok := idx.Get("sess-1", "@1"); ok {
 		t.Error("Set should replace, not merge: @1 should be gone")
 	}
-	if got, ok := idx.Get("sess-1", "@X"); !ok || got != "obj-x" {
+	if got, ok := idx.Get("sess-1", "@X"); !ok || got.ObjectID != "obj-x" || got.FrameID != "frame-x" {
 		t.Errorf("Get(@X) = (%q, %v)", got, ok)
 	}
 
@@ -112,14 +112,14 @@ func TestVulpineClickLabelUnavailable(t *testing.T) {
 // session forever.
 func TestLabelIndex_LRUEvictsOldest(t *testing.T) {
 	idx := &labelIndex{
-		sessions:   map[string]map[string]string{},
+		sessions:   map[string]map[string]labelTarget{},
 		lastAccess: map[string]time.Time{},
 	}
 	// Fill past the cap. Each Set touches its session, so the
 	// earliest-inserted (and never re-touched) session is the oldest.
 	for i := 0; i < MaxLabelSessions+5; i++ {
 		idx.Set(fmt.Sprintf("sess-%d", i), []map[string]interface{}{
-			{"label": "@1", "objectId": fmt.Sprintf("obj-%d", i)},
+			{"label": "@1", "objectId": fmt.Sprintf("obj-%d", i), "frameId": fmt.Sprintf("frame-%d", i)},
 		})
 		// Nudge time forward slightly so ordering is deterministic
 		// even on fast machines where two successive time.Now()
@@ -149,7 +149,7 @@ func TestLabelIndex_LRUEvictsOldest(t *testing.T) {
 // Get must return ok=false for previously-set labels.
 func TestLabelIndex_ClearOnNavigate(t *testing.T) {
 	globalLabels.Set("nav-sess", []map[string]interface{}{
-		{"label": "@1", "objectId": "obj-pre-nav"},
+		{"label": "@1", "objectId": "obj-pre-nav", "frameId": "frame-pre-nav"},
 	})
 	if _, ok := globalLabels.Get("nav-sess", "@1"); !ok {
 		t.Fatal("precondition: label should be present before navigate")
