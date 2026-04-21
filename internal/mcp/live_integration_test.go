@@ -5,6 +5,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -226,5 +227,114 @@ func TestLiveBrowser_AgentToolsUseExecutionContext(t *testing.T) {
 	errorsText := toolText(t, errorsRes, errorsErr)
 	if !strings.Contains(errorsText, `"count":1`) {
 		t.Fatalf("form errors = %q", errorsText)
+	}
+}
+
+func TestLiveBrowser_AnnotatedScreenshotClickLabel(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`<!doctype html>
+<html>
+<head><title>Label Demo</title></head>
+<body>
+  <button id="press" type="button">Press Me</button>
+  <div id="status">ready</div>
+  <script>
+    document.querySelector('#press').addEventListener('click', () => {
+      document.querySelector('#status').textContent = 'clicked';
+    });
+  </script>
+</body>
+</html>`))
+	}))
+	defer server.Close()
+
+	k, client := startLiveKernel(t)
+	defer k.Stop()
+
+	tracker := NewContextTracker(client)
+	sid := newPageSession(t, client)
+
+	navRes, navErr := handleToolCall(context.Background(), client, tracker, "vulpine_navigate", mustArgs(map[string]interface{}{
+		"sessionId": sid,
+		"url":       server.URL,
+	}))
+	_ = toolText(t, navRes, navErr)
+	time.Sleep(2 * time.Second)
+
+	settledRes, settledErr := handleToolCall(context.Background(), client, tracker, "vulpine_page_settled", mustArgs(map[string]interface{}{
+		"sessionId": sid,
+		"timeout":   5,
+	}))
+	_ = toolText(t, settledRes, settledErr)
+
+	shotArgs, _ := json.Marshal(map[string]interface{}{
+		"sessionId":   sid,
+		"maxElements": 10,
+	})
+	shotRes, ok := handleExtensionTool(context.Background(), client, "vulpine_annotated_screenshot", shotArgs)
+	if !ok {
+		t.Fatal("vulpine_annotated_screenshot not dispatched")
+	}
+	if shotRes == nil || shotRes.IsError {
+		t.Fatalf("annotated screenshot failed: %+v", shotRes)
+	}
+	if len(shotRes.Content) < 2 {
+		t.Fatalf("annotated screenshot content = %+v, want image + text", shotRes.Content)
+	}
+
+	var elements []map[string]interface{}
+	if err := json.Unmarshal([]byte(shotRes.Content[1].Text), &elements); err != nil {
+		t.Fatalf("decode annotated screenshot elements: %v", err)
+	}
+
+	var label string
+	for i, element := range elements {
+		text, _ := element["text"].(string)
+		if !strings.Contains(text, "Press Me") {
+			continue
+		}
+		label, _ = element["label"].(string)
+		if label == "" {
+			label = fmt.Sprintf("@%d", i+1)
+		}
+		break
+	}
+	if label == "" {
+		t.Fatalf("missing label for Press Me button: %s", shotRes.Content[1].Text)
+	}
+	if _, ok := globalLabels.Get(sid, label); !ok {
+		t.Fatalf("label %q was not stored in label index", label)
+	}
+
+	clickArgs, _ := json.Marshal(map[string]interface{}{
+		"session_id": sid,
+		"label":      label,
+	})
+	clickRes, ok := handleExtensionTool(context.Background(), client, "vulpine_click_label", clickArgs)
+	if !ok {
+		t.Fatal("vulpine_click_label not dispatched")
+	}
+	if clickRes == nil || clickRes.IsError {
+		t.Fatalf("click label failed: %+v", clickRes)
+	}
+
+	verifyRes, verifyErr := handleToolCall(context.Background(), client, tracker, "vulpine_verify", mustArgs(map[string]interface{}{
+		"sessionId": sid,
+		"check":     "text",
+		"selector":  "#status",
+		"expected":  "clicked",
+	}))
+	verifyText := toolText(t, verifyRes, verifyErr)
+	if !strings.Contains(verifyText, "PASS:") {
+		t.Fatalf("verify text = %q", verifyText)
+	}
+
+	resetRes, resetErr := handleToolCall(context.Background(), client, tracker, "vulpine_navigate", mustArgs(map[string]interface{}{
+		"sessionId": sid,
+		"url":       "about:blank",
+	}))
+	_ = toolText(t, resetRes, resetErr)
+	if _, ok := globalLabels.Get(sid, label); ok {
+		t.Fatalf("label %q should be cleared after navigation", label)
 	}
 }
