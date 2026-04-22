@@ -4,7 +4,7 @@ export default function Settings({ ws }) {
   const [cfg, setCfg] = useState({})
   const [providers, setProviders] = useState([])
   const [status, setStatus] = useState({})
-  const [sentinel, setSentinel] = useState({ variantBundles: [], trustRecipes: [] })
+  const [sentinel, setSentinel] = useState({ variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [] })
   const [defaultBudgetCost, setDefaultBudgetCost] = useState('0')
   const [defaultBudgetTokens, setDefaultBudgetTokens] = useState('0')
   const [saved, setSaved] = useState('')
@@ -18,12 +18,30 @@ export default function Settings({ ws }) {
       setDefaultBudgetTokens(String(r?.defaultBudgetMaxTokens ?? 0))
     }).catch(() => {})
     ws.call('status.get').then(r => setStatus(r || {})).catch(() => {})
-    ws.call('sentinel.get').then(r => setSentinel(r || { variantBundles: [], trustRecipes: [] })).catch(() => {})
+    ws.call('sentinel.get').then(r => setSentinel(r || { variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [] })).catch(() => {})
   }, [ws.connected])
 
   const selectedProvider = providers.find(p => p.id === cfg.provider) || null
   const modelOptions = selectedProvider?.models?.length ? selectedProvider.models : (cfg.model ? [cfg.model] : [])
   const kernelMode = status.kernel_running ? (status.kernel_headless ? 'HEADLESS' : 'GUI') : 'DISABLED'
+  const sentinelVariants = sentinel.variantBundles || []
+  const sentinelTrustRecipes = sentinel.trustRecipes || []
+  const sentinelMetrics = sentinel.maturityMetrics || []
+  const sentinelRules = sentinel.assignmentRules || []
+
+  const formatMetricThresholds = (metric) => (metric.thresholds || [])
+    .map(threshold => `${threshold.stage} ${threshold.minimum}${metric.unit ? ` ${metric.unit}` : ''}`)
+    .join(' · ')
+
+  const formatRuleGate = (rule) => {
+    const parts = []
+    if (rule.minSessionAgeSeconds) parts.push(`age ${rule.minSessionAgeSeconds}s`)
+    if (rule.minSuccessfulVisits) parts.push(`${rule.minSuccessfulVisits} visits`)
+    if (rule.minDistinctDays) parts.push(`${rule.minDistinctDays} days`)
+    if (rule.minChallengeFreeRuns) parts.push(`${rule.minChallengeFreeRuns} quiet runs`)
+    if (rule.maxRecentHardChallenges === 0) parts.push('no recent hard challenges')
+    return parts.join(' · ') || 'Always eligible'
+  }
 
   const updateProvider = (providerId) => {
     const provider = providers.find(p => p.id === providerId)
@@ -162,9 +180,139 @@ export default function Settings({ ws }) {
             </div>
             <div>Variant bundles: {status.sentinel_variant_bundles || 0}</div>
             <div>Trust recipes: {status.sentinel_trust_recipes || 0}</div>
-            <div>Variant names: {(sentinel.variantBundles || []).map(bundle => bundle.name).join(', ') || 'None'}</div>
-            <div>Trust names: {(sentinel.trustRecipes || []).map(recipe => recipe.name).join(', ') || 'None'}</div>
+            <div>Maturity metrics: {status.sentinel_maturity_metrics || 0}</div>
+            <div>Assignment rules: {status.sentinel_assignment_rules || 0}</div>
+            <div>Variant names: {sentinelVariants.map(bundle => bundle.name).join(', ') || 'None'}</div>
+            <div>Trust names: {sentinelTrustRecipes.map(recipe => recipe.name).join(', ') || 'None'}</div>
           </div>
+        </div>
+
+        <div className="card" style={{ gridColumn: '1 / -1' }}>
+          <h3>Sentinel Trust Lab</h3>
+          {!status.sentinel_available ? (
+            <div className="empty-state">Sentinel is not available in this runtime.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div className="detail-grid">
+                <div className="detail-row"><span>Mode</span><strong>{(status.sentinel_mode || 'unknown').toUpperCase()}</strong></div>
+                <div className="detail-row"><span>Provider</span><strong>{status.sentinel_provider || 'Unknown'}</strong></div>
+                <div className="detail-row"><span>Variant source</span><strong>{status.sentinel_variant_source || 'Unknown'}</strong></div>
+                <div className="detail-row"><span>Event sink</span><strong>{status.sentinel_event_sink || 'Unknown'}</strong></div>
+                <div className="detail-row"><span>Outcome sink</span><strong>{status.sentinel_outcome_sink || 'Unknown'}</strong></div>
+                <div className="detail-row"><span>Updated</span><strong>{status.sentinel_updated_at ? new Date(status.sentinel_updated_at).toLocaleString() : 'Unknown'}</strong></div>
+              </div>
+
+              <div>
+                <h4 style={{ margin: '0 0 10px' }}>Variant bundles</h4>
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Browser</th>
+                      <th>Fingerprint</th>
+                      <th>Proxy</th>
+                      <th>Transport</th>
+                      <th>Behavior</th>
+                      <th>Trust</th>
+                      <th>Weight</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sentinelVariants.map(bundle => (
+                      <tr key={bundle.id}>
+                        <td>{bundle.name}</td>
+                        <td>{bundle.browserVariant || 'baseline'}</td>
+                        <td>{bundle.fingerprintVariant || 'baseline'}</td>
+                        <td>{bundle.proxyVariant || 'baseline'}</td>
+                        <td>{bundle.transportVariant || 'baseline'}</td>
+                        <td>{bundle.behaviorVariant || 'baseline'}</td>
+                        <td>{bundle.trustVariant || 'baseline'}</td>
+                        <td>{bundle.weight || 0}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div>
+                <h4 style={{ margin: '0 0 10px' }}>Trust recipes</h4>
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Strategy</th>
+                      <th>Minimum age</th>
+                      <th>Visits</th>
+                      <th>Cadence</th>
+                      <th>Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sentinelTrustRecipes.map(recipe => (
+                      <tr key={recipe.id}>
+                        <td>{recipe.name}</td>
+                        <td>{recipe.warmupStrategy || 'n/a'}</td>
+                        <td>{recipe.minSessionAgeSeconds ? `${recipe.minSessionAgeSeconds}s` : 'n/a'}</td>
+                        <td>{recipe.requiredVisits || 0}</td>
+                        <td>{recipe.returnCadence || 'n/a'}</td>
+                        <td>{recipe.notes || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div>
+                <h4 style={{ margin: '0 0 10px' }}>Session maturity metrics</h4>
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Metric</th>
+                      <th>Thresholds</th>
+                      <th>Description</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sentinelMetrics.map(metric => (
+                      <tr key={metric.id}>
+                        <td>{metric.name}</td>
+                        <td>{formatMetricThresholds(metric) || 'None'}</td>
+                        <td>{metric.description || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div>
+                <h4 style={{ margin: '0 0 10px' }}>Assignment rules</h4>
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Rule</th>
+                      <th>Stage</th>
+                      <th>Variant</th>
+                      <th>Trust</th>
+                      <th>Gates</th>
+                      <th>Holdout</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sentinelRules.map(rule => (
+                      <tr key={rule.id}>
+                        <td>{rule.name}</td>
+                        <td>{rule.stage || 'n/a'}</td>
+                        <td>{rule.variantBundleId || 'n/a'}</td>
+                        <td>{rule.trustRecipeId || 'n/a'}</td>
+                        <td>{formatRuleGate(rule)}</td>
+                        <td>{rule.holdoutPercent ? `${rule.holdoutPercent}%` : '0%'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

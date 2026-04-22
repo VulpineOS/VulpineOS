@@ -43,6 +43,8 @@ describe('Settings page', () => {
             sentinel_provider: 'sentinel-private',
             sentinel_variant_bundles: 1,
             sentinel_trust_recipes: 1,
+            sentinel_maturity_metrics: 1,
+            sentinel_assignment_rules: 1,
             kernel_headless: false,
             kernel_running: true,
             openclaw_profile_configured: true,
@@ -53,6 +55,21 @@ describe('Settings page', () => {
             available: true,
             variantBundles: [{ id: 'control', name: 'Control', enabled: true, weight: 100 }],
             trustRecipes: [{ id: 'baseline-warmup', name: 'Baseline warmup', warmupStrategy: 'generic_revisit' }],
+            maturityMetrics: [{
+              id: 'session_age_seconds',
+              name: 'Session age',
+              unit: 'seconds',
+              thresholds: [{ stage: 'warm', minimum: 1800 }],
+              description: 'How long the identity has existed before higher-trust variants are allowed.',
+            }],
+            assignmentRules: [{
+              id: 'cold-holdout',
+              name: 'Cold holdout',
+              stage: 'cold',
+              variantBundleId: 'control',
+              trustRecipeId: 'baseline-warmup',
+              holdoutPercent: 100,
+            }],
           }
         }
         return {}
@@ -67,8 +84,13 @@ describe('Settings page', () => {
     expect(screen.getByText('Sentinel: PRIVATE_SCAFFOLD · sentinel-private')).toBeInTheDocument()
     expect(screen.getByText('Variant bundles: 1')).toBeInTheDocument()
     expect(screen.getByText('Trust recipes: 1')).toBeInTheDocument()
+    expect(screen.getByText('Maturity metrics: 1')).toBeInTheDocument()
+    expect(screen.getByText('Assignment rules: 1')).toBeInTheDocument()
     expect(screen.getByText('Variant names: Control')).toBeInTheDocument()
     expect(screen.getByText('Trust names: Baseline warmup')).toBeInTheDocument()
+    expect(screen.getByText('Session age')).toBeInTheDocument()
+    expect(screen.getByText('Cold holdout')).toBeInTheDocument()
+    expect(screen.getByText('warm 1800 seconds')).toBeInTheDocument()
     expect(screen.getByText('Agent model setup: Not configured')).toBeInTheDocument()
     expect(screen.getByText('OpenClaw profile: Configured')).toBeInTheDocument()
     expect(screen.getByText('API Key (ANTHROPIC_API_KEY)')).toBeInTheDocument()

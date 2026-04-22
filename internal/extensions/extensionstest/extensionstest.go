@@ -268,13 +268,15 @@ func (f *FakeMobileBridge) Available() bool {
 // FakeSentinelProvider records events and outcomes while returning
 // canned status and variant bundles.
 type FakeSentinelProvider struct {
-	mu             sync.RWMutex
-	AvailableFlag  bool
-	StatusValue    extensions.SentinelStatus
-	VariantBundles []extensions.SentinelVariantBundle
-	TrustRecipes   []extensions.SentinelTrustRecipe
-	Events         []extensions.SentinelEvent
-	Outcomes       []extensions.SentinelOutcome
+	mu              sync.RWMutex
+	AvailableFlag   bool
+	StatusValue     extensions.SentinelStatus
+	VariantBundles  []extensions.SentinelVariantBundle
+	TrustRecipes    []extensions.SentinelTrustRecipe
+	MaturityMetrics []extensions.SentinelMaturityMetric
+	AssignmentRules []extensions.SentinelAssignmentRule
+	Events          []extensions.SentinelEvent
+	Outcomes        []extensions.SentinelOutcome
 }
 
 // SetAvailable toggles AvailableFlag under the write lock.
@@ -303,6 +305,20 @@ func (f *FakeSentinelProvider) SetTrustRecipes(v []extensions.SentinelTrustRecip
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.TrustRecipes = append([]extensions.SentinelTrustRecipe(nil), v...)
+}
+
+// SetMaturityMetrics replaces the canned maturity metrics under the write lock.
+func (f *FakeSentinelProvider) SetMaturityMetrics(v []extensions.SentinelMaturityMetric) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.MaturityMetrics = append([]extensions.SentinelMaturityMetric(nil), v...)
+}
+
+// SetAssignmentRules replaces the canned assignment rules under the write lock.
+func (f *FakeSentinelProvider) SetAssignmentRules(v []extensions.SentinelAssignmentRule) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.AssignmentRules = append([]extensions.SentinelAssignmentRule(nil), v...)
 }
 
 // Status returns the canned status.
@@ -344,6 +360,24 @@ func (f *FakeSentinelProvider) ListTrustRecipes(ctx context.Context) ([]extensio
 	defer f.mu.RUnlock()
 	out := make([]extensions.SentinelTrustRecipe, len(f.TrustRecipes))
 	copy(out, f.TrustRecipes)
+	return out, nil
+}
+
+// ListMaturityMetrics returns a copy of the canned maturity metrics.
+func (f *FakeSentinelProvider) ListMaturityMetrics(ctx context.Context) ([]extensions.SentinelMaturityMetric, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make([]extensions.SentinelMaturityMetric, len(f.MaturityMetrics))
+	copy(out, f.MaturityMetrics)
+	return out, nil
+}
+
+// ListAssignmentRules returns a copy of the canned assignment rules.
+func (f *FakeSentinelProvider) ListAssignmentRules(ctx context.Context) ([]extensions.SentinelAssignmentRule, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make([]extensions.SentinelAssignmentRule, len(f.AssignmentRules))
+	copy(out, f.AssignmentRules)
 	return out, nil
 }
 

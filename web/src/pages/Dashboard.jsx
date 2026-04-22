@@ -232,6 +232,8 @@ export default function Dashboard({ ws }) {
               <div className="detail-row"><span>Citizens</span><strong>{s.total_citizens || 0}</strong></div>
               <div className="detail-row"><span>Templates</span><strong>{s.total_templates || 0}</strong></div>
               <div className="detail-row"><span>Trust recipes</span><strong>{s.sentinel_trust_recipes || 0}</strong></div>
+              <div className="detail-row"><span>Maturity metrics</span><strong>{s.sentinel_maturity_metrics || 0}</strong></div>
+              <div className="detail-row"><span>Assignment rules</span><strong>{s.sentinel_assignment_rules || 0}</strong></div>
             </div>
           </div>
         </div>
