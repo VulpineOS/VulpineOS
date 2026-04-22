@@ -38,6 +38,11 @@ describe('Settings page', () => {
             browser_route_source: 'runtime',
             browser_window: 'hidden',
             gateway_running: true,
+            sentinel_available: true,
+            sentinel_mode: 'private_scaffold',
+            sentinel_provider: 'sentinel-private',
+            sentinel_variant_bundles: 1,
+            sentinel_trust_recipes: 1,
             kernel_headless: false,
             kernel_running: true,
             openclaw_profile_configured: true,
@@ -52,6 +57,9 @@ describe('Settings page', () => {
     expect(await screen.findByText('Route: CAMOUFOX (runtime) · GUI')).toBeInTheDocument()
     expect(screen.getByText('Window: HIDDEN')).toBeInTheDocument()
     expect(screen.getByText('Gateway: RUNNING')).toBeInTheDocument()
+    expect(screen.getByText('Sentinel: PRIVATE_SCAFFOLD · sentinel-private')).toBeInTheDocument()
+    expect(screen.getByText('Variant bundles: 1')).toBeInTheDocument()
+    expect(screen.getByText('Trust recipes: 1')).toBeInTheDocument()
     expect(screen.getByText('Agent model setup: Not configured')).toBeInTheDocument()
     expect(screen.getByText('OpenClaw profile: Configured')).toBeInTheDocument()
     expect(screen.getByText('API Key (ANTHROPIC_API_KEY)')).toBeInTheDocument()

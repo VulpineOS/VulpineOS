@@ -1,6 +1,7 @@
 package remote
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"vulpineos/internal/agentbus"
 	"vulpineos/internal/config"
 	"vulpineos/internal/costtrack"
+	"vulpineos/internal/extensions"
 	"vulpineos/internal/juggler"
 	"vulpineos/internal/kernel"
 	"vulpineos/internal/openclaw"
@@ -1126,6 +1128,8 @@ func (api *PanelAPI) statusGet() (json.RawMessage, error) {
 		"browser_window":              api.browserWindow(),
 		"gateway_running":             false,
 		"openclaw_profile_configured": config.OpenClawProfileBrowserRoute() != "",
+		"sentinel_available":          false,
+		"sentinel_mode":               extensions.SentinelModePublicNoop,
 	}
 
 	if api.Kernel != nil {
@@ -1150,6 +1154,21 @@ func (api *PanelAPI) statusGet() (json.RawMessage, error) {
 		out["total_citizens"] = status.TotalCitizens
 		out["total_templates"] = status.TotalTemplates
 		out["total_cost_usd"] = status.TotalCostUSD
+	}
+	if status, available, err := extensions.SentinelSnapshot(context.Background()); err == nil {
+		out["sentinel_available"] = available
+		out["sentinel_provider"] = status.Provider
+		out["sentinel_mode"] = status.Mode
+		out["sentinel_event_sink"] = status.EventSink
+		out["sentinel_outcome_sink"] = status.OutcomeSink
+		out["sentinel_variant_source"] = status.VariantSource
+		out["sentinel_variant_bundles"] = status.VariantBundles
+		out["sentinel_trust_recipes"] = status.TrustRecipes
+		if !status.UpdatedAt.IsZero() {
+			out["sentinel_updated_at"] = status.UpdatedAt
+		}
+	} else if err != nil {
+		out["sentinel_error"] = err.Error()
 	}
 
 	return json.Marshal(out)

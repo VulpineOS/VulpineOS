@@ -20,6 +20,9 @@ describe('Dashboard page', () => {
             browser_route_source: 'runtime',
             browser_window: 'hidden',
             gateway_running: true,
+            sentinel_available: true,
+            sentinel_mode: 'private_scaffold',
+            sentinel_trust_recipes: 1,
             kernel_headless: false,
             openclaw_profile_configured: true,
             active_agents: 1,
@@ -80,6 +83,7 @@ describe('Dashboard page', () => {
     expect(screen.getByText('4,200 tokens · 1 tracked usage records')).toBeInTheDocument()
     expect(screen.getByText('1 agent override · $5.00 · 10,000 tok')).toBeInTheDocument()
     expect(screen.getByText('RUNNING')).toBeInTheDocument()
+    expect(screen.getByText('PRIVATE_SCAFFOLD')).toBeInTheDocument()
     expect(screen.getAllByText('Gateway profile repair failed').length).toBeGreaterThan(0)
     expect(screen.getByText('Review agents')).toBeInTheDocument()
   })

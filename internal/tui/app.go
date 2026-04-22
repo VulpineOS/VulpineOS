@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -15,6 +16,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"vulpineos/internal/config"
+	"vulpineos/internal/extensions"
 	"vulpineos/internal/juggler"
 	"vulpineos/internal/kernel"
 	"vulpineos/internal/monitor"
@@ -641,13 +643,16 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		if a.kernel != nil {
+			sentinelStatus, sentinelAvailable, _ := extensions.SentinelSnapshot(context.Background())
 			ksMsg := shared.KernelStatusMsg{
-				Running:       a.kernel.Running(),
-				PID:           a.kernel.PID(),
-				Uptime:        a.kernel.Uptime(),
-				Headless:      a.kernel.IsHeadless(),
-				BrowserRoute:  a.browserRouteLabel(),
-				BrowserWindow: a.browserWindowLabel(),
+				Running:           a.kernel.Running(),
+				PID:               a.kernel.PID(),
+				Uptime:            a.kernel.Uptime(),
+				Headless:          a.kernel.IsHeadless(),
+				BrowserRoute:      a.browserRouteLabel(),
+				BrowserWindow:     a.browserWindowLabel(),
+				SentinelAvailable: sentinelAvailable,
+				SentinelMode:      sentinelStatus.Mode,
 			}
 			a.systemInfo, _ = a.systemInfo.Update(ksMsg)
 		}

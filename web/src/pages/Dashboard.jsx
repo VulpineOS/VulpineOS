@@ -223,6 +223,7 @@ export default function Dashboard({ ws }) {
               <div className="detail-row"><span>Kernel PID</span><strong>{s.kernel_pid || 'N/A'}</strong></div>
               <div className="detail-row"><span>Window</span><strong>{(s.browser_window || 'unknown').toUpperCase()}</strong></div>
               <div className="detail-row"><span>Gateway</span><strong>{s.gateway_running ? 'RUNNING' : 'STOPPED'}</strong></div>
+              <div className="detail-row"><span>Sentinel</span><strong>{s.sentinel_available ? (s.sentinel_mode || 'ON').toUpperCase() : 'OFF'}</strong></div>
               <div className="detail-row"><span>Contexts</span><strong>{t.activeContexts || 0}</strong></div>
               <div className="detail-row"><span>Pages</span><strong>{t.activePages || 0}</strong></div>
               <div className="detail-row"><span>Detection risk</span><strong>{t.detectionRiskScore || 0}%</strong></div>
@@ -230,6 +231,7 @@ export default function Dashboard({ ws }) {
               <div className="detail-row"><span>Pool total</span><strong>{s.pool_total || 0}</strong></div>
               <div className="detail-row"><span>Citizens</span><strong>{s.total_citizens || 0}</strong></div>
               <div className="detail-row"><span>Templates</span><strong>{s.total_templates || 0}</strong></div>
+              <div className="detail-row"><span>Trust recipes</span><strong>{s.sentinel_trust_recipes || 0}</strong></div>
             </div>
           </div>
         </div>

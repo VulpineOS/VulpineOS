@@ -170,6 +170,10 @@ export default function App() {
             <strong>{shellStatus?.gateway_running ? 'RUNNING' : 'STOPPED'}</strong>
           </div>
           <div className="sidebar-runtime-row">
+            <span>Sentinel</span>
+            <strong>{shellStatus?.sentinel_available ? (shellStatus?.sentinel_mode || 'ON').toUpperCase() : 'OFF'}</strong>
+          </div>
+          <div className="sidebar-runtime-row">
             <span>Agents</span>
             <strong>{shellStatus?.active_agents || 0}</strong>
           </div>

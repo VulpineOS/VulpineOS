@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"vulpineos/internal/config"
+	"vulpineos/internal/extensions"
+	"vulpineos/internal/extensions/extensionstest"
 	"vulpineos/internal/kernel"
 )
 
@@ -51,6 +53,12 @@ func TestStatusGetIncludesBrowserRoute(t *testing.T) {
 	}
 	if got := result["openclaw_profile_configured"]; got != false {
 		t.Fatalf("openclaw_profile_configured = %v, want false", got)
+	}
+	if got := result["sentinel_available"]; got != false {
+		t.Fatalf("sentinel_available = %v, want false", got)
+	}
+	if got := result["sentinel_mode"]; got != extensions.SentinelModePublicNoop {
+		t.Fatalf("sentinel_mode = %v, want %s", got, extensions.SentinelModePublicNoop)
 	}
 }
 
@@ -121,5 +129,50 @@ func TestStatusGetWithoutKernelReportsDisabledRoute(t *testing.T) {
 	}
 	if got := result["gateway_running"]; got != false {
 		t.Fatalf("gateway_running = %v, want false", got)
+	}
+}
+
+func TestStatusGetIncludesSentinelStatus(t *testing.T) {
+	original := extensions.Registry.Sentinel()
+	t.Cleanup(func() { extensions.Registry.SetSentinel(original) })
+	fake := &extensionstest.FakeSentinelProvider{
+		AvailableFlag: true,
+		StatusValue: extensions.SentinelStatus{
+			Provider:       "sentinel-private",
+			Mode:           "private_scaffold",
+			EventSink:      "memory",
+			OutcomeSink:    "memory",
+			VariantSource:  "memory",
+			VariantBundles: 2,
+			TrustRecipes:   1,
+		},
+	}
+	extensions.Registry.SetSentinel(fake)
+
+	api := &PanelAPI{Config: &config.Config{}}
+	payload, err := api.HandleMessage("status.get", nil)
+	if err != nil {
+		t.Fatalf("HandleMessage: %v", err)
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(payload, &result); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
+	if got := result["sentinel_available"]; got != true {
+		t.Fatalf("sentinel_available = %v, want true", got)
+	}
+	if got := result["sentinel_provider"]; got != "sentinel-private" {
+		t.Fatalf("sentinel_provider = %v, want sentinel-private", got)
+	}
+	if got := result["sentinel_mode"]; got != "private_scaffold" {
+		t.Fatalf("sentinel_mode = %v, want private_scaffold", got)
+	}
+	if got := result["sentinel_variant_bundles"]; got != float64(2) {
+		t.Fatalf("sentinel_variant_bundles = %v, want 2", got)
+	}
+	if got := result["sentinel_trust_recipes"]; got != float64(1) {
+		t.Fatalf("sentinel_trust_recipes = %v, want 1", got)
 	}
 }

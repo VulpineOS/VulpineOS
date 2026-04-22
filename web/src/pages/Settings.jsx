@@ -154,6 +154,12 @@ export default function Settings({ ws }) {
             </div>
             <div>Window: {(status.browser_window || 'unknown').toUpperCase()}</div>
             <div>Gateway: {status.gateway_running ? 'RUNNING' : 'STOPPED'}</div>
+            <div>
+              Sentinel: {status.sentinel_available ? (status.sentinel_mode || 'ON').toUpperCase() : 'OFF'}
+              {status.sentinel_provider ? ` · ${status.sentinel_provider}` : ''}
+            </div>
+            <div>Variant bundles: {status.sentinel_variant_bundles || 0}</div>
+            <div>Trust recipes: {status.sentinel_trust_recipes || 0}</div>
           </div>
         </div>
       </div>

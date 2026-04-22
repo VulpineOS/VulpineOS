@@ -84,6 +84,46 @@ var startGatewayIfAvailable = func(cfg *config.Config, audit *runtimeaudit.Manag
 	return gw
 }
 
+func logSentinelRuntimeStatus(audit *runtimeaudit.Manager) {
+	if audit == nil {
+		return
+	}
+	status, available, err := extensions.SentinelSnapshot(context.Background())
+	if err != nil {
+		_, _ = audit.Log("sentinel", "warn", "status_error", "Sentinel status lookup failed", map[string]string{
+			"error": err.Error(),
+		})
+		return
+	}
+	metadata := map[string]string{
+		"available": fmt.Sprintf("%t", available),
+		"mode":      status.Mode,
+	}
+	if status.Provider != "" {
+		metadata["provider"] = status.Provider
+	}
+	if status.EventSink != "" {
+		metadata["event_sink"] = status.EventSink
+	}
+	if status.OutcomeSink != "" {
+		metadata["outcome_sink"] = status.OutcomeSink
+	}
+	if status.VariantSource != "" {
+		metadata["variant_source"] = status.VariantSource
+	}
+	if status.VariantBundles > 0 {
+		metadata["variant_bundles"] = fmt.Sprintf("%d", status.VariantBundles)
+	}
+	if status.TrustRecipes > 0 {
+		metadata["trust_recipes"] = fmt.Sprintf("%d", status.TrustRecipes)
+	}
+	if available {
+		_, _ = audit.Log("sentinel", "info", "provider_ready", "Sentinel provider ready", metadata)
+		return
+	}
+	_, _ = audit.Log("sentinel", "info", "provider_unavailable", "Sentinel provider unavailable", metadata)
+}
+
 func startLocalSessionLogging(baseDir string) (restore func(), path string) {
 	prevWriter := log.Writer()
 	prevFlags := log.Flags()
@@ -841,6 +881,7 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 		// providers. On the default public build this is a no-op
 		// because privateProviders is zero-valued.
 		extensions.InitWithClient(client)
+		logSentinelRuntimeStatus(audit)
 		if !browserEnabled {
 			if err := enableBrowser(client, "Browser.enable"); err != nil {
 				return err
@@ -941,6 +982,7 @@ func runServe(binaryPath string, headless bool, profileDir string, host string, 
 
 		client = k.Client()
 		extensions.InitWithClient(client)
+		logSentinelRuntimeStatus(audit)
 		if err := enableBrowser(client, "Browser.enable"); err != nil {
 			return err
 		}

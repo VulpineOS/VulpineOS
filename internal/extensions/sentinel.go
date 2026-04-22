@@ -137,3 +137,25 @@ func (noopSentinelProvider) ListVariantBundles(ctx context.Context) ([]SentinelV
 }
 
 func (noopSentinelProvider) Available() bool { return false }
+
+// SentinelSnapshot returns the currently registered Sentinel provider
+// status plus whether a real provider is present. Public builds return
+// available=false and a stable public_noop mode.
+func SentinelSnapshot(ctx context.Context) (SentinelStatus, bool, error) {
+	provider := Registry.Sentinel()
+	if provider == nil || !provider.Available() {
+		return SentinelStatus{Mode: SentinelModePublicNoop}, false, nil
+	}
+	status, err := provider.Status(ctx)
+	if err != nil {
+		return SentinelStatus{}, true, err
+	}
+	if status == nil {
+		return SentinelStatus{}, true, nil
+	}
+	out := *status
+	if out.Mode == "" {
+		out.Mode = SentinelModePublicNoop
+	}
+	return out, true, nil
+}
