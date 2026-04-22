@@ -177,3 +177,43 @@ func TestRecordBrowserProbeMapsScopeAndPayload(t *testing.T) {
 		t.Fatalf("event.Payload is empty")
 	}
 }
+
+func TestRecordTrustActivityMapsStateAndScope(t *testing.T) {
+	original := extensions.Registry.Sentinel()
+	t.Cleanup(func() { extensions.Registry.SetSentinel(original) })
+	fake := &extensionstest.FakeSentinelProvider{
+		AvailableFlag: true,
+		VariantBundles: []extensions.SentinelVariantBundle{
+			{ID: "control", Enabled: true},
+		},
+		TrustRecipes: []extensions.SentinelTrustRecipe{
+			{ID: "baseline-warmup"},
+		},
+	}
+	extensions.Registry.SetSentinel(fake)
+
+	if err := RecordTrustActivity(context.Background(), juggler.TrustWarmingState{
+		State:       "WARMING",
+		CurrentSite: "https://ticketmaster.example/queue",
+	}); err != nil {
+		t.Fatalf("RecordTrustActivity: %v", err)
+	}
+
+	events := fake.RecordedEvents()
+	if len(events) != 1 {
+		t.Fatalf("events = %+v", events)
+	}
+	event := events[0]
+	if event.Kind != extensions.SentinelEventKindTrustActivity || event.Name != "trust_warming.warming" {
+		t.Fatalf("event = %+v", event)
+	}
+	if event.Scope.Domain != "ticketmaster.example" || event.Scope.URL != "https://ticketmaster.example/queue" {
+		t.Fatalf("event.Scope = %+v", event.Scope)
+	}
+	if event.Attributes["state"] != "WARMING" || event.Attributes["current_site"] != "https://ticketmaster.example/queue" {
+		t.Fatalf("event.Attributes = %+v", event.Attributes)
+	}
+	if event.Attributes["variant_bundle_id"] != "control" || event.Attributes["trust_recipe_id"] != "baseline-warmup" {
+		t.Fatalf("experiment attrs = %+v", event.Attributes)
+	}
+}
