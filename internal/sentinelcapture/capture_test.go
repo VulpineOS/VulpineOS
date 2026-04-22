@@ -15,7 +15,15 @@ import (
 func TestRecordRuntimeSignal(t *testing.T) {
 	original := extensions.Registry.Sentinel()
 	t.Cleanup(func() { extensions.Registry.SetSentinel(original) })
-	fake := &extensionstest.FakeSentinelProvider{AvailableFlag: true}
+	fake := &extensionstest.FakeSentinelProvider{
+		AvailableFlag: true,
+		VariantBundles: []extensions.SentinelVariantBundle{
+			{ID: "control", Enabled: true},
+		},
+		TrustRecipes: []extensions.SentinelTrustRecipe{
+			{ID: "baseline-warmup"},
+		},
+	}
 	extensions.Registry.SetSentinel(fake)
 
 	if err := RecordRuntimeSignal(context.Background(), "provider_ready", map[string]string{"mode": "private_scaffold"}); err != nil {
@@ -34,7 +42,15 @@ func TestRecordRuntimeSignal(t *testing.T) {
 func TestRecordMonitorAlertMapsToEventAndOutcome(t *testing.T) {
 	original := extensions.Registry.Sentinel()
 	t.Cleanup(func() { extensions.Registry.SetSentinel(original) })
-	fake := &extensionstest.FakeSentinelProvider{AvailableFlag: true}
+	fake := &extensionstest.FakeSentinelProvider{
+		AvailableFlag: true,
+		VariantBundles: []extensions.SentinelVariantBundle{
+			{ID: "control", Enabled: true},
+		},
+		TrustRecipes: []extensions.SentinelTrustRecipe{
+			{ID: "baseline-warmup"},
+		},
+	}
 	extensions.Registry.SetSentinel(fake)
 
 	alert := monitor.Alert{
@@ -51,16 +67,30 @@ func TestRecordMonitorAlertMapsToEventAndOutcome(t *testing.T) {
 	if len(events) != 1 || events[0].Name != "monitor.captcha" {
 		t.Fatalf("events = %+v", events)
 	}
+	if events[0].Attributes["variant_bundle_id"] != "control" || events[0].Attributes["trust_recipe_id"] != "baseline-warmup" {
+		t.Fatalf("event attrs = %+v", events[0].Attributes)
+	}
 	outcomes := fake.RecordedOutcomes()
 	if len(outcomes) != 1 || outcomes[0].Outcome != extensions.SentinelOutcomeSoftChallenge {
 		t.Fatalf("outcomes = %+v", outcomes)
+	}
+	if outcomes[0].Attributes["variant_bundle_id"] != "control" || outcomes[0].Attributes["trust_recipe_id"] != "baseline-warmup" {
+		t.Fatalf("outcome attrs = %+v", outcomes[0].Attributes)
 	}
 }
 
 func TestRecordProxyRotationScrubsCredentials(t *testing.T) {
 	original := extensions.Registry.Sentinel()
 	t.Cleanup(func() { extensions.Registry.SetSentinel(original) })
-	fake := &extensionstest.FakeSentinelProvider{AvailableFlag: true}
+	fake := &extensionstest.FakeSentinelProvider{
+		AvailableFlag: true,
+		VariantBundles: []extensions.SentinelVariantBundle{
+			{ID: "control", Enabled: true},
+		},
+		TrustRecipes: []extensions.SentinelTrustRecipe{
+			{ID: "baseline-warmup"},
+		},
+	}
 	extensions.Registry.SetSentinel(fake)
 
 	err := RecordProxyRotation(context.Background(), proxy.RotationEvent{
@@ -84,12 +114,23 @@ func TestRecordProxyRotationScrubsCredentials(t *testing.T) {
 	if got := events[0].Attributes["new_proxy"]; got != "new.example:8080" {
 		t.Fatalf("new_proxy = %q", got)
 	}
+	if events[0].Attributes["variant_bundle_id"] != "control" || events[0].Attributes["trust_recipe_id"] != "baseline-warmup" {
+		t.Fatalf("attrs = %+v", events[0].Attributes)
+	}
 }
 
 func TestRecordBrowserProbeMapsScopeAndPayload(t *testing.T) {
 	original := extensions.Registry.Sentinel()
 	t.Cleanup(func() { extensions.Registry.SetSentinel(original) })
-	fake := &extensionstest.FakeSentinelProvider{AvailableFlag: true}
+	fake := &extensionstest.FakeSentinelProvider{
+		AvailableFlag: true,
+		VariantBundles: []extensions.SentinelVariantBundle{
+			{ID: "control", Enabled: true},
+		},
+		TrustRecipes: []extensions.SentinelTrustRecipe{
+			{ID: "baseline-warmup"},
+		},
+	}
 	extensions.Registry.SetSentinel(fake)
 
 	err := RecordBrowserProbe(context.Background(), "session-1", juggler.BrowserProbe{
@@ -128,6 +169,9 @@ func TestRecordBrowserProbeMapsScopeAndPayload(t *testing.T) {
 	}
 	if got := event.Attributes["count"]; got != "3" {
 		t.Fatalf("count = %q", got)
+	}
+	if event.Attributes["variant_bundle_id"] != "control" || event.Attributes["trust_recipe_id"] != "baseline-warmup" {
+		t.Fatalf("experiment attrs = %+v", event.Attributes)
 	}
 	if len(event.Payload) == 0 {
 		t.Fatalf("event.Payload is empty")

@@ -182,6 +182,8 @@ type SentinelTimelineItem struct {
 	Name            string            `json:"name,omitempty"`
 	Outcome         string            `json:"outcome,omitempty"`
 	ChallengeVendor string            `json:"challengeVendor,omitempty"`
+	VariantBundleID string            `json:"variantBundleId,omitempty"`
+	TrustRecipeID   string            `json:"trustRecipeId,omitempty"`
 	Source          string            `json:"source,omitempty"`
 	Scope           SentinelScope     `json:"scope"`
 	Attributes      map[string]string `json:"attributes,omitempty"`

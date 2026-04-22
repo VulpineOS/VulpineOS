@@ -123,8 +123,8 @@ describe('Settings page', () => {
               eventCount: 1,
               outcomeCount: 1,
               items: [
-                { type: 'event', kind: 'browser_probe', name: 'canvas.toDataURL' },
-                { type: 'outcome', outcome: 'soft_challenge', challengeVendor: 'cloudflare' },
+                { type: 'event', kind: 'browser_probe', name: 'canvas.toDataURL', variantBundleId: 'control', trustRecipeId: 'baseline-warmup' },
+                { type: 'outcome', outcome: 'soft_challenge', challengeVendor: 'cloudflare', variantBundleId: 'control', trustRecipeId: 'baseline-warmup' },
               ],
             }],
           }
@@ -152,8 +152,8 @@ describe('Settings page', () => {
     expect(screen.getAllByText('Baseline warmup').length).toBeGreaterThan(0)
     expect(screen.getByText('Recent capture timeline')).toBeInTheDocument()
     expect(screen.getByText('example.com · 1 events · 1 outcomes')).toBeInTheDocument()
-    expect(screen.getByText('browser_probe · canvas.toDataURL')).toBeInTheDocument()
-    expect(screen.getByText('soft_challenge · cloudflare')).toBeInTheDocument()
+    expect(screen.getByText('browser_probe · canvas.toDataURL · Control / Baseline warmup')).toBeInTheDocument()
+    expect(screen.getByText('soft_challenge · cloudflare · Control / Baseline warmup')).toBeInTheDocument()
     expect(screen.getByText('Probe summary')).toBeInTheDocument()
     expect(screen.getAllByText('canvas_probe').length).toBeGreaterThan(0)
     expect(screen.getByText('https://cdn.example.com/fp.js')).toBeInTheDocument()

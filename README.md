@@ -259,11 +259,11 @@ The panel now also includes:
 - a dedicated **Bus** page for pending approvals and communication policies
 - **Settings** controls for persisted default agent budgets
 - **Settings** Sentinel trust-lab visibility for variant bundles, trust recipes, maturity metrics, assignment rules, outcome taxonomy, and captured outcome summaries
-- **Settings** recent Sentinel capture timelines grouped by session with raw evidence rows
+- **Settings** recent Sentinel capture timelines grouped by session with raw evidence rows and explicit variant/trust assignment tags
 - **Settings** Sentinel probe summary table grouped by domain, script, probe family, and API so operator triage stays ranked instead of purely chronological
 - **Settings** Sentinel experiment board grouped by variant bundle and trust recipe so trust-building holdouts can be compared directly
 - **Settings** Sentinel patch queue ranked by browser-probe pressure and recent challenge outcomes so the next browser-surface fixes stay explicit
-- Sentinel capture timelines now ingest page-level browser probe evidence (canvas, WebGL, audio, navigator, media-device, permissions, screen, and Intl reads), provider-ready lifecycle signals, monitor-detected rate-limit/captcha/block alerts, and proxy-rotation transport observations during normal runtime flow
+- Sentinel capture timelines now ingest page-level browser probe evidence (canvas, WebGL, audio, navigator, media-device, permissions, screen, and Intl reads), provider-ready lifecycle signals, monitor-detected rate-limit/captcha/block alerts, and proxy-rotation transport observations during normal runtime flow, and carry explicit experiment-assignment tags when available
 - **Agent Detail** controls for per-agent budget overrides, recording export, and fingerprint regeneration
 - **Proxies** controls for persisted per-agent rotation rules
 - **Scripts** execution against a real browser context through the server-side scripting engine

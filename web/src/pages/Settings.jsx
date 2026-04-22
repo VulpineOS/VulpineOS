@@ -53,12 +53,16 @@ export default function Settings({ ws }) {
   }
 
   const formatTimelineItem = (item) => {
+    const assignment = item.variantBundleId || item.trustRecipeId
+      ? `${variantNameFor(item.variantBundleId)} / ${trustNameFor(item.trustRecipeId)}`
+      : ''
     if (item.type === 'outcome') {
-      return `${item.outcome || 'outcome'}${item.challengeVendor ? ` · ${item.challengeVendor}` : ''}`
+      return `${item.outcome || 'outcome'}${item.challengeVendor ? ` · ${item.challengeVendor}` : ''}${assignment ? ` · ${assignment}` : ''}`
     }
     const parts = [`${item.kind || 'event'} · ${item.name || 'unnamed'}`]
     if (item.attributes?.detail) parts.push(item.attributes.detail)
     if (item.attributes?.count) parts.push(`x${item.attributes.count}`)
+    if (assignment) parts.push(assignment)
     return parts.join(' · ')
   }
 

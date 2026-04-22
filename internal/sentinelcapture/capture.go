@@ -28,10 +28,10 @@ func RecordRuntimeSignal(ctx context.Context, name string, attributes map[string
 // RecordMonitorAlert maps a runtime alert to both a raw evidence event
 // and a normalized outcome label.
 func RecordMonitorAlert(ctx context.Context, alert monitor.Alert) error {
-	attributes := map[string]string{
+	attributes := withExperimentDefaults(ctx, map[string]string{
 		"alert_type": string(alert.Type),
 		"details":    alert.Details,
-	}
+	})
 	scope := extensions.SentinelScope{AgentID: alert.AgentID}
 	eventErr := recordEvent(ctx, extensions.SentinelEvent{
 		Kind:       extensions.SentinelEventKindChallengeSignal,
@@ -61,11 +61,11 @@ func RecordMonitorAlert(ctx context.Context, alert monitor.Alert) error {
 // RecordProxyRotation writes a transport-observation event for a
 // successful proxy transition.
 func RecordProxyRotation(ctx context.Context, event proxy.RotationEvent) error {
-	attributes := map[string]string{
+	attributes := withExperimentDefaults(ctx, map[string]string{
 		"reason":         event.Reason,
 		"previous_proxy": scrubProxyEndpoint(event.PreviousProxy),
 		"new_proxy":      scrubProxyEndpoint(event.NewProxy),
-	}
+	})
 	return recordEvent(ctx, extensions.SentinelEvent{
 		Kind:       extensions.SentinelEventKindTransportObservation,
 		Source:     "proxy",
@@ -79,13 +79,13 @@ func RecordProxyRotation(ctx context.Context, event proxy.RotationEvent) error {
 // RecordBrowserProbe writes page-level browser probe evidence into
 // Sentinel when a real provider is available.
 func RecordBrowserProbe(ctx context.Context, sessionID string, probe juggler.BrowserProbe) error {
-	attributes := map[string]string{
+	attributes := withExperimentDefaults(ctx, map[string]string{
 		"probe_type": probe.ProbeType,
 		"api":        probe.API,
 		"detail":     probe.Detail,
 		"count":      jsonInt(probe.Count),
 		"frame_id":   probe.FrameID,
-	}
+	})
 	payload, _ := json.Marshal(probe)
 	return recordEvent(ctx, extensions.SentinelEvent{
 		Kind:   extensions.SentinelEventKindBrowserProbe,
@@ -139,6 +139,47 @@ func cloneAttributes(in map[string]string) map[string]string {
 		out[k] = v
 	}
 	return out
+}
+
+func withExperimentDefaults(ctx context.Context, attributes map[string]string) map[string]string {
+	out := cloneAttributes(attributes)
+	provider := extensions.Registry.Sentinel()
+	if provider == nil || !provider.Available() {
+		return out
+	}
+	if out["variant_bundle_id"] != "" && out["trust_recipe_id"] != "" {
+		return out
+	}
+	variantID, trustID := defaultExperimentAssignment(ctx, provider)
+	if out["variant_bundle_id"] == "" && variantID != "" {
+		out["variant_bundle_id"] = variantID
+	}
+	if out["trust_recipe_id"] == "" && trustID != "" {
+		out["trust_recipe_id"] = trustID
+	}
+	return out
+}
+
+func defaultExperimentAssignment(ctx context.Context, provider extensions.SentinelProvider) (string, string) {
+	variantID := ""
+	bundles, err := provider.ListVariantBundles(ctx)
+	if err == nil {
+		for _, bundle := range bundles {
+			if bundle.Enabled {
+				variantID = bundle.ID
+				break
+			}
+		}
+		if variantID == "" && len(bundles) > 0 {
+			variantID = bundles[0].ID
+		}
+	}
+	trustID := ""
+	recipes, err := provider.ListTrustRecipes(ctx)
+	if err == nil && len(recipes) > 0 {
+		trustID = recipes[0].ID
+	}
+	return variantID, trustID
 }
 
 func scrubProxyEndpoint(raw string) string {
