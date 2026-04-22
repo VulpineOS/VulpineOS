@@ -72,6 +72,22 @@ describe('Settings page', () => {
             }],
           }
         }
+        if (method === 'sentinel.timeline') {
+          return {
+            sessions: [{
+              sessionId: 'session-1',
+              agentId: 'agent-1',
+              domain: 'example.com',
+              url: 'https://example.com',
+              eventCount: 1,
+              outcomeCount: 1,
+              items: [
+                { type: 'event', kind: 'browser_probe', name: 'canvas.toDataURL' },
+                { type: 'outcome', outcome: 'soft_challenge', challengeVendor: 'cloudflare' },
+              ],
+            }],
+          }
+        }
         return {}
       }),
     }
@@ -91,6 +107,10 @@ describe('Settings page', () => {
     expect(screen.getByText('Session age')).toBeInTheDocument()
     expect(screen.getByText('Cold holdout')).toBeInTheDocument()
     expect(screen.getByText('warm 1800 seconds')).toBeInTheDocument()
+    expect(screen.getByText('Recent capture timeline')).toBeInTheDocument()
+    expect(screen.getByText('example.com · 1 events · 1 outcomes')).toBeInTheDocument()
+    expect(screen.getByText('browser_probe · canvas.toDataURL')).toBeInTheDocument()
+    expect(screen.getByText('soft_challenge · cloudflare')).toBeInTheDocument()
     expect(screen.getByText('Agent model setup: Not configured')).toBeInTheDocument()
     expect(screen.getByText('OpenClaw profile: Configured')).toBeInTheDocument()
     expect(screen.getByText('API Key (ANTHROPIC_API_KEY)')).toBeInTheDocument()

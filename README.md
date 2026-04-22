@@ -247,7 +247,7 @@ A React SPA served from the Go binary — no separate frontend deployment needed
 
 **12 pages:** Dashboard, Agents, Agent Detail, Bus, Contexts, Proxies, Security, Webhooks, Scripts, Settings, Logs, Login
 
-**45 control messages** covering: agent CRUD plus bulk controls and session-log access; config get/set/providers; cost usage plus persisted per-agent/default budgets; webhooks; proxy management plus rotation get/set; agent bus pending/approve/reject/policies/add/remove; session recording export; fingerprint get/generate-and-apply; runtime-backed script execution; runtime-backed security status; status; Sentinel lab inspection; runtime audit history with retention/export controls; and context create/remove/list.
+**46 control messages** covering: agent CRUD plus bulk controls and session-log access; config get/set/providers; cost usage plus persisted per-agent/default budgets; webhooks; proxy management plus rotation get/set; agent bus pending/approve/reject/policies/add/remove; session recording export; fingerprint get/generate-and-apply; runtime-backed script execution; runtime-backed security status; status; Sentinel lab inspection plus raw session timelines; runtime audit history with retention/export controls; and context create/remove/list.
 
 Agent Detail includes separate conversation, action trace, raw session log, recording, and fingerprint views so operator-visible tool activity is inspectable without exposing hidden reasoning.
 
@@ -259,6 +259,7 @@ The panel now also includes:
 - a dedicated **Bus** page for pending approvals and communication policies
 - **Settings** controls for persisted default agent budgets
 - **Settings** Sentinel trust-lab visibility for variant bundles, trust recipes, maturity metrics, and assignment rules
+- **Settings** recent Sentinel capture timelines grouped by session with raw evidence rows
 - **Agent Detail** controls for per-agent budget overrides, recording export, and fingerprint regeneration
 - **Proxies** controls for persisted per-agent rotation rules
 - **Scripts** execution against a real browser context through the server-side scripting engine

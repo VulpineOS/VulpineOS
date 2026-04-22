@@ -36,6 +36,7 @@ type SentinelProvider interface {
 	ListTrustRecipes(ctx context.Context) ([]SentinelTrustRecipe, error)
 	ListMaturityMetrics(ctx context.Context) ([]SentinelMaturityMetric, error)
 	ListAssignmentRules(ctx context.Context) ([]SentinelAssignmentRule, error)
+	ListSessionTimelines(ctx context.Context, filter SentinelTimelineFilter) ([]SentinelSessionTimeline, error)
 	Available() bool
 }
 
@@ -159,6 +160,44 @@ type SentinelAssignmentRule struct {
 	Notes                   string   `json:"notes,omitempty"`
 }
 
+// SentinelTimelineFilter narrows a timeline query to recent sessions
+// or a specific agent/session.
+type SentinelTimelineFilter struct {
+	SessionID string `json:"sessionId,omitempty"`
+	AgentID   string `json:"agentId,omitempty"`
+	Domain    string `json:"domain,omitempty"`
+	Limit     int    `json:"limit,omitempty"`
+}
+
+// SentinelTimelineItem is a normalized raw-evidence row derived from
+// either a recorded capture event or an outcome label.
+type SentinelTimelineItem struct {
+	Type            string            `json:"type"`
+	Kind            string            `json:"kind,omitempty"`
+	Name            string            `json:"name,omitempty"`
+	Outcome         string            `json:"outcome,omitempty"`
+	ChallengeVendor string            `json:"challengeVendor,omitempty"`
+	Source          string            `json:"source,omitempty"`
+	Scope           SentinelScope     `json:"scope"`
+	Attributes      map[string]string `json:"attributes,omitempty"`
+	Payload         json.RawMessage   `json:"payload,omitempty"`
+	Timestamp       time.Time         `json:"timestamp"`
+}
+
+// SentinelSessionTimeline groups recent evidence by session so
+// operators can inspect what a site probed and what happened next.
+type SentinelSessionTimeline struct {
+	SessionID      string                 `json:"sessionId,omitempty"`
+	AgentID        string                 `json:"agentId,omitempty"`
+	CitizenID      string                 `json:"citizenId,omitempty"`
+	Domain         string                 `json:"domain,omitempty"`
+	URL            string                 `json:"url,omitempty"`
+	EventCount     int                    `json:"eventCount,omitempty"`
+	OutcomeCount   int                    `json:"outcomeCount,omitempty"`
+	LastActivityAt time.Time              `json:"lastActivityAt,omitempty"`
+	Items          []SentinelTimelineItem `json:"items,omitempty"`
+}
+
 var defaultSentinelProvider SentinelProvider = noopSentinelProvider{}
 
 type noopSentinelProvider struct{}
@@ -188,6 +227,10 @@ func (noopSentinelProvider) ListMaturityMetrics(ctx context.Context) ([]Sentinel
 }
 
 func (noopSentinelProvider) ListAssignmentRules(ctx context.Context) ([]SentinelAssignmentRule, error) {
+	return nil, ErrUnavailable
+}
+
+func (noopSentinelProvider) ListSessionTimelines(ctx context.Context, filter SentinelTimelineFilter) ([]SentinelSessionTimeline, error) {
 	return nil, ErrUnavailable
 }
 

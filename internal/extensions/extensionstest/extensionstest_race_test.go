@@ -128,6 +128,9 @@ func TestFakesNoRaceUnderConcurrentSet(t *testing.T) {
 			sentinel.SetAssignmentRules([]extensions.SentinelAssignmentRule{
 				{ID: "cold-holdout", Name: "Cold holdout"},
 			})
+			sentinel.SetSessionTimelines([]extensions.SentinelSessionTimeline{
+				{SessionID: "session-1", Items: []extensions.SentinelTimelineItem{{Type: "event", Name: "canvas.toDataURL"}}},
+			})
 		}(i)
 		go func(i int) {
 			defer wg.Done()
@@ -145,6 +148,7 @@ func TestFakesNoRaceUnderConcurrentSet(t *testing.T) {
 			_, _ = sentinel.ListTrustRecipes(ctx)
 			_, _ = sentinel.ListMaturityMetrics(ctx)
 			_, _ = sentinel.ListAssignmentRules(ctx)
+			_, _ = sentinel.ListSessionTimelines(ctx, extensions.SentinelTimelineFilter{Limit: 1})
 			_ = sentinel.RecordedEvents()
 			_ = sentinel.RecordedOutcomes()
 			_ = sentinel.Available()

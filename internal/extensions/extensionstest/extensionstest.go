@@ -268,15 +268,16 @@ func (f *FakeMobileBridge) Available() bool {
 // FakeSentinelProvider records events and outcomes while returning
 // canned status and variant bundles.
 type FakeSentinelProvider struct {
-	mu              sync.RWMutex
-	AvailableFlag   bool
-	StatusValue     extensions.SentinelStatus
-	VariantBundles  []extensions.SentinelVariantBundle
-	TrustRecipes    []extensions.SentinelTrustRecipe
-	MaturityMetrics []extensions.SentinelMaturityMetric
-	AssignmentRules []extensions.SentinelAssignmentRule
-	Events          []extensions.SentinelEvent
-	Outcomes        []extensions.SentinelOutcome
+	mu               sync.RWMutex
+	AvailableFlag    bool
+	StatusValue      extensions.SentinelStatus
+	VariantBundles   []extensions.SentinelVariantBundle
+	TrustRecipes     []extensions.SentinelTrustRecipe
+	MaturityMetrics  []extensions.SentinelMaturityMetric
+	AssignmentRules  []extensions.SentinelAssignmentRule
+	SessionTimelines []extensions.SentinelSessionTimeline
+	Events           []extensions.SentinelEvent
+	Outcomes         []extensions.SentinelOutcome
 }
 
 // SetAvailable toggles AvailableFlag under the write lock.
@@ -319,6 +320,13 @@ func (f *FakeSentinelProvider) SetAssignmentRules(v []extensions.SentinelAssignm
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.AssignmentRules = append([]extensions.SentinelAssignmentRule(nil), v...)
+}
+
+// SetSessionTimelines replaces the canned session timelines under the write lock.
+func (f *FakeSentinelProvider) SetSessionTimelines(v []extensions.SentinelSessionTimeline) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.SessionTimelines = append([]extensions.SentinelSessionTimeline(nil), v...)
 }
 
 // Status returns the canned status.
@@ -378,6 +386,15 @@ func (f *FakeSentinelProvider) ListAssignmentRules(ctx context.Context) ([]exten
 	defer f.mu.RUnlock()
 	out := make([]extensions.SentinelAssignmentRule, len(f.AssignmentRules))
 	copy(out, f.AssignmentRules)
+	return out, nil
+}
+
+// ListSessionTimelines returns a copy of the canned session timelines.
+func (f *FakeSentinelProvider) ListSessionTimelines(ctx context.Context, filter extensions.SentinelTimelineFilter) ([]extensions.SentinelSessionTimeline, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make([]extensions.SentinelSessionTimeline, len(f.SessionTimelines))
+	copy(out, f.SessionTimelines)
 	return out, nil
 }
 

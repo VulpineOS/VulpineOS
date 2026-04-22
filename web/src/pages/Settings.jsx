@@ -5,6 +5,7 @@ export default function Settings({ ws }) {
   const [providers, setProviders] = useState([])
   const [status, setStatus] = useState({})
   const [sentinel, setSentinel] = useState({ variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [] })
+  const [sentinelTimeline, setSentinelTimeline] = useState([])
   const [defaultBudgetCost, setDefaultBudgetCost] = useState('0')
   const [defaultBudgetTokens, setDefaultBudgetTokens] = useState('0')
   const [saved, setSaved] = useState('')
@@ -19,6 +20,7 @@ export default function Settings({ ws }) {
     }).catch(() => {})
     ws.call('status.get').then(r => setStatus(r || {})).catch(() => {})
     ws.call('sentinel.get').then(r => setSentinel(r || { variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [] })).catch(() => {})
+    ws.call('sentinel.timeline', { limit: 4 }).then(r => setSentinelTimeline(r?.sessions || [])).catch(() => {})
   }, [ws.connected])
 
   const selectedProvider = providers.find(p => p.id === cfg.provider) || null
@@ -41,6 +43,13 @@ export default function Settings({ ws }) {
     if (rule.minChallengeFreeRuns) parts.push(`${rule.minChallengeFreeRuns} quiet runs`)
     if (rule.maxRecentHardChallenges === 0) parts.push('no recent hard challenges')
     return parts.join(' · ') || 'Always eligible'
+  }
+
+  const formatTimelineItem = (item) => {
+    if (item.type === 'outcome') {
+      return `${item.outcome || 'outcome'}${item.challengeVendor ? ` · ${item.challengeVendor}` : ''}`
+    }
+    return `${item.kind || 'event'} · ${item.name || 'unnamed'}`
   }
 
   const updateProvider = (providerId) => {
@@ -310,6 +319,33 @@ export default function Settings({ ws }) {
                     ))}
                   </tbody>
                 </table>
+              </div>
+
+              <div>
+                <h4 style={{ margin: '0 0 10px' }}>Recent capture timeline</h4>
+                {sentinelTimeline.length === 0 ? (
+                  <div className="empty-state">No Sentinel evidence has been captured yet.</div>
+                ) : (
+                  <div className="runtime-list">
+                    {sentinelTimeline.map(session => (
+                      <div key={session.sessionId} className="runtime-item">
+                        <div className="runtime-copy" style={{ gap: 8 }}>
+                          <strong>
+                            {session.domain || session.sessionId || 'Session'} · {session.eventCount || 0} events · {session.outcomeCount || 0} outcomes
+                          </strong>
+                          <span>{session.url || session.agentId || session.sessionId}</span>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {(session.items || []).map((item, index) => (
+                              <span key={`${session.sessionId}-${index}`} className="mono-cell" style={{ whiteSpace: 'normal' }}>
+                                {formatTimelineItem(item)}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
