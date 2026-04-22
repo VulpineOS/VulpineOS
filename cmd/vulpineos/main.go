@@ -1161,6 +1161,11 @@ func runServe(binaryPath string, headless bool, profileDir string, host string, 
 					if err := json.Unmarshal(params, &payload); err == nil {
 						_ = sentinelcapture.RecordBrowserProbe(context.Background(), sessionID, payload)
 					}
+				case "Browser.trustWarmingStateChanged":
+					var payload juggler.TrustWarmingState
+					if err := json.Unmarshal(params, &payload); err == nil {
+						_ = sentinelcapture.RecordTrustActivity(context.Background(), payload)
+					}
 				}
 				server.BroadcastEvent(evt, sessionID, params)
 			})

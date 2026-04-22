@@ -209,6 +209,7 @@ func NewApp(k *kernel.Kernel, client *juggler.Client, orch *orchestrator.Orchest
 		client.Subscribe("Browser.trustWarmingStateChanged", func(sid string, params json.RawMessage) {
 			var e juggler.TrustWarmingState
 			json.Unmarshal(params, &e)
+			_ = sentinelcapture.RecordTrustActivity(context.Background(), e)
 			eventCh <- shared.TrustWarmMsg{State: e.State, CurrentSite: e.CurrentSite}
 		})
 		client.Subscribe("Browser.telemetryUpdate", func(sid string, params json.RawMessage) {

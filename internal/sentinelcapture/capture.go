@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"vulpineos/internal/extensions"
@@ -100,6 +101,30 @@ func RecordBrowserProbe(ctx context.Context, sessionID string, probe juggler.Bro
 		Attributes: attributes,
 		Payload:    payload,
 		Timestamp:  probeTime(probe.Timestamp),
+	})
+}
+
+// RecordTrustActivity writes trust-warming lifecycle activity into
+// Sentinel when a real provider is available.
+func RecordTrustActivity(ctx context.Context, state juggler.TrustWarmingState) error {
+	name := "trust_warming.update"
+	if state.State != "" {
+		name = "trust_warming." + strings.ToLower(state.State)
+	}
+	attributes := withExperimentDefaults(ctx, map[string]string{
+		"state":        state.State,
+		"current_site": state.CurrentSite,
+	})
+	return recordEvent(ctx, extensions.SentinelEvent{
+		Kind:   extensions.SentinelEventKindTrustActivity,
+		Source: "juggler",
+		Name:   name,
+		Scope: extensions.SentinelScope{
+			Domain: scrubDomain(state.CurrentSite),
+			URL:    state.CurrentSite,
+		},
+		Attributes: attributes,
+		Timestamp:  time.Now().UTC(),
 	})
 }
 
