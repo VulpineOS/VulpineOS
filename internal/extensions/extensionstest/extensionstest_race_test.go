@@ -122,6 +122,12 @@ func TestFakesNoRaceUnderConcurrentSet(t *testing.T) {
 			sentinel.SetTrustRecipes([]extensions.SentinelTrustRecipe{
 				{ID: "baseline-warmup", Name: "Baseline warmup", WarmupStrategy: "generic_revisit"},
 			})
+			sentinel.SetMaturityMetrics([]extensions.SentinelMaturityMetric{
+				{ID: "session_age_seconds", Name: "Session age"},
+			})
+			sentinel.SetAssignmentRules([]extensions.SentinelAssignmentRule{
+				{ID: "cold-holdout", Name: "Cold holdout"},
+			})
 		}(i)
 		go func(i int) {
 			defer wg.Done()
@@ -137,6 +143,8 @@ func TestFakesNoRaceUnderConcurrentSet(t *testing.T) {
 			})
 			_, _ = sentinel.ListVariantBundles(ctx)
 			_, _ = sentinel.ListTrustRecipes(ctx)
+			_, _ = sentinel.ListMaturityMetrics(ctx)
+			_, _ = sentinel.ListAssignmentRules(ctx)
 			_ = sentinel.RecordedEvents()
 			_ = sentinel.RecordedOutcomes()
 			_ = sentinel.Available()

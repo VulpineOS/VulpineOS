@@ -34,19 +34,23 @@ type SentinelProvider interface {
 	RecordOutcome(ctx context.Context, outcome SentinelOutcome) error
 	ListVariantBundles(ctx context.Context) ([]SentinelVariantBundle, error)
 	ListTrustRecipes(ctx context.Context) ([]SentinelTrustRecipe, error)
+	ListMaturityMetrics(ctx context.Context) ([]SentinelMaturityMetric, error)
+	ListAssignmentRules(ctx context.Context) ([]SentinelAssignmentRule, error)
 	Available() bool
 }
 
 // SentinelStatus describes the currently registered Sentinel backend.
 type SentinelStatus struct {
-	Provider       string    `json:"provider"`
-	Mode           string    `json:"mode"`
-	EventSink      string    `json:"eventSink,omitempty"`
-	OutcomeSink    string    `json:"outcomeSink,omitempty"`
-	VariantSource  string    `json:"variantSource,omitempty"`
-	VariantBundles int       `json:"variantBundles,omitempty"`
-	TrustRecipes   int       `json:"trustRecipes,omitempty"`
-	UpdatedAt      time.Time `json:"updatedAt,omitempty"`
+	Provider        string    `json:"provider"`
+	Mode            string    `json:"mode"`
+	EventSink       string    `json:"eventSink,omitempty"`
+	OutcomeSink     string    `json:"outcomeSink,omitempty"`
+	VariantSource   string    `json:"variantSource,omitempty"`
+	VariantBundles  int       `json:"variantBundles,omitempty"`
+	TrustRecipes    int       `json:"trustRecipes,omitempty"`
+	MaturityMetrics int       `json:"maturityMetrics,omitempty"`
+	AssignmentRules int       `json:"assignmentRules,omitempty"`
+	UpdatedAt       time.Time `json:"updatedAt,omitempty"`
 }
 
 // SentinelScope identifies the agent/session/page scope attached to an
@@ -117,6 +121,44 @@ type SentinelTrustRecipe struct {
 	Notes                string   `json:"notes,omitempty"`
 }
 
+// SentinelMaturityThreshold defines the minimum value required for a
+// named maturity stage on a single metric.
+type SentinelMaturityThreshold struct {
+	Stage   string `json:"stage"`
+	Minimum int    `json:"minimum"`
+}
+
+// SentinelMaturityMetric describes one session-maturity dimension that
+// Sentinel uses to decide whether a visitor still looks cold or is
+// eligible for warmer trust-building variants.
+type SentinelMaturityMetric struct {
+	ID             string                      `json:"id"`
+	Name           string                      `json:"name"`
+	Unit           string                      `json:"unit,omitempty"`
+	Description    string                      `json:"description,omitempty"`
+	HigherIsBetter bool                        `json:"higherIsBetter,omitempty"`
+	Thresholds     []SentinelMaturityThreshold `json:"thresholds,omitempty"`
+}
+
+// SentinelAssignmentRule maps maturity gates to a trust recipe and
+// variant bundle so experiment outcomes remain attributable.
+type SentinelAssignmentRule struct {
+	ID                      string   `json:"id"`
+	Name                    string   `json:"name"`
+	Stage                   string   `json:"stage,omitempty"`
+	Priority                int      `json:"priority"`
+	DomainScope             []string `json:"domainScope,omitempty"`
+	VariantBundleID         string   `json:"variantBundleId,omitempty"`
+	TrustRecipeID           string   `json:"trustRecipeId,omitempty"`
+	MinSessionAgeSeconds    int      `json:"minSessionAgeSeconds,omitempty"`
+	MinSuccessfulVisits     int      `json:"minSuccessfulVisits,omitempty"`
+	MinDistinctDays         int      `json:"minDistinctDays,omitempty"`
+	MinChallengeFreeRuns    int      `json:"minChallengeFreeRuns,omitempty"`
+	MaxRecentHardChallenges int      `json:"maxRecentHardChallenges,omitempty"`
+	HoldoutPercent          int      `json:"holdoutPercent,omitempty"`
+	Notes                   string   `json:"notes,omitempty"`
+}
+
 var defaultSentinelProvider SentinelProvider = noopSentinelProvider{}
 
 type noopSentinelProvider struct{}
@@ -138,6 +180,14 @@ func (noopSentinelProvider) ListVariantBundles(ctx context.Context) ([]SentinelV
 }
 
 func (noopSentinelProvider) ListTrustRecipes(ctx context.Context) ([]SentinelTrustRecipe, error) {
+	return nil, ErrUnavailable
+}
+
+func (noopSentinelProvider) ListMaturityMetrics(ctx context.Context) ([]SentinelMaturityMetric, error) {
+	return nil, ErrUnavailable
+}
+
+func (noopSentinelProvider) ListAssignmentRules(ctx context.Context) ([]SentinelAssignmentRule, error) {
 	return nil, ErrUnavailable
 }
 

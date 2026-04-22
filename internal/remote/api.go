@@ -1132,6 +1132,8 @@ func (api *PanelAPI) statusGet() (json.RawMessage, error) {
 		"openclaw_profile_configured": config.OpenClawProfileBrowserRoute() != "",
 		"sentinel_available":          false,
 		"sentinel_mode":               extensions.SentinelModePublicNoop,
+		"sentinel_maturity_metrics":   0,
+		"sentinel_assignment_rules":   0,
 	}
 
 	if api.Kernel != nil {
@@ -1166,6 +1168,8 @@ func (api *PanelAPI) statusGet() (json.RawMessage, error) {
 		out["sentinel_variant_source"] = status.VariantSource
 		out["sentinel_variant_bundles"] = status.VariantBundles
 		out["sentinel_trust_recipes"] = status.TrustRecipes
+		out["sentinel_maturity_metrics"] = status.MaturityMetrics
+		out["sentinel_assignment_rules"] = status.AssignmentRules
 		if !status.UpdatedAt.IsZero() {
 			out["sentinel_updated_at"] = status.UpdatedAt
 		}
@@ -1182,10 +1186,12 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 		return nil, err
 	}
 	out := map[string]interface{}{
-		"available":      available,
-		"status":         status,
-		"variantBundles": []extensions.SentinelVariantBundle{},
-		"trustRecipes":   []extensions.SentinelTrustRecipe{},
+		"available":       available,
+		"status":          status,
+		"variantBundles":  []extensions.SentinelVariantBundle{},
+		"trustRecipes":    []extensions.SentinelTrustRecipe{},
+		"maturityMetrics": []extensions.SentinelMaturityMetric{},
+		"assignmentRules": []extensions.SentinelAssignmentRule{},
 	}
 	if !available {
 		return json.Marshal(out)
@@ -1202,8 +1208,18 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
+	maturityMetrics, err := provider.ListMaturityMetrics(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	assignmentRules, err := provider.ListAssignmentRules(context.Background())
+	if err != nil {
+		return nil, err
+	}
 	out["variantBundles"] = bundles
 	out["trustRecipes"] = trustRecipes
+	out["maturityMetrics"] = maturityMetrics
+	out["assignmentRules"] = assignmentRules
 	return json.Marshal(out)
 }
 

@@ -138,13 +138,15 @@ func TestStatusGetIncludesSentinelStatus(t *testing.T) {
 	fake := &extensionstest.FakeSentinelProvider{
 		AvailableFlag: true,
 		StatusValue: extensions.SentinelStatus{
-			Provider:       "sentinel-private",
-			Mode:           "private_scaffold",
-			EventSink:      "memory",
-			OutcomeSink:    "memory",
-			VariantSource:  "memory",
-			VariantBundles: 2,
-			TrustRecipes:   1,
+			Provider:        "sentinel-private",
+			Mode:            "private_scaffold",
+			EventSink:       "memory",
+			OutcomeSink:     "memory",
+			VariantSource:   "memory",
+			VariantBundles:  2,
+			TrustRecipes:    1,
+			MaturityMetrics: 3,
+			AssignmentRules: 2,
 		},
 	}
 	extensions.Registry.SetSentinel(fake)
@@ -175,24 +177,38 @@ func TestStatusGetIncludesSentinelStatus(t *testing.T) {
 	if got := result["sentinel_trust_recipes"]; got != float64(1) {
 		t.Fatalf("sentinel_trust_recipes = %v, want 1", got)
 	}
+	if got := result["sentinel_maturity_metrics"]; got != float64(3) {
+		t.Fatalf("sentinel_maturity_metrics = %v, want 3", got)
+	}
+	if got := result["sentinel_assignment_rules"]; got != float64(2) {
+		t.Fatalf("sentinel_assignment_rules = %v, want 2", got)
+	}
 }
 
-func TestSentinelGetReturnsVariantsAndTrustRecipes(t *testing.T) {
+func TestSentinelGetReturnsLabData(t *testing.T) {
 	original := extensions.Registry.Sentinel()
 	t.Cleanup(func() { extensions.Registry.SetSentinel(original) })
 	fake := &extensionstest.FakeSentinelProvider{
 		AvailableFlag: true,
 		StatusValue: extensions.SentinelStatus{
-			Provider:       "sentinel-private",
-			Mode:           "private_scaffold",
-			VariantBundles: 1,
-			TrustRecipes:   1,
+			Provider:        "sentinel-private",
+			Mode:            "private_scaffold",
+			VariantBundles:  1,
+			TrustRecipes:    1,
+			MaturityMetrics: 1,
+			AssignmentRules: 1,
 		},
 		VariantBundles: []extensions.SentinelVariantBundle{
 			{ID: "control", Name: "Control", Enabled: true, Weight: 100},
 		},
 		TrustRecipes: []extensions.SentinelTrustRecipe{
 			{ID: "baseline-warmup", Name: "Baseline warmup", WarmupStrategy: "generic_revisit"},
+		},
+		MaturityMetrics: []extensions.SentinelMaturityMetric{
+			{ID: "session_age_seconds", Name: "Session age", Unit: "seconds"},
+		},
+		AssignmentRules: []extensions.SentinelAssignmentRule{
+			{ID: "cold-holdout", Name: "Cold holdout", VariantBundleID: "control", TrustRecipeID: "baseline-warmup"},
 		},
 	}
 	extensions.Registry.SetSentinel(fake)
@@ -204,9 +220,11 @@ func TestSentinelGetReturnsVariantsAndTrustRecipes(t *testing.T) {
 	}
 
 	var result struct {
-		Available      bool                               `json:"available"`
-		VariantBundles []extensions.SentinelVariantBundle `json:"variantBundles"`
-		TrustRecipes   []extensions.SentinelTrustRecipe   `json:"trustRecipes"`
+		Available       bool                                `json:"available"`
+		VariantBundles  []extensions.SentinelVariantBundle  `json:"variantBundles"`
+		TrustRecipes    []extensions.SentinelTrustRecipe    `json:"trustRecipes"`
+		MaturityMetrics []extensions.SentinelMaturityMetric `json:"maturityMetrics"`
+		AssignmentRules []extensions.SentinelAssignmentRule `json:"assignmentRules"`
 	}
 	if err := json.Unmarshal(payload, &result); err != nil {
 		t.Fatalf("Unmarshal: %v", err)
@@ -219,5 +237,11 @@ func TestSentinelGetReturnsVariantsAndTrustRecipes(t *testing.T) {
 	}
 	if len(result.TrustRecipes) != 1 || result.TrustRecipes[0].ID != "baseline-warmup" {
 		t.Fatalf("trustRecipes = %+v", result.TrustRecipes)
+	}
+	if len(result.MaturityMetrics) != 1 || result.MaturityMetrics[0].ID != "session_age_seconds" {
+		t.Fatalf("maturityMetrics = %+v", result.MaturityMetrics)
+	}
+	if len(result.AssignmentRules) != 1 || result.AssignmentRules[0].ID != "cold-holdout" {
+		t.Fatalf("assignmentRules = %+v", result.AssignmentRules)
 	}
 }

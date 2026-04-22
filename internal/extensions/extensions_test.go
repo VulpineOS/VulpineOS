@@ -108,6 +108,12 @@ func TestDefaultSentinelProviderUnavailable(t *testing.T) {
 	if _, err := s.ListTrustRecipes(ctx); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("ListTrustRecipes: expected ErrUnavailable, got %v", err)
 	}
+	if _, err := s.ListMaturityMetrics(ctx); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("ListMaturityMetrics: expected ErrUnavailable, got %v", err)
+	}
+	if _, err := s.ListAssignmentRules(ctx); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("ListAssignmentRules: expected ErrUnavailable, got %v", err)
+	}
 }
 
 // TestRegistryConcurrentSetGet runs many goroutines that race on

@@ -23,6 +23,8 @@ describe('Dashboard page', () => {
             sentinel_available: true,
             sentinel_mode: 'private_scaffold',
             sentinel_trust_recipes: 1,
+            sentinel_maturity_metrics: 5,
+            sentinel_assignment_rules: 3,
             kernel_headless: false,
             openclaw_profile_configured: true,
             active_agents: 1,
@@ -84,6 +86,8 @@ describe('Dashboard page', () => {
     expect(screen.getByText('1 agent override · $5.00 · 10,000 tok')).toBeInTheDocument()
     expect(screen.getByText('RUNNING')).toBeInTheDocument()
     expect(screen.getByText('PRIVATE_SCAFFOLD')).toBeInTheDocument()
+    expect(screen.getByText('Maturity metrics')).toBeInTheDocument()
+    expect(screen.getByText('Assignment rules')).toBeInTheDocument()
     expect(screen.getAllByText('Gateway profile repair failed').length).toBeGreaterThan(0)
     expect(screen.getByText('Review agents')).toBeInTheDocument()
   })
