@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"testing"
+	"time"
 )
 
 func TestDefaultConfigHasRotationDisabled(t *testing.T) {
@@ -172,5 +173,42 @@ func TestOnBlockTriggersRotation(t *testing.T) {
 	}
 	if newProxy != "http://p2:8080" {
 		t.Errorf("expected p2, got %s", newProxy)
+	}
+}
+
+func TestObserverReceivesRotationEvent(t *testing.T) {
+	r := NewRotator()
+	r.SetConfig("a1", &RotationConfig{
+		Enabled:           true,
+		RotateOnRateLimit: true,
+		ProxyPool:         []string{"http://p1:8080", "http://p2:8080"},
+	})
+
+	events := make(chan RotationEvent, 1)
+	r.SetObserver(func(event RotationEvent) {
+		events <- event
+	})
+
+	rotated, _, err := r.OnRateLimit("a1")
+	if err != nil {
+		t.Fatalf("OnRateLimit error: %v", err)
+	}
+	if !rotated {
+		t.Fatal("expected rotation")
+	}
+
+	select {
+	case event := <-events:
+		if event.AgentID != "a1" {
+			t.Fatalf("AgentID = %q, want a1", event.AgentID)
+		}
+		if event.Reason != "rate_limit" {
+			t.Fatalf("Reason = %q, want rate_limit", event.Reason)
+		}
+		if event.PreviousProxy != "http://p1:8080" || event.NewProxy != "http://p2:8080" {
+			t.Fatalf("event = %+v", event)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("expected observer event")
 	}
 }

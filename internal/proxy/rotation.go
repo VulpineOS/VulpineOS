@@ -8,14 +8,24 @@ import (
 
 // RotationConfig holds per-agent proxy rotation settings.
 type RotationConfig struct {
-	Enabled          bool          `json:"enabled"`                    // rotation on/off (default OFF)
-	RotateOnRateLimit bool         `json:"rotateOnRateLimit"`          // rotate on 429/rate limit
-	RotateOnBlock    bool          `json:"rotateOnBlock"`              // rotate on IP block
-	RotateInterval   time.Duration `json:"rotateInterval"`             // rotate after duration (0 = never)
-	SyncFingerprint  bool          `json:"syncFingerprint"`            // update fingerprint geo on rotate (default true)
-	ProxyPool        []string      `json:"proxyPool"`                  // proxy URLs to rotate through
-	CurrentIndex     int           `json:"currentIndex"`               // current proxy in pool
-	lastRotation     time.Time     // when last rotation happened
+	Enabled           bool          `json:"enabled"`           // rotation on/off (default OFF)
+	RotateOnRateLimit bool          `json:"rotateOnRateLimit"` // rotate on 429/rate limit
+	RotateOnBlock     bool          `json:"rotateOnBlock"`     // rotate on IP block
+	RotateInterval    time.Duration `json:"rotateInterval"`    // rotate after duration (0 = never)
+	SyncFingerprint   bool          `json:"syncFingerprint"`   // update fingerprint geo on rotate (default true)
+	ProxyPool         []string      `json:"proxyPool"`         // proxy URLs to rotate through
+	CurrentIndex      int           `json:"currentIndex"`      // current proxy in pool
+	lastRotation      time.Time     // when last rotation happened
+}
+
+// RotationEvent captures one proxy-rotation transition for Sentinel
+// and other observers.
+type RotationEvent struct {
+	AgentID       string
+	Reason        string
+	PreviousProxy string
+	NewProxy      string
+	Timestamp     time.Time
 }
 
 // DefaultRotationConfig returns a RotationConfig with sensible defaults (rotation disabled).
@@ -28,8 +38,9 @@ func DefaultRotationConfig() *RotationConfig {
 
 // Rotator manages per-agent proxy rotation.
 type Rotator struct {
-	mu      sync.Mutex
-	configs map[string]*RotationConfig
+	mu       sync.Mutex
+	configs  map[string]*RotationConfig
+	observer func(RotationEvent)
 }
 
 // NewRotator creates a new Rotator.
@@ -37,6 +48,14 @@ func NewRotator() *Rotator {
 	return &Rotator{
 		configs: make(map[string]*RotationConfig),
 	}
+}
+
+// SetObserver installs an optional callback invoked after successful
+// rate-limit or block-driven rotations.
+func (r *Rotator) SetObserver(observer func(RotationEvent)) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.observer = observer
 }
 
 // SetConfig sets the rotation config for an agent.
@@ -116,10 +135,18 @@ func (r *Rotator) OnRateLimit(agentID string) (rotated bool, newProxy string, er
 	if !r.ShouldRotate(agentID, "rateLimit") {
 		return false, "", nil
 	}
+	previousProxy := r.CurrentProxy(agentID)
 	proxy, err := r.Rotate(agentID)
 	if err != nil {
 		return false, "", err
 	}
+	r.emitRotation(RotationEvent{
+		AgentID:       agentID,
+		Reason:        "rate_limit",
+		PreviousProxy: previousProxy,
+		NewProxy:      proxy,
+		Timestamp:     time.Now(),
+	})
 	return true, proxy, nil
 }
 
@@ -129,9 +156,26 @@ func (r *Rotator) OnBlock(agentID string) (rotated bool, newProxy string, err er
 	if !r.ShouldRotate(agentID, "block") {
 		return false, "", nil
 	}
+	previousProxy := r.CurrentProxy(agentID)
 	proxy, err := r.Rotate(agentID)
 	if err != nil {
 		return false, "", err
 	}
+	r.emitRotation(RotationEvent{
+		AgentID:       agentID,
+		Reason:        "block",
+		PreviousProxy: previousProxy,
+		NewProxy:      proxy,
+		Timestamp:     time.Now(),
+	})
 	return true, proxy, nil
+}
+
+func (r *Rotator) emitRotation(event RotationEvent) {
+	r.mu.Lock()
+	observer := r.observer
+	r.mu.Unlock()
+	if observer != nil {
+		observer(event)
+	}
 }
