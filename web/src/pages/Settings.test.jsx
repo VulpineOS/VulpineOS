@@ -83,6 +83,13 @@ describe('Settings page', () => {
               vendors: ['cloudflare'],
               lastSeenAt: '2026-04-22T15:00:00Z',
             }],
+            probeSummary: [{
+              domain: 'example.com',
+              scriptUrl: 'https://cdn.example.com/fp.js',
+              probeType: 'canvas_probe',
+              api: 'toDataURL',
+              count: 2,
+            }],
           }
         }
         if (method === 'sentinel.timeline') {
@@ -124,6 +131,9 @@ describe('Settings page', () => {
     expect(screen.getByText('example.com · 1 events · 1 outcomes')).toBeInTheDocument()
     expect(screen.getByText('browser_probe · canvas.toDataURL')).toBeInTheDocument()
     expect(screen.getByText('soft_challenge · cloudflare')).toBeInTheDocument()
+    expect(screen.getByText('Probe summary')).toBeInTheDocument()
+    expect(screen.getByText('canvas_probe')).toBeInTheDocument()
+    expect(screen.getByText('https://cdn.example.com/fp.js')).toBeInTheDocument()
     expect(screen.getByText('Outcome taxonomy')).toBeInTheDocument()
     expect(screen.getByText('Soft challenge')).toBeInTheDocument()
     expect(screen.getByText('Captured outcomes')).toBeInTheDocument()
