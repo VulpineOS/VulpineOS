@@ -51,7 +51,10 @@ export default function Settings({ ws }) {
     if (item.type === 'outcome') {
       return `${item.outcome || 'outcome'}${item.challengeVendor ? ` · ${item.challengeVendor}` : ''}`
     }
-    return `${item.kind || 'event'} · ${item.name || 'unnamed'}`
+    const parts = [`${item.kind || 'event'} · ${item.name || 'unnamed'}`]
+    if (item.attributes?.detail) parts.push(item.attributes.detail)
+    if (item.attributes?.count) parts.push(`x${item.attributes.count}`)
+    return parts.join(' · ')
   }
 
   const updateProvider = (providerId) => {

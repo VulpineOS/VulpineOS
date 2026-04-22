@@ -2,10 +2,13 @@ package sentinelcapture
 
 import (
 	"context"
+	"encoding/json"
 	"net/url"
+	"strconv"
 	"time"
 
 	"vulpineos/internal/extensions"
+	"vulpineos/internal/juggler"
 	"vulpineos/internal/monitor"
 	"vulpineos/internal/proxy"
 )
@@ -73,6 +76,33 @@ func RecordProxyRotation(ctx context.Context, event proxy.RotationEvent) error {
 	})
 }
 
+// RecordBrowserProbe writes page-level browser probe evidence into
+// Sentinel when a real provider is available.
+func RecordBrowserProbe(ctx context.Context, sessionID string, probe juggler.BrowserProbe) error {
+	attributes := map[string]string{
+		"probe_type": probe.ProbeType,
+		"api":        probe.API,
+		"detail":     probe.Detail,
+		"count":      jsonInt(probe.Count),
+		"frame_id":   probe.FrameID,
+	}
+	payload, _ := json.Marshal(probe)
+	return recordEvent(ctx, extensions.SentinelEvent{
+		Kind:   extensions.SentinelEventKindBrowserProbe,
+		Source: "juggler",
+		Name:   probeName(probe),
+		Scope: extensions.SentinelScope{
+			SessionID: sessionID,
+			Domain:    scrubDomain(probe.URL),
+			URL:       probe.URL,
+			ScriptURL: probe.ScriptURL,
+		},
+		Attributes: attributes,
+		Payload:    payload,
+		Timestamp:  probeTime(probe.Timestamp),
+	})
+}
+
 func recordEvent(ctx context.Context, event extensions.SentinelEvent) error {
 	provider := extensions.Registry.Sentinel()
 	if provider == nil || !provider.Available() {
@@ -120,4 +150,33 @@ func scrubProxyEndpoint(raw string) string {
 		return raw
 	}
 	return parsed.Host
+}
+
+func scrubDomain(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	return parsed.Hostname()
+}
+
+func probeName(probe juggler.BrowserProbe) string {
+	if probe.API == "" {
+		return probe.ProbeType
+	}
+	return probe.ProbeType + "." + probe.API
+}
+
+func probeTime(timestamp float64) time.Time {
+	if timestamp <= 0 {
+		return time.Now().UTC()
+	}
+	return time.UnixMilli(int64(timestamp)).UTC()
+}
+
+func jsonInt(v int) string {
+	return strconv.Itoa(v)
 }

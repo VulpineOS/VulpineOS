@@ -805,6 +805,16 @@ const Page = {
       blocked: t.Boolean,
       timestamp: t.Number,
     },
+    'browserProbeDetected': {
+      frameId: t.String,
+      url: t.String,
+      scriptURL: t.Optional(t.String),
+      probeType: t.String,
+      api: t.String,
+      detail: t.Optional(t.String),
+      count: t.Number,
+      timestamp: t.Number,
+    },
     'frameAttached': {
       frameId: t.String,
       parentFrameId: t.Optional(t.String),

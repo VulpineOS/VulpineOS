@@ -49,6 +49,18 @@ type InjectionAttempt struct {
 	Blocked          bool    `json:"blocked"`
 }
 
+// BrowserProbe is the Page.browserProbeDetected event payload.
+type BrowserProbe struct {
+	FrameID   string  `json:"frameId"`
+	URL       string  `json:"url"`
+	ScriptURL string  `json:"scriptURL,omitempty"`
+	ProbeType string  `json:"probeType"`
+	API       string  `json:"api"`
+	Detail    string  `json:"detail,omitempty"`
+	Count     int     `json:"count"`
+	Timestamp float64 `json:"timestamp"`
+}
+
 // TrustWarmingState is the Browser.trustWarmingStateChanged event payload.
 type TrustWarmingState struct {
 	State       string `json:"state"`

@@ -7,6 +7,7 @@ import (
 
 	"vulpineos/internal/extensions"
 	"vulpineos/internal/extensions/extensionstest"
+	"vulpineos/internal/juggler"
 	"vulpineos/internal/monitor"
 	"vulpineos/internal/proxy"
 )
@@ -82,5 +83,53 @@ func TestRecordProxyRotationScrubsCredentials(t *testing.T) {
 	}
 	if got := events[0].Attributes["new_proxy"]; got != "new.example:8080" {
 		t.Fatalf("new_proxy = %q", got)
+	}
+}
+
+func TestRecordBrowserProbeMapsScopeAndPayload(t *testing.T) {
+	original := extensions.Registry.Sentinel()
+	t.Cleanup(func() { extensions.Registry.SetSentinel(original) })
+	fake := &extensionstest.FakeSentinelProvider{AvailableFlag: true}
+	extensions.Registry.SetSentinel(fake)
+
+	err := RecordBrowserProbe(context.Background(), "session-1", juggler.BrowserProbe{
+		FrameID:   "frame-1",
+		URL:       "https://ticketmaster.example/product/123",
+		ScriptURL: "https://cdn.ticketmaster.example/fp.js",
+		ProbeType: "webgl_probe",
+		API:       "getParameter",
+		Detail:    "37445",
+		Count:     3,
+		Timestamp: float64(time.Unix(1713830400, 0).UnixMilli()),
+	})
+	if err != nil {
+		t.Fatalf("RecordBrowserProbe: %v", err)
+	}
+
+	events := fake.RecordedEvents()
+	if len(events) != 1 {
+		t.Fatalf("events = %+v", events)
+	}
+	event := events[0]
+	if event.Kind != extensions.SentinelEventKindBrowserProbe {
+		t.Fatalf("event.Kind = %q", event.Kind)
+	}
+	if event.Name != "webgl_probe.getParameter" {
+		t.Fatalf("event.Name = %q", event.Name)
+	}
+	if event.Scope.SessionID != "session-1" || event.Scope.Domain != "ticketmaster.example" {
+		t.Fatalf("event.Scope = %+v", event.Scope)
+	}
+	if event.Scope.ScriptURL != "https://cdn.ticketmaster.example/fp.js" {
+		t.Fatalf("event.Scope.ScriptURL = %q", event.Scope.ScriptURL)
+	}
+	if got := event.Attributes["frame_id"]; got != "frame-1" {
+		t.Fatalf("frame_id = %q", got)
+	}
+	if got := event.Attributes["count"]; got != "3" {
+		t.Fatalf("count = %q", got)
+	}
+	if len(event.Payload) == 0 {
+		t.Fatalf("event.Payload is empty")
 	}
 }

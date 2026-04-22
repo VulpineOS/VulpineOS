@@ -117,6 +117,7 @@ export class PageHandler {
         pageEventFired: emitProtocolEvent('Page.eventFired'),
         pageFileChooserOpened: emitProtocolEvent('Page.fileChooserOpened'),
         pageFrameAttached: this._onFrameAttached.bind(this),
+        pageBrowserProbeDetected: emitProtocolEvent('Page.browserProbeDetected'),
         pageFrameDetached: emitProtocolEvent('Page.frameDetached'),
         pageLinkClicked: emitProtocolEvent('Page.linkClicked'),
         pageWillOpenNewWindowAsynchronously: emitProtocolEvent('Page.willOpenNewWindowAsynchronously'),
