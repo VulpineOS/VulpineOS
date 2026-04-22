@@ -148,6 +148,8 @@ func (api *PanelAPI) HandleMessage(method string, params json.RawMessage) (json.
 		return api.statusGet()
 	case "sentinel.get":
 		return api.sentinelGet()
+	case "sentinel.timeline":
+		return api.sentinelTimeline(params)
 
 	// --- Runtime audit ---
 	case "runtime.list":
@@ -1220,6 +1222,31 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 	out["trustRecipes"] = trustRecipes
 	out["maturityMetrics"] = maturityMetrics
 	out["assignmentRules"] = assignmentRules
+	return json.Marshal(out)
+}
+
+func (api *PanelAPI) sentinelTimeline(params json.RawMessage) (json.RawMessage, error) {
+	var filter extensions.SentinelTimelineFilter
+	if len(params) > 0 {
+		if err := json.Unmarshal(params, &filter); err != nil {
+			return nil, fmt.Errorf("invalid params: %w", err)
+		}
+	}
+	if filter.Limit <= 0 {
+		filter.Limit = 5
+	}
+	provider := extensions.Registry.Sentinel()
+	out := map[string]interface{}{
+		"sessions": []extensions.SentinelSessionTimeline{},
+	}
+	if provider == nil || !provider.Available() {
+		return json.Marshal(out)
+	}
+	timelines, err := provider.ListSessionTimelines(context.Background(), filter)
+	if err != nil {
+		return nil, err
+	}
+	out["sessions"] = timelines
 	return json.Marshal(out)
 }
 

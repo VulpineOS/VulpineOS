@@ -210,6 +210,19 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		AssignmentRules: []extensions.SentinelAssignmentRule{
 			{ID: "cold-holdout", Name: "Cold holdout", VariantBundleID: "control", TrustRecipeID: "baseline-warmup"},
 		},
+		SessionTimelines: []extensions.SentinelSessionTimeline{
+			{
+				SessionID:    "session-1",
+				AgentID:      "agent-1",
+				Domain:       "example.com",
+				EventCount:   1,
+				OutcomeCount: 1,
+				Items: []extensions.SentinelTimelineItem{
+					{Type: "event", Kind: extensions.SentinelEventKindBrowserProbe, Name: "canvas.toDataURL"},
+					{Type: "outcome", Outcome: extensions.SentinelOutcomeSoftChallenge},
+				},
+			},
+		},
 	}
 	extensions.Registry.SetSentinel(fake)
 
@@ -243,5 +256,46 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	}
 	if len(result.AssignmentRules) != 1 || result.AssignmentRules[0].ID != "cold-holdout" {
 		t.Fatalf("assignmentRules = %+v", result.AssignmentRules)
+	}
+}
+
+func TestSentinelTimelineReturnsSessions(t *testing.T) {
+	original := extensions.Registry.Sentinel()
+	t.Cleanup(func() { extensions.Registry.SetSentinel(original) })
+	fake := &extensionstest.FakeSentinelProvider{
+		AvailableFlag: true,
+		SessionTimelines: []extensions.SentinelSessionTimeline{
+			{
+				SessionID:    "session-1",
+				AgentID:      "agent-1",
+				Domain:       "example.com",
+				EventCount:   1,
+				OutcomeCount: 1,
+				Items: []extensions.SentinelTimelineItem{
+					{Type: "event", Kind: extensions.SentinelEventKindBrowserProbe, Name: "canvas.toDataURL"},
+					{Type: "outcome", Outcome: extensions.SentinelOutcomeSoftChallenge},
+				},
+			},
+		},
+	}
+	extensions.Registry.SetSentinel(fake)
+
+	api := &PanelAPI{}
+	payload, err := api.HandleMessage("sentinel.timeline", json.RawMessage(`{"limit":2}`))
+	if err != nil {
+		t.Fatalf("HandleMessage: %v", err)
+	}
+
+	var result struct {
+		Sessions []extensions.SentinelSessionTimeline `json:"sessions"`
+	}
+	if err := json.Unmarshal(payload, &result); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if len(result.Sessions) != 1 || result.Sessions[0].SessionID != "session-1" {
+		t.Fatalf("sessions = %+v", result.Sessions)
+	}
+	if len(result.Sessions[0].Items) != 2 {
+		t.Fatalf("items = %+v", result.Sessions[0].Items)
 	}
 }
