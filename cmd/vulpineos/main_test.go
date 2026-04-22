@@ -70,6 +70,17 @@ func TestNormalizeRemotePanelURL(t *testing.T) {
 	}
 }
 
+func TestNormalizeRemotePanelURL_DefaultLocalURL(t *testing.T) {
+	got, err := normalizeRemotePanelURL("", "secret")
+	if err != nil {
+		t.Fatalf("normalizeRemotePanelURL default error: %v", err)
+	}
+	want := "http://127.0.0.1:8443/?token=secret"
+	if got != want {
+		t.Fatalf("normalizeRemotePanelURL default = %q, want %q", got, want)
+	}
+}
+
 func TestNormalizeRemoteTUIURL(t *testing.T) {
 	got, err := normalizeRemoteTUIURL("https://example.com:8443")
 	if err != nil {
@@ -91,5 +102,40 @@ func TestEnsureAccessKeyGeneratesWhenMissing(t *testing.T) {
 	}
 	if len(key) != 32 {
 		t.Fatalf("generated key length = %d, want 32", len(key))
+	}
+}
+
+func TestBuildPanelURLRewritesWildcardHost(t *testing.T) {
+	got := buildPanelURL("0.0.0.0", 8443, false, "secret")
+	want := "http://localhost:8443/?token=secret"
+	if got != want {
+		t.Fatalf("buildPanelURL = %q, want %q", got, want)
+	}
+}
+
+func TestPrintPanelAccessGeneratedKey(t *testing.T) {
+	var outBuf bytes.Buffer
+
+	prevOut := stdout
+	stdout = &outBuf
+	t.Cleanup(func() {
+		stdout = prevOut
+	})
+
+	got := printPanelAccess("0.0.0.0", 8443, true, "secret", true)
+	wantURL := "https://localhost:8443/?token=secret"
+	if got != wantURL {
+		t.Fatalf("printPanelAccess URL = %q, want %q", got, wantURL)
+	}
+
+	out := outBuf.String()
+	for _, want := range []string{
+		"Listening on: 0.0.0.0:8443",
+		"Panel URL: https://localhost:8443/?token=secret",
+		"API key: secret (generated)",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("printPanelAccess output %q missing %q", out, want)
+		}
 	}
 }
