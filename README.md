@@ -262,7 +262,8 @@ The panel now also includes:
 - **Proxies** controls for persisted per-agent rotation rules
 - **Scripts** execution against a real browser context through the server-side scripting engine
 - **Security** protection states sourced from runtime/config instead of fixed frontend flags
-- a richer **Dashboard** shell showing runtime route/mode/window, retained runtime alerts, active-work previews, and direct operator shortcuts
+- a richer **Dashboard** shell showing runtime route/mode/window, retained runtime alerts, spend, budget posture, active-work previews, and direct operator shortcuts
+- an **Agents** view that surfaces aggregate spend/tokens plus per-agent budget source and limit summaries without drilling into each detail page
 
 Access via `vulpineos panel`, `vulpineos serve`, or through the remote client.
 
