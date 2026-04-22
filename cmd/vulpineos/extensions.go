@@ -9,7 +9,7 @@ import (
 
 // PrintExtensionsStatus writes the registered extension provider
 // availability to w. Operator-visible diagnostic wired into the
-// --list-extensions flag. The public build ships with all three
+// --list-extensions flag. The public build ships with all four
 // providers reporting unavailable; alternate builds that register
 // providers via build-tagged init() files flip the corresponding
 // rows to "available".
@@ -18,6 +18,7 @@ func PrintExtensionsStatus(w io.Writer) {
 	fmt.Fprintf(w, "  Credentials: %s\n", extensionAvailabilityString(providerAvailable(extensions.Registry.Credentials())))
 	fmt.Fprintf(w, "  Audio:       %s\n", extensionAvailabilityString(audioAvailable(extensions.Registry.Audio())))
 	fmt.Fprintf(w, "  Mobile:      %s\n", extensionAvailabilityString(mobileAvailable(extensions.Registry.Mobile())))
+	fmt.Fprintf(w, "  Sentinel:    %s\n", extensionAvailabilityString(sentinelAvailable(extensions.Registry.Sentinel())))
 }
 
 func providerAvailable(p extensions.CredentialProvider) bool {
@@ -30,6 +31,10 @@ func audioAvailable(a extensions.AudioCapturer) bool {
 
 func mobileAvailable(m extensions.MobileBridge) bool {
 	return m != nil && m.Available()
+}
+
+func sentinelAvailable(s extensions.SentinelProvider) bool {
+	return s != nil && s.Available()
 }
 
 func extensionAvailabilityString(available bool) string {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"time"
 
 	"vulpineos/internal/extensions"
 )
@@ -33,14 +34,24 @@ func TestFakesNoRaceUnderConcurrentSet(t *testing.T) {
 			{UDID: "udid-1", Name: "Test iPhone"},
 		},
 	}
+	sentinel := &FakeSentinelProvider{
+		AvailableFlag: true,
+		StatusValue: extensions.SentinelStatus{
+			Provider: "sentinel-private",
+			Mode:     "scaffold",
+		},
+		VariantBundles: []extensions.SentinelVariantBundle{
+			{ID: "control", Name: "Control", Enabled: true, Weight: 100},
+		},
+	}
 
 	ctx := context.Background()
 	var wg sync.WaitGroup
 	const iters = 50
 
-	// 50 writers, 50 readers per fake = 300 goroutines total.
+	// 50 writers, 50 readers per fake = 400 goroutines total.
 	for i := 0; i < iters; i++ {
-		wg.Add(6)
+		wg.Add(8)
 		// Credential writers + readers.
 		go func(i int) {
 			defer wg.Done()
@@ -94,6 +105,35 @@ func TestFakesNoRaceUnderConcurrentSet(t *testing.T) {
 			_ = mobile.Disconnect(ctx, "session-1")
 			_ = mobile.Available()
 		}()
+		// Sentinel writers + readers.
+		go func(i int) {
+			defer wg.Done()
+			sentinel.SetAvailable(i%2 == 0)
+			sentinel.SetStatus(extensions.SentinelStatus{
+				Provider: "sentinel-private",
+				Mode:     "scaffold",
+			})
+			sentinel.SetVariantBundles([]extensions.SentinelVariantBundle{
+				{ID: "control", Name: "Control", Enabled: true, Weight: 100 + i},
+			})
+		}(i)
+		go func(i int) {
+			defer wg.Done()
+			_, _ = sentinel.Status(ctx)
+			_ = sentinel.RecordEvent(ctx, extensions.SentinelEvent{
+				Kind:      extensions.SentinelEventKindBrowserProbe,
+				Name:      "canvas.toDataURL",
+				Timestamp: time.Now(),
+			})
+			_ = sentinel.RecordOutcome(ctx, extensions.SentinelOutcome{
+				Outcome:   extensions.SentinelOutcomeSoftChallenge,
+				Timestamp: time.Now(),
+			})
+			_, _ = sentinel.ListVariantBundles(ctx)
+			_ = sentinel.RecordedEvents()
+			_ = sentinel.RecordedOutcomes()
+			_ = sentinel.Available()
+		}(i)
 	}
 
 	wg.Wait()

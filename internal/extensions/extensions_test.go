@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestRegistryDefaultsNonNil(t *testing.T) {
@@ -16,6 +17,9 @@ func TestRegistryDefaultsNonNil(t *testing.T) {
 	}
 	if Registry.Mobile() == nil {
 		t.Fatal("Registry.Mobile() is nil")
+	}
+	if Registry.Sentinel() == nil {
+		t.Fatal("Registry.Sentinel() is nil")
 	}
 }
 
@@ -76,16 +80,45 @@ func TestDefaultMobileBridgeUnavailable(t *testing.T) {
 	}
 }
 
+func TestDefaultSentinelProviderUnavailable(t *testing.T) {
+	s := Registry.Sentinel()
+	if s.Available() {
+		t.Fatal("default SentinelProvider should report Available() == false")
+	}
+	ctx := context.Background()
+	if _, err := s.Status(ctx); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("Status: expected ErrUnavailable, got %v", err)
+	}
+	if err := s.RecordEvent(ctx, SentinelEvent{
+		Kind:      SentinelEventKindBrowserProbe,
+		Name:      "canvas.toDataURL",
+		Timestamp: time.Now(),
+	}); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("RecordEvent: expected ErrUnavailable, got %v", err)
+	}
+	if err := s.RecordOutcome(ctx, SentinelOutcome{
+		Outcome:   SentinelOutcomeSoftChallenge,
+		Timestamp: time.Now(),
+	}); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("RecordOutcome: expected ErrUnavailable, got %v", err)
+	}
+	if _, err := s.ListVariantBundles(ctx); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("ListVariantBundles: expected ErrUnavailable, got %v", err)
+	}
+}
+
 // TestRegistryConcurrentSetGet runs many goroutines that race on
 // setters and readers; the test must pass under `go test -race`.
 func TestRegistryConcurrentSetGet(t *testing.T) {
 	original := Registry.Credentials()
 	t.Cleanup(func() { Registry.SetCredentials(original) })
+	originalSentinel := Registry.Sentinel()
+	t.Cleanup(func() { Registry.SetSentinel(originalSentinel) })
 
 	var wg sync.WaitGroup
 	const N = 100
 	for i := 0; i < N; i++ {
-		wg.Add(2)
+		wg.Add(4)
 		go func() {
 			defer wg.Done()
 			Registry.SetCredentials(defaultCredentialProvider)
@@ -93,6 +126,14 @@ func TestRegistryConcurrentSetGet(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			_ = Registry.Credentials().Available()
+		}()
+		go func() {
+			defer wg.Done()
+			Registry.SetSentinel(defaultSentinelProvider)
+		}()
+		go func() {
+			defer wg.Done()
+			_ = Registry.Sentinel().Available()
 		}()
 	}
 	wg.Wait()
