@@ -107,6 +107,20 @@ export class FrameTree {
     }
   }
 
+  addInitScript(worldName, script) {
+    worldName = worldName || '';
+    const existing = this._isolatedWorlds.has(worldName);
+    const world = this._ensureWorld(worldName);
+    world._scriptsToEvaluateOnNewDocument.push(script);
+    for (const frame of this.frames()) {
+      let executionContext = frame._worldNameToContext.get(worldName);
+      if (worldName && !executionContext && !existing)
+        executionContext = frame._createIsolatedContext(worldName);
+      if (executionContext)
+        executionContext.evaluateScriptSafely(script);
+    }
+  }
+
   _ensureWorld(worldName) {
     worldName = worldName || '';
     let world = this._isolatedWorlds.get(worldName);
@@ -686,5 +700,4 @@ function channelId(channel) {
   }
   return helper.generateId();
 }
-
 

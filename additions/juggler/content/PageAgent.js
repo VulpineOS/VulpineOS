@@ -11,6 +11,11 @@ const Cu = Components.utils;
 const {Helper} = ChromeUtils.importESModule('chrome://juggler/content/Helper.js');
 const {NetUtil} = ChromeUtils.importESModule('resource://gre/modules/NetUtil.sys.mjs');
 const {setTimeout, clearTimeout} = ChromeUtils.importESModule('resource://gre/modules/Timer.sys.mjs');
+const {
+  SENTINEL_PROBE_BINDING_NAME,
+  SENTINEL_PROBE_BINDING_SCRIPT,
+  SENTINEL_PROBE_INIT_SCRIPT,
+} = ChromeUtils.importESModule('chrome://juggler/content/SentinelProbe.js');
 
 const dragService = Cc["@mozilla.org/widget/dragservice;1"].getService(
   Ci.nsIDragService
@@ -241,6 +246,8 @@ export class PageAgent {
       if (mainFrame.url() === 'about:blank' && readyState === 'complete')
         this._emitAllEvents(this._frameTree.mainFrame());
     }
+
+    this._installSentinelProbeHooks();
 
     this._eventListeners = [
       helper.addObserver(this._linkClicked.bind(this, false), 'juggler-link-click'),
@@ -485,11 +492,40 @@ export class PageAgent {
   }
 
   _onBindingCalled({executionContextId, name, payload}) {
+    if (name === SENTINEL_PROBE_BINDING_NAME) {
+      let probe;
+      try {
+        probe = JSON.parse(payload);
+      } catch (e) {
+        return;
+      }
+      let frameId = '';
+      try {
+        frameId = this._runtime.findExecutionContext(executionContextId).auxData().frameId || '';
+      } catch (e) {
+      }
+      this._browserPage.emit('pageBrowserProbeDetected', {
+        frameId,
+        url: probe.url || '',
+        scriptURL: probe.scriptURL || '',
+        probeType: probe.probeType || 'unknown',
+        api: probe.api || 'unknown',
+        detail: probe.detail || '',
+        count: probe.count || 1,
+        timestamp: probe.timestamp || Date.now(),
+      });
+      return;
+    }
     this._browserPage.emit('pageBindingCalled', {
       executionContextId,
       name,
       payload
     });
+  }
+
+  _installSentinelProbeHooks() {
+    this._frameTree.addBinding('', SENTINEL_PROBE_BINDING_NAME, SENTINEL_PROBE_BINDING_SCRIPT);
+    this._frameTree.addInitScript('', SENTINEL_PROBE_INIT_SCRIPT);
   }
 
   dispose() {

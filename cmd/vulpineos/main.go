@@ -1128,6 +1128,7 @@ func runServe(binaryPath string, headless bool, profileDir string, host string, 
 			"Browser.trustWarmingStateChanged",
 			"Browser.attachedToTarget",
 			"Browser.detachedFromTarget",
+			"Page.browserProbeDetected",
 			"Page.navigationCommitted",
 			"Page.eventFired",
 			"Page.frameAttached",
@@ -1154,6 +1155,11 @@ func runServe(binaryPath string, headless bool, profileDir string, host string, 
 					}
 					if err := json.Unmarshal(params, &payload); err == nil {
 						contexts.Detached(payload.SessionID)
+					}
+				case "Page.browserProbeDetected":
+					var payload juggler.BrowserProbe
+					if err := json.Unmarshal(params, &payload); err == nil {
+						_ = sentinelcapture.RecordBrowserProbe(context.Background(), sessionID, payload)
 					}
 				}
 				server.BroadcastEvent(evt, sessionID, params)
