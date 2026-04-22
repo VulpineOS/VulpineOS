@@ -2,6 +2,7 @@ package foxbridge
 
 import (
 	"fmt"
+	"net"
 	"testing"
 )
 
@@ -62,5 +63,28 @@ func TestJugglerAdapterClose(t *testing.T) {
 	a := &jugglerAdapter{client: nil}
 	if err := a.Close(); err != nil {
 		t.Errorf("Close() returned error: %v", err)
+	}
+}
+
+func TestEnsurePortAvailableDetectsBusyPort(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Listen: %v", err)
+	}
+	defer listener.Close()
+
+	port := listener.Addr().(*net.TCPAddr).Port
+	if err := ensurePortAvailable(port); err == nil {
+		t.Fatal("expected busy-port error")
+	}
+}
+
+func TestEnsurePortAvailableAllowsFreePort(t *testing.T) {
+	port, err := reservePort()
+	if err != nil {
+		t.Fatalf("reservePort: %v", err)
+	}
+	if err := ensurePortAvailable(port); err != nil {
+		t.Fatalf("ensurePortAvailable(%d): %v", port, err)
 	}
 }

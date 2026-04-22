@@ -122,6 +122,14 @@ func (p *Process) StartEmbeddedMode(client *juggler.Client, port int) error {
 	if port == 0 {
 		port = 9222
 	}
+	if err := ensurePortAvailable(port); err != nil {
+		p.logRuntimeEvent("error", "start_failed", "embedded foxbridge port unavailable", map[string]string{
+			"error": err.Error(),
+			"mode":  "embedded",
+			"port":  fmt.Sprintf("%d", port),
+		})
+		return fmt.Errorf("embedded foxbridge port unavailable: %w", err)
+	}
 	p.port = port
 
 	es, err := StartEmbedded(client, port)
@@ -200,6 +208,14 @@ func (p *Process) PID() int {
 		return p.cmd.Process.Pid
 	}
 	return 0
+}
+
+func ensurePortAvailable(port int) error {
+	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		return err
+	}
+	return listener.Close()
 }
 
 // findFoxbridge searches for the foxbridge binary in common locations.
