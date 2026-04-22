@@ -279,6 +279,7 @@ type FakeSentinelProvider struct {
 	OutcomeLabels    []extensions.SentinelOutcomeLabel
 	OutcomeSummary   []extensions.SentinelOutcomeSummary
 	ProbeSummary     []extensions.SentinelProbeSummary
+	TrustActivity    []extensions.SentinelTrustActivitySummary
 	SitePressure     []extensions.SentinelSitePressureSummary
 	PatchQueue       []extensions.SentinelPatchCandidate
 	ExperimentBoard  []extensions.SentinelExperimentSummary
@@ -354,6 +355,13 @@ func (f *FakeSentinelProvider) SetProbeSummary(v []extensions.SentinelProbeSumma
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.ProbeSummary = append([]extensions.SentinelProbeSummary(nil), v...)
+}
+
+// SetTrustActivity replaces the canned trust activity rows under the write lock.
+func (f *FakeSentinelProvider) SetTrustActivity(v []extensions.SentinelTrustActivitySummary) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.TrustActivity = append([]extensions.SentinelTrustActivitySummary(nil), v...)
 }
 
 // SetSitePressure replaces the canned site pressure rows under the write lock.
@@ -470,6 +478,15 @@ func (f *FakeSentinelProvider) SummarizeProbes(ctx context.Context) ([]extension
 	defer f.mu.RUnlock()
 	out := make([]extensions.SentinelProbeSummary, len(f.ProbeSummary))
 	copy(out, f.ProbeSummary)
+	return out, nil
+}
+
+// SummarizeTrustActivity returns a copy of the canned trust activity rows.
+func (f *FakeSentinelProvider) SummarizeTrustActivity(ctx context.Context) ([]extensions.SentinelTrustActivitySummary, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make([]extensions.SentinelTrustActivitySummary, len(f.TrustActivity))
+	copy(out, f.TrustActivity)
 	return out, nil
 }
 

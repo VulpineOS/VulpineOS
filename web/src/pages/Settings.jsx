@@ -4,7 +4,7 @@ export default function Settings({ ws }) {
   const [cfg, setCfg] = useState({})
   const [providers, setProviders] = useState([])
   const [status, setStatus] = useState({})
-  const [sentinel, setSentinel] = useState({ variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], sitePressure: [], patchQueue: [], experimentSummary: [] })
+  const [sentinel, setSentinel] = useState({ variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], sitePressure: [], patchQueue: [], experimentSummary: [] })
   const [sentinelTimeline, setSentinelTimeline] = useState([])
   const [defaultBudgetCost, setDefaultBudgetCost] = useState('0')
   const [defaultBudgetTokens, setDefaultBudgetTokens] = useState('0')
@@ -19,7 +19,7 @@ export default function Settings({ ws }) {
       setDefaultBudgetTokens(String(r?.defaultBudgetMaxTokens ?? 0))
     }).catch(() => {})
     ws.call('status.get').then(r => setStatus(r || {})).catch(() => {})
-    ws.call('sentinel.get').then(r => setSentinel(r || { variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], sitePressure: [], patchQueue: [], experimentSummary: [] })).catch(() => {})
+    ws.call('sentinel.get').then(r => setSentinel(r || { variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], sitePressure: [], patchQueue: [], experimentSummary: [] })).catch(() => {})
     ws.call('sentinel.timeline', { limit: 4 }).then(r => setSentinelTimeline(r?.sessions || [])).catch(() => {})
   }, [ws.connected])
 
@@ -33,6 +33,7 @@ export default function Settings({ ws }) {
   const sentinelOutcomeLabels = sentinel.outcomeLabels || []
   const sentinelOutcomeSummary = sentinel.outcomeSummary || []
   const sentinelProbeSummary = sentinel.probeSummary || []
+  const sentinelTrustActivity = sentinel.trustActivity || []
   const sentinelSitePressure = sentinel.sitePressure || []
   const sentinelPatchQueue = sentinel.patchQueue || []
   const sentinelExperimentSummary = sentinel.experimentSummary || []
@@ -409,6 +410,34 @@ export default function Settings({ ws }) {
                           <td>{row.blockCount || 0}</td>
                           <td>{row.burnCount || 0}</td>
                           <td>{row.pressureScore || 0}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              <div>
+                <h4 style={{ margin: '0 0 10px' }}>Trust activity board</h4>
+                {sentinelTrustActivity.length === 0 ? (
+                  <div className="empty-state">No trust activity has been summarized yet.</div>
+                ) : (
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Domain</th>
+                        <th>State</th>
+                        <th>Events</th>
+                        <th>Sessions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sentinelTrustActivity.map((row, index) => (
+                        <tr key={`${row.domain || 'domain'}-${row.state || 'state'}-${index}`}>
+                          <td>{row.domain || 'unknown'}</td>
+                          <td>{row.state || 'unknown'}</td>
+                          <td>{row.count || 0}</td>
+                          <td>{row.sessionCount || 0}</td>
                         </tr>
                       ))}
                     </tbody>

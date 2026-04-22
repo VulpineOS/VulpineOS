@@ -40,6 +40,7 @@ type SentinelProvider interface {
 	ListOutcomeLabels(ctx context.Context) ([]SentinelOutcomeLabel, error)
 	SummarizeOutcomes(ctx context.Context) ([]SentinelOutcomeSummary, error)
 	SummarizeProbes(ctx context.Context) ([]SentinelProbeSummary, error)
+	SummarizeTrustActivity(ctx context.Context) ([]SentinelTrustActivitySummary, error)
 	SummarizeSitePressure(ctx context.Context) ([]SentinelSitePressureSummary, error)
 	SummarizePatchQueue(ctx context.Context) ([]SentinelPatchCandidate, error)
 	SummarizeExperiments(ctx context.Context) ([]SentinelExperimentSummary, error)
@@ -294,6 +295,17 @@ type SentinelSitePressureSummary struct {
 	LastSeenAt         time.Time `json:"lastSeenAt,omitempty"`
 }
 
+// SentinelTrustActivitySummary aggregates trust-warming lifecycle
+// activity by target domain and state so operators can compare how much
+// warming actually happened for each target.
+type SentinelTrustActivitySummary struct {
+	Domain       string    `json:"domain,omitempty"`
+	State        string    `json:"state,omitempty"`
+	Count        int       `json:"count"`
+	SessionCount int       `json:"sessionCount"`
+	LastSeenAt   time.Time `json:"lastSeenAt,omitempty"`
+}
+
 var defaultSentinelProvider SentinelProvider = noopSentinelProvider{}
 
 type noopSentinelProvider struct{}
@@ -339,6 +351,10 @@ func (noopSentinelProvider) SummarizeOutcomes(ctx context.Context) ([]SentinelOu
 }
 
 func (noopSentinelProvider) SummarizeProbes(ctx context.Context) ([]SentinelProbeSummary, error) {
+	return nil, ErrUnavailable
+}
+
+func (noopSentinelProvider) SummarizeTrustActivity(ctx context.Context) ([]SentinelTrustActivitySummary, error) {
 	return nil, ErrUnavailable
 }
 

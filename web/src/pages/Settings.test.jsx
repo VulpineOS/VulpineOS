@@ -90,6 +90,12 @@ describe('Settings page', () => {
               api: 'toDataURL',
               count: 2,
             }],
+            trustActivity: [{
+              domain: 'example.com',
+              state: 'WARMING',
+              count: 3,
+              sessionCount: 1,
+            }],
             sitePressure: [{
               domain: 'example.com',
               challengeVendor: 'cloudflare',
@@ -172,6 +178,8 @@ describe('Settings page', () => {
     expect(screen.getByText('Site pressure board')).toBeInTheDocument()
     expect(screen.getAllByText('example.com').length).toBeGreaterThan(0)
     expect(screen.getAllByText('cloudflare').length).toBeGreaterThan(0)
+    expect(screen.getByText('Trust activity board')).toBeInTheDocument()
+    expect(screen.getByText('WARMING')).toBeInTheDocument()
     expect(screen.getByText('Patch queue')).toBeInTheDocument()
     expect(screen.getByText('Review canvas surface coherence and pixel-read behavior.')).toBeInTheDocument()
     expect(screen.getByText('HIGH')).toBeInTheDocument()

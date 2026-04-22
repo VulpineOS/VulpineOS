@@ -263,6 +263,7 @@ The panel now also includes:
 - **Settings** Sentinel probe summary table grouped by domain, script, probe family, and API so operator triage stays ranked instead of purely chronological
 - **Settings** Sentinel experiment board grouped by variant bundle and trust recipe so trust-building holdouts can be compared directly
 - **Settings** Sentinel site-pressure board grouped by domain and challenge vendor so target-specific trust work stays ranked
+- **Settings** Sentinel trust-activity board grouped by domain and state so warmup coverage can be compared directly
 - **Settings** Sentinel patch queue ranked by browser-probe pressure and recent challenge outcomes so the next browser-surface fixes stay explicit
 - Sentinel capture timelines now ingest page-level browser probe evidence (canvas, WebGL, audio, navigator, media-device, permissions, screen, and Intl reads), trust-warming lifecycle events, provider-ready lifecycle signals, monitor-detected rate-limit/captcha/block alerts, and proxy-rotation transport observations during normal runtime flow, and carry explicit experiment-assignment tags when available
 - **Agent Detail** controls for per-agent budget overrides, recording export, and fingerprint regeneration
