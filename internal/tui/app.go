@@ -24,6 +24,7 @@ import (
 	"vulpineos/internal/orchestrator"
 	"vulpineos/internal/proxy"
 	"vulpineos/internal/runtimeaudit"
+	"vulpineos/internal/sentinelcapture"
 	"vulpineos/internal/tui/agentdetail"
 	"vulpineos/internal/tui/agentlist"
 	"vulpineos/internal/tui/contextlist"
@@ -315,6 +316,7 @@ func NewApp(k *kernel.Kernel, client *juggler.Client, orch *orchestrator.Orchest
 	// Forward rate limit monitor alerts to TUI
 	go func() {
 		for alert := range mon.AlertChan() {
+			_ = sentinelcapture.RecordMonitorAlert(context.Background(), alert)
 			eventCh <- statusNotice{text: fmt.Sprintf("WARNING %s: %s on agent %s", alert.Type, alert.Details, alert.AgentID)}
 		}
 	}()
@@ -726,7 +728,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.vault.AppendMessage(msg.AgentID, msg.Role, msg.Content, msg.Tokens)
 		}
 		// Check for rate limit / captcha / block patterns
-		if a.monitor != nil {
+		if a.monitor != nil && (msg.Role == "assistant" || msg.Role == "system") {
 			a.monitor.CheckMessage(msg.AgentID, msg.Content)
 		}
 		// If matches selected agent, add to conversation panel + clear thinking

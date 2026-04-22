@@ -26,6 +26,7 @@ import (
 	"vulpineos/internal/juggler"
 	"vulpineos/internal/kernel"
 	"vulpineos/internal/mcp"
+	"vulpineos/internal/monitor"
 	"vulpineos/internal/openclaw"
 	"vulpineos/internal/orchestrator"
 	"vulpineos/internal/pagecache"
@@ -34,6 +35,7 @@ import (
 	"vulpineos/internal/recording"
 	"vulpineos/internal/remote"
 	"vulpineos/internal/runtimeaudit"
+	"vulpineos/internal/sentinelcapture"
 	"vulpineos/internal/tui"
 	"vulpineos/internal/tui/loading"
 	"vulpineos/internal/tui/setup"
@@ -85,14 +87,13 @@ var startGatewayIfAvailable = func(cfg *config.Config, audit *runtimeaudit.Manag
 }
 
 func logSentinelRuntimeStatus(audit *runtimeaudit.Manager) {
-	if audit == nil {
-		return
-	}
 	status, available, err := extensions.SentinelSnapshot(context.Background())
 	if err != nil {
-		_, _ = audit.Log("sentinel", "warn", "status_error", "Sentinel status lookup failed", map[string]string{
-			"error": err.Error(),
-		})
+		if audit != nil {
+			_, _ = audit.Log("sentinel", "warn", "status_error", "Sentinel status lookup failed", map[string]string{
+				"error": err.Error(),
+			})
+		}
 		return
 	}
 	metadata := map[string]string{
@@ -117,11 +118,18 @@ func logSentinelRuntimeStatus(audit *runtimeaudit.Manager) {
 	if status.TrustRecipes > 0 {
 		metadata["trust_recipes"] = fmt.Sprintf("%d", status.TrustRecipes)
 	}
+	eventName := "provider_unavailable"
 	if available {
-		_, _ = audit.Log("sentinel", "info", "provider_ready", "Sentinel provider ready", metadata)
+		eventName = "provider_ready"
+		_ = sentinelcapture.RecordRuntimeSignal(context.Background(), eventName, metadata)
+		if audit != nil {
+			_, _ = audit.Log("sentinel", "info", eventName, "Sentinel provider ready", metadata)
+		}
 		return
 	}
-	_, _ = audit.Log("sentinel", "info", "provider_unavailable", "Sentinel provider unavailable", metadata)
+	if audit != nil {
+		_, _ = audit.Log("sentinel", "info", eventName, "Sentinel provider unavailable", metadata)
+	}
 }
 
 func startLocalSessionLogging(baseDir string) (restore func(), path string) {
@@ -1084,6 +1092,9 @@ func runServe(binaryPath string, headless bool, profileDir string, host string, 
 
 	// Create proxy rotator
 	rotator := proxy.NewRotator()
+	rotator.SetObserver(func(event proxy.RotationEvent) {
+		_ = sentinelcapture.RecordProxyRotation(context.Background(), event)
+	})
 	contexts := remote.NewContextRegistry()
 
 	addr := fmt.Sprintf("%s:%d", host, port)
@@ -1176,6 +1187,18 @@ func runServe(binaryPath string, headless bool, profileDir string, host string, 
 		}()
 
 		conversationCh := orch.Agents.ConversationChan()
+		mon := monitor.New()
+		defer mon.Dispose()
+		go func() {
+			for alert := range mon.AlertChan() {
+				_ = sentinelcapture.RecordMonitorAlert(context.Background(), alert)
+				if audit != nil {
+					_, _ = audit.Log("monitor", "warn", string(alert.Type), alert.Details, map[string]string{
+						"agent_id": alert.AgentID,
+					})
+				}
+			}
+		}()
 		go func() {
 			for msg := range conversationCh {
 				if err := v.AppendMessage(msg.AgentID, msg.Role, msg.Content, msg.Tokens); err != nil {
@@ -1189,6 +1212,9 @@ func runServe(binaryPath string, headless bool, profileDir string, host string, 
 				}
 				if encoded, err := json.Marshal(payload); err == nil {
 					server.BroadcastEvent("Vulpine.conversation", "", encoded)
+				}
+				if msg.Role == "assistant" || msg.Role == "system" {
+					mon.CheckMessage(msg.AgentID, msg.Content)
 				}
 			}
 		}()
