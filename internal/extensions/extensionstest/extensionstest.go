@@ -264,3 +264,93 @@ func (f *FakeMobileBridge) Available() bool {
 	defer f.mu.RUnlock()
 	return f.AvailableFlag
 }
+
+// FakeSentinelProvider records events and outcomes while returning
+// canned status and variant bundles.
+type FakeSentinelProvider struct {
+	mu             sync.RWMutex
+	AvailableFlag  bool
+	StatusValue    extensions.SentinelStatus
+	VariantBundles []extensions.SentinelVariantBundle
+	Events         []extensions.SentinelEvent
+	Outcomes       []extensions.SentinelOutcome
+}
+
+// SetAvailable toggles AvailableFlag under the write lock.
+func (f *FakeSentinelProvider) SetAvailable(v bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.AvailableFlag = v
+}
+
+// SetStatus replaces the canned status under the write lock.
+func (f *FakeSentinelProvider) SetStatus(s extensions.SentinelStatus) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.StatusValue = s
+}
+
+// SetVariantBundles replaces the canned variant bundles under the write lock.
+func (f *FakeSentinelProvider) SetVariantBundles(v []extensions.SentinelVariantBundle) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.VariantBundles = append([]extensions.SentinelVariantBundle(nil), v...)
+}
+
+// Status returns the canned status.
+func (f *FakeSentinelProvider) Status(ctx context.Context) (*extensions.SentinelStatus, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	status := f.StatusValue
+	return &status, nil
+}
+
+// RecordEvent appends the event under the write lock.
+func (f *FakeSentinelProvider) RecordEvent(ctx context.Context, event extensions.SentinelEvent) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.Events = append(f.Events, event)
+	return nil
+}
+
+// RecordOutcome appends the outcome under the write lock.
+func (f *FakeSentinelProvider) RecordOutcome(ctx context.Context, outcome extensions.SentinelOutcome) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.Outcomes = append(f.Outcomes, outcome)
+	return nil
+}
+
+// ListVariantBundles returns a copy of the canned variant bundles.
+func (f *FakeSentinelProvider) ListVariantBundles(ctx context.Context) ([]extensions.SentinelVariantBundle, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make([]extensions.SentinelVariantBundle, len(f.VariantBundles))
+	copy(out, f.VariantBundles)
+	return out, nil
+}
+
+// Available reports AvailableFlag.
+func (f *FakeSentinelProvider) Available() bool {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	return f.AvailableFlag
+}
+
+// RecordedEvents returns a snapshot copy of the captured events.
+func (f *FakeSentinelProvider) RecordedEvents() []extensions.SentinelEvent {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make([]extensions.SentinelEvent, len(f.Events))
+	copy(out, f.Events)
+	return out
+}
+
+// RecordedOutcomes returns a snapshot copy of the captured outcomes.
+func (f *FakeSentinelProvider) RecordedOutcomes() []extensions.SentinelOutcome {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make([]extensions.SentinelOutcome, len(f.Outcomes))
+	copy(out, f.Outcomes)
+	return out
+}
