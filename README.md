@@ -61,13 +61,13 @@ VulpineOS builds on Camoufox's battle-tested stealth foundation (Firefox 146.0.1
 │  ├── Telemetry Service (memory, risk score, 2s interval)      │
 │  └── Trust Warming Service (idle-time profile warming)        │
 │                                                              │
-│  Go Runtime (36 packages, 350+ tests)                         │
+│  Go Runtime (37 packages, 475 tests)                          │
 │  ├── Bubbletea TUI (3-column agent workbench)                 │
 │  ├── Web Panel (React SPA, 12 pages, 46 control messages)     │
 │  ├── Identity Vault (SQLite — citizens, templates, sessions)  │
 │  ├── Context Pool (pre-warm, recycle, memory limits)           │
 │  ├── Orchestrator (spawn citizens + nomads, auto-release)      │
-│  ├── OpenClaw Manager (31 AI providers, skills, SOP files)     │
+│  ├── OpenClaw Manager (30 AI providers, skills, SOP files)     │
 │  ├── Proxy Manager (geo-synced fingerprints, auto-rotation)    │
 │  ├── MCP Server (36 tools via stdio)                           │
 │  ├── Foxbridge CDP Proxy (Puppeteer compatibility)             │
@@ -450,7 +450,7 @@ Planned commercial product names include Vulpine Sentinel, Vulpine Replay, Vulpi
 
 ## Testing
 
-**350+ Go tests** across 36 packages, all passing with race detector enabled.
+**475 Go tests** across 37 packages, all passing with race detector enabled.
 
 ```bash
 go test -race ./...
