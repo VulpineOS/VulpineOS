@@ -4,7 +4,7 @@ export default function Settings({ ws }) {
   const [cfg, setCfg] = useState({})
   const [providers, setProviders] = useState([])
   const [status, setStatus] = useState({})
-  const [sentinel, setSentinel] = useState({ variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [] })
+  const [sentinel, setSentinel] = useState({ variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], patchQueue: [] })
   const [sentinelTimeline, setSentinelTimeline] = useState([])
   const [defaultBudgetCost, setDefaultBudgetCost] = useState('0')
   const [defaultBudgetTokens, setDefaultBudgetTokens] = useState('0')
@@ -19,7 +19,7 @@ export default function Settings({ ws }) {
       setDefaultBudgetTokens(String(r?.defaultBudgetMaxTokens ?? 0))
     }).catch(() => {})
     ws.call('status.get').then(r => setStatus(r || {})).catch(() => {})
-    ws.call('sentinel.get').then(r => setSentinel(r || { variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [] })).catch(() => {})
+    ws.call('sentinel.get').then(r => setSentinel(r || { variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], patchQueue: [] })).catch(() => {})
     ws.call('sentinel.timeline', { limit: 4 }).then(r => setSentinelTimeline(r?.sessions || [])).catch(() => {})
   }, [ws.connected])
 
@@ -33,6 +33,7 @@ export default function Settings({ ws }) {
   const sentinelOutcomeLabels = sentinel.outcomeLabels || []
   const sentinelOutcomeSummary = sentinel.outcomeSummary || []
   const sentinelProbeSummary = sentinel.probeSummary || []
+  const sentinelPatchQueue = sentinel.patchQueue || []
 
   const formatMetricThresholds = (metric) => (metric.thresholds || [])
     .map(threshold => `${threshold.stage} ${threshold.minimum}${metric.unit ? ` ${metric.unit}` : ''}`)
@@ -377,6 +378,40 @@ export default function Settings({ ws }) {
                           <td>{row.api || 'unknown'}</td>
                           <td className="mono-cell">{row.scriptUrl || row.lastUrl || 'inline/unknown'}</td>
                           <td>{row.count || 0}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              <div>
+                <h4 style={{ margin: '0 0 10px' }}>Patch queue</h4>
+                {sentinelPatchQueue.length === 0 ? (
+                  <div className="empty-state">No ranked patch candidates yet.</div>
+                ) : (
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Domain</th>
+                        <th>Probe</th>
+                        <th>API</th>
+                        <th>Score</th>
+                        <th>Priority</th>
+                        <th>Outcomes</th>
+                        <th>Recommendation</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sentinelPatchQueue.map((row, index) => (
+                        <tr key={`${row.domain || 'domain'}-${row.api || 'api'}-${index}`}>
+                          <td>{row.domain || 'unknown'}</td>
+                          <td>{row.probeType || 'unknown'}</td>
+                          <td>{row.api || 'unknown'}</td>
+                          <td>{row.score || 0}</td>
+                          <td>{(row.priority || 'low').toUpperCase()}</td>
+                          <td>{(row.outcomes || []).join(', ') || 'none'}</td>
+                          <td>{row.recommendation || 'Review the captured evidence.'}</td>
                         </tr>
                       ))}
                     </tbody>

@@ -279,6 +279,7 @@ type FakeSentinelProvider struct {
 	OutcomeLabels    []extensions.SentinelOutcomeLabel
 	OutcomeSummary   []extensions.SentinelOutcomeSummary
 	ProbeSummary     []extensions.SentinelProbeSummary
+	PatchQueue       []extensions.SentinelPatchCandidate
 	Events           []extensions.SentinelEvent
 	Outcomes         []extensions.SentinelOutcome
 }
@@ -351,6 +352,13 @@ func (f *FakeSentinelProvider) SetProbeSummary(v []extensions.SentinelProbeSumma
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.ProbeSummary = append([]extensions.SentinelProbeSummary(nil), v...)
+}
+
+// SetPatchQueue replaces the canned patch queue rows under the write lock.
+func (f *FakeSentinelProvider) SetPatchQueue(v []extensions.SentinelPatchCandidate) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.PatchQueue = append([]extensions.SentinelPatchCandidate(nil), v...)
 }
 
 // Status returns the canned status.
@@ -446,6 +454,15 @@ func (f *FakeSentinelProvider) SummarizeProbes(ctx context.Context) ([]extension
 	defer f.mu.RUnlock()
 	out := make([]extensions.SentinelProbeSummary, len(f.ProbeSummary))
 	copy(out, f.ProbeSummary)
+	return out, nil
+}
+
+// SummarizePatchQueue returns a copy of the canned patch queue rows.
+func (f *FakeSentinelProvider) SummarizePatchQueue(ctx context.Context) ([]extensions.SentinelPatchCandidate, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make([]extensions.SentinelPatchCandidate, len(f.PatchQueue))
+	copy(out, f.PatchQueue)
 	return out, nil
 }
 

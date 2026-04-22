@@ -40,6 +40,7 @@ type SentinelProvider interface {
 	ListOutcomeLabels(ctx context.Context) ([]SentinelOutcomeLabel, error)
 	SummarizeOutcomes(ctx context.Context) ([]SentinelOutcomeSummary, error)
 	SummarizeProbes(ctx context.Context) ([]SentinelProbeSummary, error)
+	SummarizePatchQueue(ctx context.Context) ([]SentinelPatchCandidate, error)
 	Available() bool
 }
 
@@ -231,6 +232,24 @@ type SentinelProbeSummary struct {
 	LastSeenAt time.Time `json:"lastSeenAt,omitempty"`
 }
 
+// SentinelPatchCandidate is a ranked operator-facing recommendation
+// for which browser surface to improve next based on probe pressure and
+// recent challenge outcomes on the same domain.
+type SentinelPatchCandidate struct {
+	Domain           string    `json:"domain,omitempty"`
+	ScriptURL        string    `json:"scriptUrl,omitempty"`
+	ProbeType        string    `json:"probeType,omitempty"`
+	API              string    `json:"api,omitempty"`
+	Priority         string    `json:"priority,omitempty"`
+	Score            int       `json:"score"`
+	ProbeCount       int       `json:"probeCount"`
+	OutcomePressure  int       `json:"outcomePressure"`
+	Outcomes         []string  `json:"outcomes,omitempty"`
+	ChallengeVendors []string  `json:"challengeVendors,omitempty"`
+	Recommendation   string    `json:"recommendation,omitempty"`
+	LastSeenAt       time.Time `json:"lastSeenAt,omitempty"`
+}
+
 var defaultSentinelProvider SentinelProvider = noopSentinelProvider{}
 
 type noopSentinelProvider struct{}
@@ -276,6 +295,10 @@ func (noopSentinelProvider) SummarizeOutcomes(ctx context.Context) ([]SentinelOu
 }
 
 func (noopSentinelProvider) SummarizeProbes(ctx context.Context) ([]SentinelProbeSummary, error) {
+	return nil, ErrUnavailable
+}
+
+func (noopSentinelProvider) SummarizePatchQueue(ctx context.Context) ([]SentinelPatchCandidate, error) {
 	return nil, ErrUnavailable
 }
 

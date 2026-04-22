@@ -90,6 +90,15 @@ describe('Settings page', () => {
               api: 'toDataURL',
               count: 2,
             }],
+            patchQueue: [{
+              domain: 'example.com',
+              probeType: 'canvas_probe',
+              api: 'toDataURL',
+              score: 10,
+              priority: 'high',
+              outcomes: ['soft_challenge'],
+              recommendation: 'Review canvas surface coherence and pixel-read behavior.',
+            }],
           }
         }
         if (method === 'sentinel.timeline') {
@@ -132,8 +141,11 @@ describe('Settings page', () => {
     expect(screen.getByText('browser_probe · canvas.toDataURL')).toBeInTheDocument()
     expect(screen.getByText('soft_challenge · cloudflare')).toBeInTheDocument()
     expect(screen.getByText('Probe summary')).toBeInTheDocument()
-    expect(screen.getByText('canvas_probe')).toBeInTheDocument()
+    expect(screen.getAllByText('canvas_probe').length).toBeGreaterThan(0)
     expect(screen.getByText('https://cdn.example.com/fp.js')).toBeInTheDocument()
+    expect(screen.getByText('Patch queue')).toBeInTheDocument()
+    expect(screen.getByText('Review canvas surface coherence and pixel-read behavior.')).toBeInTheDocument()
+    expect(screen.getByText('HIGH')).toBeInTheDocument()
     expect(screen.getByText('Outcome taxonomy')).toBeInTheDocument()
     expect(screen.getByText('Soft challenge')).toBeInTheDocument()
     expect(screen.getByText('Captured outcomes')).toBeInTheDocument()

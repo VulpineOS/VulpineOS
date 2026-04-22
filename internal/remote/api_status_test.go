@@ -219,6 +219,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		ProbeSummary: []extensions.SentinelProbeSummary{
 			{Domain: "example.com", ScriptURL: "https://cdn.example.com/fp.js", ProbeType: "canvas_probe", API: "toDataURL", Count: 2},
 		},
+		PatchQueue: []extensions.SentinelPatchCandidate{
+			{Domain: "example.com", ProbeType: "canvas_probe", API: "toDataURL", Priority: "high", Score: 10, Recommendation: "Review canvas surface coherence and pixel-read behavior."},
+		},
 		SessionTimelines: []extensions.SentinelSessionTimeline{
 			{
 				SessionID:    "session-1",
@@ -250,6 +253,7 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		OutcomeLabels   []extensions.SentinelOutcomeLabel   `json:"outcomeLabels"`
 		OutcomeSummary  []extensions.SentinelOutcomeSummary `json:"outcomeSummary"`
 		ProbeSummary    []extensions.SentinelProbeSummary   `json:"probeSummary"`
+		PatchQueue      []extensions.SentinelPatchCandidate `json:"patchQueue"`
 	}
 	if err := json.Unmarshal(payload, &result); err != nil {
 		t.Fatalf("Unmarshal: %v", err)
@@ -277,6 +281,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	}
 	if len(result.ProbeSummary) != 1 || result.ProbeSummary[0].API != "toDataURL" {
 		t.Fatalf("probeSummary = %+v", result.ProbeSummary)
+	}
+	if len(result.PatchQueue) != 1 || result.PatchQueue[0].Priority != "high" {
+		t.Fatalf("patchQueue = %+v", result.PatchQueue)
 	}
 }
 
