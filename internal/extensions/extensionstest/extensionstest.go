@@ -278,6 +278,7 @@ type FakeSentinelProvider struct {
 	SessionTimelines []extensions.SentinelSessionTimeline
 	OutcomeLabels    []extensions.SentinelOutcomeLabel
 	OutcomeSummary   []extensions.SentinelOutcomeSummary
+	ProbeSummary     []extensions.SentinelProbeSummary
 	Events           []extensions.SentinelEvent
 	Outcomes         []extensions.SentinelOutcome
 }
@@ -343,6 +344,13 @@ func (f *FakeSentinelProvider) SetOutcomeSummary(v []extensions.SentinelOutcomeS
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.OutcomeSummary = append([]extensions.SentinelOutcomeSummary(nil), v...)
+}
+
+// SetProbeSummary replaces the canned probe summary rows under the write lock.
+func (f *FakeSentinelProvider) SetProbeSummary(v []extensions.SentinelProbeSummary) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.ProbeSummary = append([]extensions.SentinelProbeSummary(nil), v...)
 }
 
 // Status returns the canned status.
@@ -429,6 +437,15 @@ func (f *FakeSentinelProvider) SummarizeOutcomes(ctx context.Context) ([]extensi
 	defer f.mu.RUnlock()
 	out := make([]extensions.SentinelOutcomeSummary, len(f.OutcomeSummary))
 	copy(out, f.OutcomeSummary)
+	return out, nil
+}
+
+// SummarizeProbes returns a copy of the canned probe summary rows.
+func (f *FakeSentinelProvider) SummarizeProbes(ctx context.Context) ([]extensions.SentinelProbeSummary, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make([]extensions.SentinelProbeSummary, len(f.ProbeSummary))
+	copy(out, f.ProbeSummary)
 	return out, nil
 }
 

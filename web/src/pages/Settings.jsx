@@ -4,7 +4,7 @@ export default function Settings({ ws }) {
   const [cfg, setCfg] = useState({})
   const [providers, setProviders] = useState([])
   const [status, setStatus] = useState({})
-  const [sentinel, setSentinel] = useState({ variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [] })
+  const [sentinel, setSentinel] = useState({ variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [] })
   const [sentinelTimeline, setSentinelTimeline] = useState([])
   const [defaultBudgetCost, setDefaultBudgetCost] = useState('0')
   const [defaultBudgetTokens, setDefaultBudgetTokens] = useState('0')
@@ -19,7 +19,7 @@ export default function Settings({ ws }) {
       setDefaultBudgetTokens(String(r?.defaultBudgetMaxTokens ?? 0))
     }).catch(() => {})
     ws.call('status.get').then(r => setStatus(r || {})).catch(() => {})
-    ws.call('sentinel.get').then(r => setSentinel(r || { variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [] })).catch(() => {})
+    ws.call('sentinel.get').then(r => setSentinel(r || { variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [] })).catch(() => {})
     ws.call('sentinel.timeline', { limit: 4 }).then(r => setSentinelTimeline(r?.sessions || [])).catch(() => {})
   }, [ws.connected])
 
@@ -32,6 +32,7 @@ export default function Settings({ ws }) {
   const sentinelRules = sentinel.assignmentRules || []
   const sentinelOutcomeLabels = sentinel.outcomeLabels || []
   const sentinelOutcomeSummary = sentinel.outcomeSummary || []
+  const sentinelProbeSummary = sentinel.probeSummary || []
 
   const formatMetricThresholds = (metric) => (metric.thresholds || [])
     .map(threshold => `${threshold.stage} ${threshold.minimum}${metric.unit ? ` ${metric.unit}` : ''}`)
@@ -350,6 +351,36 @@ export default function Settings({ ws }) {
                       </div>
                     ))}
                   </div>
+                )}
+              </div>
+
+              <div>
+                <h4 style={{ margin: '0 0 10px' }}>Probe summary</h4>
+                {sentinelProbeSummary.length === 0 ? (
+                  <div className="empty-state">No browser probe evidence has been summarized yet.</div>
+                ) : (
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Domain</th>
+                        <th>Probe</th>
+                        <th>API</th>
+                        <th>Script</th>
+                        <th>Count</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sentinelProbeSummary.map((row, index) => (
+                        <tr key={`${row.domain || 'domain'}-${row.api || 'api'}-${index}`}>
+                          <td>{row.domain || 'unknown'}</td>
+                          <td>{row.probeType || 'unknown'}</td>
+                          <td>{row.api || 'unknown'}</td>
+                          <td className="mono-cell">{row.scriptUrl || row.lastUrl || 'inline/unknown'}</td>
+                          <td>{row.count || 0}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 )}
               </div>
 

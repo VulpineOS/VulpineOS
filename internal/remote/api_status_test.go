@@ -216,6 +216,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		OutcomeSummary: []extensions.SentinelOutcomeSummary{
 			{Outcome: extensions.SentinelOutcomeSoftChallenge, Count: 1, Vendors: []string{"cloudflare"}},
 		},
+		ProbeSummary: []extensions.SentinelProbeSummary{
+			{Domain: "example.com", ScriptURL: "https://cdn.example.com/fp.js", ProbeType: "canvas_probe", API: "toDataURL", Count: 2},
+		},
 		SessionTimelines: []extensions.SentinelSessionTimeline{
 			{
 				SessionID:    "session-1",
@@ -246,6 +249,7 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		AssignmentRules []extensions.SentinelAssignmentRule `json:"assignmentRules"`
 		OutcomeLabels   []extensions.SentinelOutcomeLabel   `json:"outcomeLabels"`
 		OutcomeSummary  []extensions.SentinelOutcomeSummary `json:"outcomeSummary"`
+		ProbeSummary    []extensions.SentinelProbeSummary   `json:"probeSummary"`
 	}
 	if err := json.Unmarshal(payload, &result); err != nil {
 		t.Fatalf("Unmarshal: %v", err)
@@ -270,6 +274,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	}
 	if len(result.OutcomeSummary) != 1 || result.OutcomeSummary[0].Outcome != extensions.SentinelOutcomeSoftChallenge {
 		t.Fatalf("outcomeSummary = %+v", result.OutcomeSummary)
+	}
+	if len(result.ProbeSummary) != 1 || result.ProbeSummary[0].API != "toDataURL" {
+		t.Fatalf("probeSummary = %+v", result.ProbeSummary)
 	}
 }
 

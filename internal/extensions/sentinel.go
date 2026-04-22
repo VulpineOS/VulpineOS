@@ -39,6 +39,7 @@ type SentinelProvider interface {
 	ListSessionTimelines(ctx context.Context, filter SentinelTimelineFilter) ([]SentinelSessionTimeline, error)
 	ListOutcomeLabels(ctx context.Context) ([]SentinelOutcomeLabel, error)
 	SummarizeOutcomes(ctx context.Context) ([]SentinelOutcomeSummary, error)
+	SummarizeProbes(ctx context.Context) ([]SentinelProbeSummary, error)
 	Available() bool
 }
 
@@ -219,6 +220,17 @@ type SentinelOutcomeSummary struct {
 	Vendors    []string  `json:"vendors,omitempty"`
 }
 
+type SentinelProbeSummary struct {
+	Domain     string    `json:"domain,omitempty"`
+	ScriptURL  string    `json:"scriptUrl,omitempty"`
+	ProbeType  string    `json:"probeType,omitempty"`
+	API        string    `json:"api,omitempty"`
+	Detail     string    `json:"detail,omitempty"`
+	LastURL    string    `json:"lastUrl,omitempty"`
+	Count      int       `json:"count"`
+	LastSeenAt time.Time `json:"lastSeenAt,omitempty"`
+}
+
 var defaultSentinelProvider SentinelProvider = noopSentinelProvider{}
 
 type noopSentinelProvider struct{}
@@ -260,6 +272,10 @@ func (noopSentinelProvider) ListOutcomeLabels(ctx context.Context) ([]SentinelOu
 }
 
 func (noopSentinelProvider) SummarizeOutcomes(ctx context.Context) ([]SentinelOutcomeSummary, error) {
+	return nil, ErrUnavailable
+}
+
+func (noopSentinelProvider) SummarizeProbes(ctx context.Context) ([]SentinelProbeSummary, error) {
 	return nil, ErrUnavailable
 }
 

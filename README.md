@@ -260,6 +260,7 @@ The panel now also includes:
 - **Settings** controls for persisted default agent budgets
 - **Settings** Sentinel trust-lab visibility for variant bundles, trust recipes, maturity metrics, assignment rules, outcome taxonomy, and captured outcome summaries
 - **Settings** recent Sentinel capture timelines grouped by session with raw evidence rows
+- **Settings** Sentinel probe summary table grouped by domain, script, probe family, and API so operator triage stays ranked instead of purely chronological
 - Sentinel capture timelines now ingest page-level browser probe evidence (canvas, WebGL, audio, navigator, media-device, permissions, screen, and Intl reads), provider-ready lifecycle signals, monitor-detected rate-limit/captcha/block alerts, and proxy-rotation transport observations during normal runtime flow
 - **Agent Detail** controls for per-agent budget overrides, recording export, and fingerprint regeneration
 - **Proxies** controls for persisted per-agent rotation rules
