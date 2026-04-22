@@ -222,6 +222,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		PatchQueue: []extensions.SentinelPatchCandidate{
 			{Domain: "example.com", ProbeType: "canvas_probe", API: "toDataURL", Priority: "high", Score: 10, Recommendation: "Review canvas surface coherence and pixel-read behavior."},
 		},
+		ExperimentBoard: []extensions.SentinelExperimentSummary{
+			{VariantBundleID: "control", TrustRecipeID: "baseline-warmup", SessionCount: 2, DomainCount: 1, SoftChallengeCount: 1, SuccessCount: 1, TotalOutcomes: 2, ChallengeVendors: []string{"cloudflare"}},
+		},
 		SessionTimelines: []extensions.SentinelSessionTimeline{
 			{
 				SessionID:    "session-1",
@@ -245,15 +248,16 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	}
 
 	var result struct {
-		Available       bool                                `json:"available"`
-		VariantBundles  []extensions.SentinelVariantBundle  `json:"variantBundles"`
-		TrustRecipes    []extensions.SentinelTrustRecipe    `json:"trustRecipes"`
-		MaturityMetrics []extensions.SentinelMaturityMetric `json:"maturityMetrics"`
-		AssignmentRules []extensions.SentinelAssignmentRule `json:"assignmentRules"`
-		OutcomeLabels   []extensions.SentinelOutcomeLabel   `json:"outcomeLabels"`
-		OutcomeSummary  []extensions.SentinelOutcomeSummary `json:"outcomeSummary"`
-		ProbeSummary    []extensions.SentinelProbeSummary   `json:"probeSummary"`
-		PatchQueue      []extensions.SentinelPatchCandidate `json:"patchQueue"`
+		Available         bool                                   `json:"available"`
+		VariantBundles    []extensions.SentinelVariantBundle     `json:"variantBundles"`
+		TrustRecipes      []extensions.SentinelTrustRecipe       `json:"trustRecipes"`
+		MaturityMetrics   []extensions.SentinelMaturityMetric    `json:"maturityMetrics"`
+		AssignmentRules   []extensions.SentinelAssignmentRule    `json:"assignmentRules"`
+		OutcomeLabels     []extensions.SentinelOutcomeLabel      `json:"outcomeLabels"`
+		OutcomeSummary    []extensions.SentinelOutcomeSummary    `json:"outcomeSummary"`
+		ProbeSummary      []extensions.SentinelProbeSummary      `json:"probeSummary"`
+		PatchQueue        []extensions.SentinelPatchCandidate    `json:"patchQueue"`
+		ExperimentSummary []extensions.SentinelExperimentSummary `json:"experimentSummary"`
 	}
 	if err := json.Unmarshal(payload, &result); err != nil {
 		t.Fatalf("Unmarshal: %v", err)
@@ -284,6 +288,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	}
 	if len(result.PatchQueue) != 1 || result.PatchQueue[0].Priority != "high" {
 		t.Fatalf("patchQueue = %+v", result.PatchQueue)
+	}
+	if len(result.ExperimentSummary) != 1 || result.ExperimentSummary[0].VariantBundleID != "control" {
+		t.Fatalf("experimentSummary = %+v", result.ExperimentSummary)
 	}
 }
 

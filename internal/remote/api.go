@@ -1188,16 +1188,17 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 		return nil, err
 	}
 	out := map[string]interface{}{
-		"available":       available,
-		"status":          status,
-		"variantBundles":  []extensions.SentinelVariantBundle{},
-		"trustRecipes":    []extensions.SentinelTrustRecipe{},
-		"maturityMetrics": []extensions.SentinelMaturityMetric{},
-		"assignmentRules": []extensions.SentinelAssignmentRule{},
-		"outcomeLabels":   []extensions.SentinelOutcomeLabel{},
-		"outcomeSummary":  []extensions.SentinelOutcomeSummary{},
-		"probeSummary":    []extensions.SentinelProbeSummary{},
-		"patchQueue":      []extensions.SentinelPatchCandidate{},
+		"available":         available,
+		"status":            status,
+		"variantBundles":    []extensions.SentinelVariantBundle{},
+		"trustRecipes":      []extensions.SentinelTrustRecipe{},
+		"maturityMetrics":   []extensions.SentinelMaturityMetric{},
+		"assignmentRules":   []extensions.SentinelAssignmentRule{},
+		"outcomeLabels":     []extensions.SentinelOutcomeLabel{},
+		"outcomeSummary":    []extensions.SentinelOutcomeSummary{},
+		"probeSummary":      []extensions.SentinelProbeSummary{},
+		"patchQueue":        []extensions.SentinelPatchCandidate{},
+		"experimentSummary": []extensions.SentinelExperimentSummary{},
 	}
 	if !available {
 		return json.Marshal(out)
@@ -1238,6 +1239,10 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
+	experimentSummary, err := provider.SummarizeExperiments(context.Background())
+	if err != nil {
+		return nil, err
+	}
 	out["variantBundles"] = bundles
 	out["trustRecipes"] = trustRecipes
 	out["maturityMetrics"] = maturityMetrics
@@ -1246,6 +1251,7 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 	out["outcomeSummary"] = outcomeSummary
 	out["probeSummary"] = probeSummary
 	out["patchQueue"] = patchQueue
+	out["experimentSummary"] = experimentSummary
 	return json.Marshal(out)
 }
 

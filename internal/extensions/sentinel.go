@@ -41,6 +41,7 @@ type SentinelProvider interface {
 	SummarizeOutcomes(ctx context.Context) ([]SentinelOutcomeSummary, error)
 	SummarizeProbes(ctx context.Context) ([]SentinelProbeSummary, error)
 	SummarizePatchQueue(ctx context.Context) ([]SentinelPatchCandidate, error)
+	SummarizeExperiments(ctx context.Context) ([]SentinelExperimentSummary, error)
 	Available() bool
 }
 
@@ -250,6 +251,26 @@ type SentinelPatchCandidate struct {
 	LastSeenAt       time.Time `json:"lastSeenAt,omitempty"`
 }
 
+// SentinelExperimentSummary aggregates recent evidence by variant and
+// trust recipe so operators can compare which experiment bundles are
+// attracting friction or progressing cleanly.
+type SentinelExperimentSummary struct {
+	VariantBundleID    string    `json:"variantBundleId,omitempty"`
+	TrustRecipeID      string    `json:"trustRecipeId,omitempty"`
+	SessionCount       int       `json:"sessionCount"`
+	DomainCount        int       `json:"domainCount"`
+	SuccessCount       int       `json:"successCount"`
+	DegradedCount      int       `json:"degradedCount"`
+	SoftChallengeCount int       `json:"softChallengeCount"`
+	HardChallengeCount int       `json:"hardChallengeCount"`
+	BlockCount         int       `json:"blockCount"`
+	RetryLoopCount     int       `json:"retryLoopCount"`
+	BurnCount          int       `json:"burnCount"`
+	TotalOutcomes      int       `json:"totalOutcomes"`
+	ChallengeVendors   []string  `json:"challengeVendors,omitempty"`
+	LastSeenAt         time.Time `json:"lastSeenAt,omitempty"`
+}
+
 var defaultSentinelProvider SentinelProvider = noopSentinelProvider{}
 
 type noopSentinelProvider struct{}
@@ -299,6 +320,10 @@ func (noopSentinelProvider) SummarizeProbes(ctx context.Context) ([]SentinelProb
 }
 
 func (noopSentinelProvider) SummarizePatchQueue(ctx context.Context) ([]SentinelPatchCandidate, error) {
+	return nil, ErrUnavailable
+}
+
+func (noopSentinelProvider) SummarizeExperiments(ctx context.Context) ([]SentinelExperimentSummary, error) {
 	return nil, ErrUnavailable
 }
 

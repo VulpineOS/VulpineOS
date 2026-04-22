@@ -280,6 +280,7 @@ type FakeSentinelProvider struct {
 	OutcomeSummary   []extensions.SentinelOutcomeSummary
 	ProbeSummary     []extensions.SentinelProbeSummary
 	PatchQueue       []extensions.SentinelPatchCandidate
+	ExperimentBoard  []extensions.SentinelExperimentSummary
 	Events           []extensions.SentinelEvent
 	Outcomes         []extensions.SentinelOutcome
 }
@@ -359,6 +360,13 @@ func (f *FakeSentinelProvider) SetPatchQueue(v []extensions.SentinelPatchCandida
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.PatchQueue = append([]extensions.SentinelPatchCandidate(nil), v...)
+}
+
+// SetExperimentBoard replaces the canned experiment summary rows.
+func (f *FakeSentinelProvider) SetExperimentBoard(v []extensions.SentinelExperimentSummary) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.ExperimentBoard = append([]extensions.SentinelExperimentSummary(nil), v...)
 }
 
 // Status returns the canned status.
@@ -463,6 +471,15 @@ func (f *FakeSentinelProvider) SummarizePatchQueue(ctx context.Context) ([]exten
 	defer f.mu.RUnlock()
 	out := make([]extensions.SentinelPatchCandidate, len(f.PatchQueue))
 	copy(out, f.PatchQueue)
+	return out, nil
+}
+
+// SummarizeExperiments returns a copy of the canned experiment board rows.
+func (f *FakeSentinelProvider) SummarizeExperiments(ctx context.Context) ([]extensions.SentinelExperimentSummary, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make([]extensions.SentinelExperimentSummary, len(f.ExperimentBoard))
+	copy(out, f.ExperimentBoard)
 	return out, nil
 }
 

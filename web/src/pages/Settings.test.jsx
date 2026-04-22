@@ -99,6 +99,18 @@ describe('Settings page', () => {
               outcomes: ['soft_challenge'],
               recommendation: 'Review canvas surface coherence and pixel-read behavior.',
             }],
+            experimentSummary: [{
+              variantBundleId: 'control',
+              trustRecipeId: 'baseline-warmup',
+              sessionCount: 2,
+              domainCount: 1,
+              successCount: 1,
+              softChallengeCount: 1,
+              hardChallengeCount: 0,
+              blockCount: 0,
+              burnCount: 0,
+              challengeVendors: ['cloudflare'],
+            }],
           }
         }
         if (method === 'sentinel.timeline') {
@@ -136,6 +148,8 @@ describe('Settings page', () => {
     expect(screen.getByText('Session age')).toBeInTheDocument()
     expect(screen.getByText('Cold holdout')).toBeInTheDocument()
     expect(screen.getByText('warm 1800 seconds')).toBeInTheDocument()
+    expect(screen.getByText('Experiment board')).toBeInTheDocument()
+    expect(screen.getAllByText('Baseline warmup').length).toBeGreaterThan(0)
     expect(screen.getByText('Recent capture timeline')).toBeInTheDocument()
     expect(screen.getByText('example.com · 1 events · 1 outcomes')).toBeInTheDocument()
     expect(screen.getByText('browser_probe · canvas.toDataURL')).toBeInTheDocument()
@@ -150,7 +164,7 @@ describe('Settings page', () => {
     expect(screen.getByText('Soft challenge')).toBeInTheDocument()
     expect(screen.getByText('Captured outcomes')).toBeInTheDocument()
     expect(screen.getAllByText('soft_challenge').length).toBeGreaterThan(0)
-    expect(screen.getByText('cloudflare')).toBeInTheDocument()
+    expect(screen.getAllByText('cloudflare').length).toBeGreaterThan(0)
     expect(screen.getByText('Agent model setup: Not configured')).toBeInTheDocument()
     expect(screen.getByText('OpenClaw profile: Configured')).toBeInTheDocument()
     expect(screen.getByText('API Key (ANTHROPIC_API_KEY)')).toBeInTheDocument()

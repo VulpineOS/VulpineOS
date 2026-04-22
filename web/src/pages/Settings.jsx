@@ -4,7 +4,7 @@ export default function Settings({ ws }) {
   const [cfg, setCfg] = useState({})
   const [providers, setProviders] = useState([])
   const [status, setStatus] = useState({})
-  const [sentinel, setSentinel] = useState({ variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], patchQueue: [] })
+  const [sentinel, setSentinel] = useState({ variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], patchQueue: [], experimentSummary: [] })
   const [sentinelTimeline, setSentinelTimeline] = useState([])
   const [defaultBudgetCost, setDefaultBudgetCost] = useState('0')
   const [defaultBudgetTokens, setDefaultBudgetTokens] = useState('0')
@@ -19,7 +19,7 @@ export default function Settings({ ws }) {
       setDefaultBudgetTokens(String(r?.defaultBudgetMaxTokens ?? 0))
     }).catch(() => {})
     ws.call('status.get').then(r => setStatus(r || {})).catch(() => {})
-    ws.call('sentinel.get').then(r => setSentinel(r || { variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], patchQueue: [] })).catch(() => {})
+    ws.call('sentinel.get').then(r => setSentinel(r || { variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], patchQueue: [], experimentSummary: [] })).catch(() => {})
     ws.call('sentinel.timeline', { limit: 4 }).then(r => setSentinelTimeline(r?.sessions || [])).catch(() => {})
   }, [ws.connected])
 
@@ -34,6 +34,9 @@ export default function Settings({ ws }) {
   const sentinelOutcomeSummary = sentinel.outcomeSummary || []
   const sentinelProbeSummary = sentinel.probeSummary || []
   const sentinelPatchQueue = sentinel.patchQueue || []
+  const sentinelExperimentSummary = sentinel.experimentSummary || []
+  const variantNameFor = (id) => sentinelVariants.find(bundle => bundle.id === id)?.name || id || 'unassigned'
+  const trustNameFor = (id) => sentinelTrustRecipes.find(recipe => recipe.id === id)?.name || id || 'unassigned'
 
   const formatMetricThresholds = (metric) => (metric.thresholds || [])
     .map(threshold => `${threshold.stage} ${threshold.minimum}${metric.unit ? ` ${metric.unit}` : ''}`)
@@ -326,6 +329,46 @@ export default function Settings({ ws }) {
                     ))}
                   </tbody>
                 </table>
+              </div>
+
+              <div>
+                <h4 style={{ margin: '0 0 10px' }}>Experiment board</h4>
+                {sentinelExperimentSummary.length === 0 ? (
+                  <div className="empty-state">No experiment outcomes have been summarized yet.</div>
+                ) : (
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Variant</th>
+                        <th>Trust</th>
+                        <th>Sessions</th>
+                        <th>Domains</th>
+                        <th>Success</th>
+                        <th>Soft</th>
+                        <th>Hard</th>
+                        <th>Block</th>
+                        <th>Burn</th>
+                        <th>Vendors</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sentinelExperimentSummary.map((row, index) => (
+                        <tr key={`${row.variantBundleId || 'variant'}-${row.trustRecipeId || 'trust'}-${index}`}>
+                          <td>{variantNameFor(row.variantBundleId)}</td>
+                          <td>{trustNameFor(row.trustRecipeId)}</td>
+                          <td>{row.sessionCount || 0}</td>
+                          <td>{row.domainCount || 0}</td>
+                          <td>{row.successCount || 0}</td>
+                          <td>{row.softChallengeCount || 0}</td>
+                          <td>{row.hardChallengeCount || 0}</td>
+                          <td>{row.blockCount || 0}</td>
+                          <td>{row.burnCount || 0}</td>
+                          <td>{(row.challengeVendors || []).join(', ') || 'none'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
 
               <div>
