@@ -37,6 +37,8 @@ type SentinelProvider interface {
 	ListMaturityMetrics(ctx context.Context) ([]SentinelMaturityMetric, error)
 	ListAssignmentRules(ctx context.Context) ([]SentinelAssignmentRule, error)
 	ListSessionTimelines(ctx context.Context, filter SentinelTimelineFilter) ([]SentinelSessionTimeline, error)
+	ListOutcomeLabels(ctx context.Context) ([]SentinelOutcomeLabel, error)
+	SummarizeOutcomes(ctx context.Context) ([]SentinelOutcomeSummary, error)
 	Available() bool
 }
 
@@ -198,6 +200,25 @@ type SentinelSessionTimeline struct {
 	Items          []SentinelTimelineItem `json:"items,omitempty"`
 }
 
+// SentinelOutcomeLabel describes one canonical outcome class used by
+// Sentinel experiment analysis.
+type SentinelOutcomeLabel struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Category    string `json:"category,omitempty"`
+	Severity    string `json:"severity,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
+// SentinelOutcomeSummary aggregates observed outcome labels so the
+// operator can see which classes dominate the current evidence.
+type SentinelOutcomeSummary struct {
+	Outcome    string    `json:"outcome"`
+	Count      int       `json:"count"`
+	LastSeenAt time.Time `json:"lastSeenAt,omitempty"`
+	Vendors    []string  `json:"vendors,omitempty"`
+}
+
 var defaultSentinelProvider SentinelProvider = noopSentinelProvider{}
 
 type noopSentinelProvider struct{}
@@ -231,6 +252,14 @@ func (noopSentinelProvider) ListAssignmentRules(ctx context.Context) ([]Sentinel
 }
 
 func (noopSentinelProvider) ListSessionTimelines(ctx context.Context, filter SentinelTimelineFilter) ([]SentinelSessionTimeline, error) {
+	return nil, ErrUnavailable
+}
+
+func (noopSentinelProvider) ListOutcomeLabels(ctx context.Context) ([]SentinelOutcomeLabel, error) {
+	return nil, ErrUnavailable
+}
+
+func (noopSentinelProvider) SummarizeOutcomes(ctx context.Context) ([]SentinelOutcomeSummary, error) {
 	return nil, ErrUnavailable
 }
 

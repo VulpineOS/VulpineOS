@@ -70,6 +70,19 @@ describe('Settings page', () => {
               trustRecipeId: 'baseline-warmup',
               holdoutPercent: 100,
             }],
+            outcomeLabels: [{
+              id: 'soft_challenge',
+              name: 'Soft challenge',
+              category: 'challenge',
+              severity: 'medium',
+              description: 'A challenge appeared, but the session may still be recoverable.',
+            }],
+            outcomeSummary: [{
+              outcome: 'soft_challenge',
+              count: 1,
+              vendors: ['cloudflare'],
+              lastSeenAt: '2026-04-22T15:00:00Z',
+            }],
           }
         }
         if (method === 'sentinel.timeline') {
@@ -111,6 +124,11 @@ describe('Settings page', () => {
     expect(screen.getByText('example.com · 1 events · 1 outcomes')).toBeInTheDocument()
     expect(screen.getByText('browser_probe · canvas.toDataURL')).toBeInTheDocument()
     expect(screen.getByText('soft_challenge · cloudflare')).toBeInTheDocument()
+    expect(screen.getByText('Outcome taxonomy')).toBeInTheDocument()
+    expect(screen.getByText('Soft challenge')).toBeInTheDocument()
+    expect(screen.getByText('Captured outcomes')).toBeInTheDocument()
+    expect(screen.getAllByText('soft_challenge').length).toBeGreaterThan(0)
+    expect(screen.getByText('cloudflare')).toBeInTheDocument()
     expect(screen.getByText('Agent model setup: Not configured')).toBeInTheDocument()
     expect(screen.getByText('OpenClaw profile: Configured')).toBeInTheDocument()
     expect(screen.getByText('API Key (ANTHROPIC_API_KEY)')).toBeInTheDocument()

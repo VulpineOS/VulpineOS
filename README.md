@@ -258,7 +258,7 @@ failed websocket states inline instead of relying on browser alerts.
 The panel now also includes:
 - a dedicated **Bus** page for pending approvals and communication policies
 - **Settings** controls for persisted default agent budgets
-- **Settings** Sentinel trust-lab visibility for variant bundles, trust recipes, maturity metrics, and assignment rules
+- **Settings** Sentinel trust-lab visibility for variant bundles, trust recipes, maturity metrics, assignment rules, outcome taxonomy, and captured outcome summaries
 - **Settings** recent Sentinel capture timelines grouped by session with raw evidence rows
 - **Agent Detail** controls for per-agent budget overrides, recording export, and fingerprint regeneration
 - **Proxies** controls for persisted per-agent rotation rules
