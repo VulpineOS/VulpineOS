@@ -210,6 +210,12 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		AssignmentRules: []extensions.SentinelAssignmentRule{
 			{ID: "cold-holdout", Name: "Cold holdout", VariantBundleID: "control", TrustRecipeID: "baseline-warmup"},
 		},
+		OutcomeLabels: []extensions.SentinelOutcomeLabel{
+			{ID: extensions.SentinelOutcomeSoftChallenge, Name: "Soft challenge", Category: "challenge", Severity: "medium"},
+		},
+		OutcomeSummary: []extensions.SentinelOutcomeSummary{
+			{Outcome: extensions.SentinelOutcomeSoftChallenge, Count: 1, Vendors: []string{"cloudflare"}},
+		},
 		SessionTimelines: []extensions.SentinelSessionTimeline{
 			{
 				SessionID:    "session-1",
@@ -238,6 +244,8 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		TrustRecipes    []extensions.SentinelTrustRecipe    `json:"trustRecipes"`
 		MaturityMetrics []extensions.SentinelMaturityMetric `json:"maturityMetrics"`
 		AssignmentRules []extensions.SentinelAssignmentRule `json:"assignmentRules"`
+		OutcomeLabels   []extensions.SentinelOutcomeLabel   `json:"outcomeLabels"`
+		OutcomeSummary  []extensions.SentinelOutcomeSummary `json:"outcomeSummary"`
 	}
 	if err := json.Unmarshal(payload, &result); err != nil {
 		t.Fatalf("Unmarshal: %v", err)
@@ -256,6 +264,12 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	}
 	if len(result.AssignmentRules) != 1 || result.AssignmentRules[0].ID != "cold-holdout" {
 		t.Fatalf("assignmentRules = %+v", result.AssignmentRules)
+	}
+	if len(result.OutcomeLabels) != 1 || result.OutcomeLabels[0].ID != extensions.SentinelOutcomeSoftChallenge {
+		t.Fatalf("outcomeLabels = %+v", result.OutcomeLabels)
+	}
+	if len(result.OutcomeSummary) != 1 || result.OutcomeSummary[0].Outcome != extensions.SentinelOutcomeSoftChallenge {
+		t.Fatalf("outcomeSummary = %+v", result.OutcomeSummary)
 	}
 }
 

@@ -276,6 +276,8 @@ type FakeSentinelProvider struct {
 	MaturityMetrics  []extensions.SentinelMaturityMetric
 	AssignmentRules  []extensions.SentinelAssignmentRule
 	SessionTimelines []extensions.SentinelSessionTimeline
+	OutcomeLabels    []extensions.SentinelOutcomeLabel
+	OutcomeSummary   []extensions.SentinelOutcomeSummary
 	Events           []extensions.SentinelEvent
 	Outcomes         []extensions.SentinelOutcome
 }
@@ -327,6 +329,20 @@ func (f *FakeSentinelProvider) SetSessionTimelines(v []extensions.SentinelSessio
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.SessionTimelines = append([]extensions.SentinelSessionTimeline(nil), v...)
+}
+
+// SetOutcomeLabels replaces the canned outcome labels under the write lock.
+func (f *FakeSentinelProvider) SetOutcomeLabels(v []extensions.SentinelOutcomeLabel) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.OutcomeLabels = append([]extensions.SentinelOutcomeLabel(nil), v...)
+}
+
+// SetOutcomeSummary replaces the canned outcome summary under the write lock.
+func (f *FakeSentinelProvider) SetOutcomeSummary(v []extensions.SentinelOutcomeSummary) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.OutcomeSummary = append([]extensions.SentinelOutcomeSummary(nil), v...)
 }
 
 // Status returns the canned status.
@@ -395,6 +411,24 @@ func (f *FakeSentinelProvider) ListSessionTimelines(ctx context.Context, filter 
 	defer f.mu.RUnlock()
 	out := make([]extensions.SentinelSessionTimeline, len(f.SessionTimelines))
 	copy(out, f.SessionTimelines)
+	return out, nil
+}
+
+// ListOutcomeLabels returns a copy of the canned outcome labels.
+func (f *FakeSentinelProvider) ListOutcomeLabels(ctx context.Context) ([]extensions.SentinelOutcomeLabel, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make([]extensions.SentinelOutcomeLabel, len(f.OutcomeLabels))
+	copy(out, f.OutcomeLabels)
+	return out, nil
+}
+
+// SummarizeOutcomes returns a copy of the canned outcome summary rows.
+func (f *FakeSentinelProvider) SummarizeOutcomes(ctx context.Context) ([]extensions.SentinelOutcomeSummary, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make([]extensions.SentinelOutcomeSummary, len(f.OutcomeSummary))
+	copy(out, f.OutcomeSummary)
 	return out, nil
 }
 

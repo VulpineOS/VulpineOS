@@ -4,7 +4,7 @@ export default function Settings({ ws }) {
   const [cfg, setCfg] = useState({})
   const [providers, setProviders] = useState([])
   const [status, setStatus] = useState({})
-  const [sentinel, setSentinel] = useState({ variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [] })
+  const [sentinel, setSentinel] = useState({ variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [] })
   const [sentinelTimeline, setSentinelTimeline] = useState([])
   const [defaultBudgetCost, setDefaultBudgetCost] = useState('0')
   const [defaultBudgetTokens, setDefaultBudgetTokens] = useState('0')
@@ -19,7 +19,7 @@ export default function Settings({ ws }) {
       setDefaultBudgetTokens(String(r?.defaultBudgetMaxTokens ?? 0))
     }).catch(() => {})
     ws.call('status.get').then(r => setStatus(r || {})).catch(() => {})
-    ws.call('sentinel.get').then(r => setSentinel(r || { variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [] })).catch(() => {})
+    ws.call('sentinel.get').then(r => setSentinel(r || { variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [] })).catch(() => {})
     ws.call('sentinel.timeline', { limit: 4 }).then(r => setSentinelTimeline(r?.sessions || [])).catch(() => {})
   }, [ws.connected])
 
@@ -30,6 +30,8 @@ export default function Settings({ ws }) {
   const sentinelTrustRecipes = sentinel.trustRecipes || []
   const sentinelMetrics = sentinel.maturityMetrics || []
   const sentinelRules = sentinel.assignmentRules || []
+  const sentinelOutcomeLabels = sentinel.outcomeLabels || []
+  const sentinelOutcomeSummary = sentinel.outcomeSummary || []
 
   const formatMetricThresholds = (metric) => (metric.thresholds || [])
     .map(threshold => `${threshold.stage} ${threshold.minimum}${metric.unit ? ` ${metric.unit}` : ''}`)
@@ -345,6 +347,58 @@ export default function Settings({ ws }) {
                       </div>
                     ))}
                   </div>
+                )}
+              </div>
+
+              <div>
+                <h4 style={{ margin: '0 0 10px' }}>Outcome taxonomy</h4>
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Outcome</th>
+                      <th>Category</th>
+                      <th>Severity</th>
+                      <th>Description</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sentinelOutcomeLabels.map(label => (
+                      <tr key={label.id}>
+                        <td>{label.name}</td>
+                        <td>{label.category || 'n/a'}</td>
+                        <td>{label.severity || 'n/a'}</td>
+                        <td>{label.description || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div>
+                <h4 style={{ margin: '0 0 10px' }}>Captured outcomes</h4>
+                {sentinelOutcomeSummary.length === 0 ? (
+                  <div className="empty-state">No outcome labels have been recorded yet.</div>
+                ) : (
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Outcome</th>
+                        <th>Count</th>
+                        <th>Vendors</th>
+                        <th>Last seen</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sentinelOutcomeSummary.map(row => (
+                        <tr key={row.outcome}>
+                          <td>{row.outcome}</td>
+                          <td>{row.count || 0}</td>
+                          <td>{(row.vendors || []).join(', ') || '—'}</td>
+                          <td>{row.lastSeenAt ? new Date(row.lastSeenAt).toLocaleString() : 'Unknown'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 )}
               </div>
             </div>

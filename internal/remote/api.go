@@ -1194,6 +1194,8 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 		"trustRecipes":    []extensions.SentinelTrustRecipe{},
 		"maturityMetrics": []extensions.SentinelMaturityMetric{},
 		"assignmentRules": []extensions.SentinelAssignmentRule{},
+		"outcomeLabels":   []extensions.SentinelOutcomeLabel{},
+		"outcomeSummary":  []extensions.SentinelOutcomeSummary{},
 	}
 	if !available {
 		return json.Marshal(out)
@@ -1218,10 +1220,20 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
+	outcomeLabels, err := provider.ListOutcomeLabels(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	outcomeSummary, err := provider.SummarizeOutcomes(context.Background())
+	if err != nil {
+		return nil, err
+	}
 	out["variantBundles"] = bundles
 	out["trustRecipes"] = trustRecipes
 	out["maturityMetrics"] = maturityMetrics
 	out["assignmentRules"] = assignmentRules
+	out["outcomeLabels"] = outcomeLabels
+	out["outcomeSummary"] = outcomeSummary
 	return json.Marshal(out)
 }
 

@@ -131,6 +131,12 @@ func TestFakesNoRaceUnderConcurrentSet(t *testing.T) {
 			sentinel.SetSessionTimelines([]extensions.SentinelSessionTimeline{
 				{SessionID: "session-1", Items: []extensions.SentinelTimelineItem{{Type: "event", Name: "canvas.toDataURL"}}},
 			})
+			sentinel.SetOutcomeLabels([]extensions.SentinelOutcomeLabel{
+				{ID: extensions.SentinelOutcomeSoftChallenge, Name: "Soft challenge"},
+			})
+			sentinel.SetOutcomeSummary([]extensions.SentinelOutcomeSummary{
+				{Outcome: extensions.SentinelOutcomeSoftChallenge, Count: 1},
+			})
 		}(i)
 		go func(i int) {
 			defer wg.Done()
@@ -149,6 +155,8 @@ func TestFakesNoRaceUnderConcurrentSet(t *testing.T) {
 			_, _ = sentinel.ListMaturityMetrics(ctx)
 			_, _ = sentinel.ListAssignmentRules(ctx)
 			_, _ = sentinel.ListSessionTimelines(ctx, extensions.SentinelTimelineFilter{Limit: 1})
+			_, _ = sentinel.ListOutcomeLabels(ctx)
+			_, _ = sentinel.SummarizeOutcomes(ctx)
 			_ = sentinel.RecordedEvents()
 			_ = sentinel.RecordedOutcomes()
 			_ = sentinel.Available()
