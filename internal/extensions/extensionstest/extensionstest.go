@@ -279,6 +279,7 @@ type FakeSentinelProvider struct {
 	OutcomeLabels    []extensions.SentinelOutcomeLabel
 	OutcomeSummary   []extensions.SentinelOutcomeSummary
 	ProbeSummary     []extensions.SentinelProbeSummary
+	SitePressure     []extensions.SentinelSitePressureSummary
 	PatchQueue       []extensions.SentinelPatchCandidate
 	ExperimentBoard  []extensions.SentinelExperimentSummary
 	Events           []extensions.SentinelEvent
@@ -353,6 +354,13 @@ func (f *FakeSentinelProvider) SetProbeSummary(v []extensions.SentinelProbeSumma
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.ProbeSummary = append([]extensions.SentinelProbeSummary(nil), v...)
+}
+
+// SetSitePressure replaces the canned site pressure rows under the write lock.
+func (f *FakeSentinelProvider) SetSitePressure(v []extensions.SentinelSitePressureSummary) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.SitePressure = append([]extensions.SentinelSitePressureSummary(nil), v...)
 }
 
 // SetPatchQueue replaces the canned patch queue rows under the write lock.
@@ -462,6 +470,15 @@ func (f *FakeSentinelProvider) SummarizeProbes(ctx context.Context) ([]extension
 	defer f.mu.RUnlock()
 	out := make([]extensions.SentinelProbeSummary, len(f.ProbeSummary))
 	copy(out, f.ProbeSummary)
+	return out, nil
+}
+
+// SummarizeSitePressure returns a copy of the canned site pressure rows.
+func (f *FakeSentinelProvider) SummarizeSitePressure(ctx context.Context) ([]extensions.SentinelSitePressureSummary, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make([]extensions.SentinelSitePressureSummary, len(f.SitePressure))
+	copy(out, f.SitePressure)
 	return out, nil
 }
 

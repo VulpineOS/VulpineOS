@@ -90,6 +90,18 @@ describe('Settings page', () => {
               api: 'toDataURL',
               count: 2,
             }],
+            sitePressure: [{
+              domain: 'example.com',
+              challengeVendor: 'cloudflare',
+              probeCount: 2,
+              sessionCount: 2,
+              successCount: 1,
+              softChallengeCount: 1,
+              hardChallengeCount: 0,
+              blockCount: 0,
+              burnCount: 0,
+              pressureScore: 6,
+            }],
             patchQueue: [{
               domain: 'example.com',
               probeType: 'canvas_probe',
@@ -157,6 +169,9 @@ describe('Settings page', () => {
     expect(screen.getByText('Probe summary')).toBeInTheDocument()
     expect(screen.getAllByText('canvas_probe').length).toBeGreaterThan(0)
     expect(screen.getByText('https://cdn.example.com/fp.js')).toBeInTheDocument()
+    expect(screen.getByText('Site pressure board')).toBeInTheDocument()
+    expect(screen.getAllByText('example.com').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('cloudflare').length).toBeGreaterThan(0)
     expect(screen.getByText('Patch queue')).toBeInTheDocument()
     expect(screen.getByText('Review canvas surface coherence and pixel-read behavior.')).toBeInTheDocument()
     expect(screen.getByText('HIGH')).toBeInTheDocument()

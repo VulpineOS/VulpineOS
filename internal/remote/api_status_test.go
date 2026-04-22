@@ -219,6 +219,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		ProbeSummary: []extensions.SentinelProbeSummary{
 			{Domain: "example.com", ScriptURL: "https://cdn.example.com/fp.js", ProbeType: "canvas_probe", API: "toDataURL", Count: 2},
 		},
+		SitePressure: []extensions.SentinelSitePressureSummary{
+			{Domain: "example.com", ChallengeVendor: "cloudflare", ProbeCount: 2, SessionCount: 2, SoftChallengeCount: 1, SuccessCount: 1, TotalOutcomes: 2, PressureScore: 6},
+		},
 		PatchQueue: []extensions.SentinelPatchCandidate{
 			{Domain: "example.com", ProbeType: "canvas_probe", API: "toDataURL", Priority: "high", Score: 10, Recommendation: "Review canvas surface coherence and pixel-read behavior."},
 		},
@@ -248,16 +251,17 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	}
 
 	var result struct {
-		Available         bool                                   `json:"available"`
-		VariantBundles    []extensions.SentinelVariantBundle     `json:"variantBundles"`
-		TrustRecipes      []extensions.SentinelTrustRecipe       `json:"trustRecipes"`
-		MaturityMetrics   []extensions.SentinelMaturityMetric    `json:"maturityMetrics"`
-		AssignmentRules   []extensions.SentinelAssignmentRule    `json:"assignmentRules"`
-		OutcomeLabels     []extensions.SentinelOutcomeLabel      `json:"outcomeLabels"`
-		OutcomeSummary    []extensions.SentinelOutcomeSummary    `json:"outcomeSummary"`
-		ProbeSummary      []extensions.SentinelProbeSummary      `json:"probeSummary"`
-		PatchQueue        []extensions.SentinelPatchCandidate    `json:"patchQueue"`
-		ExperimentSummary []extensions.SentinelExperimentSummary `json:"experimentSummary"`
+		Available         bool                                     `json:"available"`
+		VariantBundles    []extensions.SentinelVariantBundle       `json:"variantBundles"`
+		TrustRecipes      []extensions.SentinelTrustRecipe         `json:"trustRecipes"`
+		MaturityMetrics   []extensions.SentinelMaturityMetric      `json:"maturityMetrics"`
+		AssignmentRules   []extensions.SentinelAssignmentRule      `json:"assignmentRules"`
+		OutcomeLabels     []extensions.SentinelOutcomeLabel        `json:"outcomeLabels"`
+		OutcomeSummary    []extensions.SentinelOutcomeSummary      `json:"outcomeSummary"`
+		ProbeSummary      []extensions.SentinelProbeSummary        `json:"probeSummary"`
+		SitePressure      []extensions.SentinelSitePressureSummary `json:"sitePressure"`
+		PatchQueue        []extensions.SentinelPatchCandidate      `json:"patchQueue"`
+		ExperimentSummary []extensions.SentinelExperimentSummary   `json:"experimentSummary"`
 	}
 	if err := json.Unmarshal(payload, &result); err != nil {
 		t.Fatalf("Unmarshal: %v", err)
@@ -285,6 +289,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	}
 	if len(result.ProbeSummary) != 1 || result.ProbeSummary[0].API != "toDataURL" {
 		t.Fatalf("probeSummary = %+v", result.ProbeSummary)
+	}
+	if len(result.SitePressure) != 1 || result.SitePressure[0].ChallengeVendor != "cloudflare" {
+		t.Fatalf("sitePressure = %+v", result.SitePressure)
 	}
 	if len(result.PatchQueue) != 1 || result.PatchQueue[0].Priority != "high" {
 		t.Fatalf("patchQueue = %+v", result.PatchQueue)

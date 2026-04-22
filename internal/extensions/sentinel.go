@@ -40,6 +40,7 @@ type SentinelProvider interface {
 	ListOutcomeLabels(ctx context.Context) ([]SentinelOutcomeLabel, error)
 	SummarizeOutcomes(ctx context.Context) ([]SentinelOutcomeSummary, error)
 	SummarizeProbes(ctx context.Context) ([]SentinelProbeSummary, error)
+	SummarizeSitePressure(ctx context.Context) ([]SentinelSitePressureSummary, error)
 	SummarizePatchQueue(ctx context.Context) ([]SentinelPatchCandidate, error)
 	SummarizeExperiments(ctx context.Context) ([]SentinelExperimentSummary, error)
 	Available() bool
@@ -273,6 +274,26 @@ type SentinelExperimentSummary struct {
 	LastSeenAt         time.Time `json:"lastSeenAt,omitempty"`
 }
 
+// SentinelSitePressureSummary aggregates recent probe and outcome
+// pressure by domain and challenge vendor so trust work can focus on
+// the targets attracting the most friction.
+type SentinelSitePressureSummary struct {
+	Domain             string    `json:"domain,omitempty"`
+	ChallengeVendor    string    `json:"challengeVendor,omitempty"`
+	ProbeCount         int       `json:"probeCount"`
+	SessionCount       int       `json:"sessionCount"`
+	SuccessCount       int       `json:"successCount"`
+	DegradedCount      int       `json:"degradedCount"`
+	SoftChallengeCount int       `json:"softChallengeCount"`
+	HardChallengeCount int       `json:"hardChallengeCount"`
+	BlockCount         int       `json:"blockCount"`
+	RetryLoopCount     int       `json:"retryLoopCount"`
+	BurnCount          int       `json:"burnCount"`
+	TotalOutcomes      int       `json:"totalOutcomes"`
+	PressureScore      int       `json:"pressureScore"`
+	LastSeenAt         time.Time `json:"lastSeenAt,omitempty"`
+}
+
 var defaultSentinelProvider SentinelProvider = noopSentinelProvider{}
 
 type noopSentinelProvider struct{}
@@ -318,6 +339,10 @@ func (noopSentinelProvider) SummarizeOutcomes(ctx context.Context) ([]SentinelOu
 }
 
 func (noopSentinelProvider) SummarizeProbes(ctx context.Context) ([]SentinelProbeSummary, error) {
+	return nil, ErrUnavailable
+}
+
+func (noopSentinelProvider) SummarizeSitePressure(ctx context.Context) ([]SentinelSitePressureSummary, error) {
 	return nil, ErrUnavailable
 }
 
