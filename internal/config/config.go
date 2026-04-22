@@ -304,23 +304,34 @@ func (c *Config) Save() error {
 
 // RefreshSetupComplete recomputes whether the config is complete enough to skip setup.
 func (c *Config) RefreshSetupComplete() bool {
-	providerID := strings.TrimSpace(c.Provider)
-	model := strings.TrimSpace(c.Model)
-	if providerID == "" || model == "" {
-		c.SetupComplete = false
-		return false
-	}
-	provider := GetProvider(providerID)
-	if provider == nil {
-		c.SetupComplete = false
-		return false
-	}
-	if provider.NeedsKey && strings.TrimSpace(c.APIKey) == "" {
+	ready, err := c.OpenClawConfigReady()
+	if err != nil || !ready {
 		c.SetupComplete = false
 		return false
 	}
 	c.SetupComplete = true
 	return true
+}
+
+// OpenClawConfigReady reports whether the config is complete enough to write a
+// usable OpenClaw profile. Missing provider/model/key is treated as "not ready
+// yet" rather than an error so first-run startup can stay quiet. Unknown
+// providers still return an error because that indicates a stale or invalid
+// config value.
+func (c *Config) OpenClawConfigReady() (bool, error) {
+	providerID := strings.TrimSpace(c.Provider)
+	model := strings.TrimSpace(c.Model)
+	if providerID == "" || model == "" {
+		return false, nil
+	}
+	provider := GetProvider(providerID)
+	if provider == nil {
+		return false, fmt.Errorf("unknown provider: %s", c.Provider)
+	}
+	if provider.NeedsKey && strings.TrimSpace(c.APIKey) == "" {
+		return false, nil
+	}
+	return true, nil
 }
 
 // HydrateFromOpenClawProfile backfills missing local config values from the

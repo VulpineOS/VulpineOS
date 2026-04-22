@@ -485,6 +485,20 @@ func printPanelAccess(host string, port int, useTLS bool, apiKey string, generat
 	return panelURL
 }
 
+func tryGenerateOpenClawConfig(cfg *config.Config, vulpineosBinary, camoufoxBinary string) (bool, error) {
+	if cfg == nil {
+		return false, nil
+	}
+	ready, err := cfg.OpenClawConfigReady()
+	if err != nil {
+		return false, err
+	}
+	if !ready {
+		return false, nil
+	}
+	return true, cfg.GenerateOpenClawConfig(vulpineosBinary, camoufoxBinary)
+}
+
 func openBrowserURL(rawURL string) error {
 	candidates := [][]string{
 		{"open", rawURL},
@@ -604,7 +618,7 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 		// Generate OpenClaw config
 		exe, _ := os.Executable()
 		camoufox := resolvedBinaryPath
-		if err := cfg.GenerateOpenClawConfig(exe, camoufox); err != nil {
+		if _, err := tryGenerateOpenClawConfig(cfg, exe, camoufox); err != nil {
 			log.Printf("Warning: could not generate OpenClaw config: %v", err)
 		}
 	}
@@ -626,7 +640,7 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 	// Always regenerate openclaw.json to ensure it matches current config
 	if cfg.SetupComplete {
 		exe, _ := os.Executable()
-		if genErr := cfg.GenerateOpenClawConfig(exe, resolvedBinaryPath); genErr != nil {
+		if _, genErr := tryGenerateOpenClawConfig(cfg, exe, resolvedBinaryPath); genErr != nil {
 			log.Printf("Warning: could not generate OpenClaw config: %v", genErr)
 		}
 	}
@@ -743,7 +757,9 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 					// Set CDP URL in config so OpenClaw routes through foxbridge
 					cfg.FoxbridgeCDPURL = fb.CDPURL()
 					exe, _ := os.Executable()
-					cfg.GenerateOpenClawConfig(exe, resolvedBinaryPath)
+					if _, err := tryGenerateOpenClawConfig(cfg, exe, resolvedBinaryPath); err != nil {
+						log.Printf("Warning: could not generate OpenClaw config: %v", err)
+					}
 					log.Printf("foxbridge embedded — OpenClaw browser routed through Camoufox at %s", fb.CDPURL())
 				}
 			}
@@ -1163,10 +1179,12 @@ func runServe(binaryPath string, headless bool, profileDir string, host string, 
 			defer fb.Stop()
 			cfg.FoxbridgeCDPURL = fb.CDPURL()
 			exe, _ := os.Executable()
-			if err := cfg.GenerateOpenClawConfig(exe, resolvedBinaryPath); err != nil {
+			if generated, err := tryGenerateOpenClawConfig(cfg, exe, resolvedBinaryPath); err != nil {
 				log.Printf("Warning: could not generate OpenClaw config: %v", err)
-			} else if err := config.RepairOpenClawProfile(cfg.FoxbridgeCDPURL); err != nil {
-				log.Printf("Warning: could not repair OpenClaw profile after foxbridge start: %v", err)
+			} else if generated {
+				if err := config.RepairOpenClawProfile(cfg.FoxbridgeCDPURL); err != nil {
+					log.Printf("Warning: could not repair OpenClaw profile after foxbridge start: %v", err)
+				}
 			}
 			log.Printf("foxbridge CDP on %s", fb.CDPURL())
 		}

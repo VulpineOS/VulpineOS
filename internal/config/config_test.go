@@ -622,6 +622,32 @@ func TestCustomProvider(t *testing.T) {
 	}
 }
 
+func TestOpenClawConfigReady_BlankConfig(t *testing.T) {
+	cfg := &Config{}
+	ready, err := cfg.OpenClawConfigReady()
+	if err != nil {
+		t.Fatalf("OpenClawConfigReady: %v", err)
+	}
+	if ready {
+		t.Fatal("ready = true, want false")
+	}
+}
+
+func TestOpenClawConfigReady_UnknownProvider(t *testing.T) {
+	cfg := &Config{
+		Provider: "nonexistent-provider",
+		Model:    "model",
+		APIKey:   "key",
+	}
+	ready, err := cfg.OpenClawConfigReady()
+	if err == nil {
+		t.Fatal("expected error for unknown provider")
+	}
+	if ready {
+		t.Fatal("ready = true, want false")
+	}
+}
+
 func TestNeedsSetup(t *testing.T) {
 	cfg := &Config{}
 	if !cfg.NeedsSetup() {
