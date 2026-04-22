@@ -326,7 +326,8 @@ func (l binaryLocator) installedCandidates() []string {
 }
 
 func (l binaryLocator) repoLocalBuild() string {
-	var matches []string
+	var preferred []string
+	var fallback []string
 	seen := map[string]struct{}{}
 	patterns := []string{
 		filepath.Join("camoufox-*", "obj-*", "dist", "bin", "camoufox"),
@@ -344,12 +345,19 @@ func (l binaryLocator) repoLocalBuild() string {
 						continue
 					}
 					seen[normalized] = struct{}{}
-					matches = append(matches, normalized)
+					if l.goos == "darwin" && strings.Contains(normalized, ".app/Contents/MacOS/camoufox") {
+						preferred = append(preferred, normalized)
+					} else {
+						fallback = append(fallback, normalized)
+					}
 				}
 			}
 		}
 	}
-	return newestExisting(matches)
+	if preferredPath := newestExisting(preferred); preferredPath != "" {
+		return preferredPath
+	}
+	return newestExisting(fallback)
 }
 
 func (l binaryLocator) searchRoots() []string {
