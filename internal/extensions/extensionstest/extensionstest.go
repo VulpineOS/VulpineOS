@@ -272,6 +272,7 @@ type FakeSentinelProvider struct {
 	AvailableFlag  bool
 	StatusValue    extensions.SentinelStatus
 	VariantBundles []extensions.SentinelVariantBundle
+	TrustRecipes   []extensions.SentinelTrustRecipe
 	Events         []extensions.SentinelEvent
 	Outcomes       []extensions.SentinelOutcome
 }
@@ -295,6 +296,13 @@ func (f *FakeSentinelProvider) SetVariantBundles(v []extensions.SentinelVariantB
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.VariantBundles = append([]extensions.SentinelVariantBundle(nil), v...)
+}
+
+// SetTrustRecipes replaces the canned trust recipes under the write lock.
+func (f *FakeSentinelProvider) SetTrustRecipes(v []extensions.SentinelTrustRecipe) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.TrustRecipes = append([]extensions.SentinelTrustRecipe(nil), v...)
 }
 
 // Status returns the canned status.
@@ -327,6 +335,15 @@ func (f *FakeSentinelProvider) ListVariantBundles(ctx context.Context) ([]extens
 	defer f.mu.RUnlock()
 	out := make([]extensions.SentinelVariantBundle, len(f.VariantBundles))
 	copy(out, f.VariantBundles)
+	return out, nil
+}
+
+// ListTrustRecipes returns a copy of the canned trust recipes.
+func (f *FakeSentinelProvider) ListTrustRecipes(ctx context.Context) ([]extensions.SentinelTrustRecipe, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make([]extensions.SentinelTrustRecipe, len(f.TrustRecipes))
+	copy(out, f.TrustRecipes)
 	return out, nil
 }
 

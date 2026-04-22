@@ -48,6 +48,13 @@ describe('Settings page', () => {
             openclaw_profile_configured: true,
           }
         }
+        if (method === 'sentinel.get') {
+          return {
+            available: true,
+            variantBundles: [{ id: 'control', name: 'Control', enabled: true, weight: 100 }],
+            trustRecipes: [{ id: 'baseline-warmup', name: 'Baseline warmup', warmupStrategy: 'generic_revisit' }],
+          }
+        }
         return {}
       }),
     }
@@ -60,6 +67,8 @@ describe('Settings page', () => {
     expect(screen.getByText('Sentinel: PRIVATE_SCAFFOLD · sentinel-private')).toBeInTheDocument()
     expect(screen.getByText('Variant bundles: 1')).toBeInTheDocument()
     expect(screen.getByText('Trust recipes: 1')).toBeInTheDocument()
+    expect(screen.getByText('Variant names: Control')).toBeInTheDocument()
+    expect(screen.getByText('Trust names: Baseline warmup')).toBeInTheDocument()
     expect(screen.getByText('Agent model setup: Not configured')).toBeInTheDocument()
     expect(screen.getByText('OpenClaw profile: Configured')).toBeInTheDocument()
     expect(screen.getByText('API Key (ANTHROPIC_API_KEY)')).toBeInTheDocument()

@@ -105,6 +105,9 @@ func TestDefaultSentinelProviderUnavailable(t *testing.T) {
 	if _, err := s.ListVariantBundles(ctx); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("ListVariantBundles: expected ErrUnavailable, got %v", err)
 	}
+	if _, err := s.ListTrustRecipes(ctx); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("ListTrustRecipes: expected ErrUnavailable, got %v", err)
+	}
 }
 
 // TestRegistryConcurrentSetGet runs many goroutines that race on

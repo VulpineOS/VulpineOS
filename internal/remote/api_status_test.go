@@ -176,3 +176,48 @@ func TestStatusGetIncludesSentinelStatus(t *testing.T) {
 		t.Fatalf("sentinel_trust_recipes = %v, want 1", got)
 	}
 }
+
+func TestSentinelGetReturnsVariantsAndTrustRecipes(t *testing.T) {
+	original := extensions.Registry.Sentinel()
+	t.Cleanup(func() { extensions.Registry.SetSentinel(original) })
+	fake := &extensionstest.FakeSentinelProvider{
+		AvailableFlag: true,
+		StatusValue: extensions.SentinelStatus{
+			Provider:       "sentinel-private",
+			Mode:           "private_scaffold",
+			VariantBundles: 1,
+			TrustRecipes:   1,
+		},
+		VariantBundles: []extensions.SentinelVariantBundle{
+			{ID: "control", Name: "Control", Enabled: true, Weight: 100},
+		},
+		TrustRecipes: []extensions.SentinelTrustRecipe{
+			{ID: "baseline-warmup", Name: "Baseline warmup", WarmupStrategy: "generic_revisit"},
+		},
+	}
+	extensions.Registry.SetSentinel(fake)
+
+	api := &PanelAPI{}
+	payload, err := api.HandleMessage("sentinel.get", nil)
+	if err != nil {
+		t.Fatalf("HandleMessage: %v", err)
+	}
+
+	var result struct {
+		Available      bool                               `json:"available"`
+		VariantBundles []extensions.SentinelVariantBundle `json:"variantBundles"`
+		TrustRecipes   []extensions.SentinelTrustRecipe   `json:"trustRecipes"`
+	}
+	if err := json.Unmarshal(payload, &result); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if !result.Available {
+		t.Fatal("expected sentinel to be available")
+	}
+	if len(result.VariantBundles) != 1 || result.VariantBundles[0].ID != "control" {
+		t.Fatalf("variantBundles = %+v", result.VariantBundles)
+	}
+	if len(result.TrustRecipes) != 1 || result.TrustRecipes[0].ID != "baseline-warmup" {
+		t.Fatalf("trustRecipes = %+v", result.TrustRecipes)
+	}
+}

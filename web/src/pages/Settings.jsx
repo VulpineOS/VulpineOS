@@ -4,6 +4,7 @@ export default function Settings({ ws }) {
   const [cfg, setCfg] = useState({})
   const [providers, setProviders] = useState([])
   const [status, setStatus] = useState({})
+  const [sentinel, setSentinel] = useState({ variantBundles: [], trustRecipes: [] })
   const [defaultBudgetCost, setDefaultBudgetCost] = useState('0')
   const [defaultBudgetTokens, setDefaultBudgetTokens] = useState('0')
   const [saved, setSaved] = useState('')
@@ -17,6 +18,7 @@ export default function Settings({ ws }) {
       setDefaultBudgetTokens(String(r?.defaultBudgetMaxTokens ?? 0))
     }).catch(() => {})
     ws.call('status.get').then(r => setStatus(r || {})).catch(() => {})
+    ws.call('sentinel.get').then(r => setSentinel(r || { variantBundles: [], trustRecipes: [] })).catch(() => {})
   }, [ws.connected])
 
   const selectedProvider = providers.find(p => p.id === cfg.provider) || null
@@ -160,6 +162,8 @@ export default function Settings({ ws }) {
             </div>
             <div>Variant bundles: {status.sentinel_variant_bundles || 0}</div>
             <div>Trust recipes: {status.sentinel_trust_recipes || 0}</div>
+            <div>Variant names: {(sentinel.variantBundles || []).map(bundle => bundle.name).join(', ') || 'None'}</div>
+            <div>Trust names: {(sentinel.trustRecipes || []).map(recipe => recipe.name).join(', ') || 'None'}</div>
           </div>
         </div>
       </div>

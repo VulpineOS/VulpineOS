@@ -43,6 +43,9 @@ func TestFakesNoRaceUnderConcurrentSet(t *testing.T) {
 		VariantBundles: []extensions.SentinelVariantBundle{
 			{ID: "control", Name: "Control", Enabled: true, Weight: 100},
 		},
+		TrustRecipes: []extensions.SentinelTrustRecipe{
+			{ID: "baseline-warmup", Name: "Baseline warmup", WarmupStrategy: "generic_revisit"},
+		},
 	}
 
 	ctx := context.Background()
@@ -116,6 +119,9 @@ func TestFakesNoRaceUnderConcurrentSet(t *testing.T) {
 			sentinel.SetVariantBundles([]extensions.SentinelVariantBundle{
 				{ID: "control", Name: "Control", Enabled: true, Weight: 100 + i},
 			})
+			sentinel.SetTrustRecipes([]extensions.SentinelTrustRecipe{
+				{ID: "baseline-warmup", Name: "Baseline warmup", WarmupStrategy: "generic_revisit"},
+			})
 		}(i)
 		go func(i int) {
 			defer wg.Done()
@@ -130,6 +136,7 @@ func TestFakesNoRaceUnderConcurrentSet(t *testing.T) {
 				Timestamp: time.Now(),
 			})
 			_, _ = sentinel.ListVariantBundles(ctx)
+			_, _ = sentinel.ListTrustRecipes(ctx)
 			_ = sentinel.RecordedEvents()
 			_ = sentinel.RecordedOutcomes()
 			_ = sentinel.Available()

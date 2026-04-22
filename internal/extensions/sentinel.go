@@ -33,6 +33,7 @@ type SentinelProvider interface {
 	RecordEvent(ctx context.Context, event SentinelEvent) error
 	RecordOutcome(ctx context.Context, outcome SentinelOutcome) error
 	ListVariantBundles(ctx context.Context) ([]SentinelVariantBundle, error)
+	ListTrustRecipes(ctx context.Context) ([]SentinelTrustRecipe, error)
 	Available() bool
 }
 
@@ -133,6 +134,10 @@ func (noopSentinelProvider) RecordOutcome(ctx context.Context, outcome SentinelO
 }
 
 func (noopSentinelProvider) ListVariantBundles(ctx context.Context) ([]SentinelVariantBundle, error) {
+	return nil, ErrUnavailable
+}
+
+func (noopSentinelProvider) ListTrustRecipes(ctx context.Context) ([]SentinelTrustRecipe, error) {
 	return nil, ErrUnavailable
 }
 

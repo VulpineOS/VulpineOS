@@ -146,6 +146,8 @@ func (api *PanelAPI) HandleMessage(method string, params json.RawMessage) (json.
 	// --- Status ---
 	case "status.get":
 		return api.statusGet()
+	case "sentinel.get":
+		return api.sentinelGet()
 
 	// --- Runtime audit ---
 	case "runtime.list":
@@ -1171,6 +1173,37 @@ func (api *PanelAPI) statusGet() (json.RawMessage, error) {
 		out["sentinel_error"] = err.Error()
 	}
 
+	return json.Marshal(out)
+}
+
+func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
+	status, available, err := extensions.SentinelSnapshot(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]interface{}{
+		"available":      available,
+		"status":         status,
+		"variantBundles": []extensions.SentinelVariantBundle{},
+		"trustRecipes":   []extensions.SentinelTrustRecipe{},
+	}
+	if !available {
+		return json.Marshal(out)
+	}
+	provider := extensions.Registry.Sentinel()
+	if provider == nil {
+		return json.Marshal(out)
+	}
+	bundles, err := provider.ListVariantBundles(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	trustRecipes, err := provider.ListTrustRecipes(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	out["variantBundles"] = bundles
+	out["trustRecipes"] = trustRecipes
 	return json.Marshal(out)
 }
 
