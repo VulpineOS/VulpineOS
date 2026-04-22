@@ -6,13 +6,19 @@ export default function Agents({ ws }) {
   const [selected, setSelected] = useState({})
   const [task, setTask] = useState('')
   const [costs, setCosts] = useState([])
+  const [totalCost, setTotalCost] = useState(0)
+  const [defaultBudget, setDefaultBudget] = useState({ maxCostUsd: 0, maxTokens: 0 })
   const [contexts, setContexts] = useState([])
   const [selectedContext, setSelectedContext] = useState(localStorage.getItem('vulpine_context_id') || '')
   const [notice, setNotice] = useState('')
 
   const refresh = () => {
     ws.call('agents.list').then(r => setAgents(r?.agents || [])).catch(() => {})
-    ws.call('costs.getAll').then(r => setCosts(r?.usage || [])).catch(() => {})
+    ws.call('costs.getAll').then(r => {
+      setCosts(r?.usage || [])
+      setDefaultBudget(r?.defaults || { maxCostUsd: 0, maxTokens: 0 })
+    }).catch(() => {})
+    ws.call('costs.total').then(r => setTotalCost(r?.totalCostUsd || 0)).catch(() => {})
     ws.call('contexts.list').then(r => setContexts(r?.contexts || [])).catch(() => {})
   }
 
@@ -107,6 +113,23 @@ export default function Agents({ ws }) {
     return c ? c.totalTokens.toLocaleString() : '—'
   }
 
+  const totalTokens = costs.reduce((sum, usage) => sum + (usage.totalTokens || 0), 0)
+  const overrideCount = agents.filter(agent => agent.budgetSource === 'agent').length
+  const inheritedCount = agents.filter(agent => agent.budgetSource === 'default').length
+  const defaultBudgetLabel = [
+    defaultBudget.maxCostUsd > 0 ? `$${Number(defaultBudget.maxCostUsd).toFixed(2)}` : null,
+    defaultBudget.maxTokens > 0 ? `${Number(defaultBudget.maxTokens).toLocaleString()} tok` : null,
+  ].filter(Boolean).join(' · ') || 'Unlimited'
+
+  const formatBudget = (agent) => {
+    if (!agent || !agent.budgetSource || agent.budgetSource === 'none') return 'No budget'
+    const parts = []
+    if ((agent.budgetMaxCostUsd || 0) > 0) parts.push(`$${Number(agent.budgetMaxCostUsd).toFixed(2)}`)
+    if ((agent.budgetMaxTokens || 0) > 0) parts.push(`${Number(agent.budgetMaxTokens).toLocaleString()} tok`)
+    const limit = parts.length > 0 ? parts.join(' · ') : 'Unlimited'
+    return agent.budgetSource === 'agent' ? `Override · ${limit}` : `Default · ${limit}`
+  }
+
   return (
     <div>
       <div className="page-header">
@@ -142,12 +165,35 @@ export default function Agents({ ws }) {
         </div>
       )}
 
+      <div className="grid grid-4" style={{ marginBottom: 16 }}>
+        <div className="card metric-card">
+          <div className="metric-kicker">Spend</div>
+          <div className="stat-value">${totalCost.toFixed(4)}</div>
+          <div className="metric-caption">{costs.length} tracked agents with usage</div>
+        </div>
+        <div className="card metric-card">
+          <div className="metric-kicker">Tokens</div>
+          <div className="stat-value">{totalTokens.toLocaleString()}</div>
+          <div className="metric-caption">Aggregate tracked token usage</div>
+        </div>
+        <div className="card metric-card">
+          <div className="metric-kicker">Default budget</div>
+          <div className="stat-value">{defaultBudget.maxCostUsd > 0 ? `$${Number(defaultBudget.maxCostUsd).toFixed(2)}` : 'Open'}</div>
+          <div className="metric-caption">{defaultBudgetLabel}</div>
+        </div>
+        <div className="card metric-card">
+          <div className="metric-kicker">Overrides</div>
+          <div className="stat-value">{overrideCount}</div>
+          <div className="metric-caption">{inheritedCount} inheriting the default budget</div>
+        </div>
+      </div>
+
       <div className="card">
         <table className="table">
-          <thead><tr><th><input type="checkbox" checked={agents.length > 0 && agents.every(a => selected[a.id])} onChange={toggleAll} /></th><th>Agent</th><th>Status</th><th>Context</th><th>Fingerprint</th><th>Tokens</th><th>Cost</th><th>Actions</th></tr></thead>
+          <thead><tr><th><input type="checkbox" checked={agents.length > 0 && agents.every(a => selected[a.id])} onChange={toggleAll} /></th><th>Agent</th><th>Status</th><th>Context</th><th>Fingerprint</th><th>Tokens</th><th>Cost</th><th>Budget</th><th>Actions</th></tr></thead>
           <tbody>
             {agents.length === 0 && (
-              <tr><td colSpan="8" style={{ textAlign: 'center', color: '#666', padding: 32 }}>No agents. Spawn one above.</td></tr>
+              <tr><td colSpan="9" style={{ textAlign: 'center', color: '#666', padding: 32 }}>No agents. Spawn one above.</td></tr>
             )}
             {agents.map(a => (
               <tr key={a.id}>
@@ -158,6 +204,7 @@ export default function Agents({ ws }) {
                 <td style={{ fontSize: 12, color: '#888' }}>{a.fingerprintSummary || '—'}</td>
                 <td>{getTokens(a.id)}</td>
                 <td>{getCost(a.id)}</td>
+                <td style={{ fontSize: 12, color: '#888' }}>{formatBudget(a)}</td>
                 <td>
                   {a.status === 'active' && <button className="btn btn-ghost btn-sm" onClick={() => pause(a.id)} style={{ marginRight: 4 }}>Pause</button>}
                   {a.status === 'paused' && <button className="btn btn-ghost btn-sm" onClick={() => resume(a.id)} style={{ marginRight: 4 }}>Resume</button>}

@@ -19,21 +19,42 @@ export default function Dashboard({ ws }) {
   const [status, setStatus] = useState(null)
   const [agents, setAgents] = useState([])
   const [runtimeEvents, setRuntimeEvents] = useState([])
+  const [costSummary, setCostSummary] = useState({
+    totalCostUsd: 0,
+    totalTokens: 0,
+    trackedUsage: 0,
+    overrideCount: 0,
+    defaultMaxCostUsd: 0,
+    defaultMaxTokens: 0,
+  })
 
   useEffect(() => {
     if (!ws.connected) return undefined
     let cancelled = false
     const refresh = async () => {
       try {
-        const [nextStatus, nextAgents, nextRuntime] = await Promise.all([
+        const [nextStatus, nextAgents, nextRuntime, nextTotal, nextCosts] = await Promise.all([
           ws.call('status.get'),
           ws.call('agents.list'),
           ws.call('runtime.list', { limit: 12 }),
+          ws.call('costs.total'),
+          ws.call('costs.getAll'),
         ])
         if (cancelled) return
+        const agentList = nextAgents?.agents || []
+        const usage = nextCosts?.usage || []
+        const defaults = nextCosts?.defaults || {}
         setStatus(nextStatus || {})
-        setAgents(nextAgents?.agents || [])
+        setAgents(agentList)
         setRuntimeEvents(nextRuntime?.events || [])
+        setCostSummary({
+          totalCostUsd: nextTotal?.totalCostUsd ?? nextStatus?.total_cost_usd ?? 0,
+          totalTokens: usage.reduce((sum, entry) => sum + (entry.totalTokens || 0), 0),
+          trackedUsage: usage.length,
+          overrideCount: agentList.filter(agent => agent.budgetSource === 'agent').length,
+          defaultMaxCostUsd: defaults.maxCostUsd ?? 0,
+          defaultMaxTokens: defaults.maxTokens ?? 0,
+        })
       } catch {
         if (!cancelled) {
           setStatus(current => current || {})
@@ -75,6 +96,13 @@ export default function Dashboard({ ws }) {
       .slice(0, 6)
   }, [agents])
 
+  const defaultBudgetLabel = useMemo(() => {
+    const parts = []
+    if (costSummary.defaultMaxCostUsd > 0) parts.push(`$${costSummary.defaultMaxCostUsd.toFixed(2)}`)
+    if (costSummary.defaultMaxTokens > 0) parts.push(`${costSummary.defaultMaxTokens.toLocaleString()} tok`)
+    return parts.length > 0 ? parts.join(' · ') : 'Unlimited by default'
+  }, [costSummary.defaultMaxCostUsd, costSummary.defaultMaxTokens])
+
   const quickActions = [
     { to: '/agents', title: 'Review agents', detail: `${s.active_agents || 0} active · ${agents.length || 0} tracked` },
     { to: '/bus', title: 'Check approvals', detail: alertEvents.length ? `${alertEvents.length} runtime alerts need triage` : 'No recent runtime warnings' },
@@ -108,14 +136,18 @@ export default function Dashboard({ ws }) {
           </div>
         </div>
         <div className="card metric-card">
-          <div className="metric-kicker">Window and gateway</div>
-          <div className="stat-value">{(s.browser_window || 'unknown').toUpperCase()}</div>
-          <div className="metric-caption">Gateway {s.gateway_running ? 'RUNNING' : 'STOPPED'} · Profile {s.openclaw_profile_configured ? 'READY' : 'MISSING'}</div>
+          <div className="metric-kicker">Spend</div>
+          <div className="stat-value">${(costSummary.totalCostUsd || 0).toFixed(4)}</div>
+          <div className="metric-caption">
+            {(costSummary.totalTokens || 0).toLocaleString()} tokens · {costSummary.trackedUsage} tracked usage records
+          </div>
         </div>
         <div className="card metric-card">
-          <div className="metric-kicker">Spend</div>
-          <div className="stat-value">${(s.total_cost_usd || 0).toFixed(4)}</div>
-          <div className="metric-caption">{s.total_citizens || 0} citizens · {s.total_templates || 0} templates · {t.activePages || 0} pages</div>
+          <div className="metric-kicker">Budget posture</div>
+          <div className="stat-value">{costSummary.overrideCount}</div>
+          <div className="metric-caption">
+            {costSummary.overrideCount === 1 ? '1 agent override' : `${costSummary.overrideCount} agent overrides`} · {defaultBudgetLabel}
+          </div>
         </div>
       </div>
 
@@ -189,11 +221,15 @@ export default function Dashboard({ ws }) {
             </div>
             <div className="detail-grid">
               <div className="detail-row"><span>Kernel PID</span><strong>{s.kernel_pid || 'N/A'}</strong></div>
+              <div className="detail-row"><span>Window</span><strong>{(s.browser_window || 'unknown').toUpperCase()}</strong></div>
+              <div className="detail-row"><span>Gateway</span><strong>{s.gateway_running ? 'RUNNING' : 'STOPPED'}</strong></div>
               <div className="detail-row"><span>Contexts</span><strong>{t.activeContexts || 0}</strong></div>
               <div className="detail-row"><span>Pages</span><strong>{t.activePages || 0}</strong></div>
               <div className="detail-row"><span>Detection risk</span><strong>{t.detectionRiskScore || 0}%</strong></div>
               <div className="detail-row"><span>Pool available</span><strong>{s.pool_available || 0}</strong></div>
               <div className="detail-row"><span>Pool total</span><strong>{s.pool_total || 0}</strong></div>
+              <div className="detail-row"><span>Citizens</span><strong>{s.total_citizens || 0}</strong></div>
+              <div className="detail-row"><span>Templates</span><strong>{s.total_templates || 0}</strong></div>
             </div>
           </div>
         </div>

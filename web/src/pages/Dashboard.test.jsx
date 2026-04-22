@@ -31,10 +31,21 @@ describe('Dashboard page', () => {
             total_templates: 3,
           }
         }
+        if (method === 'costs.total') {
+          return { totalCostUsd: 1.25 }
+        }
+        if (method === 'costs.getAll') {
+          return {
+            usage: [
+              { agentId: 'agent-1', totalTokens: 4200, estimatedCost: 1.25 },
+            ],
+            defaults: { maxCostUsd: 5, maxTokens: 10000 },
+          }
+        }
         if (method === 'agents.list') {
           return {
             agents: [
-              { id: 'agent-1', name: 'Scraper', status: 'active', contextId: 'ctx-1234567890', totalTokens: 4200 },
+              { id: 'agent-1', name: 'Scraper', status: 'active', contextId: 'ctx-1234567890', totalTokens: 4200, budgetSource: 'agent' },
             ],
           }
         }
@@ -64,9 +75,11 @@ describe('Dashboard page', () => {
 
     expect(await screen.findByText('CAMOUFOX')).toBeInTheDocument()
     expect(screen.getByText('runtime source · GUI · 512MB')).toBeInTheDocument()
-    expect(screen.getByText('HIDDEN')).toBeInTheDocument()
-    expect(screen.getByText('Gateway RUNNING · Profile READY')).toBeInTheDocument()
+    expect(screen.getAllByText('HIDDEN').length).toBeGreaterThan(0)
     expect(screen.getByText('Scraper')).toBeInTheDocument()
+    expect(screen.getByText('4,200 tokens · 1 tracked usage records')).toBeInTheDocument()
+    expect(screen.getByText('1 agent override · $5.00 · 10,000 tok')).toBeInTheDocument()
+    expect(screen.getByText('RUNNING')).toBeInTheDocument()
     expect(screen.getAllByText('Gateway profile repair failed').length).toBeGreaterThan(0)
     expect(screen.getByText('Review agents')).toBeInTheDocument()
   })

@@ -18,12 +18,21 @@ describe('Agents page', () => {
       if (method === 'agents.list') {
         return {
           agents: [
-            { id: 'agent-1', name: 'Agent One', status: 'active', contextId: '', fingerprintSummary: '', totalTokens: 0 },
-            { id: 'agent-2', name: 'Agent Two', status: 'paused', contextId: '', fingerprintSummary: '', totalTokens: 0 },
+            { id: 'agent-1', name: 'Agent One', status: 'active', contextId: '', fingerprintSummary: '', totalTokens: 0, budgetSource: 'agent', budgetMaxCostUsd: 1.5, budgetMaxTokens: 5000 },
+            { id: 'agent-2', name: 'Agent Two', status: 'paused', contextId: '', fingerprintSummary: '', totalTokens: 0, budgetSource: 'default', budgetMaxCostUsd: 2.5, budgetMaxTokens: 10000 },
           ],
         }
       }
-      if (method === 'costs.getAll') return { usage: [] }
+      if (method === 'costs.getAll') {
+        return {
+          usage: [
+            { agentId: 'agent-1', totalTokens: 1200, estimatedCost: 0.4 },
+            { agentId: 'agent-2', totalTokens: 800, estimatedCost: 0.2 },
+          ],
+          defaults: { maxCostUsd: 2.5, maxTokens: 10000 },
+        }
+      }
+      if (method === 'costs.total') return { totalCostUsd: 0.6 }
       if (method === 'contexts.list') return { contexts: [] }
       if (method === 'agents.pauseMany') return { status: 'ok', paused: 2, failures: {} }
       if (method === 'agents.resumeMany') return { status: 'ok', resumed: 2, failures: {} }
@@ -39,6 +48,10 @@ describe('Agents page', () => {
     const { rerender } = renderPage(ws)
 
     expect(await screen.findByText('Agent One')).toBeInTheDocument()
+    expect(screen.getByText('$0.6000')).toBeInTheDocument()
+    expect(screen.getByText('2,000')).toBeInTheDocument()
+    expect(screen.getByText('Override · $1.50 · 5,000 tok')).toBeInTheDocument()
+    expect(screen.getByText('Default · $2.50 · 10,000 tok')).toBeInTheDocument()
     expect(screen.getByText('Pause Selected')).toBeDisabled()
     expect(screen.getByText('Resume Selected')).toBeDisabled()
     expect(screen.getByText('Kill Selected')).toBeDisabled()
@@ -76,12 +89,13 @@ describe('Agents page', () => {
       if (method === 'agents.list') {
         return {
           agents: [
-            { id: 'agent-1', name: 'Agent One', status: 'active', contextId: '', fingerprintSummary: '', totalTokens: 0 },
-            { id: 'agent-2', name: 'Agent Two', status: 'paused', contextId: '', fingerprintSummary: '', totalTokens: 0 },
+            { id: 'agent-1', name: 'Agent One', status: 'active', contextId: '', fingerprintSummary: '', totalTokens: 0, budgetSource: 'agent', budgetMaxCostUsd: 1.5, budgetMaxTokens: 5000 },
+            { id: 'agent-2', name: 'Agent Two', status: 'paused', contextId: '', fingerprintSummary: '', totalTokens: 0, budgetSource: 'default', budgetMaxCostUsd: 2.5, budgetMaxTokens: 10000 },
           ],
         }
       }
-      if (method === 'costs.getAll') return { usage: [] }
+      if (method === 'costs.getAll') return { usage: [], defaults: { maxCostUsd: 2.5, maxTokens: 10000 } }
+      if (method === 'costs.total') return { totalCostUsd: 0.0 }
       if (method === 'contexts.list') return { contexts: [] }
       return { status: 'ok' }
     })
