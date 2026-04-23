@@ -272,6 +272,7 @@ The panel now also includes:
 - **Settings** Sentinel trust playbook board grouped by variant bundle and trust recipe so cross-family rollout wins stay visible as product-level guidance
 - **Settings** Sentinel experiment gap board grouped by canonical vendor family so missing baselines and under-sampled challenger arms stay ranked for the next experiment wave
 - **Settings** Sentinel patch investment board grouped by canonical vendor family so the next patch-first, experiment-first, or rollout-first call stays explicit per detection stack
+- **Settings** Sentinel surface hotspot board grouped by browser probe surface so cross-family browser patch work stays ranked above one-off site triage
 - **Settings** Sentinel stage board grouped by domain, variant bundle, and trust recipe so inferred maturity and assignment-rule fit stay explicit
 - **Settings** Sentinel assignment recommendation board grouped by domain, variant bundle, and trust recipe so the next hold/promote/demote/rotate/quarantine action stays explicit
 - **Settings** Sentinel canary board grouped by domain, variant bundle, and trust recipe so benchmark regressions stay visible before broader rollout
@@ -296,6 +297,7 @@ The panel now also includes:
 - The Sentinel trust playbook board aggregates rollout outcomes across vendor families so the recipes that keep earning expansion decisions stay obvious at the product level
 - The Sentinel experiment gap board shows which vendor families still need control traffic, challenger traffic, or deeper samples before rollout calls are truly defensible
 - The Sentinel patch investment board combines ranked browser-surface patch pressure with rollout and experiment-gap posture so engineering work can be pointed at the families that need patching before more traffic or rollout spend
+- The Sentinel surface hotspot board flips that family-by-family pressure back onto shared browser probe surfaces so cross-cutting canvas, navigator, or other browser-patch work can be ranked across multiple detection stacks at once
 - **Agent Detail** controls for per-agent budget overrides, recording export, and fingerprint regeneration
 - **Proxies** controls for persisted per-agent rotation rules
 - **Scripts** execution against a real browser context through the server-side scripting engine

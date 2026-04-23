@@ -282,6 +282,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		PatchInvestment: []extensions.SentinelPatchInvestmentSummary{
 			{VendorFamily: "cloudflare", CandidateCount: 1, DomainCount: 1, SampleDomains: []string{"example.com"}, TopDomain: "example.com", TopProbeType: "canvas_probe", TopAPI: "toDataURL", TopPriority: "high", TopScore: 10, TotalPatchScore: 10, TopRecommendation: "Review canvas surface coherence and pixel-read behavior.", RolloutRecommendation: "expand", GapAction: "deepen-sample", LeadingVariantBundleID: "returning-visitor", LeadingTrustRecipeID: "returning-visitor", Focus: "patch-first", Reason: "probe pressure is still the most concrete next engineering investment", Confidence: "medium"},
 		},
+		SurfaceHotspots: []extensions.SentinelSurfaceHotspotSummary{
+			{ProbeType: "canvas_probe", API: "toDataURL", Recommendation: "Review canvas surface coherence and pixel-read behavior.", CandidateCount: 2, FamilyCount: 2, VendorFamilies: []string{"cloudflare", "datadome"}, DomainCount: 2, SampleDomains: []string{"example.com", "shop.example.com"}, LeadVendorFamily: "cloudflare", LeadFocus: "patch-first", PeakPriority: "high", PeakScore: 10, TotalPatchScore: 18, PatchFirstCount: 1, ExperimentFirstCount: 1, Confidence: "high"},
+		},
 		ExperimentBoard: []extensions.SentinelExperimentSummary{
 			{VariantBundleID: "control", TrustRecipeID: "baseline-warmup", SessionCount: 2, DomainCount: 1, SoftChallengeCount: 1, SuccessCount: 1, TotalOutcomes: 2, ChallengeVendors: []string{"cloudflare"}},
 		},
@@ -337,6 +340,7 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		SitePressure              []extensions.SentinelSitePressureSummary        `json:"sitePressure"`
 		PatchQueue                []extensions.SentinelPatchCandidate             `json:"patchQueue"`
 		PatchInvestment           []extensions.SentinelPatchInvestmentSummary     `json:"patchInvestment"`
+		SurfaceHotspots           []extensions.SentinelSurfaceHotspotSummary      `json:"surfaceHotspots"`
 		ExperimentSummary         []extensions.SentinelExperimentSummary          `json:"experimentSummary"`
 	}
 	if err := json.Unmarshal(payload, &result); err != nil {
@@ -428,6 +432,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	}
 	if len(result.PatchInvestment) != 1 || result.PatchInvestment[0].Focus != "patch-first" {
 		t.Fatalf("patchInvestment = %+v", result.PatchInvestment)
+	}
+	if len(result.SurfaceHotspots) != 1 || result.SurfaceHotspots[0].ProbeType != "canvas_probe" {
+		t.Fatalf("surfaceHotspots = %+v", result.SurfaceHotspots)
 	}
 	if len(result.ExperimentSummary) != 1 || result.ExperimentSummary[0].VariantBundleID != "control" {
 		t.Fatalf("experimentSummary = %+v", result.ExperimentSummary)

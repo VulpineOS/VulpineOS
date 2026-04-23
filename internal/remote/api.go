@@ -1218,6 +1218,7 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 		"sitePressure":              []extensions.SentinelSitePressureSummary{},
 		"patchQueue":                []extensions.SentinelPatchCandidate{},
 		"patchInvestment":           []extensions.SentinelPatchInvestmentSummary{},
+		"surfaceHotspots":           []extensions.SentinelSurfaceHotspotSummary{},
 		"experimentSummary":         []extensions.SentinelExperimentSummary{},
 	}
 	if !available {
@@ -1339,6 +1340,10 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
+	surfaceHotspots, err := provider.SummarizeSurfaceHotspots(context.Background())
+	if err != nil {
+		return nil, err
+	}
 	experimentSummary, err := provider.SummarizeExperiments(context.Background())
 	if err != nil {
 		return nil, err
@@ -1371,6 +1376,7 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 	out["sitePressure"] = sitePressure
 	out["patchQueue"] = patchQueue
 	out["patchInvestment"] = patchInvestment
+	out["surfaceHotspots"] = surfaceHotspots
 	out["experimentSummary"] = experimentSummary
 	return json.Marshal(out)
 }

@@ -33,6 +33,7 @@ export default function Settings({ ws }) {
     sitePressure: [],
     patchQueue: [],
     patchInvestment: [],
+    surfaceHotspots: [],
     experimentSummary: [],
   });
   const [sentinelTimeline, setSentinelTimeline] = useState([]);
@@ -87,6 +88,7 @@ export default function Settings({ ws }) {
             sitePressure: [],
             patchQueue: [],
             patchInvestment: [],
+            surfaceHotspots: [],
             experimentSummary: [],
           },
         ),
@@ -139,6 +141,7 @@ export default function Settings({ ws }) {
   const sentinelSitePressure = sentinel.sitePressure || [];
   const sentinelPatchQueue = sentinel.patchQueue || [];
   const sentinelPatchInvestment = sentinel.patchInvestment || [];
+  const sentinelSurfaceHotspots = sentinel.surfaceHotspots || [];
   const sentinelExperimentSummary = sentinel.experimentSummary || [];
   const variantNameFor = (id) =>
     sentinelVariants.find((bundle) => bundle.id === id)?.name ||
@@ -1140,6 +1143,70 @@ export default function Settings({ ws }) {
                           <td>
                             {row.leadingVariantBundleId
                               ? `${variantNameFor(row.leadingVariantBundleId)} / ${trustNameFor(row.leadingTrustRecipeId)}`
+                              : "n/a"}
+                          </td>
+                          <td>{(row.confidence || "low").toUpperCase()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              <div>
+                <h4 style={{ margin: "0 0 10px" }}>Surface hotspot board</h4>
+                {sentinelSurfaceHotspots.length === 0 ? (
+                  <div className="empty-state">
+                    No cross-family surface hotspots have been summarized yet.
+                  </div>
+                ) : (
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Surface</th>
+                        <th>Families</th>
+                        <th>Domains</th>
+                        <th>Pressure</th>
+                        <th>Focus mix</th>
+                        <th>Lead</th>
+                        <th>Confidence</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sentinelSurfaceHotspots.map((row, index) => (
+                        <tr
+                          key={`${row.probeType || "probe"}-${row.api || "api"}-${index}`}
+                        >
+                          <td>
+                            <div>{`${row.probeType || "unknown"}.${row.api || "unknown"}`}</div>
+                            <div style={{ fontSize: 11, color: "#666" }}>
+                              {row.recommendation ||
+                                "No browser-surface recommendation yet."}
+                            </div>
+                          </td>
+                          <td>
+                            <div>
+                              {(row.vendorFamilies || []).join(", ") || "none"}
+                            </div>
+                            <div style={{ fontSize: 11, color: "#666" }}>
+                              {row.familyCount || 0} families
+                            </div>
+                          </td>
+                          <td>
+                            <div>
+                              {(row.sampleDomains || []).join(", ") || "none"}
+                            </div>
+                            <div style={{ fontSize: 11, color: "#666" }}>
+                              {row.domainCount || 0} domains
+                            </div>
+                          </td>
+                          <td>
+                            {`${row.peakPriority || "none"} / ${row.totalPatchScore || 0}`.toUpperCase()}
+                          </td>
+                          <td>{`${row.patchFirstCount || 0} patch · ${row.experimentFirstCount || 0} experiment · ${row.rolloutFirstCount || 0} rollout`}</td>
+                          <td>
+                            {row.leadVendorFamily
+                              ? `${row.leadVendorFamily} · ${(row.leadFocus || "observe").toUpperCase()}`
                               : "n/a"}
                           </td>
                           <td>{(row.confidence || "low").toUpperCase()}</td>

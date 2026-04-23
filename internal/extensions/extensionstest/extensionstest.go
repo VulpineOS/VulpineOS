@@ -300,6 +300,7 @@ type FakeSentinelProvider struct {
 	SitePressure              []extensions.SentinelSitePressureSummary
 	PatchQueue                []extensions.SentinelPatchCandidate
 	PatchInvestment           []extensions.SentinelPatchInvestmentSummary
+	SurfaceHotspots           []extensions.SentinelSurfaceHotspotSummary
 	ExperimentBoard           []extensions.SentinelExperimentSummary
 	Events                    []extensions.SentinelEvent
 	Outcomes                  []extensions.SentinelOutcome
@@ -513,6 +514,13 @@ func (f *FakeSentinelProvider) SetPatchInvestment(v []extensions.SentinelPatchIn
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.PatchInvestment = append([]extensions.SentinelPatchInvestmentSummary(nil), v...)
+}
+
+// SetSurfaceHotspots replaces the canned surface hotspot rows under the write lock.
+func (f *FakeSentinelProvider) SetSurfaceHotspots(v []extensions.SentinelSurfaceHotspotSummary) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.SurfaceHotspots = append([]extensions.SentinelSurfaceHotspotSummary(nil), v...)
 }
 
 // SetExperimentBoard replaces the canned experiment summary rows.
@@ -804,6 +812,15 @@ func (f *FakeSentinelProvider) SummarizePatchInvestment(ctx context.Context) ([]
 	defer f.mu.RUnlock()
 	out := make([]extensions.SentinelPatchInvestmentSummary, len(f.PatchInvestment))
 	copy(out, f.PatchInvestment)
+	return out, nil
+}
+
+// SummarizeSurfaceHotspots returns a copy of the canned surface hotspot rows.
+func (f *FakeSentinelProvider) SummarizeSurfaceHotspots(ctx context.Context) ([]extensions.SentinelSurfaceHotspotSummary, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make([]extensions.SentinelSurfaceHotspotSummary, len(f.SurfaceHotspots))
+	copy(out, f.SurfaceHotspots)
 	return out, nil
 }
 

@@ -61,6 +61,7 @@ type SentinelProvider interface {
 	SummarizeSitePressure(ctx context.Context) ([]SentinelSitePressureSummary, error)
 	SummarizePatchQueue(ctx context.Context) ([]SentinelPatchCandidate, error)
 	SummarizePatchInvestment(ctx context.Context) ([]SentinelPatchInvestmentSummary, error)
+	SummarizeSurfaceHotspots(ctx context.Context) ([]SentinelSurfaceHotspotSummary, error)
 	SummarizeExperiments(ctx context.Context) ([]SentinelExperimentSummary, error)
 	Available() bool
 }
@@ -298,6 +299,30 @@ type SentinelPatchInvestmentSummary struct {
 	Reason                 string    `json:"reason,omitempty"`
 	Confidence             string    `json:"confidence,omitempty"`
 	LastSeenAt             time.Time `json:"lastSeenAt,omitempty"`
+}
+
+// SentinelSurfaceHotspotSummary aggregates patch candidates by browser surface
+// so cross-cutting patch work can be prioritized across vendor families.
+type SentinelSurfaceHotspotSummary struct {
+	ProbeType            string    `json:"probeType,omitempty"`
+	API                  string    `json:"api,omitempty"`
+	Recommendation       string    `json:"recommendation,omitempty"`
+	CandidateCount       int       `json:"candidateCount"`
+	FamilyCount          int       `json:"familyCount"`
+	VendorFamilies       []string  `json:"vendorFamilies,omitempty"`
+	DomainCount          int       `json:"domainCount"`
+	SampleDomains        []string  `json:"sampleDomains,omitempty"`
+	LeadVendorFamily     string    `json:"leadVendorFamily,omitempty"`
+	LeadFocus            string    `json:"leadFocus,omitempty"`
+	PeakPriority         string    `json:"peakPriority,omitempty"`
+	PeakScore            int       `json:"peakScore"`
+	TotalPatchScore      int       `json:"totalPatchScore"`
+	PatchFirstCount      int       `json:"patchFirstCount"`
+	ExperimentFirstCount int       `json:"experimentFirstCount"`
+	RolloutFirstCount    int       `json:"rolloutFirstCount"`
+	ObserveCount         int       `json:"observeCount"`
+	Confidence           string    `json:"confidence,omitempty"`
+	LastSeenAt           time.Time `json:"lastSeenAt,omitempty"`
 }
 
 // SentinelExperimentSummary aggregates recent evidence by variant and
@@ -781,6 +806,10 @@ func (noopSentinelProvider) SummarizePatchQueue(ctx context.Context) ([]Sentinel
 }
 
 func (noopSentinelProvider) SummarizePatchInvestment(ctx context.Context) ([]SentinelPatchInvestmentSummary, error) {
+	return nil, ErrUnavailable
+}
+
+func (noopSentinelProvider) SummarizeSurfaceHotspots(ctx context.Context) ([]SentinelSurfaceHotspotSummary, error) {
 	return nil, ErrUnavailable
 }
 

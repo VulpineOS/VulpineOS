@@ -420,6 +420,28 @@ describe("Settings page", () => {
                 confidence: "medium",
               },
             ],
+            surfaceHotspots: [
+              {
+                probeType: "canvas_probe",
+                api: "toDataURL",
+                recommendation:
+                  "Review canvas surface coherence and pixel-read behavior.",
+                candidateCount: 2,
+                familyCount: 2,
+                vendorFamilies: ["cloudflare", "datadome"],
+                domainCount: 2,
+                sampleDomains: ["example.com", "shop.example.com"],
+                leadVendorFamily: "cloudflare",
+                leadFocus: "patch-first",
+                peakPriority: "high",
+                totalPatchScore: 18,
+                patchFirstCount: 1,
+                experimentFirstCount: 1,
+                rolloutFirstCount: 0,
+                observeCount: 0,
+                confidence: "high",
+              },
+            ],
             experimentSummary: [
               {
                 variantBundleId: "control",
@@ -510,8 +532,8 @@ describe("Settings page", () => {
     expect(screen.getAllByText("cloudflare").length).toBeGreaterThan(0);
     expect(screen.getByText("cdn.example.com")).toBeInTheDocument();
     expect(
-      screen.getByText("example.com, shop.example.com"),
-    ).toBeInTheDocument();
+      screen.getAllByText("example.com, shop.example.com").length,
+    ).toBeGreaterThan(0);
     expect(screen.getByText("Vendor effectiveness board")).toBeInTheDocument();
     expect(screen.getByText("Vendor uplift board")).toBeInTheDocument();
     expect(screen.getAllByText("25%").length).toBeGreaterThan(0);
@@ -532,6 +554,11 @@ describe("Settings page", () => {
         "probe pressure is still the most concrete next engineering investment",
       ),
     ).toBeInTheDocument();
+    expect(screen.getByText("Surface hotspot board")).toBeInTheDocument();
+    expect(
+      screen.getByText("1 patch · 1 experiment · 0 rollout"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("cloudflare, datadome")).toBeInTheDocument();
     expect(screen.getByText("Recent capture timeline")).toBeInTheDocument();
     expect(
       screen.getByText("example.com · 1 events · 1 outcomes"),
