@@ -60,6 +60,7 @@ type SentinelProvider interface {
 	SummarizeExperimentGaps(ctx context.Context) ([]SentinelExperimentGapSummary, error)
 	SummarizeSitePressure(ctx context.Context) ([]SentinelSitePressureSummary, error)
 	SummarizePatchQueue(ctx context.Context) ([]SentinelPatchCandidate, error)
+	SummarizePatchInvestment(ctx context.Context) ([]SentinelPatchInvestmentSummary, error)
 	SummarizeExperiments(ctx context.Context) ([]SentinelExperimentSummary, error)
 	Available() bool
 }
@@ -270,6 +271,33 @@ type SentinelPatchCandidate struct {
 	ChallengeVendors []string  `json:"challengeVendors,omitempty"`
 	Recommendation   string    `json:"recommendation,omitempty"`
 	LastSeenAt       time.Time `json:"lastSeenAt,omitempty"`
+}
+
+// SentinelPatchInvestmentSummary ranks the next engineering investment per
+// vendor family, balancing browser-surface patch pressure against experiment
+// coverage and rollout posture.
+type SentinelPatchInvestmentSummary struct {
+	VendorFamily           string    `json:"vendorFamily,omitempty"`
+	CandidateCount         int       `json:"candidateCount"`
+	DomainCount            int       `json:"domainCount"`
+	SampleDomains          []string  `json:"sampleDomains,omitempty"`
+	TopDomain              string    `json:"topDomain,omitempty"`
+	TopProbeType           string    `json:"topProbeType,omitempty"`
+	TopAPI                 string    `json:"topApi,omitempty"`
+	TopPriority            string    `json:"topPriority,omitempty"`
+	TopScore               int       `json:"topScore"`
+	TotalPatchScore        int       `json:"totalPatchScore"`
+	TopRecommendation      string    `json:"topRecommendation,omitempty"`
+	RolloutRecommendation  string    `json:"rolloutRecommendation,omitempty"`
+	RolloutReason          string    `json:"rolloutReason,omitempty"`
+	GapAction              string    `json:"gapAction,omitempty"`
+	GapReason              string    `json:"gapReason,omitempty"`
+	LeadingVariantBundleID string    `json:"leadingVariantBundleId,omitempty"`
+	LeadingTrustRecipeID   string    `json:"leadingTrustRecipeId,omitempty"`
+	Focus                  string    `json:"focus,omitempty"`
+	Reason                 string    `json:"reason,omitempty"`
+	Confidence             string    `json:"confidence,omitempty"`
+	LastSeenAt             time.Time `json:"lastSeenAt,omitempty"`
 }
 
 // SentinelExperimentSummary aggregates recent evidence by variant and
@@ -749,6 +777,10 @@ func (noopSentinelProvider) SummarizeSitePressure(ctx context.Context) ([]Sentin
 }
 
 func (noopSentinelProvider) SummarizePatchQueue(ctx context.Context) ([]SentinelPatchCandidate, error) {
+	return nil, ErrUnavailable
+}
+
+func (noopSentinelProvider) SummarizePatchInvestment(ctx context.Context) ([]SentinelPatchInvestmentSummary, error) {
 	return nil, ErrUnavailable
 }
 
