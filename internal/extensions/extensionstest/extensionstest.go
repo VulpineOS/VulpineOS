@@ -268,29 +268,30 @@ func (f *FakeMobileBridge) Available() bool {
 // FakeSentinelProvider records events and outcomes while returning
 // canned status and variant bundles.
 type FakeSentinelProvider struct {
-	mu                 sync.RWMutex
-	AvailableFlag      bool
-	StatusValue        extensions.SentinelStatus
-	VariantBundles     []extensions.SentinelVariantBundle
-	TrustRecipes       []extensions.SentinelTrustRecipe
-	MaturityMetrics    []extensions.SentinelMaturityMetric
-	AssignmentRules    []extensions.SentinelAssignmentRule
-	SessionTimelines   []extensions.SentinelSessionTimeline
-	OutcomeLabels      []extensions.SentinelOutcomeLabel
-	OutcomeSummary     []extensions.SentinelOutcomeSummary
-	ProbeSummary       []extensions.SentinelProbeSummary
-	TrustActivity      []extensions.SentinelTrustActivitySummary
-	TrustEffectiveness []extensions.SentinelTrustEffectivenessSummary
-	TrustAssets        []extensions.SentinelTrustAssetSummary
-	MaturityEvidence   []extensions.SentinelMaturityEvidenceSummary
-	TransportEvidence  []extensions.SentinelTransportEvidenceSummary
-	CoherenceDiff      []extensions.SentinelCoherenceDiffSummary
-	StageSummary       []extensions.SentinelStageSummary
-	SitePressure       []extensions.SentinelSitePressureSummary
-	PatchQueue         []extensions.SentinelPatchCandidate
-	ExperimentBoard    []extensions.SentinelExperimentSummary
-	Events             []extensions.SentinelEvent
-	Outcomes           []extensions.SentinelOutcome
+	mu                        sync.RWMutex
+	AvailableFlag             bool
+	StatusValue               extensions.SentinelStatus
+	VariantBundles            []extensions.SentinelVariantBundle
+	TrustRecipes              []extensions.SentinelTrustRecipe
+	MaturityMetrics           []extensions.SentinelMaturityMetric
+	AssignmentRules           []extensions.SentinelAssignmentRule
+	SessionTimelines          []extensions.SentinelSessionTimeline
+	OutcomeLabels             []extensions.SentinelOutcomeLabel
+	OutcomeSummary            []extensions.SentinelOutcomeSummary
+	ProbeSummary              []extensions.SentinelProbeSummary
+	TrustActivity             []extensions.SentinelTrustActivitySummary
+	TrustEffectiveness        []extensions.SentinelTrustEffectivenessSummary
+	TrustAssets               []extensions.SentinelTrustAssetSummary
+	MaturityEvidence          []extensions.SentinelMaturityEvidenceSummary
+	TransportEvidence         []extensions.SentinelTransportEvidenceSummary
+	CoherenceDiff             []extensions.SentinelCoherenceDiffSummary
+	StageSummary              []extensions.SentinelStageSummary
+	AssignmentRecommendations []extensions.SentinelAssignmentRecommendation
+	SitePressure              []extensions.SentinelSitePressureSummary
+	PatchQueue                []extensions.SentinelPatchCandidate
+	ExperimentBoard           []extensions.SentinelExperimentSummary
+	Events                    []extensions.SentinelEvent
+	Outcomes                  []extensions.SentinelOutcome
 }
 
 // SetAvailable toggles AvailableFlag under the write lock.
@@ -403,6 +404,13 @@ func (f *FakeSentinelProvider) SetStageSummary(v []extensions.SentinelStageSumma
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.StageSummary = append([]extensions.SentinelStageSummary(nil), v...)
+}
+
+// SetAssignmentRecommendations replaces the canned assignment recommendations.
+func (f *FakeSentinelProvider) SetAssignmentRecommendations(v []extensions.SentinelAssignmentRecommendation) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.AssignmentRecommendations = append([]extensions.SentinelAssignmentRecommendation(nil), v...)
 }
 
 // SetSitePressure replaces the canned site pressure rows under the write lock.
@@ -582,6 +590,15 @@ func (f *FakeSentinelProvider) SummarizeStages(ctx context.Context) ([]extension
 	defer f.mu.RUnlock()
 	out := make([]extensions.SentinelStageSummary, len(f.StageSummary))
 	copy(out, f.StageSummary)
+	return out, nil
+}
+
+// SummarizeAssignmentRecommendations returns a copy of the canned recommendations.
+func (f *FakeSentinelProvider) SummarizeAssignmentRecommendations(ctx context.Context) ([]extensions.SentinelAssignmentRecommendation, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make([]extensions.SentinelAssignmentRecommendation, len(f.AssignmentRecommendations))
+	copy(out, f.AssignmentRecommendations)
 	return out, nil
 }
 
