@@ -250,6 +250,19 @@ describe('Settings page', () => {
               burnCount: 0,
               effectivenessScore: 0,
             }],
+            vendorUplift: [{
+              vendorFamily: 'cloudflare',
+              variantBundleId: 'returning-visitor',
+              trustRecipeId: 'returning-visitor',
+              controlVariantBundleId: 'control',
+              controlTrustRecipeId: 'baseline-warmup',
+              baselineAvailable: true,
+              successRateDeltaPct: 25,
+              challengeRateDeltaPct: -25,
+              scoreDelta: 8,
+              recommendation: 'promote',
+              confidence: 'medium',
+            }],
             coherenceDiff: [{
               domain: 'example.com',
               variantBundleId: 'authority-ramp',
@@ -345,6 +358,11 @@ describe('Settings page', () => {
     expect(screen.getByText('cdn.example.com')).toBeInTheDocument()
     expect(screen.getByText('example.com, shop.example.com')).toBeInTheDocument()
     expect(screen.getByText('Vendor effectiveness board')).toBeInTheDocument()
+    expect(screen.getByText('Vendor uplift board')).toBeInTheDocument()
+    expect(screen.getByText('25%')).toBeInTheDocument()
+    expect(screen.getByText('-25%')).toBeInTheDocument()
+    expect(screen.getAllByText('PROMOTE').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('MEDIUM').length).toBeGreaterThan(0)
     expect(screen.getByText('Recent capture timeline')).toBeInTheDocument()
     expect(screen.getByText('example.com · 1 events · 1 outcomes')).toBeInTheDocument()
     expect(screen.getByText('browser_probe · canvas.toDataURL · seen 2 sessions · 2 days · gap 12.0h · Control / Baseline warmup')).toBeInTheDocument()

@@ -261,6 +261,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		VendorEffectiveness: []extensions.SentinelVendorEffectivenessSummary{
 			{VendorFamily: "cloudflare", VariantBundleID: "control", TrustRecipeID: "baseline-warmup", DomainCount: 2, SuccessCount: 1, SoftChallengeCount: 1, TotalOutcomes: 2, EffectivenessScore: 0},
 		},
+		VendorUplift: []extensions.SentinelVendorUpliftSummary{
+			{VendorFamily: "cloudflare", VariantBundleID: "returning-visitor", TrustRecipeID: "returning-visitor", ControlVariantBundleID: "control", ControlTrustRecipeID: "baseline-warmup", BaselineAvailable: true, DomainCount: 2, TotalOutcomes: 4, SuccessRatePct: 75, ControlSuccessRatePct: 50, SuccessRateDeltaPct: 25, ChallengeRatePct: 25, ControlChallengeRatePct: 50, ChallengeRateDeltaPct: -25, EffectivenessScore: 8, ControlEffectiveness: 0, ScoreDelta: 8, Recommendation: "promote", Confidence: "medium"},
+		},
 		SitePressure: []extensions.SentinelSitePressureSummary{
 			{Domain: "example.com", ChallengeVendor: "cloudflare", ProbeCount: 2, SessionCount: 2, SoftChallengeCount: 1, SuccessCount: 1, TotalOutcomes: 2, PressureScore: 6},
 		},
@@ -293,31 +296,32 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	}
 
 	var result struct {
-		Available                 bool                                           `json:"available"`
-		VariantBundles            []extensions.SentinelVariantBundle             `json:"variantBundles"`
-		TrustRecipes              []extensions.SentinelTrustRecipe               `json:"trustRecipes"`
-		MaturityMetrics           []extensions.SentinelMaturityMetric            `json:"maturityMetrics"`
-		AssignmentRules           []extensions.SentinelAssignmentRule            `json:"assignmentRules"`
-		OutcomeLabels             []extensions.SentinelOutcomeLabel              `json:"outcomeLabels"`
-		OutcomeSummary            []extensions.SentinelOutcomeSummary            `json:"outcomeSummary"`
-		ProbeSummary              []extensions.SentinelProbeSummary              `json:"probeSummary"`
-		TrustActivity             []extensions.SentinelTrustActivitySummary      `json:"trustActivity"`
-		TrustEffectiveness        []extensions.SentinelTrustEffectivenessSummary `json:"trustEffectiveness"`
-		TrustAssets               []extensions.SentinelTrustAssetSummary         `json:"trustAssets"`
-		MaturityEvidence          []extensions.SentinelMaturityEvidenceSummary   `json:"maturityEvidence"`
-		TransportEvidence         []extensions.SentinelTransportEvidenceSummary  `json:"transportEvidence"`
-		CoherenceDiff             []extensions.SentinelCoherenceDiffSummary      `json:"coherenceDiff"`
-		StageSummary              []extensions.SentinelStageSummary              `json:"stageSummary"`
-		AssignmentRecommendations []extensions.SentinelAssignmentRecommendation  `json:"assignmentRecommendations"`
-		CanarySummary             []extensions.SentinelCanarySummary             `json:"canarySummary"`
-		VariantCompareSummary     []extensions.SentinelVariantCompareSummary     `json:"variantCompareSummary"`
-		SiteIntelligenceSummary   []extensions.SentinelSiteIntelligenceSummary   `json:"siteIntelligenceSummary"`
-		ProbeSequenceSummary      []extensions.SentinelProbeSequenceSummary      `json:"probeSequenceSummary"`
-		VendorIntelligenceSummary []extensions.SentinelVendorIntelligenceSummary `json:"vendorIntelligenceSummary"`
+		Available                 bool                                            `json:"available"`
+		VariantBundles            []extensions.SentinelVariantBundle              `json:"variantBundles"`
+		TrustRecipes              []extensions.SentinelTrustRecipe                `json:"trustRecipes"`
+		MaturityMetrics           []extensions.SentinelMaturityMetric             `json:"maturityMetrics"`
+		AssignmentRules           []extensions.SentinelAssignmentRule             `json:"assignmentRules"`
+		OutcomeLabels             []extensions.SentinelOutcomeLabel               `json:"outcomeLabels"`
+		OutcomeSummary            []extensions.SentinelOutcomeSummary             `json:"outcomeSummary"`
+		ProbeSummary              []extensions.SentinelProbeSummary               `json:"probeSummary"`
+		TrustActivity             []extensions.SentinelTrustActivitySummary       `json:"trustActivity"`
+		TrustEffectiveness        []extensions.SentinelTrustEffectivenessSummary  `json:"trustEffectiveness"`
+		TrustAssets               []extensions.SentinelTrustAssetSummary          `json:"trustAssets"`
+		MaturityEvidence          []extensions.SentinelMaturityEvidenceSummary    `json:"maturityEvidence"`
+		TransportEvidence         []extensions.SentinelTransportEvidenceSummary   `json:"transportEvidence"`
+		CoherenceDiff             []extensions.SentinelCoherenceDiffSummary       `json:"coherenceDiff"`
+		StageSummary              []extensions.SentinelStageSummary               `json:"stageSummary"`
+		AssignmentRecommendations []extensions.SentinelAssignmentRecommendation   `json:"assignmentRecommendations"`
+		CanarySummary             []extensions.SentinelCanarySummary              `json:"canarySummary"`
+		VariantCompareSummary     []extensions.SentinelVariantCompareSummary      `json:"variantCompareSummary"`
+		SiteIntelligenceSummary   []extensions.SentinelSiteIntelligenceSummary    `json:"siteIntelligenceSummary"`
+		ProbeSequenceSummary      []extensions.SentinelProbeSequenceSummary       `json:"probeSequenceSummary"`
+		VendorIntelligenceSummary []extensions.SentinelVendorIntelligenceSummary  `json:"vendorIntelligenceSummary"`
 		VendorEffectiveness       []extensions.SentinelVendorEffectivenessSummary `json:"vendorEffectiveness"`
-		SitePressure              []extensions.SentinelSitePressureSummary       `json:"sitePressure"`
-		PatchQueue                []extensions.SentinelPatchCandidate            `json:"patchQueue"`
-		ExperimentSummary         []extensions.SentinelExperimentSummary         `json:"experimentSummary"`
+		VendorUplift              []extensions.SentinelVendorUpliftSummary        `json:"vendorUplift"`
+		SitePressure              []extensions.SentinelSitePressureSummary        `json:"sitePressure"`
+		PatchQueue                []extensions.SentinelPatchCandidate             `json:"patchQueue"`
+		ExperimentSummary         []extensions.SentinelExperimentSummary          `json:"experimentSummary"`
 	}
 	if err := json.Unmarshal(payload, &result); err != nil {
 		t.Fatalf("Unmarshal: %v", err)
@@ -387,6 +391,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	}
 	if len(result.VendorEffectiveness) != 1 || result.VendorEffectiveness[0].VendorFamily != "cloudflare" {
 		t.Fatalf("vendorEffectiveness = %+v", result.VendorEffectiveness)
+	}
+	if len(result.VendorUplift) != 1 || result.VendorUplift[0].Recommendation != "promote" {
+		t.Fatalf("vendorUplift = %+v", result.VendorUplift)
 	}
 	if len(result.SitePressure) != 1 || result.SitePressure[0].ChallengeVendor != "cloudflare" {
 		t.Fatalf("sitePressure = %+v", result.SitePressure)

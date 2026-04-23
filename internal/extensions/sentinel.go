@@ -54,6 +54,7 @@ type SentinelProvider interface {
 	SummarizeProbeSequences(ctx context.Context) ([]SentinelProbeSequenceSummary, error)
 	SummarizeVendorIntelligence(ctx context.Context) ([]SentinelVendorIntelligenceSummary, error)
 	SummarizeVendorEffectiveness(ctx context.Context) ([]SentinelVendorEffectivenessSummary, error)
+	SummarizeVendorUplift(ctx context.Context) ([]SentinelVendorUpliftSummary, error)
 	SummarizeSitePressure(ctx context.Context) ([]SentinelSitePressureSummary, error)
 	SummarizePatchQueue(ctx context.Context) ([]SentinelPatchCandidate, error)
 	SummarizeExperiments(ctx context.Context) ([]SentinelExperimentSummary, error)
@@ -550,6 +551,29 @@ type SentinelVendorEffectivenessSummary struct {
 	LastSeenAt         time.Time `json:"lastSeenAt,omitempty"`
 }
 
+type SentinelVendorUpliftSummary struct {
+	VendorFamily            string    `json:"vendorFamily,omitempty"`
+	VariantBundleID         string    `json:"variantBundleId,omitempty"`
+	TrustRecipeID           string    `json:"trustRecipeId,omitempty"`
+	ControlVariantBundleID  string    `json:"controlVariantBundleId,omitempty"`
+	ControlTrustRecipeID    string    `json:"controlTrustRecipeId,omitempty"`
+	BaselineAvailable       bool      `json:"baselineAvailable"`
+	DomainCount             int       `json:"domainCount"`
+	TotalOutcomes           int       `json:"totalOutcomes"`
+	SuccessRatePct          int       `json:"successRatePct"`
+	ControlSuccessRatePct   int       `json:"controlSuccessRatePct"`
+	SuccessRateDeltaPct     int       `json:"successRateDeltaPct"`
+	ChallengeRatePct        int       `json:"challengeRatePct"`
+	ControlChallengeRatePct int       `json:"controlChallengeRatePct"`
+	ChallengeRateDeltaPct   int       `json:"challengeRateDeltaPct"`
+	EffectivenessScore      int       `json:"effectivenessScore"`
+	ControlEffectiveness    int       `json:"controlEffectiveness"`
+	ScoreDelta              int       `json:"scoreDelta"`
+	Recommendation          string    `json:"recommendation,omitempty"`
+	Confidence              string    `json:"confidence,omitempty"`
+	LastSeenAt              time.Time `json:"lastSeenAt,omitempty"`
+}
+
 var defaultSentinelProvider SentinelProvider = noopSentinelProvider{}
 
 type noopSentinelProvider struct{}
@@ -651,6 +675,10 @@ func (noopSentinelProvider) SummarizeVendorIntelligence(ctx context.Context) ([]
 }
 
 func (noopSentinelProvider) SummarizeVendorEffectiveness(ctx context.Context) ([]SentinelVendorEffectivenessSummary, error) {
+	return nil, ErrUnavailable
+}
+
+func (noopSentinelProvider) SummarizeVendorUplift(ctx context.Context) ([]SentinelVendorUpliftSummary, error) {
 	return nil, ErrUnavailable
 }
 
