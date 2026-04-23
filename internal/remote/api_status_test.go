@@ -285,6 +285,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		SurfaceHotspots: []extensions.SentinelSurfaceHotspotSummary{
 			{ProbeType: "canvas_probe", API: "toDataURL", Recommendation: "Review canvas surface coherence and pixel-read behavior.", CandidateCount: 2, FamilyCount: 2, VendorFamilies: []string{"cloudflare", "datadome"}, DomainCount: 2, SampleDomains: []string{"example.com", "shop.example.com"}, LeadVendorFamily: "cloudflare", LeadFocus: "patch-first", PeakPriority: "high", PeakScore: 10, TotalPatchScore: 18, PatchFirstCount: 1, ExperimentFirstCount: 1, Confidence: "high"},
 		},
+		SurfaceEffectiveness: []extensions.SentinelSurfaceEffectivenessSummary{
+			{ProbeType: "canvas_probe", API: "toDataURL", VariantBundleID: "returning-visitor", TrustRecipeID: "returning-visitor", ProbeCount: 4, SessionCount: 2, DomainCount: 2, FamilyCount: 2, VendorFamilies: []string{"cloudflare", "datadome"}, SampleDomains: []string{"example.com", "shop.example.com"}, HardChallengeCount: 1, BlockCount: 1, TotalOutcomes: 2, ChallengeRatePct: 100, PressureScore: 20, Recommendation: "patch-browser", Confidence: "medium"},
+		},
 		ExperimentBoard: []extensions.SentinelExperimentSummary{
 			{VariantBundleID: "control", TrustRecipeID: "baseline-warmup", SessionCount: 2, DomainCount: 1, SoftChallengeCount: 1, SuccessCount: 1, TotalOutcomes: 2, ChallengeVendors: []string{"cloudflare"}},
 		},
@@ -311,37 +314,38 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	}
 
 	var result struct {
-		Available                 bool                                            `json:"available"`
-		VariantBundles            []extensions.SentinelVariantBundle              `json:"variantBundles"`
-		TrustRecipes              []extensions.SentinelTrustRecipe                `json:"trustRecipes"`
-		MaturityMetrics           []extensions.SentinelMaturityMetric             `json:"maturityMetrics"`
-		AssignmentRules           []extensions.SentinelAssignmentRule             `json:"assignmentRules"`
-		OutcomeLabels             []extensions.SentinelOutcomeLabel               `json:"outcomeLabels"`
-		OutcomeSummary            []extensions.SentinelOutcomeSummary             `json:"outcomeSummary"`
-		ProbeSummary              []extensions.SentinelProbeSummary               `json:"probeSummary"`
-		TrustActivity             []extensions.SentinelTrustActivitySummary       `json:"trustActivity"`
-		TrustEffectiveness        []extensions.SentinelTrustEffectivenessSummary  `json:"trustEffectiveness"`
-		TrustAssets               []extensions.SentinelTrustAssetSummary          `json:"trustAssets"`
-		MaturityEvidence          []extensions.SentinelMaturityEvidenceSummary    `json:"maturityEvidence"`
-		TransportEvidence         []extensions.SentinelTransportEvidenceSummary   `json:"transportEvidence"`
-		CoherenceDiff             []extensions.SentinelCoherenceDiffSummary       `json:"coherenceDiff"`
-		StageSummary              []extensions.SentinelStageSummary               `json:"stageSummary"`
-		AssignmentRecommendations []extensions.SentinelAssignmentRecommendation   `json:"assignmentRecommendations"`
-		CanarySummary             []extensions.SentinelCanarySummary              `json:"canarySummary"`
-		VariantCompareSummary     []extensions.SentinelVariantCompareSummary      `json:"variantCompareSummary"`
-		SiteIntelligenceSummary   []extensions.SentinelSiteIntelligenceSummary    `json:"siteIntelligenceSummary"`
-		ProbeSequenceSummary      []extensions.SentinelProbeSequenceSummary       `json:"probeSequenceSummary"`
-		VendorIntelligenceSummary []extensions.SentinelVendorIntelligenceSummary  `json:"vendorIntelligenceSummary"`
-		VendorEffectiveness       []extensions.SentinelVendorEffectivenessSummary `json:"vendorEffectiveness"`
-		VendorUplift              []extensions.SentinelVendorUpliftSummary        `json:"vendorUplift"`
-		VendorRollout             []extensions.SentinelVendorRolloutSummary       `json:"vendorRollout"`
-		TrustPlaybook             []extensions.SentinelTrustPlaybookSummary       `json:"trustPlaybook"`
-		ExperimentGaps            []extensions.SentinelExperimentGapSummary       `json:"experimentGaps"`
-		SitePressure              []extensions.SentinelSitePressureSummary        `json:"sitePressure"`
-		PatchQueue                []extensions.SentinelPatchCandidate             `json:"patchQueue"`
-		PatchInvestment           []extensions.SentinelPatchInvestmentSummary     `json:"patchInvestment"`
-		SurfaceHotspots           []extensions.SentinelSurfaceHotspotSummary      `json:"surfaceHotspots"`
-		ExperimentSummary         []extensions.SentinelExperimentSummary          `json:"experimentSummary"`
+		Available                 bool                                             `json:"available"`
+		VariantBundles            []extensions.SentinelVariantBundle               `json:"variantBundles"`
+		TrustRecipes              []extensions.SentinelTrustRecipe                 `json:"trustRecipes"`
+		MaturityMetrics           []extensions.SentinelMaturityMetric              `json:"maturityMetrics"`
+		AssignmentRules           []extensions.SentinelAssignmentRule              `json:"assignmentRules"`
+		OutcomeLabels             []extensions.SentinelOutcomeLabel                `json:"outcomeLabels"`
+		OutcomeSummary            []extensions.SentinelOutcomeSummary              `json:"outcomeSummary"`
+		ProbeSummary              []extensions.SentinelProbeSummary                `json:"probeSummary"`
+		TrustActivity             []extensions.SentinelTrustActivitySummary        `json:"trustActivity"`
+		TrustEffectiveness        []extensions.SentinelTrustEffectivenessSummary   `json:"trustEffectiveness"`
+		TrustAssets               []extensions.SentinelTrustAssetSummary           `json:"trustAssets"`
+		MaturityEvidence          []extensions.SentinelMaturityEvidenceSummary     `json:"maturityEvidence"`
+		TransportEvidence         []extensions.SentinelTransportEvidenceSummary    `json:"transportEvidence"`
+		CoherenceDiff             []extensions.SentinelCoherenceDiffSummary        `json:"coherenceDiff"`
+		StageSummary              []extensions.SentinelStageSummary                `json:"stageSummary"`
+		AssignmentRecommendations []extensions.SentinelAssignmentRecommendation    `json:"assignmentRecommendations"`
+		CanarySummary             []extensions.SentinelCanarySummary               `json:"canarySummary"`
+		VariantCompareSummary     []extensions.SentinelVariantCompareSummary       `json:"variantCompareSummary"`
+		SiteIntelligenceSummary   []extensions.SentinelSiteIntelligenceSummary     `json:"siteIntelligenceSummary"`
+		ProbeSequenceSummary      []extensions.SentinelProbeSequenceSummary        `json:"probeSequenceSummary"`
+		VendorIntelligenceSummary []extensions.SentinelVendorIntelligenceSummary   `json:"vendorIntelligenceSummary"`
+		VendorEffectiveness       []extensions.SentinelVendorEffectivenessSummary  `json:"vendorEffectiveness"`
+		VendorUplift              []extensions.SentinelVendorUpliftSummary         `json:"vendorUplift"`
+		VendorRollout             []extensions.SentinelVendorRolloutSummary        `json:"vendorRollout"`
+		TrustPlaybook             []extensions.SentinelTrustPlaybookSummary        `json:"trustPlaybook"`
+		ExperimentGaps            []extensions.SentinelExperimentGapSummary        `json:"experimentGaps"`
+		SitePressure              []extensions.SentinelSitePressureSummary         `json:"sitePressure"`
+		PatchQueue                []extensions.SentinelPatchCandidate              `json:"patchQueue"`
+		PatchInvestment           []extensions.SentinelPatchInvestmentSummary      `json:"patchInvestment"`
+		SurfaceHotspots           []extensions.SentinelSurfaceHotspotSummary       `json:"surfaceHotspots"`
+		SurfaceEffectiveness      []extensions.SentinelSurfaceEffectivenessSummary `json:"surfaceEffectiveness"`
+		ExperimentSummary         []extensions.SentinelExperimentSummary           `json:"experimentSummary"`
 	}
 	if err := json.Unmarshal(payload, &result); err != nil {
 		t.Fatalf("Unmarshal: %v", err)
@@ -435,6 +439,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	}
 	if len(result.SurfaceHotspots) != 1 || result.SurfaceHotspots[0].ProbeType != "canvas_probe" {
 		t.Fatalf("surfaceHotspots = %+v", result.SurfaceHotspots)
+	}
+	if len(result.SurfaceEffectiveness) != 1 || result.SurfaceEffectiveness[0].Recommendation != "patch-browser" {
+		t.Fatalf("surfaceEffectiveness = %+v", result.SurfaceEffectiveness)
 	}
 	if len(result.ExperimentSummary) != 1 || result.ExperimentSummary[0].VariantBundleID != "control" {
 		t.Fatalf("experimentSummary = %+v", result.ExperimentSummary)

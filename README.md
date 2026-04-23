@@ -273,6 +273,7 @@ The panel now also includes:
 - **Settings** Sentinel experiment gap board grouped by canonical vendor family so missing baselines and under-sampled challenger arms stay ranked for the next experiment wave
 - **Settings** Sentinel patch investment board grouped by canonical vendor family so the next patch-first, experiment-first, or rollout-first call stays explicit per detection stack
 - **Settings** Sentinel surface hotspot board grouped by browser probe surface so cross-family browser patch work stays ranked above one-off site triage
+- **Settings** Sentinel surface effectiveness board grouped by browser probe surface plus variant bundle plus trust recipe so browser-wide failures can be separated from arm-specific regressions
 - **Settings** Sentinel stage board grouped by domain, variant bundle, and trust recipe so inferred maturity and assignment-rule fit stay explicit
 - **Settings** Sentinel assignment recommendation board grouped by domain, variant bundle, and trust recipe so the next hold/promote/demote/rotate/quarantine action stays explicit
 - **Settings** Sentinel canary board grouped by domain, variant bundle, and trust recipe so benchmark regressions stay visible before broader rollout
@@ -298,6 +299,7 @@ The panel now also includes:
 - The Sentinel experiment gap board shows which vendor families still need control traffic, challenger traffic, or deeper samples before rollout calls are truly defensible
 - The Sentinel patch investment board combines ranked browser-surface patch pressure with rollout and experiment-gap posture so engineering work can be pointed at the families that need patching before more traffic or rollout spend
 - The Sentinel surface hotspot board flips that family-by-family pressure back onto shared browser probe surfaces so cross-cutting canvas, navigator, or other browser-patch work can be ranked across multiple detection stacks at once
+- The Sentinel surface effectiveness board then breaks those same shared surfaces back out by experiment arm so operators can see whether a hotspot is a browser-wide failure or mostly concentrated in one variant and trust recipe pairing
 - **Agent Detail** controls for per-agent budget overrides, recording export, and fingerprint regeneration
 - **Proxies** controls for persisted per-agent rotation rules
 - **Scripts** execution against a real browser context through the server-side scripting engine

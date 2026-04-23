@@ -150,6 +150,9 @@ func TestDefaultSentinelProviderUnavailable(t *testing.T) {
 	if _, err := s.SummarizeSurfaceHotspots(ctx); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("SummarizeSurfaceHotspots: expected ErrUnavailable, got %v", err)
 	}
+	if _, err := s.SummarizeSurfaceEffectiveness(ctx); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("SummarizeSurfaceEffectiveness: expected ErrUnavailable, got %v", err)
+	}
 }
 
 // TestRegistryConcurrentSetGet runs many goroutines that race on

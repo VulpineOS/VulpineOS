@@ -442,6 +442,29 @@ describe("Settings page", () => {
                 confidence: "high",
               },
             ],
+            surfaceEffectiveness: [
+              {
+                probeType: "canvas_probe",
+                api: "toDataURL",
+                variantBundleId: "returning-visitor",
+                trustRecipeId: "returning-visitor",
+                probeCount: 4,
+                sessionCount: 2,
+                domainCount: 2,
+                familyCount: 2,
+                vendorFamilies: ["cloudflare", "datadome"],
+                sampleDomains: ["example.com", "shop.example.com"],
+                successCount: 0,
+                softChallengeCount: 0,
+                hardChallengeCount: 1,
+                blockCount: 1,
+                totalOutcomes: 2,
+                challengeRatePct: 100,
+                pressureScore: 20,
+                recommendation: "patch-browser",
+                confidence: "medium",
+              },
+            ],
             experimentSummary: [
               {
                 variantBundleId: "control",
@@ -558,7 +581,18 @@ describe("Settings page", () => {
     expect(
       screen.getByText("1 patch · 1 experiment · 0 rollout"),
     ).toBeInTheDocument();
-    expect(screen.getByText("cloudflare, datadome")).toBeInTheDocument();
+    expect(screen.getAllByText("cloudflare, datadome").length).toBeGreaterThan(
+      0,
+    );
+    expect(screen.getByText("Surface effectiveness board")).toBeInTheDocument();
+    expect(
+      screen.getAllByText("returning-visitor / returning-visitor").length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getByText("0 success · 0 soft · 1 hard · 1 block"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("100% challenge / 20")).toBeInTheDocument();
+    expect(screen.getByText("PATCH-BROWSER · MEDIUM")).toBeInTheDocument();
     expect(screen.getByText("Recent capture timeline")).toBeInTheDocument();
     expect(
       screen.getByText("example.com · 1 events · 1 outcomes"),
