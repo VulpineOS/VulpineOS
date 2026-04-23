@@ -252,6 +252,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		SiteIntelligenceSummary: []extensions.SentinelSiteIntelligenceSummary{
 			{Domain: "example.com", TopScriptURL: "https://cdn.example.com/fp.js", TopProbeFamily: "canvas_probe", DominantChallengeVendor: "cloudflare", PressureScore: 12, ActiveRecommendationCount: 1, LatestCanaryStatus: "regressed"},
 		},
+		ProbeSequenceSummary: []extensions.SentinelProbeSequenceSummary{
+			{Domain: "example.com", ScriptURL: "https://cdn.example.com/fp.js", Sequence: "canvas_probe.toDataURL -> webgl_probe.getParameter", StepCount: 2, SequenceCount: 2, LatestOutcome: extensions.SentinelOutcomeHardChallenge, LatestChallengeVendor: "cloudflare", LatestCanaryStatus: "regressed"},
+		},
 		SitePressure: []extensions.SentinelSitePressureSummary{
 			{Domain: "example.com", ChallengeVendor: "cloudflare", ProbeCount: 2, SessionCount: 2, SoftChallengeCount: 1, SuccessCount: 1, TotalOutcomes: 2, PressureScore: 6},
 		},
@@ -303,6 +306,7 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		CanarySummary             []extensions.SentinelCanarySummary             `json:"canarySummary"`
 		VariantCompareSummary     []extensions.SentinelVariantCompareSummary     `json:"variantCompareSummary"`
 		SiteIntelligenceSummary   []extensions.SentinelSiteIntelligenceSummary   `json:"siteIntelligenceSummary"`
+		ProbeSequenceSummary      []extensions.SentinelProbeSequenceSummary      `json:"probeSequenceSummary"`
 		SitePressure              []extensions.SentinelSitePressureSummary       `json:"sitePressure"`
 		PatchQueue                []extensions.SentinelPatchCandidate            `json:"patchQueue"`
 		ExperimentSummary         []extensions.SentinelExperimentSummary         `json:"experimentSummary"`
@@ -366,6 +370,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	}
 	if len(result.SiteIntelligenceSummary) != 1 || result.SiteIntelligenceSummary[0].TopProbeFamily != "canvas_probe" {
 		t.Fatalf("siteIntelligenceSummary = %+v", result.SiteIntelligenceSummary)
+	}
+	if len(result.ProbeSequenceSummary) != 1 || result.ProbeSequenceSummary[0].SequenceCount != 2 {
+		t.Fatalf("probeSequenceSummary = %+v", result.ProbeSequenceSummary)
 	}
 	if len(result.SitePressure) != 1 || result.SitePressure[0].ChallengeVendor != "cloudflare" {
 		t.Fatalf("sitePressure = %+v", result.SitePressure)

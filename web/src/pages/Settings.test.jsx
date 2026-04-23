@@ -217,6 +217,16 @@ describe('Settings page', () => {
               activeRecommendationCount: 1,
               latestCanaryStatus: 'regressed',
             }],
+            probeSequenceSummary: [{
+              domain: 'example.com',
+              scriptUrl: 'https://cdn.example.com/fp.js',
+              sequence: 'canvas_probe.toDataURL -> webgl_probe.getParameter',
+              stepCount: 2,
+              sequenceCount: 2,
+              latestOutcome: 'hard_challenge',
+              latestChallengeVendor: 'cloudflare',
+              latestCanaryStatus: 'regressed',
+            }],
             coherenceDiff: [{
               domain: 'example.com',
               variantBundleId: 'authority-ramp',
@@ -304,6 +314,9 @@ describe('Settings page', () => {
     expect(screen.getByText('Variant compare board')).toBeInTheDocument()
     expect(screen.getByText('REGRESSED · HARD_CHALLENGE')).toBeInTheDocument()
     expect(screen.getByText('Site intelligence board')).toBeInTheDocument()
+    expect(screen.getByText('Probe sequence board')).toBeInTheDocument()
+    expect(screen.getByText('canvas_probe.toDataURL -> webgl_probe.getParameter')).toBeInTheDocument()
+    expect(screen.getAllByText('hard_challenge').length).toBeGreaterThan(0)
     expect(screen.getByText('Recent capture timeline')).toBeInTheDocument()
     expect(screen.getByText('example.com · 1 events · 1 outcomes')).toBeInTheDocument()
     expect(screen.getByText('browser_probe · canvas.toDataURL · seen 2 sessions · 2 days · gap 12.0h · Control / Baseline warmup')).toBeInTheDocument()

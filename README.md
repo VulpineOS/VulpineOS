@@ -264,6 +264,7 @@ The panel now also includes:
 - **Settings** Sentinel experiment board grouped by variant bundle and trust recipe so trust-building holdouts can be compared directly
 - **Settings** Sentinel variant compare board grouped by domain, variant bundle, and trust recipe so assignment performance stays comparable within each target
 - **Settings** Sentinel site intelligence board grouped by domain so dominant scripts, probe families, vendors, and recommendation pressure stay visible together
+- **Settings** Sentinel probe sequence board grouped by domain and script so ordered browser-test flows stay visible before each challenge or success
 - **Settings** Sentinel stage board grouped by domain, variant bundle, and trust recipe so inferred maturity and assignment-rule fit stay explicit
 - **Settings** Sentinel assignment recommendation board grouped by domain, variant bundle, and trust recipe so the next hold/promote/demote/rotate/quarantine action stays explicit
 - **Settings** Sentinel canary board grouped by domain, variant bundle, and trust recipe so benchmark regressions stay visible before broader rollout
@@ -280,6 +281,7 @@ The panel now also includes:
 - The Sentinel canary board compares recent grouped outcomes against each row's own prior benchmark window so regressions surface before broader promotion decisions
 - The Sentinel variant compare board keeps per-domain assignment rows together while ranking the worst current pressure first, so A/B trust work stays comparable within each target
 - The Sentinel site intelligence board condenses probe summaries, challenge pressure, patch recommendations, and canary status into one per-domain operator view
+- The Sentinel probe sequence board condenses ordered browser-probe flows by domain and script so the trust lab can show what each target tests before the latest outcome lands
 - **Agent Detail** controls for per-agent budget overrides, recording export, and fingerprint regeneration
 - **Proxies** controls for persisted per-agent rotation rules
 - **Scripts** execution against a real browser context through the server-side scripting engine
