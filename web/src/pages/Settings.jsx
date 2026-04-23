@@ -4,7 +4,7 @@ export default function Settings({ ws }) {
   const [cfg, setCfg] = useState({})
   const [providers, setProviders] = useState([])
   const [status, setStatus] = useState({})
-  const [sentinel, setSentinel] = useState({ variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], trustAssets: [], maturityEvidence: [], transportEvidence: [], coherenceDiff: [], stageSummary: [], assignmentRecommendations: [], canarySummary: [], variantCompareSummary: [], sitePressure: [], patchQueue: [], experimentSummary: [] })
+  const [sentinel, setSentinel] = useState({ variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], trustAssets: [], maturityEvidence: [], transportEvidence: [], coherenceDiff: [], stageSummary: [], assignmentRecommendations: [], canarySummary: [], variantCompareSummary: [], siteIntelligenceSummary: [], sitePressure: [], patchQueue: [], experimentSummary: [] })
   const [sentinelTimeline, setSentinelTimeline] = useState([])
   const [defaultBudgetCost, setDefaultBudgetCost] = useState('0')
   const [defaultBudgetTokens, setDefaultBudgetTokens] = useState('0')
@@ -19,7 +19,7 @@ export default function Settings({ ws }) {
       setDefaultBudgetTokens(String(r?.defaultBudgetMaxTokens ?? 0))
     }).catch(() => {})
     ws.call('status.get').then(r => setStatus(r || {})).catch(() => {})
-    ws.call('sentinel.get').then(r => setSentinel(r || { variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], trustAssets: [], maturityEvidence: [], transportEvidence: [], coherenceDiff: [], stageSummary: [], assignmentRecommendations: [], canarySummary: [], variantCompareSummary: [], sitePressure: [], patchQueue: [], experimentSummary: [] })).catch(() => {})
+    ws.call('sentinel.get').then(r => setSentinel(r || { variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], trustAssets: [], maturityEvidence: [], transportEvidence: [], coherenceDiff: [], stageSummary: [], assignmentRecommendations: [], canarySummary: [], variantCompareSummary: [], siteIntelligenceSummary: [], sitePressure: [], patchQueue: [], experimentSummary: [] })).catch(() => {})
     ws.call('sentinel.timeline', { limit: 4 }).then(r => setSentinelTimeline(r?.sessions || [])).catch(() => {})
   }, [ws.connected])
 
@@ -43,6 +43,7 @@ export default function Settings({ ws }) {
   const sentinelAssignmentRecommendations = sentinel.assignmentRecommendations || []
   const sentinelCanarySummary = sentinel.canarySummary || []
   const sentinelVariantCompareSummary = sentinel.variantCompareSummary || []
+  const sentinelSiteIntelligenceSummary = sentinel.siteIntelligenceSummary || []
   const sentinelSitePressure = sentinel.sitePressure || []
   const sentinelPatchQueue = sentinel.patchQueue || []
   const sentinelExperimentSummary = sentinel.experimentSummary || []
@@ -426,6 +427,40 @@ export default function Settings({ ws }) {
                           <td>{row.burnCount || 0}</td>
                           <td>{row.pressureScore || 0}</td>
                           <td>{`${(row.canaryStatus || 'unknown').toUpperCase()}${row.latestOutcome ? ` · ${row.latestOutcome.toUpperCase()}` : ''}`}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              <div>
+                <h4 style={{ margin: '0 0 10px' }}>Site intelligence board</h4>
+                {sentinelSiteIntelligenceSummary.length === 0 ? (
+                  <div className="empty-state">No site intelligence has been summarized yet.</div>
+                ) : (
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Domain</th>
+                        <th>Top script</th>
+                        <th>Top probe</th>
+                        <th>Vendor</th>
+                        <th>Pressure</th>
+                        <th>Recommendations</th>
+                        <th>Canary</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sentinelSiteIntelligenceSummary.map((row, index) => (
+                        <tr key={`${row.domain || 'domain'}-${index}`}>
+                          <td>{row.domain || 'unknown'}</td>
+                          <td className="mono-cell">{row.topScriptUrl || 'n/a'}</td>
+                          <td>{row.topProbeFamily || 'n/a'}</td>
+                          <td>{row.dominantChallengeVendor || 'none'}</td>
+                          <td>{row.pressureScore || 0}</td>
+                          <td>{row.activeRecommendationCount || 0}</td>
+                          <td>{(row.latestCanaryStatus || 'unknown').toUpperCase()}</td>
                         </tr>
                       ))}
                     </tbody>

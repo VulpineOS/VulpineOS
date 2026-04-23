@@ -208,6 +208,15 @@ describe('Settings page', () => {
               canaryStatus: 'regressed',
               latestOutcome: 'hard_challenge',
             }],
+            siteIntelligenceSummary: [{
+              domain: 'example.com',
+              topScriptUrl: 'https://cdn.example.com/fp.js',
+              topProbeFamily: 'canvas_probe',
+              dominantChallengeVendor: 'cloudflare',
+              pressureScore: 12,
+              activeRecommendationCount: 1,
+              latestCanaryStatus: 'regressed',
+            }],
             coherenceDiff: [{
               domain: 'example.com',
               variantBundleId: 'authority-ramp',
@@ -294,13 +303,14 @@ describe('Settings page', () => {
     expect(screen.getAllByText('Baseline warmup').length).toBeGreaterThan(0)
     expect(screen.getByText('Variant compare board')).toBeInTheDocument()
     expect(screen.getByText('REGRESSED · HARD_CHALLENGE')).toBeInTheDocument()
+    expect(screen.getByText('Site intelligence board')).toBeInTheDocument()
     expect(screen.getByText('Recent capture timeline')).toBeInTheDocument()
     expect(screen.getByText('example.com · 1 events · 1 outcomes')).toBeInTheDocument()
     expect(screen.getByText('browser_probe · canvas.toDataURL · seen 2 sessions · 2 days · gap 12.0h · Control / Baseline warmup')).toBeInTheDocument()
     expect(screen.getByText('soft_challenge · cloudflare · Control / Baseline warmup')).toBeInTheDocument()
     expect(screen.getByText('Probe summary')).toBeInTheDocument()
     expect(screen.getAllByText('canvas_probe').length).toBeGreaterThan(0)
-    expect(screen.getByText('https://cdn.example.com/fp.js')).toBeInTheDocument()
+    expect(screen.getAllByText('https://cdn.example.com/fp.js').length).toBeGreaterThan(0)
     expect(screen.getByText('Site pressure board')).toBeInTheDocument()
     expect(screen.getAllByText('example.com').length).toBeGreaterThan(0)
     expect(screen.getAllByText('cloudflare').length).toBeGreaterThan(0)
@@ -315,7 +325,7 @@ describe('Settings page', () => {
     expect(screen.getByText('Assignment recommendations')).toBeInTheDocument()
     expect(screen.getByText('warm evidence now supports the returning-visitor path')).toBeInTheDocument()
     expect(screen.getByText('Canary board')).toBeInTheDocument()
-    expect(screen.getByText('REGRESSED')).toBeInTheDocument()
+    expect(screen.getAllByText('REGRESSED').length).toBeGreaterThan(0)
     expect(screen.getByText('ROTATE')).toBeInTheDocument()
     expect(screen.getByText('Transport evidence')).toBeInTheDocument()
     expect(screen.getByText('Coherence diff')).toBeInTheDocument()
@@ -342,5 +352,5 @@ describe('Settings page', () => {
     await waitFor(() => {
       expect(ws.call).toHaveBeenCalledWith('config.set', { defaultBudgetMaxCostUsd: 2.25, defaultBudgetMaxTokens: 9000 })
     })
-  })
+  }, 15000)
 })

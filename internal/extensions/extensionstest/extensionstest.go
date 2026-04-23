@@ -289,6 +289,7 @@ type FakeSentinelProvider struct {
 	AssignmentRecommendations []extensions.SentinelAssignmentRecommendation
 	CanarySummary             []extensions.SentinelCanarySummary
 	VariantCompareSummary     []extensions.SentinelVariantCompareSummary
+	SiteIntelligenceSummary   []extensions.SentinelSiteIntelligenceSummary
 	SitePressure              []extensions.SentinelSitePressureSummary
 	PatchQueue                []extensions.SentinelPatchCandidate
 	ExperimentBoard           []extensions.SentinelExperimentSummary
@@ -427,6 +428,13 @@ func (f *FakeSentinelProvider) SetVariantCompareSummary(v []extensions.SentinelV
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.VariantCompareSummary = append([]extensions.SentinelVariantCompareSummary(nil), v...)
+}
+
+// SetSiteIntelligenceSummary replaces the canned site-intelligence rows.
+func (f *FakeSentinelProvider) SetSiteIntelligenceSummary(v []extensions.SentinelSiteIntelligenceSummary) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.SiteIntelligenceSummary = append([]extensions.SentinelSiteIntelligenceSummary(nil), v...)
 }
 
 // SetSitePressure replaces the canned site pressure rows under the write lock.
@@ -633,6 +641,15 @@ func (f *FakeSentinelProvider) SummarizeVariantCompare(ctx context.Context) ([]e
 	defer f.mu.RUnlock()
 	out := make([]extensions.SentinelVariantCompareSummary, len(f.VariantCompareSummary))
 	copy(out, f.VariantCompareSummary)
+	return out, nil
+}
+
+// SummarizeSiteIntelligence returns a copy of the canned site-intelligence rows.
+func (f *FakeSentinelProvider) SummarizeSiteIntelligence(ctx context.Context) ([]extensions.SentinelSiteIntelligenceSummary, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make([]extensions.SentinelSiteIntelligenceSummary, len(f.SiteIntelligenceSummary))
+	copy(out, f.SiteIntelligenceSummary)
 	return out, nil
 }
 
