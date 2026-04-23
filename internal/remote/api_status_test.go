@@ -222,6 +222,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		TrustActivity: []extensions.SentinelTrustActivitySummary{
 			{Domain: "example.com", State: "WARMING", Count: 3, SessionCount: 1},
 		},
+		TrustEffectiveness: []extensions.SentinelTrustEffectivenessSummary{
+			{Domain: "example.com", VariantBundleID: "control", TrustRecipeID: "baseline-warmup", WarmingCount: 3, SessionCount: 2, SuccessCount: 1, SoftChallengeCount: 1, TotalOutcomes: 2, EffectivenessScore: 2, ChallengeVendors: []string{"cloudflare"}},
+		},
 		SitePressure: []extensions.SentinelSitePressureSummary{
 			{Domain: "example.com", ChallengeVendor: "cloudflare", ProbeCount: 2, SessionCount: 2, SoftChallengeCount: 1, SuccessCount: 1, TotalOutcomes: 2, PressureScore: 6},
 		},
@@ -254,18 +257,19 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	}
 
 	var result struct {
-		Available         bool                                      `json:"available"`
-		VariantBundles    []extensions.SentinelVariantBundle        `json:"variantBundles"`
-		TrustRecipes      []extensions.SentinelTrustRecipe          `json:"trustRecipes"`
-		MaturityMetrics   []extensions.SentinelMaturityMetric       `json:"maturityMetrics"`
-		AssignmentRules   []extensions.SentinelAssignmentRule       `json:"assignmentRules"`
-		OutcomeLabels     []extensions.SentinelOutcomeLabel         `json:"outcomeLabels"`
-		OutcomeSummary    []extensions.SentinelOutcomeSummary       `json:"outcomeSummary"`
-		ProbeSummary      []extensions.SentinelProbeSummary         `json:"probeSummary"`
-		TrustActivity     []extensions.SentinelTrustActivitySummary `json:"trustActivity"`
-		SitePressure      []extensions.SentinelSitePressureSummary  `json:"sitePressure"`
-		PatchQueue        []extensions.SentinelPatchCandidate       `json:"patchQueue"`
-		ExperimentSummary []extensions.SentinelExperimentSummary    `json:"experimentSummary"`
+		Available          bool                                           `json:"available"`
+		VariantBundles     []extensions.SentinelVariantBundle             `json:"variantBundles"`
+		TrustRecipes       []extensions.SentinelTrustRecipe               `json:"trustRecipes"`
+		MaturityMetrics    []extensions.SentinelMaturityMetric            `json:"maturityMetrics"`
+		AssignmentRules    []extensions.SentinelAssignmentRule            `json:"assignmentRules"`
+		OutcomeLabels      []extensions.SentinelOutcomeLabel              `json:"outcomeLabels"`
+		OutcomeSummary     []extensions.SentinelOutcomeSummary            `json:"outcomeSummary"`
+		ProbeSummary       []extensions.SentinelProbeSummary              `json:"probeSummary"`
+		TrustActivity      []extensions.SentinelTrustActivitySummary      `json:"trustActivity"`
+		TrustEffectiveness []extensions.SentinelTrustEffectivenessSummary `json:"trustEffectiveness"`
+		SitePressure       []extensions.SentinelSitePressureSummary       `json:"sitePressure"`
+		PatchQueue         []extensions.SentinelPatchCandidate            `json:"patchQueue"`
+		ExperimentSummary  []extensions.SentinelExperimentSummary         `json:"experimentSummary"`
 	}
 	if err := json.Unmarshal(payload, &result); err != nil {
 		t.Fatalf("Unmarshal: %v", err)
@@ -296,6 +300,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	}
 	if len(result.TrustActivity) != 1 || result.TrustActivity[0].State != "WARMING" {
 		t.Fatalf("trustActivity = %+v", result.TrustActivity)
+	}
+	if len(result.TrustEffectiveness) != 1 || result.TrustEffectiveness[0].TrustRecipeID != "baseline-warmup" {
+		t.Fatalf("trustEffectiveness = %+v", result.TrustEffectiveness)
 	}
 	if len(result.SitePressure) != 1 || result.SitePressure[0].ChallengeVendor != "cloudflare" {
 		t.Fatalf("sitePressure = %+v", result.SitePressure)

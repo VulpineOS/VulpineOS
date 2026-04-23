@@ -1188,19 +1188,20 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 		return nil, err
 	}
 	out := map[string]interface{}{
-		"available":         available,
-		"status":            status,
-		"variantBundles":    []extensions.SentinelVariantBundle{},
-		"trustRecipes":      []extensions.SentinelTrustRecipe{},
-		"maturityMetrics":   []extensions.SentinelMaturityMetric{},
-		"assignmentRules":   []extensions.SentinelAssignmentRule{},
-		"outcomeLabels":     []extensions.SentinelOutcomeLabel{},
-		"outcomeSummary":    []extensions.SentinelOutcomeSummary{},
-		"probeSummary":      []extensions.SentinelProbeSummary{},
-		"trustActivity":     []extensions.SentinelTrustActivitySummary{},
-		"sitePressure":      []extensions.SentinelSitePressureSummary{},
-		"patchQueue":        []extensions.SentinelPatchCandidate{},
-		"experimentSummary": []extensions.SentinelExperimentSummary{},
+		"available":          available,
+		"status":             status,
+		"variantBundles":     []extensions.SentinelVariantBundle{},
+		"trustRecipes":       []extensions.SentinelTrustRecipe{},
+		"maturityMetrics":    []extensions.SentinelMaturityMetric{},
+		"assignmentRules":    []extensions.SentinelAssignmentRule{},
+		"outcomeLabels":      []extensions.SentinelOutcomeLabel{},
+		"outcomeSummary":     []extensions.SentinelOutcomeSummary{},
+		"probeSummary":       []extensions.SentinelProbeSummary{},
+		"trustActivity":      []extensions.SentinelTrustActivitySummary{},
+		"trustEffectiveness": []extensions.SentinelTrustEffectivenessSummary{},
+		"sitePressure":       []extensions.SentinelSitePressureSummary{},
+		"patchQueue":         []extensions.SentinelPatchCandidate{},
+		"experimentSummary":  []extensions.SentinelExperimentSummary{},
 	}
 	if !available {
 		return json.Marshal(out)
@@ -1241,6 +1242,10 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
+	trustEffectiveness, err := provider.SummarizeTrustEffectiveness(context.Background())
+	if err != nil {
+		return nil, err
+	}
 	sitePressure, err := provider.SummarizeSitePressure(context.Background())
 	if err != nil {
 		return nil, err
@@ -1261,6 +1266,7 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 	out["outcomeSummary"] = outcomeSummary
 	out["probeSummary"] = probeSummary
 	out["trustActivity"] = trustActivity
+	out["trustEffectiveness"] = trustEffectiveness
 	out["sitePressure"] = sitePressure
 	out["patchQueue"] = patchQueue
 	out["experimentSummary"] = experimentSummary

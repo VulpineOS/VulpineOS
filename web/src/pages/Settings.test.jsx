@@ -96,6 +96,19 @@ describe('Settings page', () => {
               count: 3,
               sessionCount: 1,
             }],
+            trustEffectiveness: [{
+              domain: 'example.com',
+              variantBundleId: 'control',
+              trustRecipeId: 'baseline-warmup',
+              warmingCount: 3,
+              sessionCount: 2,
+              successCount: 1,
+              softChallengeCount: 1,
+              hardChallengeCount: 0,
+              blockCount: 0,
+              burnCount: 0,
+              effectivenessScore: 2,
+            }],
             sitePressure: [{
               domain: 'example.com',
               challengeVendor: 'cloudflare',
@@ -180,6 +193,7 @@ describe('Settings page', () => {
     expect(screen.getAllByText('cloudflare').length).toBeGreaterThan(0)
     expect(screen.getByText('Trust activity board')).toBeInTheDocument()
     expect(screen.getByText('WARMING')).toBeInTheDocument()
+    expect(screen.getByText('Trust effectiveness')).toBeInTheDocument()
     expect(screen.getByText('Patch queue')).toBeInTheDocument()
     expect(screen.getByText('Review canvas surface coherence and pixel-read behavior.')).toBeInTheDocument()
     expect(screen.getByText('HIGH')).toBeInTheDocument()
