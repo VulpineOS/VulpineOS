@@ -255,6 +255,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		ProbeSequenceSummary: []extensions.SentinelProbeSequenceSummary{
 			{Domain: "example.com", ScriptURL: "https://cdn.example.com/fp.js", Sequence: "canvas_probe.toDataURL -> webgl_probe.getParameter", StepCount: 2, SequenceCount: 2, LatestOutcome: extensions.SentinelOutcomeHardChallenge, LatestChallengeVendor: "cloudflare", LatestCanaryStatus: "regressed"},
 		},
+		VendorIntelligenceSummary: []extensions.SentinelVendorIntelligenceSummary{
+			{ScriptHost: "cdn.example.com", ChallengeVendor: "cloudflare", DomainCount: 2, TopProbeFamily: "canvas_probe", PressureScore: 18, LatestOutcome: extensions.SentinelOutcomeHardChallenge, LatestCanaryStatus: "regressed"},
+		},
 		SitePressure: []extensions.SentinelSitePressureSummary{
 			{Domain: "example.com", ChallengeVendor: "cloudflare", ProbeCount: 2, SessionCount: 2, SoftChallengeCount: 1, SuccessCount: 1, TotalOutcomes: 2, PressureScore: 6},
 		},
@@ -307,6 +310,7 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		VariantCompareSummary     []extensions.SentinelVariantCompareSummary     `json:"variantCompareSummary"`
 		SiteIntelligenceSummary   []extensions.SentinelSiteIntelligenceSummary   `json:"siteIntelligenceSummary"`
 		ProbeSequenceSummary      []extensions.SentinelProbeSequenceSummary      `json:"probeSequenceSummary"`
+		VendorIntelligenceSummary []extensions.SentinelVendorIntelligenceSummary `json:"vendorIntelligenceSummary"`
 		SitePressure              []extensions.SentinelSitePressureSummary       `json:"sitePressure"`
 		PatchQueue                []extensions.SentinelPatchCandidate            `json:"patchQueue"`
 		ExperimentSummary         []extensions.SentinelExperimentSummary         `json:"experimentSummary"`
@@ -373,6 +377,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	}
 	if len(result.ProbeSequenceSummary) != 1 || result.ProbeSequenceSummary[0].SequenceCount != 2 {
 		t.Fatalf("probeSequenceSummary = %+v", result.ProbeSequenceSummary)
+	}
+	if len(result.VendorIntelligenceSummary) != 1 || result.VendorIntelligenceSummary[0].DomainCount != 2 {
+		t.Fatalf("vendorIntelligenceSummary = %+v", result.VendorIntelligenceSummary)
 	}
 	if len(result.SitePressure) != 1 || result.SitePressure[0].ChallengeVendor != "cloudflare" {
 		t.Fatalf("sitePressure = %+v", result.SitePressure)

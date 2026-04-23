@@ -4,7 +4,7 @@ export default function Settings({ ws }) {
   const [cfg, setCfg] = useState({})
   const [providers, setProviders] = useState([])
   const [status, setStatus] = useState({})
-  const [sentinel, setSentinel] = useState({ variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], trustAssets: [], maturityEvidence: [], transportEvidence: [], coherenceDiff: [], stageSummary: [], assignmentRecommendations: [], canarySummary: [], variantCompareSummary: [], siteIntelligenceSummary: [], probeSequenceSummary: [], sitePressure: [], patchQueue: [], experimentSummary: [] })
+  const [sentinel, setSentinel] = useState({ variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], trustAssets: [], maturityEvidence: [], transportEvidence: [], coherenceDiff: [], stageSummary: [], assignmentRecommendations: [], canarySummary: [], variantCompareSummary: [], siteIntelligenceSummary: [], probeSequenceSummary: [], vendorIntelligenceSummary: [], sitePressure: [], patchQueue: [], experimentSummary: [] })
   const [sentinelTimeline, setSentinelTimeline] = useState([])
   const [defaultBudgetCost, setDefaultBudgetCost] = useState('0')
   const [defaultBudgetTokens, setDefaultBudgetTokens] = useState('0')
@@ -19,7 +19,7 @@ export default function Settings({ ws }) {
       setDefaultBudgetTokens(String(r?.defaultBudgetMaxTokens ?? 0))
     }).catch(() => {})
     ws.call('status.get').then(r => setStatus(r || {})).catch(() => {})
-    ws.call('sentinel.get').then(r => setSentinel(r || { variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], trustAssets: [], maturityEvidence: [], transportEvidence: [], coherenceDiff: [], stageSummary: [], assignmentRecommendations: [], canarySummary: [], variantCompareSummary: [], siteIntelligenceSummary: [], probeSequenceSummary: [], sitePressure: [], patchQueue: [], experimentSummary: [] })).catch(() => {})
+    ws.call('sentinel.get').then(r => setSentinel(r || { variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], trustAssets: [], maturityEvidence: [], transportEvidence: [], coherenceDiff: [], stageSummary: [], assignmentRecommendations: [], canarySummary: [], variantCompareSummary: [], siteIntelligenceSummary: [], probeSequenceSummary: [], vendorIntelligenceSummary: [], sitePressure: [], patchQueue: [], experimentSummary: [] })).catch(() => {})
     ws.call('sentinel.timeline', { limit: 4 }).then(r => setSentinelTimeline(r?.sessions || [])).catch(() => {})
   }, [ws.connected])
 
@@ -45,6 +45,7 @@ export default function Settings({ ws }) {
   const sentinelVariantCompareSummary = sentinel.variantCompareSummary || []
   const sentinelSiteIntelligenceSummary = sentinel.siteIntelligenceSummary || []
   const sentinelProbeSequenceSummary = sentinel.probeSequenceSummary || []
+  const sentinelVendorIntelligenceSummary = sentinel.vendorIntelligenceSummary || []
   const sentinelSitePressure = sentinel.sitePressure || []
   const sentinelPatchQueue = sentinel.patchQueue || []
   const sentinelExperimentSummary = sentinel.experimentSummary || []
@@ -495,6 +496,40 @@ export default function Settings({ ws }) {
                           <td>{row.sequenceCount || 0}</td>
                           <td>{row.latestOutcome || 'n/a'}</td>
                           <td>{row.latestChallengeVendor || 'none'}</td>
+                          <td>{(row.latestCanaryStatus || 'unknown').toUpperCase()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              <div>
+                <h4 style={{ margin: '0 0 10px' }}>Vendor intelligence board</h4>
+                {sentinelVendorIntelligenceSummary.length === 0 ? (
+                  <div className="empty-state">No vendor clusters have been summarized yet.</div>
+                ) : (
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Script host</th>
+                        <th>Vendor</th>
+                        <th>Domains</th>
+                        <th>Top probe</th>
+                        <th>Pressure</th>
+                        <th>Outcome</th>
+                        <th>Canary</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sentinelVendorIntelligenceSummary.map((row, index) => (
+                        <tr key={`${row.scriptHost || 'host'}-${row.challengeVendor || 'vendor'}-${index}`}>
+                          <td className="mono-cell">{row.scriptHost || 'unknown'}</td>
+                          <td>{row.challengeVendor || 'unknown'}</td>
+                          <td>{row.domainCount || 0}</td>
+                          <td>{row.topProbeFamily || 'n/a'}</td>
+                          <td>{row.pressureScore || 0}</td>
+                          <td>{row.latestOutcome || 'n/a'}</td>
                           <td>{(row.latestCanaryStatus || 'unknown').toUpperCase()}</td>
                         </tr>
                       ))}

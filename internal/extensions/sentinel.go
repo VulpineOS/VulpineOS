@@ -52,6 +52,7 @@ type SentinelProvider interface {
 	SummarizeVariantCompare(ctx context.Context) ([]SentinelVariantCompareSummary, error)
 	SummarizeSiteIntelligence(ctx context.Context) ([]SentinelSiteIntelligenceSummary, error)
 	SummarizeProbeSequences(ctx context.Context) ([]SentinelProbeSequenceSummary, error)
+	SummarizeVendorIntelligence(ctx context.Context) ([]SentinelVendorIntelligenceSummary, error)
 	SummarizeSitePressure(ctx context.Context) ([]SentinelSitePressureSummary, error)
 	SummarizePatchQueue(ctx context.Context) ([]SentinelPatchCandidate, error)
 	SummarizeExperiments(ctx context.Context) ([]SentinelExperimentSummary, error)
@@ -519,6 +520,17 @@ type SentinelProbeSequenceSummary struct {
 	LastSeenAt            time.Time `json:"lastSeenAt,omitempty"`
 }
 
+type SentinelVendorIntelligenceSummary struct {
+	ScriptHost         string    `json:"scriptHost,omitempty"`
+	ChallengeVendor    string    `json:"challengeVendor,omitempty"`
+	DomainCount        int       `json:"domainCount"`
+	TopProbeFamily     string    `json:"topProbeFamily,omitempty"`
+	PressureScore      int       `json:"pressureScore"`
+	LatestOutcome      string    `json:"latestOutcome,omitempty"`
+	LatestCanaryStatus string    `json:"latestCanaryStatus,omitempty"`
+	LastSeenAt         time.Time `json:"lastSeenAt,omitempty"`
+}
+
 var defaultSentinelProvider SentinelProvider = noopSentinelProvider{}
 
 type noopSentinelProvider struct{}
@@ -612,6 +624,10 @@ func (noopSentinelProvider) SummarizeSiteIntelligence(ctx context.Context) ([]Se
 }
 
 func (noopSentinelProvider) SummarizeProbeSequences(ctx context.Context) ([]SentinelProbeSequenceSummary, error) {
+	return nil, ErrUnavailable
+}
+
+func (noopSentinelProvider) SummarizeVendorIntelligence(ctx context.Context) ([]SentinelVendorIntelligenceSummary, error) {
 	return nil, ErrUnavailable
 }
 
