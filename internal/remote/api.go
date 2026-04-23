@@ -1210,6 +1210,7 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 		"siteIntelligenceSummary":   []extensions.SentinelSiteIntelligenceSummary{},
 		"probeSequenceSummary":      []extensions.SentinelProbeSequenceSummary{},
 		"vendorIntelligenceSummary": []extensions.SentinelVendorIntelligenceSummary{},
+		"vendorEffectiveness":       []extensions.SentinelVendorEffectivenessSummary{},
 		"sitePressure":              []extensions.SentinelSitePressureSummary{},
 		"patchQueue":                []extensions.SentinelPatchCandidate{},
 		"experimentSummary":         []extensions.SentinelExperimentSummary{},
@@ -1301,6 +1302,10 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
+	vendorEffectiveness, err := provider.SummarizeVendorEffectiveness(context.Background())
+	if err != nil {
+		return nil, err
+	}
 	sitePressure, err := provider.SummarizeSitePressure(context.Background())
 	if err != nil {
 		return nil, err
@@ -1333,6 +1338,7 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 	out["siteIntelligenceSummary"] = siteIntelligenceSummary
 	out["probeSequenceSummary"] = probeSequenceSummary
 	out["vendorIntelligenceSummary"] = vendorIntelligenceSummary
+	out["vendorEffectiveness"] = vendorEffectiveness
 	out["sitePressure"] = sitePressure
 	out["patchQueue"] = patchQueue
 	out["experimentSummary"] = experimentSummary

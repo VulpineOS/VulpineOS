@@ -238,6 +238,18 @@ describe('Settings page', () => {
               latestOutcome: 'hard_challenge',
               latestCanaryStatus: 'regressed',
             }],
+            vendorEffectiveness: [{
+              vendorFamily: 'cloudflare',
+              variantBundleId: 'control',
+              trustRecipeId: 'baseline-warmup',
+              domainCount: 2,
+              successCount: 1,
+              softChallengeCount: 1,
+              hardChallengeCount: 0,
+              blockCount: 0,
+              burnCount: 0,
+              effectivenessScore: 0,
+            }],
             coherenceDiff: [{
               domain: 'example.com',
               variantBundleId: 'authority-ramp',
@@ -332,6 +344,7 @@ describe('Settings page', () => {
     expect(screen.getAllByText('cloudflare').length).toBeGreaterThan(0)
     expect(screen.getByText('cdn.example.com')).toBeInTheDocument()
     expect(screen.getByText('example.com, shop.example.com')).toBeInTheDocument()
+    expect(screen.getByText('Vendor effectiveness board')).toBeInTheDocument()
     expect(screen.getByText('Recent capture timeline')).toBeInTheDocument()
     expect(screen.getByText('example.com · 1 events · 1 outcomes')).toBeInTheDocument()
     expect(screen.getByText('browser_probe · canvas.toDataURL · seen 2 sessions · 2 days · gap 12.0h · Control / Baseline warmup')).toBeInTheDocument()

@@ -53,6 +53,7 @@ type SentinelProvider interface {
 	SummarizeSiteIntelligence(ctx context.Context) ([]SentinelSiteIntelligenceSummary, error)
 	SummarizeProbeSequences(ctx context.Context) ([]SentinelProbeSequenceSummary, error)
 	SummarizeVendorIntelligence(ctx context.Context) ([]SentinelVendorIntelligenceSummary, error)
+	SummarizeVendorEffectiveness(ctx context.Context) ([]SentinelVendorEffectivenessSummary, error)
 	SummarizeSitePressure(ctx context.Context) ([]SentinelSitePressureSummary, error)
 	SummarizePatchQueue(ctx context.Context) ([]SentinelPatchCandidate, error)
 	SummarizeExperiments(ctx context.Context) ([]SentinelExperimentSummary, error)
@@ -533,6 +534,22 @@ type SentinelVendorIntelligenceSummary struct {
 	LastSeenAt         time.Time `json:"lastSeenAt,omitempty"`
 }
 
+type SentinelVendorEffectivenessSummary struct {
+	VendorFamily       string    `json:"vendorFamily,omitempty"`
+	VariantBundleID    string    `json:"variantBundleId,omitempty"`
+	TrustRecipeID      string    `json:"trustRecipeId,omitempty"`
+	DomainCount        int       `json:"domainCount"`
+	SuccessCount       int       `json:"successCount"`
+	DegradedCount      int       `json:"degradedCount"`
+	SoftChallengeCount int       `json:"softChallengeCount"`
+	HardChallengeCount int       `json:"hardChallengeCount"`
+	BlockCount         int       `json:"blockCount"`
+	BurnCount          int       `json:"burnCount"`
+	TotalOutcomes      int       `json:"totalOutcomes"`
+	EffectivenessScore int       `json:"effectivenessScore"`
+	LastSeenAt         time.Time `json:"lastSeenAt,omitempty"`
+}
+
 var defaultSentinelProvider SentinelProvider = noopSentinelProvider{}
 
 type noopSentinelProvider struct{}
@@ -630,6 +647,10 @@ func (noopSentinelProvider) SummarizeProbeSequences(ctx context.Context) ([]Sent
 }
 
 func (noopSentinelProvider) SummarizeVendorIntelligence(ctx context.Context) ([]SentinelVendorIntelligenceSummary, error) {
+	return nil, ErrUnavailable
+}
+
+func (noopSentinelProvider) SummarizeVendorEffectiveness(ctx context.Context) ([]SentinelVendorEffectivenessSummary, error) {
 	return nil, ErrUnavailable
 }
 

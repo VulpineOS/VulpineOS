@@ -258,6 +258,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		VendorIntelligenceSummary: []extensions.SentinelVendorIntelligenceSummary{
 			{VendorFamily: "cloudflare", ScriptHost: "cdn.example.com", ChallengeVendor: "cloudflare", DomainCount: 2, DomainSamples: []string{"example.com", "shop.example.com"}, TopProbeFamily: "canvas_probe", PressureScore: 18, LatestOutcome: extensions.SentinelOutcomeHardChallenge, LatestCanaryStatus: "regressed"},
 		},
+		VendorEffectiveness: []extensions.SentinelVendorEffectivenessSummary{
+			{VendorFamily: "cloudflare", VariantBundleID: "control", TrustRecipeID: "baseline-warmup", DomainCount: 2, SuccessCount: 1, SoftChallengeCount: 1, TotalOutcomes: 2, EffectivenessScore: 0},
+		},
 		SitePressure: []extensions.SentinelSitePressureSummary{
 			{Domain: "example.com", ChallengeVendor: "cloudflare", ProbeCount: 2, SessionCount: 2, SoftChallengeCount: 1, SuccessCount: 1, TotalOutcomes: 2, PressureScore: 6},
 		},
@@ -311,6 +314,7 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		SiteIntelligenceSummary   []extensions.SentinelSiteIntelligenceSummary   `json:"siteIntelligenceSummary"`
 		ProbeSequenceSummary      []extensions.SentinelProbeSequenceSummary      `json:"probeSequenceSummary"`
 		VendorIntelligenceSummary []extensions.SentinelVendorIntelligenceSummary `json:"vendorIntelligenceSummary"`
+		VendorEffectiveness       []extensions.SentinelVendorEffectivenessSummary `json:"vendorEffectiveness"`
 		SitePressure              []extensions.SentinelSitePressureSummary       `json:"sitePressure"`
 		PatchQueue                []extensions.SentinelPatchCandidate            `json:"patchQueue"`
 		ExperimentSummary         []extensions.SentinelExperimentSummary         `json:"experimentSummary"`
@@ -380,6 +384,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	}
 	if len(result.VendorIntelligenceSummary) != 1 || result.VendorIntelligenceSummary[0].VendorFamily != "cloudflare" {
 		t.Fatalf("vendorIntelligenceSummary = %+v", result.VendorIntelligenceSummary)
+	}
+	if len(result.VendorEffectiveness) != 1 || result.VendorEffectiveness[0].VendorFamily != "cloudflare" {
+		t.Fatalf("vendorEffectiveness = %+v", result.VendorEffectiveness)
 	}
 	if len(result.SitePressure) != 1 || result.SitePressure[0].ChallengeVendor != "cloudflare" {
 		t.Fatalf("sitePressure = %+v", result.SitePressure)
