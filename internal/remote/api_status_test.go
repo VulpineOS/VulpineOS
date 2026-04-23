@@ -225,6 +225,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		TrustEffectiveness: []extensions.SentinelTrustEffectivenessSummary{
 			{Domain: "example.com", VariantBundleID: "control", TrustRecipeID: "baseline-warmup", WarmingCount: 3, SessionCount: 2, SuccessCount: 1, SoftChallengeCount: 1, TotalOutcomes: 2, EffectivenessScore: 2, ChallengeVendors: []string{"cloudflare"}},
 		},
+		TrustAssets: []extensions.SentinelTrustAssetSummary{
+			{Domain: "example.com", VariantBundleID: "control", TrustRecipeID: "baseline-warmup", SessionCount: 1, SnapshotCount: 1, CookieBackedCount: 1, StorageBackedCount: 1, AverageCookieCount: 6, AverageStorageEntryCount: 3, AverageHoursSinceLastSeen: 12, AverageTotalSessionsSeen: 4, SuccessCount: 1, SoftChallengeCount: 1, TotalOutcomes: 2, AssetScore: 12},
+		},
 		MaturityEvidence: []extensions.SentinelMaturityEvidenceSummary{
 			{Domain: "example.com", VariantBundleID: "control", TrustRecipeID: "baseline-warmup", SessionCount: 2, WarmingCount: 3, RevisitCount: 2, DistinctDays: 2, AverageGapHours: 12, SuccessCount: 1, SoftChallengeCount: 1, TotalOutcomes: 2, MaturityScore: 10},
 		},
@@ -273,6 +276,7 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		ProbeSummary       []extensions.SentinelProbeSummary              `json:"probeSummary"`
 		TrustActivity      []extensions.SentinelTrustActivitySummary      `json:"trustActivity"`
 		TrustEffectiveness []extensions.SentinelTrustEffectivenessSummary `json:"trustEffectiveness"`
+		TrustAssets        []extensions.SentinelTrustAssetSummary         `json:"trustAssets"`
 		MaturityEvidence   []extensions.SentinelMaturityEvidenceSummary   `json:"maturityEvidence"`
 		TransportEvidence  []extensions.SentinelTransportEvidenceSummary  `json:"transportEvidence"`
 		SitePressure       []extensions.SentinelSitePressureSummary       `json:"sitePressure"`
@@ -311,6 +315,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	}
 	if len(result.TrustEffectiveness) != 1 || result.TrustEffectiveness[0].TrustRecipeID != "baseline-warmup" {
 		t.Fatalf("trustEffectiveness = %+v", result.TrustEffectiveness)
+	}
+	if len(result.TrustAssets) != 1 || result.TrustAssets[0].CookieBackedCount != 1 {
+		t.Fatalf("trustAssets = %+v", result.TrustAssets)
 	}
 	if len(result.MaturityEvidence) != 1 || result.MaturityEvidence[0].DistinctDays != 2 {
 		t.Fatalf("maturityEvidence = %+v", result.MaturityEvidence)

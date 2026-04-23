@@ -42,6 +42,7 @@ type SentinelProvider interface {
 	SummarizeProbes(ctx context.Context) ([]SentinelProbeSummary, error)
 	SummarizeTrustActivity(ctx context.Context) ([]SentinelTrustActivitySummary, error)
 	SummarizeTrustEffectiveness(ctx context.Context) ([]SentinelTrustEffectivenessSummary, error)
+	SummarizeTrustAssets(ctx context.Context) ([]SentinelTrustAssetSummary, error)
 	SummarizeMaturityEvidence(ctx context.Context) ([]SentinelMaturityEvidenceSummary, error)
 	SummarizeTransportEvidence(ctx context.Context) ([]SentinelTransportEvidenceSummary, error)
 	SummarizeSitePressure(ctx context.Context) ([]SentinelSitePressureSummary, error)
@@ -331,6 +332,30 @@ type SentinelTrustEffectivenessSummary struct {
 	LastSeenAt         time.Time `json:"lastSeenAt,omitempty"`
 }
 
+// SentinelTrustAssetSummary captures how much persisted domain state a
+// session carries forward so trust-building recipes can be compared
+// against actual cookie/storage maturity and downstream outcomes.
+type SentinelTrustAssetSummary struct {
+	Domain                    string    `json:"domain,omitempty"`
+	VariantBundleID           string    `json:"variantBundleId,omitempty"`
+	TrustRecipeID             string    `json:"trustRecipeId,omitempty"`
+	SessionCount              int       `json:"sessionCount"`
+	SnapshotCount             int       `json:"snapshotCount"`
+	CookieBackedCount         int       `json:"cookieBackedCount"`
+	StorageBackedCount        int       `json:"storageBackedCount"`
+	AverageCookieCount        float64   `json:"averageCookieCount"`
+	AverageStorageEntryCount  float64   `json:"averageStorageEntryCount"`
+	AverageHoursSinceLastSeen float64   `json:"averageHoursSinceLastSeen"`
+	AverageTotalSessionsSeen  float64   `json:"averageTotalSessionsSeen"`
+	SuccessCount              int       `json:"successCount"`
+	SoftChallengeCount        int       `json:"softChallengeCount"`
+	HardChallengeCount        int       `json:"hardChallengeCount"`
+	BlockCount                int       `json:"blockCount"`
+	TotalOutcomes             int       `json:"totalOutcomes"`
+	AssetScore                int       `json:"assetScore"`
+	LastSeenAt                time.Time `json:"lastSeenAt,omitempty"`
+}
+
 // SentinelMaturityEvidenceSummary captures the revisit cadence and
 // prior-visit evidence behind a domain plus trust-recipe pairing so
 // operators can compare "returning visitor" patterns against outcomes.
@@ -425,6 +450,10 @@ func (noopSentinelProvider) SummarizeTrustActivity(ctx context.Context) ([]Senti
 }
 
 func (noopSentinelProvider) SummarizeTrustEffectiveness(ctx context.Context) ([]SentinelTrustEffectivenessSummary, error) {
+	return nil, ErrUnavailable
+}
+
+func (noopSentinelProvider) SummarizeTrustAssets(ctx context.Context) ([]SentinelTrustAssetSummary, error) {
 	return nil, ErrUnavailable
 }
 

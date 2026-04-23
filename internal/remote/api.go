@@ -1199,6 +1199,7 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 		"probeSummary":       []extensions.SentinelProbeSummary{},
 		"trustActivity":      []extensions.SentinelTrustActivitySummary{},
 		"trustEffectiveness": []extensions.SentinelTrustEffectivenessSummary{},
+		"trustAssets":        []extensions.SentinelTrustAssetSummary{},
 		"maturityEvidence":   []extensions.SentinelMaturityEvidenceSummary{},
 		"transportEvidence":  []extensions.SentinelTransportEvidenceSummary{},
 		"sitePressure":       []extensions.SentinelSitePressureSummary{},
@@ -1248,6 +1249,10 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
+	trustAssets, err := provider.SummarizeTrustAssets(context.Background())
+	if err != nil {
+		return nil, err
+	}
 	maturityEvidence, err := provider.SummarizeMaturityEvidence(context.Background())
 	if err != nil {
 		return nil, err
@@ -1277,6 +1282,7 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 	out["probeSummary"] = probeSummary
 	out["trustActivity"] = trustActivity
 	out["trustEffectiveness"] = trustEffectiveness
+	out["trustAssets"] = trustAssets
 	out["maturityEvidence"] = maturityEvidence
 	out["transportEvidence"] = transportEvidence
 	out["sitePressure"] = sitePressure

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"vulpineos/internal/juggler"
 	"vulpineos/internal/monitor"
 	"vulpineos/internal/proxy"
+	"vulpineos/internal/vault"
 )
 
 // RecordRuntimeSignal writes a runtime-signal event into Sentinel when
@@ -138,6 +140,109 @@ func RecordTrustActivity(ctx context.Context, state juggler.TrustWarmingState) e
 		Attributes: attributes,
 		Timestamp:  now,
 	})
+}
+
+// RecordTrustAssets writes per-domain carry-forward state from the
+// vault into Sentinel so trust recipes can be compared against the
+// actual cookie/storage maturity each session starts with.
+func RecordTrustAssets(ctx context.Context, scope extensions.SentinelScope, citizen *vault.Citizen, cookies []vault.CitizenCookies, storage []vault.CitizenStorage) error {
+	if citizen == nil {
+		return nil
+	}
+	type aggregate struct {
+		cookieCount       int
+		storageEntryCount int
+		hasCookieState    bool
+		hasStorageState   bool
+		lastAssetUpdate   time.Time
+	}
+	assets := make(map[string]*aggregate)
+	ensure := func(domain string) *aggregate {
+		if domain == "" {
+			return nil
+		}
+		if existing, ok := assets[domain]; ok {
+			return existing
+		}
+		created := &aggregate{}
+		assets[domain] = created
+		return created
+	}
+	for _, cc := range cookies {
+		domain := normalizeAssetDomain(cc.Domain)
+		agg := ensure(domain)
+		if agg == nil {
+			continue
+		}
+		count := jsonArrayLen(cc.Cookies)
+		agg.cookieCount += count
+		if count > 0 {
+			agg.hasCookieState = true
+		}
+		agg.lastAssetUpdate = maxTimestamp(agg.lastAssetUpdate, cc.UpdatedAt.UTC())
+	}
+	for _, cs := range storage {
+		domain := scrubDomain(cs.Origin)
+		agg := ensure(domain)
+		if agg == nil {
+			continue
+		}
+		count := jsonObjectLen(cs.Data)
+		agg.storageEntryCount += count
+		if count > 0 {
+			agg.hasStorageState = true
+		}
+		agg.lastAssetUpdate = maxTimestamp(agg.lastAssetUpdate, cs.UpdatedAt.UTC())
+	}
+	if len(assets) == 0 {
+		return nil
+	}
+	now := time.Now().UTC()
+	lastSeen := citizen.LastUsedAt.UTC()
+	if lastSeen.IsZero() {
+		lastSeen = citizen.CreatedAt.UTC()
+	}
+	domains := make([]string, 0, len(assets))
+	for domain := range assets {
+		domains = append(domains, domain)
+	}
+	sort.Strings(domains)
+	var firstErr error
+	for _, domain := range domains {
+		agg := assets[domain]
+		eventScope := scope
+		if eventScope.CitizenID == "" {
+			eventScope.CitizenID = citizen.ID
+		}
+		eventScope.Domain = domain
+		if scrubDomain(eventScope.URL) != domain {
+			eventScope.URL = ""
+		}
+		attrs := withExperimentDefaults(ctx, map[string]string{
+			"cookie_count":        jsonInt(agg.cookieCount),
+			"storage_entry_count": jsonInt(agg.storageEntryCount),
+			"has_cookie_state":    strconv.FormatBool(agg.hasCookieState),
+			"has_storage_state":   strconv.FormatBool(agg.hasStorageState),
+			"total_sessions_seen": jsonInt(citizen.TotalSessions),
+		})
+		if !lastSeen.IsZero() {
+			attrs["hours_since_last_seen"] = formatHours(now.Sub(lastSeen).Hours())
+		}
+		if !agg.lastAssetUpdate.IsZero() {
+			attrs["hours_since_last_asset_update"] = formatHours(now.Sub(agg.lastAssetUpdate).Hours())
+		}
+		if err := recordEvent(ctx, extensions.SentinelEvent{
+			Kind:       extensions.SentinelEventKindTrustActivity,
+			Source:     "vault",
+			Name:       "trust_asset.snapshot",
+			Scope:      eventScope,
+			Attributes: attrs,
+			Timestamp:  now,
+		}); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
 }
 
 func recordEvent(ctx context.Context, event extensions.SentinelEvent) error {
@@ -308,6 +413,16 @@ func scrubDomain(raw string) string {
 	return parsed.Hostname()
 }
 
+func normalizeAssetDomain(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	if strings.Contains(raw, "://") {
+		return scrubDomain(raw)
+	}
+	return strings.ToLower(strings.TrimPrefix(raw, "."))
+}
+
 func probeName(probe juggler.BrowserProbe) string {
 	if probe.API == "" {
 		return probe.ProbeType
@@ -324,6 +439,38 @@ func probeTime(timestamp float64) time.Time {
 
 func jsonInt(v int) string {
 	return strconv.Itoa(v)
+}
+
+func jsonArrayLen(raw string) int {
+	if raw == "" {
+		return 0
+	}
+	var rows []json.RawMessage
+	if err := json.Unmarshal([]byte(raw), &rows); err != nil {
+		return 0
+	}
+	return len(rows)
+}
+
+func jsonObjectLen(raw string) int {
+	if raw == "" {
+		return 0
+	}
+	var rows map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(raw), &rows); err != nil {
+		return 0
+	}
+	return len(rows)
+}
+
+func maxTimestamp(current, candidate time.Time) time.Time {
+	if candidate.IsZero() {
+		return current
+	}
+	if current.IsZero() || candidate.After(current) {
+		return candidate
+	}
+	return current
 }
 
 func formatHours(hours float64) string {
