@@ -35,6 +35,7 @@ export default function Settings({ ws }) {
     patchInvestment: [],
     surfaceHotspots: [],
     surfaceEffectiveness: [],
+    surfaceStrategy: [],
     experimentSummary: [],
   });
   const [sentinelTimeline, setSentinelTimeline] = useState([]);
@@ -91,6 +92,7 @@ export default function Settings({ ws }) {
             patchInvestment: [],
             surfaceHotspots: [],
             surfaceEffectiveness: [],
+            surfaceStrategy: [],
             experimentSummary: [],
           },
         ),
@@ -145,6 +147,7 @@ export default function Settings({ ws }) {
   const sentinelPatchInvestment = sentinel.patchInvestment || [];
   const sentinelSurfaceHotspots = sentinel.surfaceHotspots || [];
   const sentinelSurfaceEffectiveness = sentinel.surfaceEffectiveness || [];
+  const sentinelSurfaceStrategy = sentinel.surfaceStrategy || [];
   const sentinelExperimentSummary = sentinel.experimentSummary || [];
   const variantNameFor = (id) =>
     sentinelVariants.find((bundle) => bundle.id === id)?.name ||
@@ -1272,6 +1275,61 @@ export default function Settings({ ws }) {
                           <td>{`${row.successCount || 0} success · ${row.softChallengeCount || 0} soft · ${row.hardChallengeCount || 0} hard · ${row.blockCount || 0} block`}</td>
                           <td>{`${row.challengeRatePct || 0}% challenge / ${row.pressureScore || 0}`}</td>
                           <td>{`${(row.recommendation || "observe").toUpperCase()} · ${(row.confidence || "low").toUpperCase()}`}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              <div>
+                <h4 style={{ margin: "0 0 10px" }}>Surface strategy board</h4>
+                {sentinelSurfaceStrategy.length === 0 ? (
+                  <div className="empty-state">
+                    No shared-surface strategy rows have been summarized yet.
+                  </div>
+                ) : (
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Surface</th>
+                        <th>Families</th>
+                        <th>Arms</th>
+                        <th>Pressure</th>
+                        <th>Lead arm</th>
+                        <th>Mix</th>
+                        <th>Call</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sentinelSurfaceStrategy.map((row, index) => (
+                        <tr
+                          key={`${row.probeType || "probe"}-${row.api || "api"}-${index}`}
+                        >
+                          <td>
+                            <div>{`${row.probeType || "unknown"}.${row.api || "unknown"}`}</div>
+                            <div style={{ fontSize: 11, color: "#666" }}>
+                              {row.reason ||
+                                "No surface-level operator call yet."}
+                            </div>
+                          </td>
+                          <td>
+                            <div>
+                              {(row.vendorFamilies || []).join(", ") || "none"}
+                            </div>
+                            <div style={{ fontSize: 11, color: "#666" }}>
+                              {row.familyCount || 0} families
+                            </div>
+                          </td>
+                          <td>{row.armCount || 0}</td>
+                          <td>{`${row.patchPressureScore || 0} patch / ${row.peakArmPressureScore || 0} arm`}</td>
+                          <td>
+                            {row.leadingVariantBundleId
+                              ? `${variantNameFor(row.leadingVariantBundleId)} / ${trustNameFor(row.leadingTrustRecipeId)}`
+                              : "n/a"}
+                          </td>
+                          <td>{`${row.patchBrowserCount || 0} patch · ${row.tuneArmCount || 0} tune · ${row.candidateWinnerCount || 0} promote`}</td>
+                          <td>{`${(row.nextAction || "observe").toUpperCase()} · ${(row.confidence || "low").toUpperCase()}`}</td>
                         </tr>
                       ))}
                     </tbody>

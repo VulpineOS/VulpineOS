@@ -63,6 +63,7 @@ type SentinelProvider interface {
 	SummarizePatchInvestment(ctx context.Context) ([]SentinelPatchInvestmentSummary, error)
 	SummarizeSurfaceHotspots(ctx context.Context) ([]SentinelSurfaceHotspotSummary, error)
 	SummarizeSurfaceEffectiveness(ctx context.Context) ([]SentinelSurfaceEffectivenessSummary, error)
+	SummarizeSurfaceStrategy(ctx context.Context) ([]SentinelSurfaceStrategySummary, error)
 	SummarizeExperiments(ctx context.Context) ([]SentinelExperimentSummary, error)
 	Available() bool
 }
@@ -354,6 +355,34 @@ type SentinelSurfaceEffectivenessSummary struct {
 	Recommendation     string    `json:"recommendation,omitempty"`
 	Confidence         string    `json:"confidence,omitempty"`
 	LastSeenAt         time.Time `json:"lastSeenAt,omitempty"`
+}
+
+// SentinelSurfaceStrategySummary condenses surface hotspots and per-arm
+// effectiveness into one operator call per shared browser surface.
+type SentinelSurfaceStrategySummary struct {
+	ProbeType              string    `json:"probeType,omitempty"`
+	API                    string    `json:"api,omitempty"`
+	FamilyCount            int       `json:"familyCount"`
+	VendorFamilies         []string  `json:"vendorFamilies,omitempty"`
+	DomainCount            int       `json:"domainCount"`
+	SampleDomains          []string  `json:"sampleDomains,omitempty"`
+	ArmCount               int       `json:"armCount"`
+	PatchPressureScore     int       `json:"patchPressureScore"`
+	PeakArmPressureScore   int       `json:"peakArmPressureScore"`
+	WorstChallengeRatePct  int       `json:"worstChallengeRatePct"`
+	BestSuccessRatePct     int       `json:"bestSuccessRatePct"`
+	PatchBrowserCount      int       `json:"patchBrowserCount"`
+	TuneArmCount           int       `json:"tuneArmCount"`
+	CandidateWinnerCount   int       `json:"candidateWinnerCount"`
+	CollectMoreCount       int       `json:"collectMoreCount"`
+	ObserveCount           int       `json:"observeCount"`
+	LeadingVariantBundleID string    `json:"leadingVariantBundleId,omitempty"`
+	LeadingTrustRecipeID   string    `json:"leadingTrustRecipeId,omitempty"`
+	LeadingRecommendation  string    `json:"leadingRecommendation,omitempty"`
+	NextAction             string    `json:"nextAction,omitempty"`
+	Reason                 string    `json:"reason,omitempty"`
+	Confidence             string    `json:"confidence,omitempty"`
+	LastSeenAt             time.Time `json:"lastSeenAt,omitempty"`
 }
 
 // SentinelExperimentSummary aggregates recent evidence by variant and
@@ -845,6 +874,10 @@ func (noopSentinelProvider) SummarizeSurfaceHotspots(ctx context.Context) ([]Sen
 }
 
 func (noopSentinelProvider) SummarizeSurfaceEffectiveness(ctx context.Context) ([]SentinelSurfaceEffectivenessSummary, error) {
+	return nil, ErrUnavailable
+}
+
+func (noopSentinelProvider) SummarizeSurfaceStrategy(ctx context.Context) ([]SentinelSurfaceStrategySummary, error) {
 	return nil, ErrUnavailable
 }
 

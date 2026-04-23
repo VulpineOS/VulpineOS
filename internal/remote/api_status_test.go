@@ -288,6 +288,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		SurfaceEffectiveness: []extensions.SentinelSurfaceEffectivenessSummary{
 			{ProbeType: "canvas_probe", API: "toDataURL", VariantBundleID: "returning-visitor", TrustRecipeID: "returning-visitor", ProbeCount: 4, SessionCount: 2, DomainCount: 2, FamilyCount: 2, VendorFamilies: []string{"cloudflare", "datadome"}, SampleDomains: []string{"example.com", "shop.example.com"}, HardChallengeCount: 1, BlockCount: 1, TotalOutcomes: 2, ChallengeRatePct: 100, PressureScore: 20, Recommendation: "patch-browser", Confidence: "medium"},
 		},
+		SurfaceStrategy: []extensions.SentinelSurfaceStrategySummary{
+			{ProbeType: "canvas_probe", API: "toDataURL", FamilyCount: 2, VendorFamilies: []string{"cloudflare", "datadome"}, DomainCount: 2, SampleDomains: []string{"example.com", "shop.example.com"}, ArmCount: 2, PatchPressureScore: 18, PeakArmPressureScore: 20, WorstChallengeRatePct: 100, BestSuccessRatePct: 100, PatchBrowserCount: 1, CandidateWinnerCount: 1, LeadingVariantBundleID: "control", LeadingTrustRecipeID: "baseline-warmup", LeadingRecommendation: "candidate-winner", NextAction: "patch-browser", Reason: "pressure spans multiple families and at least one arm still points back to browser-surface work", Confidence: "high"},
+		},
 		ExperimentBoard: []extensions.SentinelExperimentSummary{
 			{VariantBundleID: "control", TrustRecipeID: "baseline-warmup", SessionCount: 2, DomainCount: 1, SoftChallengeCount: 1, SuccessCount: 1, TotalOutcomes: 2, ChallengeVendors: []string{"cloudflare"}},
 		},
@@ -345,6 +348,7 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		PatchInvestment           []extensions.SentinelPatchInvestmentSummary      `json:"patchInvestment"`
 		SurfaceHotspots           []extensions.SentinelSurfaceHotspotSummary       `json:"surfaceHotspots"`
 		SurfaceEffectiveness      []extensions.SentinelSurfaceEffectivenessSummary `json:"surfaceEffectiveness"`
+		SurfaceStrategy           []extensions.SentinelSurfaceStrategySummary      `json:"surfaceStrategy"`
 		ExperimentSummary         []extensions.SentinelExperimentSummary           `json:"experimentSummary"`
 	}
 	if err := json.Unmarshal(payload, &result); err != nil {
@@ -442,6 +446,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	}
 	if len(result.SurfaceEffectiveness) != 1 || result.SurfaceEffectiveness[0].Recommendation != "patch-browser" {
 		t.Fatalf("surfaceEffectiveness = %+v", result.SurfaceEffectiveness)
+	}
+	if len(result.SurfaceStrategy) != 1 || result.SurfaceStrategy[0].NextAction != "patch-browser" {
+		t.Fatalf("surfaceStrategy = %+v", result.SurfaceStrategy)
 	}
 	if len(result.ExperimentSummary) != 1 || result.ExperimentSummary[0].VariantBundleID != "control" {
 		t.Fatalf("experimentSummary = %+v", result.ExperimentSummary)
