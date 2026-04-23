@@ -10,6 +10,7 @@ import (
 	"vulpineos/internal/juggler"
 	"vulpineos/internal/monitor"
 	"vulpineos/internal/proxy"
+	"vulpineos/internal/vault"
 )
 
 func TestRecordRuntimeSignal(t *testing.T) {
@@ -271,5 +272,81 @@ func TestRecordTrustActivityMapsStateAndScope(t *testing.T) {
 	}
 	if event.Attributes["hours_since_last_seen"] == "" || event.Attributes["hours_since_first_seen"] == "" {
 		t.Fatalf("age attrs = %+v", event.Attributes)
+	}
+}
+
+func TestRecordTrustAssetsCapturesPerDomainCarryForward(t *testing.T) {
+	original := extensions.Registry.Sentinel()
+	t.Cleanup(func() { extensions.Registry.SetSentinel(original) })
+	fake := &extensionstest.FakeSentinelProvider{
+		AvailableFlag: true,
+		VariantBundles: []extensions.SentinelVariantBundle{
+			{ID: "control", Enabled: true},
+		},
+		TrustRecipes: []extensions.SentinelTrustRecipe{
+			{ID: "baseline-warmup"},
+		},
+	}
+	extensions.Registry.SetSentinel(fake)
+
+	citizen := &vault.Citizen{
+		ID:            "citizen-1",
+		CreatedAt:     time.Now().UTC().Add(-72 * time.Hour),
+		LastUsedAt:    time.Now().UTC().Add(-12 * time.Hour),
+		TotalSessions: 4,
+	}
+	err := RecordTrustAssets(context.Background(), extensions.SentinelScope{
+		AgentID:   "agent-1",
+		ContextID: "ctx-1",
+	}, citizen, []vault.CitizenCookies{
+		{
+			CitizenID: "citizen-1",
+			Domain:    ".example.com",
+			Cookies:   `[{"name":"sid"},{"name":"pref"}]`,
+			UpdatedAt: time.Now().UTC().Add(-6 * time.Hour),
+		},
+	}, []vault.CitizenStorage{
+		{
+			CitizenID: "citizen-1",
+			Origin:    "https://example.com",
+			Data:      `{"cart":"1","flag":"warm"}`,
+			UpdatedAt: time.Now().UTC().Add(-3 * time.Hour),
+		},
+	})
+	if err != nil {
+		t.Fatalf("RecordTrustAssets: %v", err)
+	}
+
+	events := fake.RecordedEvents()
+	if len(events) != 1 {
+		t.Fatalf("events = %+v", events)
+	}
+	event := events[0]
+	if event.Name != "trust_asset.snapshot" || event.Scope.Domain != "example.com" {
+		t.Fatalf("event = %+v", event)
+	}
+	if event.Scope.CitizenID != "citizen-1" || event.Scope.AgentID != "agent-1" || event.Scope.ContextID != "ctx-1" {
+		t.Fatalf("scope = %+v", event.Scope)
+	}
+	if got := event.Attributes["cookie_count"]; got != "2" {
+		t.Fatalf("cookie_count = %q", got)
+	}
+	if got := event.Attributes["storage_entry_count"]; got != "2" {
+		t.Fatalf("storage_entry_count = %q", got)
+	}
+	if got := event.Attributes["has_cookie_state"]; got != "true" {
+		t.Fatalf("has_cookie_state = %q", got)
+	}
+	if got := event.Attributes["has_storage_state"]; got != "true" {
+		t.Fatalf("has_storage_state = %q", got)
+	}
+	if got := event.Attributes["total_sessions_seen"]; got != "4" {
+		t.Fatalf("total_sessions_seen = %q", got)
+	}
+	if event.Attributes["variant_bundle_id"] != "control" || event.Attributes["trust_recipe_id"] != "baseline-warmup" {
+		t.Fatalf("experiment attrs = %+v", event.Attributes)
+	}
+	if event.Attributes["hours_since_last_seen"] == "" || event.Attributes["hours_since_last_asset_update"] == "" {
+		t.Fatalf("recency attrs = %+v", event.Attributes)
 	}
 }

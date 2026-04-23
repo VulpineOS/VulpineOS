@@ -109,6 +109,22 @@ describe('Settings page', () => {
               burnCount: 0,
               effectivenessScore: 2,
             }],
+            trustAssets: [{
+              domain: 'example.com',
+              variantBundleId: 'control',
+              trustRecipeId: 'baseline-warmup',
+              snapshotCount: 1,
+              cookieBackedCount: 1,
+              storageBackedCount: 1,
+              averageCookieCount: 6,
+              averageStorageEntryCount: 3,
+              averageHoursSinceLastSeen: 12,
+              averageTotalSessionsSeen: 4,
+              softChallengeCount: 1,
+              hardChallengeCount: 0,
+              blockCount: 0,
+              assetScore: 12,
+            }],
             maturityEvidence: [{
               domain: 'example.com',
               variantBundleId: 'control',
@@ -220,6 +236,7 @@ describe('Settings page', () => {
     expect(screen.getByText('Trust activity board')).toBeInTheDocument()
     expect(screen.getByText('WARMING')).toBeInTheDocument()
     expect(screen.getByText('Trust effectiveness')).toBeInTheDocument()
+    expect(screen.getByText('Trust assets')).toBeInTheDocument()
     expect(screen.getByText('Maturity evidence')).toBeInTheDocument()
     expect(screen.getByText('Transport evidence')).toBeInTheDocument()
     expect(screen.getByText('Patch queue')).toBeInTheDocument()

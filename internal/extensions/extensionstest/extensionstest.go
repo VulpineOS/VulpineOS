@@ -281,6 +281,7 @@ type FakeSentinelProvider struct {
 	ProbeSummary       []extensions.SentinelProbeSummary
 	TrustActivity      []extensions.SentinelTrustActivitySummary
 	TrustEffectiveness []extensions.SentinelTrustEffectivenessSummary
+	TrustAssets        []extensions.SentinelTrustAssetSummary
 	MaturityEvidence   []extensions.SentinelMaturityEvidenceSummary
 	TransportEvidence  []extensions.SentinelTransportEvidenceSummary
 	SitePressure       []extensions.SentinelSitePressureSummary
@@ -520,6 +521,15 @@ func (f *FakeSentinelProvider) SummarizeTrustEffectiveness(ctx context.Context) 
 	defer f.mu.RUnlock()
 	out := make([]extensions.SentinelTrustEffectivenessSummary, len(f.TrustEffectiveness))
 	copy(out, f.TrustEffectiveness)
+	return out, nil
+}
+
+// SummarizeTrustAssets returns a copy of the canned trust-asset rows.
+func (f *FakeSentinelProvider) SummarizeTrustAssets(ctx context.Context) ([]extensions.SentinelTrustAssetSummary, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make([]extensions.SentinelTrustAssetSummary, len(f.TrustAssets))
+	copy(out, f.TrustAssets)
 	return out, nil
 }
 

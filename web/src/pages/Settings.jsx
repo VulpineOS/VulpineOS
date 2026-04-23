@@ -4,7 +4,7 @@ export default function Settings({ ws }) {
   const [cfg, setCfg] = useState({})
   const [providers, setProviders] = useState([])
   const [status, setStatus] = useState({})
-  const [sentinel, setSentinel] = useState({ variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], maturityEvidence: [], transportEvidence: [], sitePressure: [], patchQueue: [], experimentSummary: [] })
+  const [sentinel, setSentinel] = useState({ variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], trustAssets: [], maturityEvidence: [], transportEvidence: [], sitePressure: [], patchQueue: [], experimentSummary: [] })
   const [sentinelTimeline, setSentinelTimeline] = useState([])
   const [defaultBudgetCost, setDefaultBudgetCost] = useState('0')
   const [defaultBudgetTokens, setDefaultBudgetTokens] = useState('0')
@@ -19,7 +19,7 @@ export default function Settings({ ws }) {
       setDefaultBudgetTokens(String(r?.defaultBudgetMaxTokens ?? 0))
     }).catch(() => {})
     ws.call('status.get').then(r => setStatus(r || {})).catch(() => {})
-    ws.call('sentinel.get').then(r => setSentinel(r || { variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], maturityEvidence: [], transportEvidence: [], sitePressure: [], patchQueue: [], experimentSummary: [] })).catch(() => {})
+    ws.call('sentinel.get').then(r => setSentinel(r || { variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], trustAssets: [], maturityEvidence: [], transportEvidence: [], sitePressure: [], patchQueue: [], experimentSummary: [] })).catch(() => {})
     ws.call('sentinel.timeline', { limit: 4 }).then(r => setSentinelTimeline(r?.sessions || [])).catch(() => {})
   }, [ws.connected])
 
@@ -35,6 +35,7 @@ export default function Settings({ ws }) {
   const sentinelProbeSummary = sentinel.probeSummary || []
   const sentinelTrustActivity = sentinel.trustActivity || []
   const sentinelTrustEffectiveness = sentinel.trustEffectiveness || []
+  const sentinelTrustAssets = sentinel.trustAssets || []
   const sentinelMaturityEvidence = sentinel.maturityEvidence || []
   const sentinelTransportEvidence = sentinel.transportEvidence || []
   const sentinelSitePressure = sentinel.sitePressure || []
@@ -484,6 +485,54 @@ export default function Settings({ ws }) {
                           <td>{row.blockCount || 0}</td>
                           <td>{row.burnCount || 0}</td>
                           <td>{row.effectivenessScore || 0}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              <div>
+                <h4 style={{ margin: '0 0 10px' }}>Trust assets</h4>
+                {sentinelTrustAssets.length === 0 ? (
+                  <div className="empty-state">No trust-asset maturity has been summarized yet.</div>
+                ) : (
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Domain</th>
+                        <th>Variant</th>
+                        <th>Trust</th>
+                        <th>Snaps</th>
+                        <th>Cookie</th>
+                        <th>Storage</th>
+                        <th>Avg cookies</th>
+                        <th>Avg storage</th>
+                        <th>Seen</th>
+                        <th>Sessions</th>
+                        <th>Soft</th>
+                        <th>Hard</th>
+                        <th>Block</th>
+                        <th>Score</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sentinelTrustAssets.map((row, index) => (
+                        <tr key={`${row.domain || 'domain'}-${row.variantBundleId || 'variant'}-${row.trustRecipeId || 'trust'}-${index}`}>
+                          <td>{row.domain || 'unknown'}</td>
+                          <td>{variantNameFor(row.variantBundleId)}</td>
+                          <td>{trustNameFor(row.trustRecipeId)}</td>
+                          <td>{row.snapshotCount || 0}</td>
+                          <td>{row.cookieBackedCount || 0}</td>
+                          <td>{row.storageBackedCount || 0}</td>
+                          <td>{row.averageCookieCount ? row.averageCookieCount.toFixed(1) : '0.0'}</td>
+                          <td>{row.averageStorageEntryCount ? row.averageStorageEntryCount.toFixed(1) : '0.0'}</td>
+                          <td>{row.averageHoursSinceLastSeen ? `${row.averageHoursSinceLastSeen.toFixed(1)}h` : '0.0h'}</td>
+                          <td>{row.averageTotalSessionsSeen ? row.averageTotalSessionsSeen.toFixed(1) : '0.0'}</td>
+                          <td>{row.softChallengeCount || 0}</td>
+                          <td>{row.hardChallengeCount || 0}</td>
+                          <td>{row.blockCount || 0}</td>
+                          <td>{row.assetScore || 0}</td>
                         </tr>
                       ))}
                     </tbody>
