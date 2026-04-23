@@ -151,6 +151,24 @@ describe('Settings page', () => {
               blockCount: 0,
               transportScore: 10,
             }],
+            stageSummary: [{
+              domain: 'example.com',
+              variantBundleId: 'control',
+              trustRecipeId: 'baseline-warmup',
+              currentStage: 'warm',
+              ruleStage: 'cold',
+              ruleName: 'Cold holdout',
+              ruleAligned: true,
+              blockingReason: 'needs presence across 3 days',
+              sessionCount: 2,
+              successCount: 1,
+              distinctDays: 1,
+              challengeFreeRuns: 0,
+              sessionAgeSeconds: 7200,
+              softChallengeCount: 1,
+              hardChallengeCount: 0,
+              blockCount: 0,
+            }],
             coherenceDiff: [{
               domain: 'example.com',
               variantBundleId: 'authority-ramp',
@@ -250,6 +268,9 @@ describe('Settings page', () => {
     expect(screen.getByText('Trust effectiveness')).toBeInTheDocument()
     expect(screen.getByText('Trust assets')).toBeInTheDocument()
     expect(screen.getByText('Maturity evidence')).toBeInTheDocument()
+    expect(screen.getByText('Stage board')).toBeInTheDocument()
+    expect(screen.getByText('Cold holdout (cold)')).toBeInTheDocument()
+    expect(screen.getByText('needs presence across 3 days')).toBeInTheDocument()
     expect(screen.getByText('Transport evidence')).toBeInTheDocument()
     expect(screen.getByText('Coherence diff')).toBeInTheDocument()
     expect(screen.getByText('warm recipe on cold identity | route churn on supposedly stable identity')).toBeInTheDocument()

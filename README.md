@@ -262,6 +262,7 @@ The panel now also includes:
 - **Settings** recent Sentinel capture timelines grouped by session with raw evidence rows and explicit variant/trust assignment tags
 - **Settings** Sentinel probe summary table grouped by domain, script, probe family, and API so operator triage stays ranked instead of purely chronological
 - **Settings** Sentinel experiment board grouped by variant bundle and trust recipe so trust-building holdouts can be compared directly
+- **Settings** Sentinel stage board grouped by domain, variant bundle, and trust recipe so inferred maturity and assignment-rule fit stay explicit
 - **Settings** Sentinel site-pressure board grouped by domain and challenge vendor so target-specific trust work stays ranked
 - **Settings** Sentinel trust-activity board grouped by domain and state so warmup coverage can be compared directly
 - **Settings** Sentinel trust-effectiveness board grouped by domain, variant bundle, and trust recipe so warming effort can be compared against actual outcomes

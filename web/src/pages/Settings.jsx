@@ -4,7 +4,7 @@ export default function Settings({ ws }) {
   const [cfg, setCfg] = useState({})
   const [providers, setProviders] = useState([])
   const [status, setStatus] = useState({})
-  const [sentinel, setSentinel] = useState({ variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], trustAssets: [], maturityEvidence: [], transportEvidence: [], coherenceDiff: [], sitePressure: [], patchQueue: [], experimentSummary: [] })
+  const [sentinel, setSentinel] = useState({ variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], trustAssets: [], maturityEvidence: [], transportEvidence: [], coherenceDiff: [], stageSummary: [], sitePressure: [], patchQueue: [], experimentSummary: [] })
   const [sentinelTimeline, setSentinelTimeline] = useState([])
   const [defaultBudgetCost, setDefaultBudgetCost] = useState('0')
   const [defaultBudgetTokens, setDefaultBudgetTokens] = useState('0')
@@ -19,7 +19,7 @@ export default function Settings({ ws }) {
       setDefaultBudgetTokens(String(r?.defaultBudgetMaxTokens ?? 0))
     }).catch(() => {})
     ws.call('status.get').then(r => setStatus(r || {})).catch(() => {})
-    ws.call('sentinel.get').then(r => setSentinel(r || { variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], trustAssets: [], maturityEvidence: [], transportEvidence: [], coherenceDiff: [], sitePressure: [], patchQueue: [], experimentSummary: [] })).catch(() => {})
+    ws.call('sentinel.get').then(r => setSentinel(r || { variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], trustAssets: [], maturityEvidence: [], transportEvidence: [], coherenceDiff: [], stageSummary: [], sitePressure: [], patchQueue: [], experimentSummary: [] })).catch(() => {})
     ws.call('sentinel.timeline', { limit: 4 }).then(r => setSentinelTimeline(r?.sessions || [])).catch(() => {})
   }, [ws.connected])
 
@@ -39,6 +39,7 @@ export default function Settings({ ws }) {
   const sentinelMaturityEvidence = sentinel.maturityEvidence || []
   const sentinelTransportEvidence = sentinel.transportEvidence || []
   const sentinelCoherenceDiff = sentinel.coherenceDiff || []
+  const sentinelStageSummary = sentinel.stageSummary || []
   const sentinelSitePressure = sentinel.sitePressure || []
   const sentinelPatchQueue = sentinel.patchQueue || []
   const sentinelExperimentSummary = sentinel.experimentSummary || []
@@ -578,6 +579,50 @@ export default function Settings({ ws }) {
                           <td>{row.hardChallengeCount || 0}</td>
                           <td>{row.blockCount || 0}</td>
                           <td>{row.maturityScore || 0}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              <div>
+                <h4 style={{ margin: '0 0 10px' }}>Stage board</h4>
+                {sentinelStageSummary.length === 0 ? (
+                  <div className="empty-state">No maturity stage summaries have been derived yet.</div>
+                ) : (
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Domain</th>
+                        <th>Variant</th>
+                        <th>Trust</th>
+                        <th>Current</th>
+                        <th>Rule</th>
+                        <th>Aligned</th>
+                        <th>Blocker</th>
+                        <th>Visits</th>
+                        <th>Days</th>
+                        <th>Quiet</th>
+                        <th>Age</th>
+                        <th>Hard</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sentinelStageSummary.map((row, index) => (
+                        <tr key={`${row.domain || 'domain'}-${row.variantBundleId || 'variant'}-${row.trustRecipeId || 'trust'}-${index}`}>
+                          <td>{row.domain || 'unknown'}</td>
+                          <td>{variantNameFor(row.variantBundleId)}</td>
+                          <td>{trustNameFor(row.trustRecipeId)}</td>
+                          <td>{(row.currentStage || 'cold').toUpperCase()}</td>
+                          <td>{row.ruleName ? `${row.ruleName} (${row.ruleStage || 'n/a'})` : (row.ruleStage || 'none')}</td>
+                          <td>{row.ruleAligned ? 'YES' : 'NO'}</td>
+                          <td>{row.blockingReason || 'none'}</td>
+                          <td>{row.successCount || 0}</td>
+                          <td>{row.distinctDays || 0}</td>
+                          <td>{row.challengeFreeRuns || 0}</td>
+                          <td>{row.sessionAgeSeconds ? `${row.sessionAgeSeconds}s` : '0s'}</td>
+                          <td>{row.hardChallengeCount || 0}</td>
                         </tr>
                       ))}
                     </tbody>

@@ -285,6 +285,7 @@ type FakeSentinelProvider struct {
 	MaturityEvidence   []extensions.SentinelMaturityEvidenceSummary
 	TransportEvidence  []extensions.SentinelTransportEvidenceSummary
 	CoherenceDiff      []extensions.SentinelCoherenceDiffSummary
+	StageSummary       []extensions.SentinelStageSummary
 	SitePressure       []extensions.SentinelSitePressureSummary
 	PatchQueue         []extensions.SentinelPatchCandidate
 	ExperimentBoard    []extensions.SentinelExperimentSummary
@@ -395,6 +396,13 @@ func (f *FakeSentinelProvider) SetCoherenceDiff(v []extensions.SentinelCoherence
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.CoherenceDiff = append([]extensions.SentinelCoherenceDiffSummary(nil), v...)
+}
+
+// SetStageSummary replaces the canned stage-summary rows under the write lock.
+func (f *FakeSentinelProvider) SetStageSummary(v []extensions.SentinelStageSummary) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.StageSummary = append([]extensions.SentinelStageSummary(nil), v...)
 }
 
 // SetSitePressure replaces the canned site pressure rows under the write lock.
@@ -565,6 +573,15 @@ func (f *FakeSentinelProvider) SummarizeCoherenceDiff(ctx context.Context) ([]ex
 	defer f.mu.RUnlock()
 	out := make([]extensions.SentinelCoherenceDiffSummary, len(f.CoherenceDiff))
 	copy(out, f.CoherenceDiff)
+	return out, nil
+}
+
+// SummarizeStages returns a copy of the canned stage-summary rows.
+func (f *FakeSentinelProvider) SummarizeStages(ctx context.Context) ([]extensions.SentinelStageSummary, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make([]extensions.SentinelStageSummary, len(f.StageSummary))
+	copy(out, f.StageSummary)
 	return out, nil
 }
 

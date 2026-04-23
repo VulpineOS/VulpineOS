@@ -1203,6 +1203,7 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 		"maturityEvidence":   []extensions.SentinelMaturityEvidenceSummary{},
 		"transportEvidence":  []extensions.SentinelTransportEvidenceSummary{},
 		"coherenceDiff":      []extensions.SentinelCoherenceDiffSummary{},
+		"stageSummary":       []extensions.SentinelStageSummary{},
 		"sitePressure":       []extensions.SentinelSitePressureSummary{},
 		"patchQueue":         []extensions.SentinelPatchCandidate{},
 		"experimentSummary":  []extensions.SentinelExperimentSummary{},
@@ -1266,6 +1267,10 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
+	stageSummary, err := provider.SummarizeStages(context.Background())
+	if err != nil {
+		return nil, err
+	}
 	sitePressure, err := provider.SummarizeSitePressure(context.Background())
 	if err != nil {
 		return nil, err
@@ -1291,6 +1296,7 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 	out["maturityEvidence"] = maturityEvidence
 	out["transportEvidence"] = transportEvidence
 	out["coherenceDiff"] = coherenceDiff
+	out["stageSummary"] = stageSummary
 	out["sitePressure"] = sitePressure
 	out["patchQueue"] = patchQueue
 	out["experimentSummary"] = experimentSummary

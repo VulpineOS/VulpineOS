@@ -46,6 +46,7 @@ type SentinelProvider interface {
 	SummarizeMaturityEvidence(ctx context.Context) ([]SentinelMaturityEvidenceSummary, error)
 	SummarizeTransportEvidence(ctx context.Context) ([]SentinelTransportEvidenceSummary, error)
 	SummarizeCoherenceDiff(ctx context.Context) ([]SentinelCoherenceDiffSummary, error)
+	SummarizeStages(ctx context.Context) ([]SentinelStageSummary, error)
 	SummarizeSitePressure(ctx context.Context) ([]SentinelSitePressureSummary, error)
 	SummarizePatchQueue(ctx context.Context) ([]SentinelPatchCandidate, error)
 	SummarizeExperiments(ctx context.Context) ([]SentinelExperimentSummary, error)
@@ -415,6 +416,29 @@ type SentinelCoherenceDiffSummary struct {
 	LastSeenAt         time.Time `json:"lastSeenAt,omitempty"`
 }
 
+// SentinelStageSummary captures the inferred trust stage for a grouped
+// domain plus variant plus trust pairing, along with whether the
+// current assignment rule still fits the observed evidence.
+type SentinelStageSummary struct {
+	Domain             string    `json:"domain,omitempty"`
+	VariantBundleID    string    `json:"variantBundleId,omitempty"`
+	TrustRecipeID      string    `json:"trustRecipeId,omitempty"`
+	CurrentStage       string    `json:"currentStage,omitempty"`
+	RuleStage          string    `json:"ruleStage,omitempty"`
+	RuleName           string    `json:"ruleName,omitempty"`
+	RuleAligned        bool      `json:"ruleAligned"`
+	BlockingReason     string    `json:"blockingReason,omitempty"`
+	SessionCount       int       `json:"sessionCount"`
+	SuccessCount       int       `json:"successCount"`
+	DistinctDays       int       `json:"distinctDays"`
+	ChallengeFreeRuns  int       `json:"challengeFreeRuns"`
+	SessionAgeSeconds  int       `json:"sessionAgeSeconds"`
+	SoftChallengeCount int       `json:"softChallengeCount"`
+	HardChallengeCount int       `json:"hardChallengeCount"`
+	BlockCount         int       `json:"blockCount"`
+	LastSeenAt         time.Time `json:"lastSeenAt,omitempty"`
+}
+
 var defaultSentinelProvider SentinelProvider = noopSentinelProvider{}
 
 type noopSentinelProvider struct{}
@@ -484,6 +508,10 @@ func (noopSentinelProvider) SummarizeTransportEvidence(ctx context.Context) ([]S
 }
 
 func (noopSentinelProvider) SummarizeCoherenceDiff(ctx context.Context) ([]SentinelCoherenceDiffSummary, error) {
+	return nil, ErrUnavailable
+}
+
+func (noopSentinelProvider) SummarizeStages(ctx context.Context) ([]SentinelStageSummary, error) {
 	return nil, ErrUnavailable
 }
 
