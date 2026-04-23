@@ -4,7 +4,7 @@ export default function Settings({ ws }) {
   const [cfg, setCfg] = useState({})
   const [providers, setProviders] = useState([])
   const [status, setStatus] = useState({})
-  const [sentinel, setSentinel] = useState({ variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], trustAssets: [], maturityEvidence: [], transportEvidence: [], coherenceDiff: [], stageSummary: [], assignmentRecommendations: [], canarySummary: [], variantCompareSummary: [], siteIntelligenceSummary: [], probeSequenceSummary: [], vendorIntelligenceSummary: [], vendorEffectiveness: [], vendorUplift: [], sitePressure: [], patchQueue: [], experimentSummary: [] })
+  const [sentinel, setSentinel] = useState({ variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], trustAssets: [], maturityEvidence: [], transportEvidence: [], coherenceDiff: [], stageSummary: [], assignmentRecommendations: [], canarySummary: [], variantCompareSummary: [], siteIntelligenceSummary: [], probeSequenceSummary: [], vendorIntelligenceSummary: [], vendorEffectiveness: [], vendorUplift: [], vendorRollout: [], sitePressure: [], patchQueue: [], experimentSummary: [] })
   const [sentinelTimeline, setSentinelTimeline] = useState([])
   const [defaultBudgetCost, setDefaultBudgetCost] = useState('0')
   const [defaultBudgetTokens, setDefaultBudgetTokens] = useState('0')
@@ -19,7 +19,7 @@ export default function Settings({ ws }) {
       setDefaultBudgetTokens(String(r?.defaultBudgetMaxTokens ?? 0))
     }).catch(() => {})
     ws.call('status.get').then(r => setStatus(r || {})).catch(() => {})
-    ws.call('sentinel.get').then(r => setSentinel(r || { variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], trustAssets: [], maturityEvidence: [], transportEvidence: [], coherenceDiff: [], stageSummary: [], assignmentRecommendations: [], canarySummary: [], variantCompareSummary: [], siteIntelligenceSummary: [], probeSequenceSummary: [], vendorIntelligenceSummary: [], vendorEffectiveness: [], vendorUplift: [], sitePressure: [], patchQueue: [], experimentSummary: [] })).catch(() => {})
+    ws.call('sentinel.get').then(r => setSentinel(r || { variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], trustAssets: [], maturityEvidence: [], transportEvidence: [], coherenceDiff: [], stageSummary: [], assignmentRecommendations: [], canarySummary: [], variantCompareSummary: [], siteIntelligenceSummary: [], probeSequenceSummary: [], vendorIntelligenceSummary: [], vendorEffectiveness: [], vendorUplift: [], vendorRollout: [], sitePressure: [], patchQueue: [], experimentSummary: [] })).catch(() => {})
     ws.call('sentinel.timeline', { limit: 4 }).then(r => setSentinelTimeline(r?.sessions || [])).catch(() => {})
   }, [ws.connected])
 
@@ -48,6 +48,7 @@ export default function Settings({ ws }) {
   const sentinelVendorIntelligenceSummary = sentinel.vendorIntelligenceSummary || []
   const sentinelVendorEffectiveness = sentinel.vendorEffectiveness || []
   const sentinelVendorUplift = sentinel.vendorUplift || []
+  const sentinelVendorRollout = sentinel.vendorRollout || []
   const sentinelSitePressure = sentinel.sitePressure || []
   const sentinelPatchQueue = sentinel.patchQueue || []
   const sentinelExperimentSummary = sentinel.experimentSummary || []
@@ -613,6 +614,44 @@ export default function Settings({ ws }) {
                           <td>{row.successRateDeltaPct || 0}%</td>
                           <td>{row.challengeRateDeltaPct || 0}%</td>
                           <td>{row.scoreDelta || 0}</td>
+                          <td>{(row.recommendation || 'unknown').toUpperCase()}</td>
+                          <td>{(row.confidence || 'unknown').toUpperCase()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              <div>
+                <h4 style={{ margin: '0 0 10px' }}>Vendor rollout board</h4>
+                {sentinelVendorRollout.length === 0 ? (
+                  <div className="empty-state">No vendor rollout decisions have been summarized yet.</div>
+                ) : (
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Family</th>
+                        <th>Lead</th>
+                        <th>Control</th>
+                        <th>Arms</th>
+                        <th>Score Δ</th>
+                        <th>Success Δ</th>
+                        <th>Challenge Δ</th>
+                        <th>Decision</th>
+                        <th>Confidence</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sentinelVendorRollout.map((row, index) => (
+                        <tr key={`${row.vendorFamily || 'family'}-${row.leadingVariantBundleId || 'lead'}-${index}`}>
+                          <td>{row.vendorFamily || 'unknown'}</td>
+                          <td>{`${variantNameFor(row.leadingVariantBundleId)} / ${trustNameFor(row.leadingTrustRecipeId)}`}</td>
+                          <td>{row.baselineAvailable ? `${variantNameFor(row.controlVariantBundleId)} / ${trustNameFor(row.controlTrustRecipeId)}` : 'n/a'}</td>
+                          <td>{row.armCount || 0}</td>
+                          <td>{row.scoreDelta || 0}</td>
+                          <td>{row.successRateDeltaPct || 0}%</td>
+                          <td>{row.challengeRateDeltaPct || 0}%</td>
                           <td>{(row.recommendation || 'unknown').toUpperCase()}</td>
                           <td>{(row.confidence || 'unknown').toUpperCase()}</td>
                         </tr>

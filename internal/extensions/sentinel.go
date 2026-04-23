@@ -55,6 +55,7 @@ type SentinelProvider interface {
 	SummarizeVendorIntelligence(ctx context.Context) ([]SentinelVendorIntelligenceSummary, error)
 	SummarizeVendorEffectiveness(ctx context.Context) ([]SentinelVendorEffectivenessSummary, error)
 	SummarizeVendorUplift(ctx context.Context) ([]SentinelVendorUpliftSummary, error)
+	SummarizeVendorRollout(ctx context.Context) ([]SentinelVendorRolloutSummary, error)
 	SummarizeSitePressure(ctx context.Context) ([]SentinelSitePressureSummary, error)
 	SummarizePatchQueue(ctx context.Context) ([]SentinelPatchCandidate, error)
 	SummarizeExperiments(ctx context.Context) ([]SentinelExperimentSummary, error)
@@ -574,6 +575,24 @@ type SentinelVendorUpliftSummary struct {
 	LastSeenAt              time.Time `json:"lastSeenAt,omitempty"`
 }
 
+type SentinelVendorRolloutSummary struct {
+	VendorFamily           string    `json:"vendorFamily,omitempty"`
+	LeadingVariantBundleID string    `json:"leadingVariantBundleId,omitempty"`
+	LeadingTrustRecipeID   string    `json:"leadingTrustRecipeId,omitempty"`
+	ControlVariantBundleID string    `json:"controlVariantBundleId,omitempty"`
+	ControlTrustRecipeID   string    `json:"controlTrustRecipeId,omitempty"`
+	BaselineAvailable      bool      `json:"baselineAvailable"`
+	ArmCount               int       `json:"armCount"`
+	LeadingTotalOutcomes   int       `json:"leadingTotalOutcomes"`
+	ScoreDelta             int       `json:"scoreDelta"`
+	SuccessRateDeltaPct    int       `json:"successRateDeltaPct"`
+	ChallengeRateDeltaPct  int       `json:"challengeRateDeltaPct"`
+	Recommendation         string    `json:"recommendation,omitempty"`
+	Confidence             string    `json:"confidence,omitempty"`
+	Reason                 string    `json:"reason,omitempty"`
+	LastSeenAt             time.Time `json:"lastSeenAt,omitempty"`
+}
+
 var defaultSentinelProvider SentinelProvider = noopSentinelProvider{}
 
 type noopSentinelProvider struct{}
@@ -679,6 +698,10 @@ func (noopSentinelProvider) SummarizeVendorEffectiveness(ctx context.Context) ([
 }
 
 func (noopSentinelProvider) SummarizeVendorUplift(ctx context.Context) ([]SentinelVendorUpliftSummary, error) {
+	return nil, ErrUnavailable
+}
+
+func (noopSentinelProvider) SummarizeVendorRollout(ctx context.Context) ([]SentinelVendorRolloutSummary, error) {
 	return nil, ErrUnavailable
 }
 

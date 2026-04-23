@@ -135,6 +135,9 @@ func TestDefaultSentinelProviderUnavailable(t *testing.T) {
 	if _, err := s.SummarizeVendorUplift(ctx); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("SummarizeVendorUplift: expected ErrUnavailable, got %v", err)
 	}
+	if _, err := s.SummarizeVendorRollout(ctx); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("SummarizeVendorRollout: expected ErrUnavailable, got %v", err)
+	}
 }
 
 // TestRegistryConcurrentSetGet runs many goroutines that race on

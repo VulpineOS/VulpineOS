@@ -264,6 +264,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		VendorUplift: []extensions.SentinelVendorUpliftSummary{
 			{VendorFamily: "cloudflare", VariantBundleID: "returning-visitor", TrustRecipeID: "returning-visitor", ControlVariantBundleID: "control", ControlTrustRecipeID: "baseline-warmup", BaselineAvailable: true, DomainCount: 2, TotalOutcomes: 4, SuccessRatePct: 75, ControlSuccessRatePct: 50, SuccessRateDeltaPct: 25, ChallengeRatePct: 25, ControlChallengeRatePct: 50, ChallengeRateDeltaPct: -25, EffectivenessScore: 8, ControlEffectiveness: 0, ScoreDelta: 8, Recommendation: "promote", Confidence: "medium"},
 		},
+		VendorRollout: []extensions.SentinelVendorRolloutSummary{
+			{VendorFamily: "cloudflare", LeadingVariantBundleID: "returning-visitor", LeadingTrustRecipeID: "returning-visitor", ControlVariantBundleID: "control", ControlTrustRecipeID: "baseline-warmup", BaselineAvailable: true, ArmCount: 2, LeadingTotalOutcomes: 4, ScoreDelta: 8, SuccessRateDeltaPct: 25, ChallengeRateDeltaPct: -25, Recommendation: "expand", Confidence: "medium", Reason: "family-local uplift beats control with enough evidence to widen the arm"},
+		},
 		SitePressure: []extensions.SentinelSitePressureSummary{
 			{Domain: "example.com", ChallengeVendor: "cloudflare", ProbeCount: 2, SessionCount: 2, SoftChallengeCount: 1, SuccessCount: 1, TotalOutcomes: 2, PressureScore: 6},
 		},
@@ -319,6 +322,7 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		VendorIntelligenceSummary []extensions.SentinelVendorIntelligenceSummary  `json:"vendorIntelligenceSummary"`
 		VendorEffectiveness       []extensions.SentinelVendorEffectivenessSummary `json:"vendorEffectiveness"`
 		VendorUplift              []extensions.SentinelVendorUpliftSummary        `json:"vendorUplift"`
+		VendorRollout             []extensions.SentinelVendorRolloutSummary       `json:"vendorRollout"`
 		SitePressure              []extensions.SentinelSitePressureSummary        `json:"sitePressure"`
 		PatchQueue                []extensions.SentinelPatchCandidate             `json:"patchQueue"`
 		ExperimentSummary         []extensions.SentinelExperimentSummary          `json:"experimentSummary"`
@@ -394,6 +398,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	}
 	if len(result.VendorUplift) != 1 || result.VendorUplift[0].Recommendation != "promote" {
 		t.Fatalf("vendorUplift = %+v", result.VendorUplift)
+	}
+	if len(result.VendorRollout) != 1 || result.VendorRollout[0].Recommendation != "expand" {
+		t.Fatalf("vendorRollout = %+v", result.VendorRollout)
 	}
 	if len(result.SitePressure) != 1 || result.SitePressure[0].ChallengeVendor != "cloudflare" {
 		t.Fatalf("sitePressure = %+v", result.SitePressure)

@@ -1212,6 +1212,7 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 		"vendorIntelligenceSummary": []extensions.SentinelVendorIntelligenceSummary{},
 		"vendorEffectiveness":       []extensions.SentinelVendorEffectivenessSummary{},
 		"vendorUplift":              []extensions.SentinelVendorUpliftSummary{},
+		"vendorRollout":             []extensions.SentinelVendorRolloutSummary{},
 		"sitePressure":              []extensions.SentinelSitePressureSummary{},
 		"patchQueue":                []extensions.SentinelPatchCandidate{},
 		"experimentSummary":         []extensions.SentinelExperimentSummary{},
@@ -1311,6 +1312,10 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
+	vendorRollout, err := provider.SummarizeVendorRollout(context.Background())
+	if err != nil {
+		return nil, err
+	}
 	sitePressure, err := provider.SummarizeSitePressure(context.Background())
 	if err != nil {
 		return nil, err
@@ -1345,6 +1350,7 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 	out["vendorIntelligenceSummary"] = vendorIntelligenceSummary
 	out["vendorEffectiveness"] = vendorEffectiveness
 	out["vendorUplift"] = vendorUplift
+	out["vendorRollout"] = vendorRollout
 	out["sitePressure"] = sitePressure
 	out["patchQueue"] = patchQueue
 	out["experimentSummary"] = experimentSummary

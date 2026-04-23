@@ -294,6 +294,7 @@ type FakeSentinelProvider struct {
 	VendorIntelligenceSummary []extensions.SentinelVendorIntelligenceSummary
 	VendorEffectiveness       []extensions.SentinelVendorEffectivenessSummary
 	VendorUplift              []extensions.SentinelVendorUpliftSummary
+	VendorRollout             []extensions.SentinelVendorRolloutSummary
 	SitePressure              []extensions.SentinelSitePressureSummary
 	PatchQueue                []extensions.SentinelPatchCandidate
 	ExperimentBoard           []extensions.SentinelExperimentSummary
@@ -467,6 +468,13 @@ func (f *FakeSentinelProvider) SetVendorUplift(v []extensions.SentinelVendorUpli
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.VendorUplift = append([]extensions.SentinelVendorUpliftSummary(nil), v...)
+}
+
+// SetVendorRollout replaces the canned vendor-rollout rows.
+func (f *FakeSentinelProvider) SetVendorRollout(v []extensions.SentinelVendorRolloutSummary) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.VendorRollout = append([]extensions.SentinelVendorRolloutSummary(nil), v...)
 }
 
 // SetSitePressure replaces the canned site pressure rows under the write lock.
@@ -718,6 +726,15 @@ func (f *FakeSentinelProvider) SummarizeVendorUplift(ctx context.Context) ([]ext
 	defer f.mu.RUnlock()
 	out := make([]extensions.SentinelVendorUpliftSummary, len(f.VendorUplift))
 	copy(out, f.VendorUplift)
+	return out, nil
+}
+
+// SummarizeVendorRollout returns a copy of the canned vendor-rollout rows.
+func (f *FakeSentinelProvider) SummarizeVendorRollout(ctx context.Context) ([]extensions.SentinelVendorRolloutSummary, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make([]extensions.SentinelVendorRolloutSummary, len(f.VendorRollout))
+	copy(out, f.VendorRollout)
 	return out, nil
 }
 

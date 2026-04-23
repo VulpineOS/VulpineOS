@@ -268,6 +268,7 @@ The panel now also includes:
 - **Settings** Sentinel vendor intelligence board grouped by script host and canonical vendor family so recurring detection stacks stay visible across targets
 - **Settings** Sentinel vendor effectiveness board grouped by canonical vendor family, variant bundle, and trust recipe so experiment performance stays comparable within each detection stack
 - **Settings** Sentinel vendor uplift board grouped by canonical vendor family, variant bundle, and trust recipe so promotion or rollback decisions stay tied to the local control baseline
+- **Settings** Sentinel vendor rollout board grouped by canonical vendor family so the next expand, hold, collect-control, or rollback decision stays explicit per detection stack
 - **Settings** Sentinel stage board grouped by domain, variant bundle, and trust recipe so inferred maturity and assignment-rule fit stay explicit
 - **Settings** Sentinel assignment recommendation board grouped by domain, variant bundle, and trust recipe so the next hold/promote/demote/rotate/quarantine action stays explicit
 - **Settings** Sentinel canary board grouped by domain, variant bundle, and trust recipe so benchmark regressions stay visible before broader rollout
@@ -288,6 +289,7 @@ The panel now also includes:
 - The Sentinel vendor intelligence board clusters recurring script hosts into canonical vendor families with sample domains so common detection stacks stay ranked together
 - The Sentinel vendor effectiveness board compares variant and trust bundles within each canonical vendor family so experiment results stay attributable to the detection stack they hit
 - The Sentinel vendor uplift board compares each family-local experiment arm against the matching control baseline so success, challenge, and score deltas stay attributable before promotion or rollback
+- The Sentinel vendor rollout board condenses family-local uplift into one recommended next action per detection stack so operators can widen, hold, or pull back an arm without reading every experiment row
 - **Agent Detail** controls for per-agent budget overrides, recording export, and fingerprint regeneration
 - **Proxies** controls for persisted per-agent rotation rules
 - **Scripts** execution against a real browser context through the server-side scripting engine
