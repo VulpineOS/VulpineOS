@@ -42,6 +42,7 @@ type SentinelProvider interface {
 	SummarizeProbes(ctx context.Context) ([]SentinelProbeSummary, error)
 	SummarizeTrustActivity(ctx context.Context) ([]SentinelTrustActivitySummary, error)
 	SummarizeTrustEffectiveness(ctx context.Context) ([]SentinelTrustEffectivenessSummary, error)
+	SummarizeMaturityEvidence(ctx context.Context) ([]SentinelMaturityEvidenceSummary, error)
 	SummarizeSitePressure(ctx context.Context) ([]SentinelSitePressureSummary, error)
 	SummarizePatchQueue(ctx context.Context) ([]SentinelPatchCandidate, error)
 	SummarizeExperiments(ctx context.Context) ([]SentinelExperimentSummary, error)
@@ -329,6 +330,28 @@ type SentinelTrustEffectivenessSummary struct {
 	LastSeenAt         time.Time `json:"lastSeenAt,omitempty"`
 }
 
+// SentinelMaturityEvidenceSummary captures the revisit cadence and
+// prior-visit evidence behind a domain plus trust-recipe pairing so
+// operators can compare "returning visitor" patterns against outcomes.
+type SentinelMaturityEvidenceSummary struct {
+	Domain             string    `json:"domain,omitempty"`
+	VariantBundleID    string    `json:"variantBundleId,omitempty"`
+	TrustRecipeID      string    `json:"trustRecipeId,omitempty"`
+	SessionCount       int       `json:"sessionCount"`
+	WarmingCount       int       `json:"warmingCount"`
+	RevisitCount       int       `json:"revisitCount"`
+	DistinctDays       int       `json:"distinctDays"`
+	AverageGapHours    float64   `json:"averageGapHours"`
+	SuccessCount       int       `json:"successCount"`
+	SoftChallengeCount int       `json:"softChallengeCount"`
+	HardChallengeCount int       `json:"hardChallengeCount"`
+	BlockCount         int       `json:"blockCount"`
+	TotalOutcomes      int       `json:"totalOutcomes"`
+	MaturityScore      int       `json:"maturityScore"`
+	FirstSeenAt        time.Time `json:"firstSeenAt,omitempty"`
+	LastSeenAt         time.Time `json:"lastSeenAt,omitempty"`
+}
+
 var defaultSentinelProvider SentinelProvider = noopSentinelProvider{}
 
 type noopSentinelProvider struct{}
@@ -382,6 +405,10 @@ func (noopSentinelProvider) SummarizeTrustActivity(ctx context.Context) ([]Senti
 }
 
 func (noopSentinelProvider) SummarizeTrustEffectiveness(ctx context.Context) ([]SentinelTrustEffectivenessSummary, error) {
+	return nil, ErrUnavailable
+}
+
+func (noopSentinelProvider) SummarizeMaturityEvidence(ctx context.Context) ([]SentinelMaturityEvidenceSummary, error) {
 	return nil, ErrUnavailable
 }
 

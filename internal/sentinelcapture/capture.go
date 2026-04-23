@@ -111,10 +111,12 @@ func RecordTrustActivity(ctx context.Context, state juggler.TrustWarmingState) e
 	if state.State != "" {
 		name = "trust_warming." + strings.ToLower(state.State)
 	}
+	now := time.Now().UTC()
 	attributes := withExperimentDefaults(ctx, map[string]string{
 		"state":        state.State,
 		"current_site": state.CurrentSite,
 	})
+	attributes = withPriorDomainEvidence(ctx, scrubDomain(state.CurrentSite), now, attributes)
 	return recordEvent(ctx, extensions.SentinelEvent{
 		Kind:   extensions.SentinelEventKindTrustActivity,
 		Source: "juggler",
@@ -124,7 +126,7 @@ func RecordTrustActivity(ctx context.Context, state juggler.TrustWarmingState) e
 			URL:    state.CurrentSite,
 		},
 		Attributes: attributes,
-		Timestamp:  time.Now().UTC(),
+		Timestamp:  now,
 	})
 }
 
@@ -181,6 +183,73 @@ func withExperimentDefaults(ctx context.Context, attributes map[string]string) m
 	}
 	if out["trust_recipe_id"] == "" && trustID != "" {
 		out["trust_recipe_id"] = trustID
+	}
+	return out
+}
+
+func withPriorDomainEvidence(ctx context.Context, domain string, now time.Time, attributes map[string]string) map[string]string {
+	if domain == "" {
+		return attributes
+	}
+	provider := extensions.Registry.Sentinel()
+	if provider == nil || !provider.Available() {
+		return attributes
+	}
+	timelines, err := provider.ListSessionTimelines(ctx, extensions.SentinelTimelineFilter{Domain: domain, Limit: 64})
+	if err != nil {
+		return attributes
+	}
+	out := cloneAttributes(attributes)
+	sessionIDs := make(map[string]struct{})
+	distinctDays := make(map[string]struct{})
+	priorTrustEvents := 0
+	var firstSeen time.Time
+	var lastSeen time.Time
+	for _, timeline := range timelines {
+		if timeline.Domain != "" && timeline.Domain != domain {
+			continue
+		}
+		if timeline.SessionID != "" {
+			sessionIDs[timeline.SessionID] = struct{}{}
+		}
+		for _, item := range timeline.Items {
+			ts := item.Timestamp.UTC()
+			if ts.IsZero() {
+				continue
+			}
+			distinctDays[ts.Format("2006-01-02")] = struct{}{}
+			if firstSeen.IsZero() || ts.Before(firstSeen) {
+				firstSeen = ts
+			}
+			if lastSeen.IsZero() || ts.After(lastSeen) {
+				lastSeen = ts
+			}
+			if item.Type == "event" && item.Kind == extensions.SentinelEventKindTrustActivity {
+				priorTrustEvents++
+			}
+		}
+		if len(timeline.Items) == 0 && !timeline.LastActivityAt.IsZero() {
+			ts := timeline.LastActivityAt.UTC()
+			distinctDays[ts.Format("2006-01-02")] = struct{}{}
+			if firstSeen.IsZero() || ts.Before(firstSeen) {
+				firstSeen = ts
+			}
+			if lastSeen.IsZero() || ts.After(lastSeen) {
+				lastSeen = ts
+			}
+		}
+	}
+	if len(sessionIDs) == 0 && priorTrustEvents == 0 && len(distinctDays) == 0 {
+		return out
+	}
+	out["prior_session_count"] = jsonInt(len(sessionIDs))
+	out["prior_trust_event_count"] = jsonInt(priorTrustEvents)
+	out["distinct_days_seen"] = jsonInt(len(distinctDays))
+	if !firstSeen.IsZero() {
+		out["hours_since_first_seen"] = formatHours(now.Sub(firstSeen).Hours())
+	}
+	if !lastSeen.IsZero() {
+		out["hours_since_last_seen"] = formatHours(now.Sub(lastSeen).Hours())
 	}
 	return out
 }
@@ -245,4 +314,8 @@ func probeTime(timestamp float64) time.Time {
 
 func jsonInt(v int) string {
 	return strconv.Itoa(v)
+}
+
+func formatHours(hours float64) string {
+	return strconv.FormatFloat(hours, 'f', 1, 64)
 }

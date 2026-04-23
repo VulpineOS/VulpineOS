@@ -23,6 +23,26 @@ func TestRecordRuntimeSignal(t *testing.T) {
 		TrustRecipes: []extensions.SentinelTrustRecipe{
 			{ID: "baseline-warmup"},
 		},
+		SessionTimelines: []extensions.SentinelSessionTimeline{
+			{
+				SessionID:      "prior-session",
+				Domain:         "ticketmaster.example",
+				LastActivityAt: time.Now().UTC().Add(-12 * time.Hour),
+				Items: []extensions.SentinelTimelineItem{
+					{
+						Type:      "event",
+						Kind:      extensions.SentinelEventKindTrustActivity,
+						Name:      "trust_warming.warming",
+						Timestamp: time.Now().UTC().Add(-24 * time.Hour),
+					},
+					{
+						Type:      "outcome",
+						Outcome:   extensions.SentinelOutcomeSuccess,
+						Timestamp: time.Now().UTC().Add(-12 * time.Hour),
+					},
+				},
+			},
+		},
 	}
 	extensions.Registry.SetSentinel(fake)
 
@@ -181,6 +201,7 @@ func TestRecordBrowserProbeMapsScopeAndPayload(t *testing.T) {
 func TestRecordTrustActivityMapsStateAndScope(t *testing.T) {
 	original := extensions.Registry.Sentinel()
 	t.Cleanup(func() { extensions.Registry.SetSentinel(original) })
+	now := time.Now().UTC()
 	fake := &extensionstest.FakeSentinelProvider{
 		AvailableFlag: true,
 		VariantBundles: []extensions.SentinelVariantBundle{
@@ -188,6 +209,26 @@ func TestRecordTrustActivityMapsStateAndScope(t *testing.T) {
 		},
 		TrustRecipes: []extensions.SentinelTrustRecipe{
 			{ID: "baseline-warmup"},
+		},
+		SessionTimelines: []extensions.SentinelSessionTimeline{
+			{
+				SessionID:      "prior-session",
+				Domain:         "ticketmaster.example",
+				LastActivityAt: now.Add(-12 * time.Hour),
+				Items: []extensions.SentinelTimelineItem{
+					{
+						Type:      "event",
+						Kind:      extensions.SentinelEventKindTrustActivity,
+						Name:      "trust_warming.warming",
+						Timestamp: now.Add(-36 * time.Hour),
+					},
+					{
+						Type:      "outcome",
+						Outcome:   extensions.SentinelOutcomeSuccess,
+						Timestamp: now.Add(-12 * time.Hour),
+					},
+				},
+			},
 		},
 	}
 	extensions.Registry.SetSentinel(fake)
@@ -215,5 +256,11 @@ func TestRecordTrustActivityMapsStateAndScope(t *testing.T) {
 	}
 	if event.Attributes["variant_bundle_id"] != "control" || event.Attributes["trust_recipe_id"] != "baseline-warmup" {
 		t.Fatalf("experiment attrs = %+v", event.Attributes)
+	}
+	if event.Attributes["prior_session_count"] != "1" || event.Attributes["prior_trust_event_count"] != "1" || event.Attributes["distinct_days_seen"] != "2" {
+		t.Fatalf("maturity attrs = %+v", event.Attributes)
+	}
+	if event.Attributes["hours_since_last_seen"] == "" || event.Attributes["hours_since_first_seen"] == "" {
+		t.Fatalf("age attrs = %+v", event.Attributes)
 	}
 }

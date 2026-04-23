@@ -4,7 +4,7 @@ export default function Settings({ ws }) {
   const [cfg, setCfg] = useState({})
   const [providers, setProviders] = useState([])
   const [status, setStatus] = useState({})
-  const [sentinel, setSentinel] = useState({ variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], sitePressure: [], patchQueue: [], experimentSummary: [] })
+  const [sentinel, setSentinel] = useState({ variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], maturityEvidence: [], sitePressure: [], patchQueue: [], experimentSummary: [] })
   const [sentinelTimeline, setSentinelTimeline] = useState([])
   const [defaultBudgetCost, setDefaultBudgetCost] = useState('0')
   const [defaultBudgetTokens, setDefaultBudgetTokens] = useState('0')
@@ -19,7 +19,7 @@ export default function Settings({ ws }) {
       setDefaultBudgetTokens(String(r?.defaultBudgetMaxTokens ?? 0))
     }).catch(() => {})
     ws.call('status.get').then(r => setStatus(r || {})).catch(() => {})
-    ws.call('sentinel.get').then(r => setSentinel(r || { variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], sitePressure: [], patchQueue: [], experimentSummary: [] })).catch(() => {})
+    ws.call('sentinel.get').then(r => setSentinel(r || { variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], maturityEvidence: [], sitePressure: [], patchQueue: [], experimentSummary: [] })).catch(() => {})
     ws.call('sentinel.timeline', { limit: 4 }).then(r => setSentinelTimeline(r?.sessions || [])).catch(() => {})
   }, [ws.connected])
 
@@ -35,6 +35,7 @@ export default function Settings({ ws }) {
   const sentinelProbeSummary = sentinel.probeSummary || []
   const sentinelTrustActivity = sentinel.trustActivity || []
   const sentinelTrustEffectiveness = sentinel.trustEffectiveness || []
+  const sentinelMaturityEvidence = sentinel.maturityEvidence || []
   const sentinelSitePressure = sentinel.sitePressure || []
   const sentinelPatchQueue = sentinel.patchQueue || []
   const sentinelExperimentSummary = sentinel.experimentSummary || []
@@ -65,6 +66,9 @@ export default function Settings({ ws }) {
     const parts = [`${item.kind || 'event'} · ${item.name || 'unnamed'}`]
     if (item.attributes?.detail) parts.push(item.attributes.detail)
     if (item.attributes?.count) parts.push(`x${item.attributes.count}`)
+    if (item.attributes?.prior_session_count) parts.push(`seen ${item.attributes.prior_session_count} sessions`)
+    if (item.attributes?.distinct_days_seen) parts.push(`${item.attributes.distinct_days_seen} days`)
+    if (item.attributes?.hours_since_last_seen) parts.push(`gap ${item.attributes.hours_since_last_seen}h`)
     if (assignment) parts.push(assignment)
     return parts.join(' · ')
   }
@@ -479,6 +483,50 @@ export default function Settings({ ws }) {
                           <td>{row.blockCount || 0}</td>
                           <td>{row.burnCount || 0}</td>
                           <td>{row.effectivenessScore || 0}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              <div>
+                <h4 style={{ margin: '0 0 10px' }}>Maturity evidence</h4>
+                {sentinelMaturityEvidence.length === 0 ? (
+                  <div className="empty-state">No maturity evidence has been summarized yet.</div>
+                ) : (
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Domain</th>
+                        <th>Variant</th>
+                        <th>Trust</th>
+                        <th>Warm</th>
+                        <th>Revisits</th>
+                        <th>Days</th>
+                        <th>Avg gap</th>
+                        <th>Success</th>
+                        <th>Soft</th>
+                        <th>Hard</th>
+                        <th>Block</th>
+                        <th>Score</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sentinelMaturityEvidence.map((row, index) => (
+                        <tr key={`${row.domain || 'domain'}-${row.variantBundleId || 'variant'}-${row.trustRecipeId || 'trust'}-${index}`}>
+                          <td>{row.domain || 'unknown'}</td>
+                          <td>{variantNameFor(row.variantBundleId)}</td>
+                          <td>{trustNameFor(row.trustRecipeId)}</td>
+                          <td>{row.warmingCount || 0}</td>
+                          <td>{row.revisitCount || 0}</td>
+                          <td>{row.distinctDays || 0}</td>
+                          <td>{row.averageGapHours ? `${row.averageGapHours.toFixed(1)}h` : '0.0h'}</td>
+                          <td>{row.successCount || 0}</td>
+                          <td>{row.softChallengeCount || 0}</td>
+                          <td>{row.hardChallengeCount || 0}</td>
+                          <td>{row.blockCount || 0}</td>
+                          <td>{row.maturityScore || 0}</td>
                         </tr>
                       ))}
                     </tbody>

@@ -225,6 +225,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		TrustEffectiveness: []extensions.SentinelTrustEffectivenessSummary{
 			{Domain: "example.com", VariantBundleID: "control", TrustRecipeID: "baseline-warmup", WarmingCount: 3, SessionCount: 2, SuccessCount: 1, SoftChallengeCount: 1, TotalOutcomes: 2, EffectivenessScore: 2, ChallengeVendors: []string{"cloudflare"}},
 		},
+		MaturityEvidence: []extensions.SentinelMaturityEvidenceSummary{
+			{Domain: "example.com", VariantBundleID: "control", TrustRecipeID: "baseline-warmup", SessionCount: 2, WarmingCount: 3, RevisitCount: 2, DistinctDays: 2, AverageGapHours: 12, SuccessCount: 1, SoftChallengeCount: 1, TotalOutcomes: 2, MaturityScore: 10},
+		},
 		SitePressure: []extensions.SentinelSitePressureSummary{
 			{Domain: "example.com", ChallengeVendor: "cloudflare", ProbeCount: 2, SessionCount: 2, SoftChallengeCount: 1, SuccessCount: 1, TotalOutcomes: 2, PressureScore: 6},
 		},
@@ -267,6 +270,7 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		ProbeSummary       []extensions.SentinelProbeSummary              `json:"probeSummary"`
 		TrustActivity      []extensions.SentinelTrustActivitySummary      `json:"trustActivity"`
 		TrustEffectiveness []extensions.SentinelTrustEffectivenessSummary `json:"trustEffectiveness"`
+		MaturityEvidence   []extensions.SentinelMaturityEvidenceSummary   `json:"maturityEvidence"`
 		SitePressure       []extensions.SentinelSitePressureSummary       `json:"sitePressure"`
 		PatchQueue         []extensions.SentinelPatchCandidate            `json:"patchQueue"`
 		ExperimentSummary  []extensions.SentinelExperimentSummary         `json:"experimentSummary"`
@@ -303,6 +307,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	}
 	if len(result.TrustEffectiveness) != 1 || result.TrustEffectiveness[0].TrustRecipeID != "baseline-warmup" {
 		t.Fatalf("trustEffectiveness = %+v", result.TrustEffectiveness)
+	}
+	if len(result.MaturityEvidence) != 1 || result.MaturityEvidence[0].DistinctDays != 2 {
+		t.Fatalf("maturityEvidence = %+v", result.MaturityEvidence)
 	}
 	if len(result.SitePressure) != 1 || result.SitePressure[0].ChallengeVendor != "cloudflare" {
 		t.Fatalf("sitePressure = %+v", result.SitePressure)

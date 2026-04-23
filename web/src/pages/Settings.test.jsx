@@ -109,6 +109,20 @@ describe('Settings page', () => {
               burnCount: 0,
               effectivenessScore: 2,
             }],
+            maturityEvidence: [{
+              domain: 'example.com',
+              variantBundleId: 'control',
+              trustRecipeId: 'baseline-warmup',
+              warmingCount: 3,
+              revisitCount: 2,
+              distinctDays: 2,
+              averageGapHours: 12,
+              successCount: 1,
+              softChallengeCount: 1,
+              hardChallengeCount: 0,
+              blockCount: 0,
+              maturityScore: 10,
+            }],
             sitePressure: [{
               domain: 'example.com',
               challengeVendor: 'cloudflare',
@@ -154,7 +168,7 @@ describe('Settings page', () => {
               eventCount: 1,
               outcomeCount: 1,
               items: [
-                { type: 'event', kind: 'browser_probe', name: 'canvas.toDataURL', variantBundleId: 'control', trustRecipeId: 'baseline-warmup' },
+                { type: 'event', kind: 'browser_probe', name: 'canvas.toDataURL', variantBundleId: 'control', trustRecipeId: 'baseline-warmup', attributes: { prior_session_count: '2', distinct_days_seen: '2', hours_since_last_seen: '12.0' } },
                 { type: 'outcome', outcome: 'soft_challenge', challengeVendor: 'cloudflare', variantBundleId: 'control', trustRecipeId: 'baseline-warmup' },
               ],
             }],
@@ -183,7 +197,7 @@ describe('Settings page', () => {
     expect(screen.getAllByText('Baseline warmup').length).toBeGreaterThan(0)
     expect(screen.getByText('Recent capture timeline')).toBeInTheDocument()
     expect(screen.getByText('example.com · 1 events · 1 outcomes')).toBeInTheDocument()
-    expect(screen.getByText('browser_probe · canvas.toDataURL · Control / Baseline warmup')).toBeInTheDocument()
+    expect(screen.getByText('browser_probe · canvas.toDataURL · seen 2 sessions · 2 days · gap 12.0h · Control / Baseline warmup')).toBeInTheDocument()
     expect(screen.getByText('soft_challenge · cloudflare · Control / Baseline warmup')).toBeInTheDocument()
     expect(screen.getByText('Probe summary')).toBeInTheDocument()
     expect(screen.getAllByText('canvas_probe').length).toBeGreaterThan(0)
@@ -194,6 +208,7 @@ describe('Settings page', () => {
     expect(screen.getByText('Trust activity board')).toBeInTheDocument()
     expect(screen.getByText('WARMING')).toBeInTheDocument()
     expect(screen.getByText('Trust effectiveness')).toBeInTheDocument()
+    expect(screen.getByText('Maturity evidence')).toBeInTheDocument()
     expect(screen.getByText('Patch queue')).toBeInTheDocument()
     expect(screen.getByText('Review canvas surface coherence and pixel-read behavior.')).toBeInTheDocument()
     expect(screen.getByText('HIGH')).toBeInTheDocument()
