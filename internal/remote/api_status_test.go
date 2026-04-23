@@ -279,6 +279,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		PatchQueue: []extensions.SentinelPatchCandidate{
 			{Domain: "example.com", ProbeType: "canvas_probe", API: "toDataURL", Priority: "high", Score: 10, Recommendation: "Review canvas surface coherence and pixel-read behavior."},
 		},
+		PatchInvestment: []extensions.SentinelPatchInvestmentSummary{
+			{VendorFamily: "cloudflare", CandidateCount: 1, DomainCount: 1, SampleDomains: []string{"example.com"}, TopDomain: "example.com", TopProbeType: "canvas_probe", TopAPI: "toDataURL", TopPriority: "high", TopScore: 10, TotalPatchScore: 10, TopRecommendation: "Review canvas surface coherence and pixel-read behavior.", RolloutRecommendation: "expand", GapAction: "deepen-sample", LeadingVariantBundleID: "returning-visitor", LeadingTrustRecipeID: "returning-visitor", Focus: "patch-first", Reason: "probe pressure is still the most concrete next engineering investment", Confidence: "medium"},
+		},
 		ExperimentBoard: []extensions.SentinelExperimentSummary{
 			{VariantBundleID: "control", TrustRecipeID: "baseline-warmup", SessionCount: 2, DomainCount: 1, SoftChallengeCount: 1, SuccessCount: 1, TotalOutcomes: 2, ChallengeVendors: []string{"cloudflare"}},
 		},
@@ -333,6 +336,7 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		ExperimentGaps            []extensions.SentinelExperimentGapSummary       `json:"experimentGaps"`
 		SitePressure              []extensions.SentinelSitePressureSummary        `json:"sitePressure"`
 		PatchQueue                []extensions.SentinelPatchCandidate             `json:"patchQueue"`
+		PatchInvestment           []extensions.SentinelPatchInvestmentSummary     `json:"patchInvestment"`
 		ExperimentSummary         []extensions.SentinelExperimentSummary          `json:"experimentSummary"`
 	}
 	if err := json.Unmarshal(payload, &result); err != nil {
@@ -421,6 +425,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	}
 	if len(result.PatchQueue) != 1 || result.PatchQueue[0].Priority != "high" {
 		t.Fatalf("patchQueue = %+v", result.PatchQueue)
+	}
+	if len(result.PatchInvestment) != 1 || result.PatchInvestment[0].Focus != "patch-first" {
+		t.Fatalf("patchInvestment = %+v", result.PatchInvestment)
 	}
 	if len(result.ExperimentSummary) != 1 || result.ExperimentSummary[0].VariantBundleID != "control" {
 		t.Fatalf("experimentSummary = %+v", result.ExperimentSummary)

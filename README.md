@@ -271,6 +271,7 @@ The panel now also includes:
 - **Settings** Sentinel vendor rollout board grouped by canonical vendor family so the next expand, hold, collect-control, or rollback decision stays explicit per detection stack
 - **Settings** Sentinel trust playbook board grouped by variant bundle and trust recipe so cross-family rollout wins stay visible as product-level guidance
 - **Settings** Sentinel experiment gap board grouped by canonical vendor family so missing baselines and under-sampled challenger arms stay ranked for the next experiment wave
+- **Settings** Sentinel patch investment board grouped by canonical vendor family so the next patch-first, experiment-first, or rollout-first call stays explicit per detection stack
 - **Settings** Sentinel stage board grouped by domain, variant bundle, and trust recipe so inferred maturity and assignment-rule fit stay explicit
 - **Settings** Sentinel assignment recommendation board grouped by domain, variant bundle, and trust recipe so the next hold/promote/demote/rotate/quarantine action stays explicit
 - **Settings** Sentinel canary board grouped by domain, variant bundle, and trust recipe so benchmark regressions stay visible before broader rollout
@@ -294,6 +295,7 @@ The panel now also includes:
 - The Sentinel vendor rollout board condenses family-local uplift into one recommended next action per detection stack so operators can widen, hold, or pull back an arm without reading every experiment row
 - The Sentinel trust playbook board aggregates rollout outcomes across vendor families so the recipes that keep earning expansion decisions stay obvious at the product level
 - The Sentinel experiment gap board shows which vendor families still need control traffic, challenger traffic, or deeper samples before rollout calls are truly defensible
+- The Sentinel patch investment board combines ranked browser-surface patch pressure with rollout and experiment-gap posture so engineering work can be pointed at the families that need patching before more traffic or rollout spend
 - **Agent Detail** controls for per-agent budget overrides, recording export, and fingerprint regeneration
 - **Proxies** controls for persisted per-agent rotation rules
 - **Scripts** execution against a real browser context through the server-side scripting engine

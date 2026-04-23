@@ -299,6 +299,7 @@ type FakeSentinelProvider struct {
 	ExperimentGaps            []extensions.SentinelExperimentGapSummary
 	SitePressure              []extensions.SentinelSitePressureSummary
 	PatchQueue                []extensions.SentinelPatchCandidate
+	PatchInvestment           []extensions.SentinelPatchInvestmentSummary
 	ExperimentBoard           []extensions.SentinelExperimentSummary
 	Events                    []extensions.SentinelEvent
 	Outcomes                  []extensions.SentinelOutcome
@@ -505,6 +506,13 @@ func (f *FakeSentinelProvider) SetPatchQueue(v []extensions.SentinelPatchCandida
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.PatchQueue = append([]extensions.SentinelPatchCandidate(nil), v...)
+}
+
+// SetPatchInvestment replaces the canned patch investment rows under the write lock.
+func (f *FakeSentinelProvider) SetPatchInvestment(v []extensions.SentinelPatchInvestmentSummary) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.PatchInvestment = append([]extensions.SentinelPatchInvestmentSummary(nil), v...)
 }
 
 // SetExperimentBoard replaces the canned experiment summary rows.
@@ -787,6 +795,15 @@ func (f *FakeSentinelProvider) SummarizePatchQueue(ctx context.Context) ([]exten
 	defer f.mu.RUnlock()
 	out := make([]extensions.SentinelPatchCandidate, len(f.PatchQueue))
 	copy(out, f.PatchQueue)
+	return out, nil
+}
+
+// SummarizePatchInvestment returns a copy of the canned patch-investment rows.
+func (f *FakeSentinelProvider) SummarizePatchInvestment(ctx context.Context) ([]extensions.SentinelPatchInvestmentSummary, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make([]extensions.SentinelPatchInvestmentSummary, len(f.PatchInvestment))
+	copy(out, f.PatchInvestment)
 	return out, nil
 }
 
