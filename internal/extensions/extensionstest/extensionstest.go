@@ -284,6 +284,7 @@ type FakeSentinelProvider struct {
 	TrustAssets        []extensions.SentinelTrustAssetSummary
 	MaturityEvidence   []extensions.SentinelMaturityEvidenceSummary
 	TransportEvidence  []extensions.SentinelTransportEvidenceSummary
+	CoherenceDiff      []extensions.SentinelCoherenceDiffSummary
 	SitePressure       []extensions.SentinelSitePressureSummary
 	PatchQueue         []extensions.SentinelPatchCandidate
 	ExperimentBoard    []extensions.SentinelExperimentSummary
@@ -387,6 +388,13 @@ func (f *FakeSentinelProvider) SetTransportEvidence(v []extensions.SentinelTrans
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.TransportEvidence = append([]extensions.SentinelTransportEvidenceSummary(nil), v...)
+}
+
+// SetCoherenceDiff replaces the canned coherence-diff rows under the write lock.
+func (f *FakeSentinelProvider) SetCoherenceDiff(v []extensions.SentinelCoherenceDiffSummary) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.CoherenceDiff = append([]extensions.SentinelCoherenceDiffSummary(nil), v...)
 }
 
 // SetSitePressure replaces the canned site pressure rows under the write lock.
@@ -548,6 +556,15 @@ func (f *FakeSentinelProvider) SummarizeTransportEvidence(ctx context.Context) (
 	defer f.mu.RUnlock()
 	out := make([]extensions.SentinelTransportEvidenceSummary, len(f.TransportEvidence))
 	copy(out, f.TransportEvidence)
+	return out, nil
+}
+
+// SummarizeCoherenceDiff returns a copy of the canned coherence-diff rows.
+func (f *FakeSentinelProvider) SummarizeCoherenceDiff(ctx context.Context) ([]extensions.SentinelCoherenceDiffSummary, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make([]extensions.SentinelCoherenceDiffSummary, len(f.CoherenceDiff))
+	copy(out, f.CoherenceDiff)
 	return out, nil
 }
 

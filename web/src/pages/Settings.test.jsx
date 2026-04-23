@@ -151,6 +151,18 @@ describe('Settings page', () => {
               blockCount: 0,
               transportScore: 10,
             }],
+            coherenceDiff: [{
+              domain: 'example.com',
+              variantBundleId: 'authority-ramp',
+              trustRecipeId: 'authority-ramp',
+              findings: ['warm recipe on cold identity', 'route churn on supposedly stable identity'],
+              sessionCount: 2,
+              softChallengeCount: 1,
+              hardChallengeCount: 1,
+              blockCount: 0,
+              severity: 'high',
+              score: 15,
+            }],
             sitePressure: [{
               domain: 'example.com',
               challengeVendor: 'cloudflare',
@@ -239,9 +251,11 @@ describe('Settings page', () => {
     expect(screen.getByText('Trust assets')).toBeInTheDocument()
     expect(screen.getByText('Maturity evidence')).toBeInTheDocument()
     expect(screen.getByText('Transport evidence')).toBeInTheDocument()
+    expect(screen.getByText('Coherence diff')).toBeInTheDocument()
+    expect(screen.getByText('warm recipe on cold identity | route churn on supposedly stable identity')).toBeInTheDocument()
     expect(screen.getByText('Patch queue')).toBeInTheDocument()
     expect(screen.getByText('Review canvas surface coherence and pixel-read behavior.')).toBeInTheDocument()
-    expect(screen.getByText('HIGH')).toBeInTheDocument()
+    expect(screen.getAllByText('HIGH').length).toBeGreaterThan(0)
     expect(screen.getByText('Outcome taxonomy')).toBeInTheDocument()
     expect(screen.getByText('Soft challenge')).toBeInTheDocument()
     expect(screen.getByText('Captured outcomes')).toBeInTheDocument()

@@ -268,6 +268,7 @@ The panel now also includes:
 - **Settings** Sentinel trust-asset board grouped by domain, variant bundle, and trust recipe so cookie/storage carry-forward and state continuity stay measurable
 - **Settings** Sentinel maturity-evidence board grouped by domain, variant bundle, and trust recipe so revisit cadence and distinct-day coverage stay measurable
 - **Settings** Sentinel transport-evidence board grouped by domain, variant bundle, and trust recipe so proxy churn and route instability can be compared against challenges
+- **Settings** Sentinel coherence-diff board grouped by domain, variant bundle, and trust recipe so identity-state and route invariants stay ranked
 - **Settings** Sentinel patch queue ranked by browser-probe pressure and recent challenge outcomes so the next browser-surface fixes stay explicit
 - Sentinel capture timelines now ingest page-level browser probe evidence (canvas, WebGL, audio, navigator, media-device, permissions, screen, and Intl reads), trust-warming lifecycle events with prior-domain revisit evidence, trust-asset carry-forward snapshots from persisted cookie/storage state, provider-ready lifecycle signals, monitor-detected rate-limit/captcha/block alerts, and proxy-rotation transport observations with agent/context/session scope during normal runtime flow, and carry explicit experiment-assignment tags when available
 - **Agent Detail** controls for per-agent budget overrides, recording export, and fingerprint regeneration

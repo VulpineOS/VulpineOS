@@ -234,6 +234,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		TransportEvidence: []extensions.SentinelTransportEvidenceSummary{
 			{Domain: "example.com", VariantBundleID: "control", TrustRecipeID: "baseline-warmup", SessionCount: 1, RotationCount: 2, SoftChallengeCount: 1, HardChallengeCount: 1, TransportScore: 10, Reasons: []string{"rate_limit"}, ProxyEndpoints: []string{"old.example:8080", "new.example:8080"}, ChallengeVendors: []string{"cloudflare"}},
 		},
+		CoherenceDiff: []extensions.SentinelCoherenceDiffSummary{
+			{Domain: "example.com", VariantBundleID: "authority-ramp", TrustRecipeID: "authority-ramp", SessionCount: 1, HardChallengeCount: 1, Severity: "high", Score: 14, Findings: []string{"warm recipe on cold identity"}},
+		},
 		SitePressure: []extensions.SentinelSitePressureSummary{
 			{Domain: "example.com", ChallengeVendor: "cloudflare", ProbeCount: 2, SessionCount: 2, SoftChallengeCount: 1, SuccessCount: 1, TotalOutcomes: 2, PressureScore: 6},
 		},
@@ -279,6 +282,7 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		TrustAssets        []extensions.SentinelTrustAssetSummary         `json:"trustAssets"`
 		MaturityEvidence   []extensions.SentinelMaturityEvidenceSummary   `json:"maturityEvidence"`
 		TransportEvidence  []extensions.SentinelTransportEvidenceSummary  `json:"transportEvidence"`
+		CoherenceDiff      []extensions.SentinelCoherenceDiffSummary      `json:"coherenceDiff"`
 		SitePressure       []extensions.SentinelSitePressureSummary       `json:"sitePressure"`
 		PatchQueue         []extensions.SentinelPatchCandidate            `json:"patchQueue"`
 		ExperimentSummary  []extensions.SentinelExperimentSummary         `json:"experimentSummary"`
@@ -324,6 +328,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	}
 	if len(result.TransportEvidence) != 1 || result.TransportEvidence[0].RotationCount != 2 {
 		t.Fatalf("transportEvidence = %+v", result.TransportEvidence)
+	}
+	if len(result.CoherenceDiff) != 1 || result.CoherenceDiff[0].Severity != "high" {
+		t.Fatalf("coherenceDiff = %+v", result.CoherenceDiff)
 	}
 	if len(result.SitePressure) != 1 || result.SitePressure[0].ChallengeVendor != "cloudflare" {
 		t.Fatalf("sitePressure = %+v", result.SitePressure)

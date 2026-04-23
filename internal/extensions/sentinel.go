@@ -45,6 +45,7 @@ type SentinelProvider interface {
 	SummarizeTrustAssets(ctx context.Context) ([]SentinelTrustAssetSummary, error)
 	SummarizeMaturityEvidence(ctx context.Context) ([]SentinelMaturityEvidenceSummary, error)
 	SummarizeTransportEvidence(ctx context.Context) ([]SentinelTransportEvidenceSummary, error)
+	SummarizeCoherenceDiff(ctx context.Context) ([]SentinelCoherenceDiffSummary, error)
 	SummarizeSitePressure(ctx context.Context) ([]SentinelSitePressureSummary, error)
 	SummarizePatchQueue(ctx context.Context) ([]SentinelPatchCandidate, error)
 	SummarizeExperiments(ctx context.Context) ([]SentinelExperimentSummary, error)
@@ -397,6 +398,23 @@ type SentinelTransportEvidenceSummary struct {
 	LastSeenAt         time.Time `json:"lastSeenAt,omitempty"`
 }
 
+// SentinelCoherenceDiffSummary captures ranked invariant mismatches so
+// operators can see which sessions look internally inconsistent before
+// moving to heavier browser-surface or canary work.
+type SentinelCoherenceDiffSummary struct {
+	Domain             string    `json:"domain,omitempty"`
+	VariantBundleID    string    `json:"variantBundleId,omitempty"`
+	TrustRecipeID      string    `json:"trustRecipeId,omitempty"`
+	SessionCount       int       `json:"sessionCount"`
+	SoftChallengeCount int       `json:"softChallengeCount"`
+	HardChallengeCount int       `json:"hardChallengeCount"`
+	BlockCount         int       `json:"blockCount"`
+	Severity           string    `json:"severity,omitempty"`
+	Score              int       `json:"score"`
+	Findings           []string  `json:"findings,omitempty"`
+	LastSeenAt         time.Time `json:"lastSeenAt,omitempty"`
+}
+
 var defaultSentinelProvider SentinelProvider = noopSentinelProvider{}
 
 type noopSentinelProvider struct{}
@@ -462,6 +480,10 @@ func (noopSentinelProvider) SummarizeMaturityEvidence(ctx context.Context) ([]Se
 }
 
 func (noopSentinelProvider) SummarizeTransportEvidence(ctx context.Context) ([]SentinelTransportEvidenceSummary, error) {
+	return nil, ErrUnavailable
+}
+
+func (noopSentinelProvider) SummarizeCoherenceDiff(ctx context.Context) ([]SentinelCoherenceDiffSummary, error) {
 	return nil, ErrUnavailable
 }
 
