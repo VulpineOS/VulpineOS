@@ -228,6 +228,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		MaturityEvidence: []extensions.SentinelMaturityEvidenceSummary{
 			{Domain: "example.com", VariantBundleID: "control", TrustRecipeID: "baseline-warmup", SessionCount: 2, WarmingCount: 3, RevisitCount: 2, DistinctDays: 2, AverageGapHours: 12, SuccessCount: 1, SoftChallengeCount: 1, TotalOutcomes: 2, MaturityScore: 10},
 		},
+		TransportEvidence: []extensions.SentinelTransportEvidenceSummary{
+			{Domain: "example.com", VariantBundleID: "control", TrustRecipeID: "baseline-warmup", SessionCount: 1, RotationCount: 2, SoftChallengeCount: 1, HardChallengeCount: 1, TransportScore: 10, Reasons: []string{"rate_limit"}, ProxyEndpoints: []string{"old.example:8080", "new.example:8080"}, ChallengeVendors: []string{"cloudflare"}},
+		},
 		SitePressure: []extensions.SentinelSitePressureSummary{
 			{Domain: "example.com", ChallengeVendor: "cloudflare", ProbeCount: 2, SessionCount: 2, SoftChallengeCount: 1, SuccessCount: 1, TotalOutcomes: 2, PressureScore: 6},
 		},
@@ -271,6 +274,7 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		TrustActivity      []extensions.SentinelTrustActivitySummary      `json:"trustActivity"`
 		TrustEffectiveness []extensions.SentinelTrustEffectivenessSummary `json:"trustEffectiveness"`
 		MaturityEvidence   []extensions.SentinelMaturityEvidenceSummary   `json:"maturityEvidence"`
+		TransportEvidence  []extensions.SentinelTransportEvidenceSummary  `json:"transportEvidence"`
 		SitePressure       []extensions.SentinelSitePressureSummary       `json:"sitePressure"`
 		PatchQueue         []extensions.SentinelPatchCandidate            `json:"patchQueue"`
 		ExperimentSummary  []extensions.SentinelExperimentSummary         `json:"experimentSummary"`
@@ -310,6 +314,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	}
 	if len(result.MaturityEvidence) != 1 || result.MaturityEvidence[0].DistinctDays != 2 {
 		t.Fatalf("maturityEvidence = %+v", result.MaturityEvidence)
+	}
+	if len(result.TransportEvidence) != 1 || result.TransportEvidence[0].RotationCount != 2 {
+		t.Fatalf("transportEvidence = %+v", result.TransportEvidence)
 	}
 	if len(result.SitePressure) != 1 || result.SitePressure[0].ChallengeVendor != "cloudflare" {
 		t.Fatalf("sitePressure = %+v", result.SitePressure)

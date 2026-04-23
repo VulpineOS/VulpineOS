@@ -4,7 +4,7 @@ export default function Settings({ ws }) {
   const [cfg, setCfg] = useState({})
   const [providers, setProviders] = useState([])
   const [status, setStatus] = useState({})
-  const [sentinel, setSentinel] = useState({ variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], maturityEvidence: [], sitePressure: [], patchQueue: [], experimentSummary: [] })
+  const [sentinel, setSentinel] = useState({ variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], maturityEvidence: [], transportEvidence: [], sitePressure: [], patchQueue: [], experimentSummary: [] })
   const [sentinelTimeline, setSentinelTimeline] = useState([])
   const [defaultBudgetCost, setDefaultBudgetCost] = useState('0')
   const [defaultBudgetTokens, setDefaultBudgetTokens] = useState('0')
@@ -19,7 +19,7 @@ export default function Settings({ ws }) {
       setDefaultBudgetTokens(String(r?.defaultBudgetMaxTokens ?? 0))
     }).catch(() => {})
     ws.call('status.get').then(r => setStatus(r || {})).catch(() => {})
-    ws.call('sentinel.get').then(r => setSentinel(r || { variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], maturityEvidence: [], sitePressure: [], patchQueue: [], experimentSummary: [] })).catch(() => {})
+    ws.call('sentinel.get').then(r => setSentinel(r || { variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], maturityEvidence: [], transportEvidence: [], sitePressure: [], patchQueue: [], experimentSummary: [] })).catch(() => {})
     ws.call('sentinel.timeline', { limit: 4 }).then(r => setSentinelTimeline(r?.sessions || [])).catch(() => {})
   }, [ws.connected])
 
@@ -36,6 +36,7 @@ export default function Settings({ ws }) {
   const sentinelTrustActivity = sentinel.trustActivity || []
   const sentinelTrustEffectiveness = sentinel.trustEffectiveness || []
   const sentinelMaturityEvidence = sentinel.maturityEvidence || []
+  const sentinelTransportEvidence = sentinel.transportEvidence || []
   const sentinelSitePressure = sentinel.sitePressure || []
   const sentinelPatchQueue = sentinel.patchQueue || []
   const sentinelExperimentSummary = sentinel.experimentSummary || []
@@ -527,6 +528,46 @@ export default function Settings({ ws }) {
                           <td>{row.hardChallengeCount || 0}</td>
                           <td>{row.blockCount || 0}</td>
                           <td>{row.maturityScore || 0}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              <div>
+                <h4 style={{ margin: '0 0 10px' }}>Transport evidence</h4>
+                {sentinelTransportEvidence.length === 0 ? (
+                  <div className="empty-state">No transport evidence has been summarized yet.</div>
+                ) : (
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Domain</th>
+                        <th>Variant</th>
+                        <th>Trust</th>
+                        <th>Rotations</th>
+                        <th>Reasons</th>
+                        <th>Routes</th>
+                        <th>Soft</th>
+                        <th>Hard</th>
+                        <th>Block</th>
+                        <th>Score</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sentinelTransportEvidence.map((row, index) => (
+                        <tr key={`${row.domain || 'domain'}-${row.variantBundleId || 'variant'}-${row.trustRecipeId || 'trust'}-${index}`}>
+                          <td>{row.domain || 'unknown'}</td>
+                          <td>{variantNameFor(row.variantBundleId)}</td>
+                          <td>{trustNameFor(row.trustRecipeId)}</td>
+                          <td>{row.rotationCount || 0}</td>
+                          <td>{(row.reasons || []).join(', ') || 'n/a'}</td>
+                          <td className="mono-cell">{(row.proxyEndpoints || []).join(', ') || 'n/a'}</td>
+                          <td>{row.softChallengeCount || 0}</td>
+                          <td>{row.hardChallengeCount || 0}</td>
+                          <td>{row.blockCount || 0}</td>
+                          <td>{row.transportScore || 0}</td>
                         </tr>
                       ))}
                     </tbody>

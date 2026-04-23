@@ -113,12 +113,18 @@ func TestRecordProxyRotationScrubsCredentials(t *testing.T) {
 	}
 	extensions.Registry.SetSentinel(fake)
 
-	err := RecordProxyRotation(context.Background(), proxy.RotationEvent{
+	err := RecordProxyRotationWithScope(context.Background(), proxy.RotationEvent{
 		AgentID:       "agent-1",
 		Reason:        "rate_limit",
 		PreviousProxy: "http://user:pass@old.example:8080",
 		NewProxy:      "http://user:pass@new.example:8080",
 		Timestamp:     time.Unix(1713830400, 0).UTC(),
+	}, extensions.SentinelScope{
+		AgentID:   "agent-1",
+		ContextID: "ctx-1",
+		SessionID: "session-1",
+		Domain:    "example.com",
+		URL:       "https://example.com/products/1",
 	})
 	if err != nil {
 		t.Fatalf("RecordProxyRotation: %v", err)
@@ -133,6 +139,9 @@ func TestRecordProxyRotationScrubsCredentials(t *testing.T) {
 	}
 	if got := events[0].Attributes["new_proxy"]; got != "new.example:8080" {
 		t.Fatalf("new_proxy = %q", got)
+	}
+	if events[0].Scope.ContextID != "ctx-1" || events[0].Scope.SessionID != "session-1" || events[0].Scope.Domain != "example.com" {
+		t.Fatalf("scope = %+v", events[0].Scope)
 	}
 	if events[0].Attributes["variant_bundle_id"] != "control" || events[0].Attributes["trust_recipe_id"] != "baseline-warmup" {
 		t.Fatalf("attrs = %+v", events[0].Attributes)

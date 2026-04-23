@@ -282,6 +282,7 @@ type FakeSentinelProvider struct {
 	TrustActivity      []extensions.SentinelTrustActivitySummary
 	TrustEffectiveness []extensions.SentinelTrustEffectivenessSummary
 	MaturityEvidence   []extensions.SentinelMaturityEvidenceSummary
+	TransportEvidence  []extensions.SentinelTransportEvidenceSummary
 	SitePressure       []extensions.SentinelSitePressureSummary
 	PatchQueue         []extensions.SentinelPatchCandidate
 	ExperimentBoard    []extensions.SentinelExperimentSummary
@@ -378,6 +379,13 @@ func (f *FakeSentinelProvider) SetMaturityEvidence(v []extensions.SentinelMaturi
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.MaturityEvidence = append([]extensions.SentinelMaturityEvidenceSummary(nil), v...)
+}
+
+// SetTransportEvidence replaces the canned transport-evidence rows under the write lock.
+func (f *FakeSentinelProvider) SetTransportEvidence(v []extensions.SentinelTransportEvidenceSummary) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.TransportEvidence = append([]extensions.SentinelTransportEvidenceSummary(nil), v...)
 }
 
 // SetSitePressure replaces the canned site pressure rows under the write lock.
@@ -521,6 +529,15 @@ func (f *FakeSentinelProvider) SummarizeMaturityEvidence(ctx context.Context) ([
 	defer f.mu.RUnlock()
 	out := make([]extensions.SentinelMaturityEvidenceSummary, len(f.MaturityEvidence))
 	copy(out, f.MaturityEvidence)
+	return out, nil
+}
+
+// SummarizeTransportEvidence returns a copy of the canned transport-evidence rows.
+func (f *FakeSentinelProvider) SummarizeTransportEvidence(ctx context.Context) ([]extensions.SentinelTransportEvidenceSummary, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make([]extensions.SentinelTransportEvidenceSummary, len(f.TransportEvidence))
+	copy(out, f.TransportEvidence)
 	return out, nil
 }
 

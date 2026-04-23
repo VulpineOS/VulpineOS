@@ -132,6 +132,37 @@ func logSentinelRuntimeStatus(audit *runtimeaudit.Manager) {
 	}
 }
 
+func sentinelScopeForAgent(v *vault.DB, contexts *remote.ContextRegistry, agentID string) extensions.SentinelScope {
+	scope := extensions.SentinelScope{AgentID: agentID}
+	if v == nil || agentID == "" {
+		return scope
+	}
+	agent, err := v.GetAgent(agentID)
+	if err != nil {
+		return scope
+	}
+	meta, err := vault.ParseAgentMetadata(agent.Metadata)
+	if err != nil {
+		return scope
+	}
+	scope.ContextID = meta.ContextID
+	if contexts == nil || meta.ContextID == "" {
+		return scope
+	}
+	scope.SessionID = contexts.SessionForContext(meta.ContextID)
+	for _, info := range contexts.List() {
+		if info.ID != meta.ContextID {
+			continue
+		}
+		scope.URL = info.LastURL
+		if parsed, err := url.Parse(info.LastURL); err == nil {
+			scope.Domain = parsed.Hostname()
+		}
+		break
+	}
+	return scope
+}
+
 func startLocalSessionLogging(baseDir string) (restore func(), path string) {
 	prevWriter := log.Writer()
 	prevFlags := log.Flags()
@@ -1090,12 +1121,12 @@ func runServe(binaryPath string, headless bool, profileDir string, host string, 
 		}
 	}
 
+	contexts := remote.NewContextRegistry()
 	// Create proxy rotator
 	rotator := proxy.NewRotator()
 	rotator.SetObserver(func(event proxy.RotationEvent) {
-		_ = sentinelcapture.RecordProxyRotation(context.Background(), event)
+		_ = sentinelcapture.RecordProxyRotationWithScope(context.Background(), event, sentinelScopeForAgent(v, contexts, event.AgentID))
 	})
-	contexts := remote.NewContextRegistry()
 
 	addr := fmt.Sprintf("%s:%d", host, port)
 	server := remote.NewServer(addr, apiKey, client)

@@ -43,6 +43,7 @@ type SentinelProvider interface {
 	SummarizeTrustActivity(ctx context.Context) ([]SentinelTrustActivitySummary, error)
 	SummarizeTrustEffectiveness(ctx context.Context) ([]SentinelTrustEffectivenessSummary, error)
 	SummarizeMaturityEvidence(ctx context.Context) ([]SentinelMaturityEvidenceSummary, error)
+	SummarizeTransportEvidence(ctx context.Context) ([]SentinelTransportEvidenceSummary, error)
 	SummarizeSitePressure(ctx context.Context) ([]SentinelSitePressureSummary, error)
 	SummarizePatchQueue(ctx context.Context) ([]SentinelPatchCandidate, error)
 	SummarizeExperiments(ctx context.Context) ([]SentinelExperimentSummary, error)
@@ -352,6 +353,25 @@ type SentinelMaturityEvidenceSummary struct {
 	LastSeenAt         time.Time `json:"lastSeenAt,omitempty"`
 }
 
+// SentinelTransportEvidenceSummary groups transport-observation churn
+// with downstream challenge outcomes so proxy and route instability can
+// be compared against domain-specific trust work.
+type SentinelTransportEvidenceSummary struct {
+	Domain             string    `json:"domain,omitempty"`
+	VariantBundleID    string    `json:"variantBundleId,omitempty"`
+	TrustRecipeID      string    `json:"trustRecipeId,omitempty"`
+	SessionCount       int       `json:"sessionCount"`
+	RotationCount      int       `json:"rotationCount"`
+	SoftChallengeCount int       `json:"softChallengeCount"`
+	HardChallengeCount int       `json:"hardChallengeCount"`
+	BlockCount         int       `json:"blockCount"`
+	TransportScore     int       `json:"transportScore"`
+	Reasons            []string  `json:"reasons,omitempty"`
+	ProxyEndpoints     []string  `json:"proxyEndpoints,omitempty"`
+	ChallengeVendors   []string  `json:"challengeVendors,omitempty"`
+	LastSeenAt         time.Time `json:"lastSeenAt,omitempty"`
+}
+
 var defaultSentinelProvider SentinelProvider = noopSentinelProvider{}
 
 type noopSentinelProvider struct{}
@@ -409,6 +429,10 @@ func (noopSentinelProvider) SummarizeTrustEffectiveness(ctx context.Context) ([]
 }
 
 func (noopSentinelProvider) SummarizeMaturityEvidence(ctx context.Context) ([]SentinelMaturityEvidenceSummary, error) {
+	return nil, ErrUnavailable
+}
+
+func (noopSentinelProvider) SummarizeTransportEvidence(ctx context.Context) ([]SentinelTransportEvidenceSummary, error) {
 	return nil, ErrUnavailable
 }
 

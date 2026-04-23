@@ -62,16 +62,26 @@ func RecordMonitorAlert(ctx context.Context, alert monitor.Alert) error {
 // RecordProxyRotation writes a transport-observation event for a
 // successful proxy transition.
 func RecordProxyRotation(ctx context.Context, event proxy.RotationEvent) error {
+	return RecordProxyRotationWithScope(ctx, event, extensions.SentinelScope{AgentID: event.AgentID})
+}
+
+// RecordProxyRotationWithScope writes a transport-observation event for
+// a successful proxy transition using any known agent/session/context
+// scope gathered by the caller.
+func RecordProxyRotationWithScope(ctx context.Context, event proxy.RotationEvent, scope extensions.SentinelScope) error {
 	attributes := withExperimentDefaults(ctx, map[string]string{
 		"reason":         event.Reason,
 		"previous_proxy": scrubProxyEndpoint(event.PreviousProxy),
 		"new_proxy":      scrubProxyEndpoint(event.NewProxy),
 	})
+	if scope.AgentID == "" {
+		scope.AgentID = event.AgentID
+	}
 	return recordEvent(ctx, extensions.SentinelEvent{
 		Kind:       extensions.SentinelEventKindTransportObservation,
 		Source:     "proxy",
 		Name:       "proxy.rotate",
-		Scope:      extensions.SentinelScope{AgentID: event.AgentID},
+		Scope:      scope,
 		Attributes: attributes,
 		Timestamp:  event.Timestamp.UTC(),
 	})

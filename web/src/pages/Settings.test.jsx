@@ -123,6 +123,18 @@ describe('Settings page', () => {
               blockCount: 0,
               maturityScore: 10,
             }],
+            transportEvidence: [{
+              domain: 'example.com',
+              variantBundleId: 'control',
+              trustRecipeId: 'baseline-warmup',
+              rotationCount: 2,
+              reasons: ['rate_limit'],
+              proxyEndpoints: ['old.example:8080', 'new.example:8080'],
+              softChallengeCount: 1,
+              hardChallengeCount: 1,
+              blockCount: 0,
+              transportScore: 10,
+            }],
             sitePressure: [{
               domain: 'example.com',
               challengeVendor: 'cloudflare',
@@ -209,6 +221,7 @@ describe('Settings page', () => {
     expect(screen.getByText('WARMING')).toBeInTheDocument()
     expect(screen.getByText('Trust effectiveness')).toBeInTheDocument()
     expect(screen.getByText('Maturity evidence')).toBeInTheDocument()
+    expect(screen.getByText('Transport evidence')).toBeInTheDocument()
     expect(screen.getByText('Patch queue')).toBeInTheDocument()
     expect(screen.getByText('Review canvas surface coherence and pixel-read behavior.')).toBeInTheDocument()
     expect(screen.getByText('HIGH')).toBeInTheDocument()
