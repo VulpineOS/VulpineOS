@@ -302,6 +302,7 @@ type FakeSentinelProvider struct {
 	PatchInvestment           []extensions.SentinelPatchInvestmentSummary
 	SurfaceHotspots           []extensions.SentinelSurfaceHotspotSummary
 	SurfaceEffectiveness      []extensions.SentinelSurfaceEffectivenessSummary
+	SurfaceStrategy           []extensions.SentinelSurfaceStrategySummary
 	ExperimentBoard           []extensions.SentinelExperimentSummary
 	Events                    []extensions.SentinelEvent
 	Outcomes                  []extensions.SentinelOutcome
@@ -529,6 +530,13 @@ func (f *FakeSentinelProvider) SetSurfaceEffectiveness(v []extensions.SentinelSu
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.SurfaceEffectiveness = append([]extensions.SentinelSurfaceEffectivenessSummary(nil), v...)
+}
+
+// SetSurfaceStrategy replaces the canned surface-strategy rows.
+func (f *FakeSentinelProvider) SetSurfaceStrategy(v []extensions.SentinelSurfaceStrategySummary) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.SurfaceStrategy = append([]extensions.SentinelSurfaceStrategySummary(nil), v...)
 }
 
 // SetExperimentBoard replaces the canned experiment summary rows.
@@ -838,6 +846,15 @@ func (f *FakeSentinelProvider) SummarizeSurfaceEffectiveness(ctx context.Context
 	defer f.mu.RUnlock()
 	out := make([]extensions.SentinelSurfaceEffectivenessSummary, len(f.SurfaceEffectiveness))
 	copy(out, f.SurfaceEffectiveness)
+	return out, nil
+}
+
+// SummarizeSurfaceStrategy returns a copy of the canned surface-strategy rows.
+func (f *FakeSentinelProvider) SummarizeSurfaceStrategy(ctx context.Context) ([]extensions.SentinelSurfaceStrategySummary, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make([]extensions.SentinelSurfaceStrategySummary, len(f.SurfaceStrategy))
+	copy(out, f.SurfaceStrategy)
 	return out, nil
 }
 

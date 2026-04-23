@@ -465,6 +465,33 @@ describe("Settings page", () => {
                 confidence: "medium",
               },
             ],
+            surfaceStrategy: [
+              {
+                probeType: "canvas_probe",
+                api: "toDataURL",
+                familyCount: 2,
+                vendorFamilies: ["cloudflare", "datadome"],
+                domainCount: 2,
+                sampleDomains: ["example.com", "shop.example.com"],
+                armCount: 2,
+                patchPressureScore: 18,
+                peakArmPressureScore: 20,
+                worstChallengeRatePct: 100,
+                bestSuccessRatePct: 100,
+                patchBrowserCount: 1,
+                tuneArmCount: 0,
+                candidateWinnerCount: 1,
+                collectMoreCount: 0,
+                observeCount: 0,
+                leadingVariantBundleId: "control",
+                leadingTrustRecipeId: "baseline-warmup",
+                leadingRecommendation: "candidate-winner",
+                nextAction: "patch-browser",
+                reason:
+                  "pressure spans multiple families and at least one arm still points back to browser-surface work",
+                confidence: "high",
+              },
+            ],
             experimentSummary: [
               {
                 variantBundleId: "control",
@@ -593,6 +620,15 @@ describe("Settings page", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("100% challenge / 20")).toBeInTheDocument();
     expect(screen.getByText("PATCH-BROWSER · MEDIUM")).toBeInTheDocument();
+    expect(screen.getByText("Surface strategy board")).toBeInTheDocument();
+    expect(screen.getByText("18 patch / 20 arm")).toBeInTheDocument();
+    expect(
+      screen.getAllByText("Control / Baseline warmup").length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getByText("1 patch · 0 tune · 1 promote"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("PATCH-BROWSER · HIGH")).toBeInTheDocument();
     expect(screen.getByText("Recent capture timeline")).toBeInTheDocument();
     expect(
       screen.getByText("example.com · 1 events · 1 outcomes"),
