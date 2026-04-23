@@ -1206,6 +1206,7 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 		"stageSummary":              []extensions.SentinelStageSummary{},
 		"assignmentRecommendations": []extensions.SentinelAssignmentRecommendation{},
 		"canarySummary":             []extensions.SentinelCanarySummary{},
+		"variantCompareSummary":     []extensions.SentinelVariantCompareSummary{},
 		"sitePressure":              []extensions.SentinelSitePressureSummary{},
 		"patchQueue":                []extensions.SentinelPatchCandidate{},
 		"experimentSummary":         []extensions.SentinelExperimentSummary{},
@@ -1281,6 +1282,10 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
+	variantCompareSummary, err := provider.SummarizeVariantCompare(context.Background())
+	if err != nil {
+		return nil, err
+	}
 	sitePressure, err := provider.SummarizeSitePressure(context.Background())
 	if err != nil {
 		return nil, err
@@ -1309,6 +1314,7 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 	out["stageSummary"] = stageSummary
 	out["assignmentRecommendations"] = assignmentRecommendations
 	out["canarySummary"] = canarySummary
+	out["variantCompareSummary"] = variantCompareSummary
 	out["sitePressure"] = sitePressure
 	out["patchQueue"] = patchQueue
 	out["experimentSummary"] = experimentSummary

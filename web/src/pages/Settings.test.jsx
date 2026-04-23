@@ -192,6 +192,22 @@ describe('Settings page', () => {
               regressionDelta: -3,
               regressed: true,
             }],
+            variantCompareSummary: [{
+              domain: 'example.com',
+              variantBundleId: 'returning-visitor',
+              trustRecipeId: 'returning-visitor',
+              sessionCount: 4,
+              successCount: 2,
+              degradedCount: 0,
+              softCount: 1,
+              hardCount: 1,
+              blockCount: 0,
+              burnCount: 0,
+              totalOutcomes: 4,
+              pressureScore: 12,
+              canaryStatus: 'regressed',
+              latestOutcome: 'hard_challenge',
+            }],
             coherenceDiff: [{
               domain: 'example.com',
               variantBundleId: 'authority-ramp',
@@ -276,6 +292,8 @@ describe('Settings page', () => {
     expect(screen.getByText('warm 1800 seconds')).toBeInTheDocument()
     expect(screen.getByText('Experiment board')).toBeInTheDocument()
     expect(screen.getAllByText('Baseline warmup').length).toBeGreaterThan(0)
+    expect(screen.getByText('Variant compare board')).toBeInTheDocument()
+    expect(screen.getByText('REGRESSED · HARD_CHALLENGE')).toBeInTheDocument()
     expect(screen.getByText('Recent capture timeline')).toBeInTheDocument()
     expect(screen.getByText('example.com · 1 events · 1 outcomes')).toBeInTheDocument()
     expect(screen.getByText('browser_probe · canvas.toDataURL · seen 2 sessions · 2 days · gap 12.0h · Control / Baseline warmup')).toBeInTheDocument()

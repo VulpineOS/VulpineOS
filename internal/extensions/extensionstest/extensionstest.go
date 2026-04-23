@@ -288,6 +288,7 @@ type FakeSentinelProvider struct {
 	StageSummary              []extensions.SentinelStageSummary
 	AssignmentRecommendations []extensions.SentinelAssignmentRecommendation
 	CanarySummary             []extensions.SentinelCanarySummary
+	VariantCompareSummary     []extensions.SentinelVariantCompareSummary
 	SitePressure              []extensions.SentinelSitePressureSummary
 	PatchQueue                []extensions.SentinelPatchCandidate
 	ExperimentBoard           []extensions.SentinelExperimentSummary
@@ -419,6 +420,13 @@ func (f *FakeSentinelProvider) SetCanarySummary(v []extensions.SentinelCanarySum
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.CanarySummary = append([]extensions.SentinelCanarySummary(nil), v...)
+}
+
+// SetVariantCompareSummary replaces the canned variant-compare rows.
+func (f *FakeSentinelProvider) SetVariantCompareSummary(v []extensions.SentinelVariantCompareSummary) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.VariantCompareSummary = append([]extensions.SentinelVariantCompareSummary(nil), v...)
 }
 
 // SetSitePressure replaces the canned site pressure rows under the write lock.
@@ -616,6 +624,15 @@ func (f *FakeSentinelProvider) SummarizeCanaries(ctx context.Context) ([]extensi
 	defer f.mu.RUnlock()
 	out := make([]extensions.SentinelCanarySummary, len(f.CanarySummary))
 	copy(out, f.CanarySummary)
+	return out, nil
+}
+
+// SummarizeVariantCompare returns a copy of the canned compare rows.
+func (f *FakeSentinelProvider) SummarizeVariantCompare(ctx context.Context) ([]extensions.SentinelVariantCompareSummary, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make([]extensions.SentinelVariantCompareSummary, len(f.VariantCompareSummary))
+	copy(out, f.VariantCompareSummary)
 	return out, nil
 }
 

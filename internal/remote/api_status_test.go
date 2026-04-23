@@ -246,6 +246,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		CanarySummary: []extensions.SentinelCanarySummary{
 			{Domain: "example.com", VariantBundleID: "control", TrustRecipeID: "baseline-warmup", CanarySessionCount: 4, LatestOutcome: extensions.SentinelOutcomeHardChallenge, LatestRecommendationAction: "rotate", ChallengeFreeStreak: 0, RegressionDelta: -3, Regressed: true},
 		},
+		VariantCompareSummary: []extensions.SentinelVariantCompareSummary{
+			{Domain: "example.com", VariantBundleID: "returning-visitor", TrustRecipeID: "returning-visitor", SessionCount: 4, SuccessCount: 2, SoftCount: 1, HardCount: 1, TotalOutcomes: 4, PressureScore: 12, CanaryStatus: "regressed", LatestOutcome: extensions.SentinelOutcomeHardChallenge},
+		},
 		SitePressure: []extensions.SentinelSitePressureSummary{
 			{Domain: "example.com", ChallengeVendor: "cloudflare", ProbeCount: 2, SessionCount: 2, SoftChallengeCount: 1, SuccessCount: 1, TotalOutcomes: 2, PressureScore: 6},
 		},
@@ -295,6 +298,7 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		StageSummary              []extensions.SentinelStageSummary              `json:"stageSummary"`
 		AssignmentRecommendations []extensions.SentinelAssignmentRecommendation  `json:"assignmentRecommendations"`
 		CanarySummary             []extensions.SentinelCanarySummary             `json:"canarySummary"`
+		VariantCompareSummary     []extensions.SentinelVariantCompareSummary     `json:"variantCompareSummary"`
 		SitePressure              []extensions.SentinelSitePressureSummary       `json:"sitePressure"`
 		PatchQueue                []extensions.SentinelPatchCandidate            `json:"patchQueue"`
 		ExperimentSummary         []extensions.SentinelExperimentSummary         `json:"experimentSummary"`
@@ -352,6 +356,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	}
 	if len(result.CanarySummary) != 1 || !result.CanarySummary[0].Regressed {
 		t.Fatalf("canarySummary = %+v", result.CanarySummary)
+	}
+	if len(result.VariantCompareSummary) != 1 || result.VariantCompareSummary[0].CanaryStatus != "regressed" {
+		t.Fatalf("variantCompareSummary = %+v", result.VariantCompareSummary)
 	}
 	if len(result.SitePressure) != 1 || result.SitePressure[0].ChallengeVendor != "cloudflare" {
 		t.Fatalf("sitePressure = %+v", result.SitePressure)

@@ -49,6 +49,7 @@ type SentinelProvider interface {
 	SummarizeStages(ctx context.Context) ([]SentinelStageSummary, error)
 	SummarizeAssignmentRecommendations(ctx context.Context) ([]SentinelAssignmentRecommendation, error)
 	SummarizeCanaries(ctx context.Context) ([]SentinelCanarySummary, error)
+	SummarizeVariantCompare(ctx context.Context) ([]SentinelVariantCompareSummary, error)
 	SummarizeSitePressure(ctx context.Context) ([]SentinelSitePressureSummary, error)
 	SummarizePatchQueue(ctx context.Context) ([]SentinelPatchCandidate, error)
 	SummarizeExperiments(ctx context.Context) ([]SentinelExperimentSummary, error)
@@ -475,6 +476,24 @@ type SentinelCanarySummary struct {
 	LastSeenAt                 time.Time `json:"lastSeenAt,omitempty"`
 }
 
+type SentinelVariantCompareSummary struct {
+	Domain          string    `json:"domain,omitempty"`
+	VariantBundleID string    `json:"variantBundleId,omitempty"`
+	TrustRecipeID   string    `json:"trustRecipeId,omitempty"`
+	SessionCount    int       `json:"sessionCount"`
+	SuccessCount    int       `json:"successCount"`
+	DegradedCount   int       `json:"degradedCount"`
+	SoftCount       int       `json:"softCount"`
+	HardCount       int       `json:"hardCount"`
+	BlockCount      int       `json:"blockCount"`
+	BurnCount       int       `json:"burnCount"`
+	TotalOutcomes   int       `json:"totalOutcomes"`
+	PressureScore   int       `json:"pressureScore"`
+	CanaryStatus    string    `json:"canaryStatus,omitempty"`
+	LatestOutcome   string    `json:"latestOutcome,omitempty"`
+	LastSeenAt      time.Time `json:"lastSeenAt,omitempty"`
+}
+
 var defaultSentinelProvider SentinelProvider = noopSentinelProvider{}
 
 type noopSentinelProvider struct{}
@@ -556,6 +575,10 @@ func (noopSentinelProvider) SummarizeAssignmentRecommendations(ctx context.Conte
 }
 
 func (noopSentinelProvider) SummarizeCanaries(ctx context.Context) ([]SentinelCanarySummary, error) {
+	return nil, ErrUnavailable
+}
+
+func (noopSentinelProvider) SummarizeVariantCompare(ctx context.Context) ([]SentinelVariantCompareSummary, error) {
 	return nil, ErrUnavailable
 }
 

@@ -262,6 +262,7 @@ The panel now also includes:
 - **Settings** recent Sentinel capture timelines grouped by session with raw evidence rows and explicit variant/trust assignment tags
 - **Settings** Sentinel probe summary table grouped by domain, script, probe family, and API so operator triage stays ranked instead of purely chronological
 - **Settings** Sentinel experiment board grouped by variant bundle and trust recipe so trust-building holdouts can be compared directly
+- **Settings** Sentinel variant compare board grouped by domain, variant bundle, and trust recipe so assignment performance stays comparable within each target
 - **Settings** Sentinel stage board grouped by domain, variant bundle, and trust recipe so inferred maturity and assignment-rule fit stay explicit
 - **Settings** Sentinel assignment recommendation board grouped by domain, variant bundle, and trust recipe so the next hold/promote/demote/rotate/quarantine action stays explicit
 - **Settings** Sentinel canary board grouped by domain, variant bundle, and trust recipe so benchmark regressions stay visible before broader rollout
@@ -276,6 +277,7 @@ The panel now also includes:
 - Sentinel capture timelines now ingest page-level browser probe evidence (canvas, WebGL, audio, navigator, media-device, permissions, screen, and Intl reads), trust-warming lifecycle events with prior-domain revisit evidence, trust-asset carry-forward snapshots from persisted cookie/storage state, provider-ready lifecycle signals, monitor-detected rate-limit/captcha/block alerts, and proxy-rotation transport observations with agent/context/session scope during normal runtime flow, and carry explicit experiment-assignment tags when available
 - The Sentinel assignment recommendation board combines stage, coherence, trust-asset carry-forward, and recent challenge pressure into concrete next actions for each domain plus variant plus trust pairing
 - The Sentinel canary board compares recent grouped outcomes against each row's own prior benchmark window so regressions surface before broader promotion decisions
+- The Sentinel variant compare board keeps per-domain assignment rows together while ranking the worst current pressure first, so A/B trust work stays comparable within each target
 - **Agent Detail** controls for per-agent budget overrides, recording export, and fingerprint regeneration
 - **Proxies** controls for persisted per-agent rotation rules
 - **Scripts** execution against a real browser context through the server-side scripting engine
