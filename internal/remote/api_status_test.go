@@ -243,6 +243,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		AssignmentRecommendations: []extensions.SentinelAssignmentRecommendation{
 			{Domain: "example.com", VariantBundleID: "control", TrustRecipeID: "baseline-warmup", CurrentStage: "warm", Action: "promote", TargetVariantBundleID: "returning-visitor", TargetTrustRecipeID: "returning-visitor", Reason: "warm evidence now supports the returning-visitor path", Priority: "high", Score: 10},
 		},
+		CanarySummary: []extensions.SentinelCanarySummary{
+			{Domain: "example.com", VariantBundleID: "control", TrustRecipeID: "baseline-warmup", CanarySessionCount: 4, LatestOutcome: extensions.SentinelOutcomeHardChallenge, LatestRecommendationAction: "rotate", ChallengeFreeStreak: 0, RegressionDelta: -3, Regressed: true},
+		},
 		SitePressure: []extensions.SentinelSitePressureSummary{
 			{Domain: "example.com", ChallengeVendor: "cloudflare", ProbeCount: 2, SessionCount: 2, SoftChallengeCount: 1, SuccessCount: 1, TotalOutcomes: 2, PressureScore: 6},
 		},
@@ -291,6 +294,7 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		CoherenceDiff             []extensions.SentinelCoherenceDiffSummary      `json:"coherenceDiff"`
 		StageSummary              []extensions.SentinelStageSummary              `json:"stageSummary"`
 		AssignmentRecommendations []extensions.SentinelAssignmentRecommendation  `json:"assignmentRecommendations"`
+		CanarySummary             []extensions.SentinelCanarySummary             `json:"canarySummary"`
 		SitePressure              []extensions.SentinelSitePressureSummary       `json:"sitePressure"`
 		PatchQueue                []extensions.SentinelPatchCandidate            `json:"patchQueue"`
 		ExperimentSummary         []extensions.SentinelExperimentSummary         `json:"experimentSummary"`
@@ -345,6 +349,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	}
 	if len(result.AssignmentRecommendations) != 1 || result.AssignmentRecommendations[0].Action != "promote" {
 		t.Fatalf("assignmentRecommendations = %+v", result.AssignmentRecommendations)
+	}
+	if len(result.CanarySummary) != 1 || !result.CanarySummary[0].Regressed {
+		t.Fatalf("canarySummary = %+v", result.CanarySummary)
 	}
 	if len(result.SitePressure) != 1 || result.SitePressure[0].ChallengeVendor != "cloudflare" {
 		t.Fatalf("sitePressure = %+v", result.SitePressure)

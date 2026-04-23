@@ -181,6 +181,17 @@ describe('Settings page', () => {
               priority: 'high',
               score: 10,
             }],
+            canarySummary: [{
+              domain: 'example.com',
+              variantBundleId: 'control',
+              trustRecipeId: 'baseline-warmup',
+              canarySessionCount: 4,
+              latestOutcome: 'hard_challenge',
+              latestRecommendationAction: 'rotate',
+              challengeFreeStreak: 0,
+              regressionDelta: -3,
+              regressed: true,
+            }],
             coherenceDiff: [{
               domain: 'example.com',
               variantBundleId: 'authority-ramp',
@@ -285,6 +296,9 @@ describe('Settings page', () => {
     expect(screen.getByText('needs presence across 3 days')).toBeInTheDocument()
     expect(screen.getByText('Assignment recommendations')).toBeInTheDocument()
     expect(screen.getByText('warm evidence now supports the returning-visitor path')).toBeInTheDocument()
+    expect(screen.getByText('Canary board')).toBeInTheDocument()
+    expect(screen.getByText('REGRESSED')).toBeInTheDocument()
+    expect(screen.getByText('ROTATE')).toBeInTheDocument()
     expect(screen.getByText('Transport evidence')).toBeInTheDocument()
     expect(screen.getByText('Coherence diff')).toBeInTheDocument()
     expect(screen.getByText('warm recipe on cold identity | route churn on supposedly stable identity')).toBeInTheDocument()

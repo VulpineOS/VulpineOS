@@ -287,6 +287,7 @@ type FakeSentinelProvider struct {
 	CoherenceDiff             []extensions.SentinelCoherenceDiffSummary
 	StageSummary              []extensions.SentinelStageSummary
 	AssignmentRecommendations []extensions.SentinelAssignmentRecommendation
+	CanarySummary             []extensions.SentinelCanarySummary
 	SitePressure              []extensions.SentinelSitePressureSummary
 	PatchQueue                []extensions.SentinelPatchCandidate
 	ExperimentBoard           []extensions.SentinelExperimentSummary
@@ -411,6 +412,13 @@ func (f *FakeSentinelProvider) SetAssignmentRecommendations(v []extensions.Senti
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.AssignmentRecommendations = append([]extensions.SentinelAssignmentRecommendation(nil), v...)
+}
+
+// SetCanarySummary replaces the canned canary rows.
+func (f *FakeSentinelProvider) SetCanarySummary(v []extensions.SentinelCanarySummary) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.CanarySummary = append([]extensions.SentinelCanarySummary(nil), v...)
 }
 
 // SetSitePressure replaces the canned site pressure rows under the write lock.
@@ -599,6 +607,15 @@ func (f *FakeSentinelProvider) SummarizeAssignmentRecommendations(ctx context.Co
 	defer f.mu.RUnlock()
 	out := make([]extensions.SentinelAssignmentRecommendation, len(f.AssignmentRecommendations))
 	copy(out, f.AssignmentRecommendations)
+	return out, nil
+}
+
+// SummarizeCanaries returns a copy of the canned canary rows.
+func (f *FakeSentinelProvider) SummarizeCanaries(ctx context.Context) ([]extensions.SentinelCanarySummary, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make([]extensions.SentinelCanarySummary, len(f.CanarySummary))
+	copy(out, f.CanarySummary)
 	return out, nil
 }
 

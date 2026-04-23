@@ -48,6 +48,7 @@ type SentinelProvider interface {
 	SummarizeCoherenceDiff(ctx context.Context) ([]SentinelCoherenceDiffSummary, error)
 	SummarizeStages(ctx context.Context) ([]SentinelStageSummary, error)
 	SummarizeAssignmentRecommendations(ctx context.Context) ([]SentinelAssignmentRecommendation, error)
+	SummarizeCanaries(ctx context.Context) ([]SentinelCanarySummary, error)
 	SummarizeSitePressure(ctx context.Context) ([]SentinelSitePressureSummary, error)
 	SummarizePatchQueue(ctx context.Context) ([]SentinelPatchCandidate, error)
 	SummarizeExperiments(ctx context.Context) ([]SentinelExperimentSummary, error)
@@ -461,6 +462,19 @@ type SentinelAssignmentRecommendation struct {
 	LastSeenAt            time.Time `json:"lastSeenAt,omitempty"`
 }
 
+type SentinelCanarySummary struct {
+	Domain                     string    `json:"domain,omitempty"`
+	VariantBundleID            string    `json:"variantBundleId,omitempty"`
+	TrustRecipeID              string    `json:"trustRecipeId,omitempty"`
+	CanarySessionCount         int       `json:"canarySessionCount"`
+	LatestOutcome              string    `json:"latestOutcome,omitempty"`
+	LatestRecommendationAction string    `json:"latestRecommendationAction,omitempty"`
+	ChallengeFreeStreak        int       `json:"challengeFreeStreak"`
+	RegressionDelta            int       `json:"regressionDelta"`
+	Regressed                  bool      `json:"regressed"`
+	LastSeenAt                 time.Time `json:"lastSeenAt,omitempty"`
+}
+
 var defaultSentinelProvider SentinelProvider = noopSentinelProvider{}
 
 type noopSentinelProvider struct{}
@@ -538,6 +552,10 @@ func (noopSentinelProvider) SummarizeStages(ctx context.Context) ([]SentinelStag
 }
 
 func (noopSentinelProvider) SummarizeAssignmentRecommendations(ctx context.Context) ([]SentinelAssignmentRecommendation, error) {
+	return nil, ErrUnavailable
+}
+
+func (noopSentinelProvider) SummarizeCanaries(ctx context.Context) ([]SentinelCanarySummary, error) {
 	return nil, ErrUnavailable
 }
 

@@ -4,7 +4,7 @@ export default function Settings({ ws }) {
   const [cfg, setCfg] = useState({})
   const [providers, setProviders] = useState([])
   const [status, setStatus] = useState({})
-  const [sentinel, setSentinel] = useState({ variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], trustAssets: [], maturityEvidence: [], transportEvidence: [], coherenceDiff: [], stageSummary: [], assignmentRecommendations: [], sitePressure: [], patchQueue: [], experimentSummary: [] })
+  const [sentinel, setSentinel] = useState({ variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], trustAssets: [], maturityEvidence: [], transportEvidence: [], coherenceDiff: [], stageSummary: [], assignmentRecommendations: [], canarySummary: [], sitePressure: [], patchQueue: [], experimentSummary: [] })
   const [sentinelTimeline, setSentinelTimeline] = useState([])
   const [defaultBudgetCost, setDefaultBudgetCost] = useState('0')
   const [defaultBudgetTokens, setDefaultBudgetTokens] = useState('0')
@@ -19,7 +19,7 @@ export default function Settings({ ws }) {
       setDefaultBudgetTokens(String(r?.defaultBudgetMaxTokens ?? 0))
     }).catch(() => {})
     ws.call('status.get').then(r => setStatus(r || {})).catch(() => {})
-    ws.call('sentinel.get').then(r => setSentinel(r || { variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], trustAssets: [], maturityEvidence: [], transportEvidence: [], coherenceDiff: [], stageSummary: [], assignmentRecommendations: [], sitePressure: [], patchQueue: [], experimentSummary: [] })).catch(() => {})
+    ws.call('sentinel.get').then(r => setSentinel(r || { variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], trustAssets: [], maturityEvidence: [], transportEvidence: [], coherenceDiff: [], stageSummary: [], assignmentRecommendations: [], canarySummary: [], sitePressure: [], patchQueue: [], experimentSummary: [] })).catch(() => {})
     ws.call('sentinel.timeline', { limit: 4 }).then(r => setSentinelTimeline(r?.sessions || [])).catch(() => {})
   }, [ws.connected])
 
@@ -41,6 +41,7 @@ export default function Settings({ ws }) {
   const sentinelCoherenceDiff = sentinel.coherenceDiff || []
   const sentinelStageSummary = sentinel.stageSummary || []
   const sentinelAssignmentRecommendations = sentinel.assignmentRecommendations || []
+  const sentinelCanarySummary = sentinel.canarySummary || []
   const sentinelSitePressure = sentinel.sitePressure || []
   const sentinelPatchQueue = sentinel.patchQueue || []
   const sentinelExperimentSummary = sentinel.experimentSummary || []
@@ -658,6 +659,42 @@ export default function Settings({ ws }) {
                           <td>{row.targetVariantBundleId || row.targetTrustRecipeId ? `${variantNameFor(row.targetVariantBundleId)} / ${trustNameFor(row.targetTrustRecipeId)}` : 'n/a'}</td>
                           <td>{row.reason || 'none'}</td>
                           <td>{(row.priority || 'low').toUpperCase()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              <div>
+                <h4 style={{ margin: '0 0 10px' }}>Canary board</h4>
+                {sentinelCanarySummary.length === 0 ? (
+                  <div className="empty-state">No canary regressions have been summarized yet.</div>
+                ) : (
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Domain</th>
+                        <th>Current</th>
+                        <th>Sessions</th>
+                        <th>Latest</th>
+                        <th>Quiet streak</th>
+                        <th>Delta</th>
+                        <th>Recommendation</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sentinelCanarySummary.map((row, index) => (
+                        <tr key={`${row.domain || 'domain'}-${row.variantBundleId || 'variant'}-${row.trustRecipeId || 'trust'}-${index}`}>
+                          <td>{row.domain || 'unknown'}</td>
+                          <td>{`${variantNameFor(row.variantBundleId)} / ${trustNameFor(row.trustRecipeId)}`}</td>
+                          <td>{row.canarySessionCount || 0}</td>
+                          <td>{(row.latestOutcome || 'none').toUpperCase()}</td>
+                          <td>{row.challengeFreeStreak || 0}</td>
+                          <td>{row.regressionDelta > 0 ? `+${row.regressionDelta}` : `${row.regressionDelta || 0}`}</td>
+                          <td>{(row.latestRecommendationAction || 'hold').toUpperCase()}</td>
+                          <td>{row.regressed ? 'REGRESSED' : 'STABLE'}</td>
                         </tr>
                       ))}
                     </tbody>
