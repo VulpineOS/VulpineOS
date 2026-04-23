@@ -1188,25 +1188,26 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 		return nil, err
 	}
 	out := map[string]interface{}{
-		"available":          available,
-		"status":             status,
-		"variantBundles":     []extensions.SentinelVariantBundle{},
-		"trustRecipes":       []extensions.SentinelTrustRecipe{},
-		"maturityMetrics":    []extensions.SentinelMaturityMetric{},
-		"assignmentRules":    []extensions.SentinelAssignmentRule{},
-		"outcomeLabels":      []extensions.SentinelOutcomeLabel{},
-		"outcomeSummary":     []extensions.SentinelOutcomeSummary{},
-		"probeSummary":       []extensions.SentinelProbeSummary{},
-		"trustActivity":      []extensions.SentinelTrustActivitySummary{},
-		"trustEffectiveness": []extensions.SentinelTrustEffectivenessSummary{},
-		"trustAssets":        []extensions.SentinelTrustAssetSummary{},
-		"maturityEvidence":   []extensions.SentinelMaturityEvidenceSummary{},
-		"transportEvidence":  []extensions.SentinelTransportEvidenceSummary{},
-		"coherenceDiff":      []extensions.SentinelCoherenceDiffSummary{},
-		"stageSummary":       []extensions.SentinelStageSummary{},
-		"sitePressure":       []extensions.SentinelSitePressureSummary{},
-		"patchQueue":         []extensions.SentinelPatchCandidate{},
-		"experimentSummary":  []extensions.SentinelExperimentSummary{},
+		"available":                 available,
+		"status":                    status,
+		"variantBundles":            []extensions.SentinelVariantBundle{},
+		"trustRecipes":              []extensions.SentinelTrustRecipe{},
+		"maturityMetrics":           []extensions.SentinelMaturityMetric{},
+		"assignmentRules":           []extensions.SentinelAssignmentRule{},
+		"outcomeLabels":             []extensions.SentinelOutcomeLabel{},
+		"outcomeSummary":            []extensions.SentinelOutcomeSummary{},
+		"probeSummary":              []extensions.SentinelProbeSummary{},
+		"trustActivity":             []extensions.SentinelTrustActivitySummary{},
+		"trustEffectiveness":        []extensions.SentinelTrustEffectivenessSummary{},
+		"trustAssets":               []extensions.SentinelTrustAssetSummary{},
+		"maturityEvidence":          []extensions.SentinelMaturityEvidenceSummary{},
+		"transportEvidence":         []extensions.SentinelTransportEvidenceSummary{},
+		"coherenceDiff":             []extensions.SentinelCoherenceDiffSummary{},
+		"stageSummary":              []extensions.SentinelStageSummary{},
+		"assignmentRecommendations": []extensions.SentinelAssignmentRecommendation{},
+		"sitePressure":              []extensions.SentinelSitePressureSummary{},
+		"patchQueue":                []extensions.SentinelPatchCandidate{},
+		"experimentSummary":         []extensions.SentinelExperimentSummary{},
 	}
 	if !available {
 		return json.Marshal(out)
@@ -1271,6 +1272,10 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
+	assignmentRecommendations, err := provider.SummarizeAssignmentRecommendations(context.Background())
+	if err != nil {
+		return nil, err
+	}
 	sitePressure, err := provider.SummarizeSitePressure(context.Background())
 	if err != nil {
 		return nil, err
@@ -1297,6 +1302,7 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 	out["transportEvidence"] = transportEvidence
 	out["coherenceDiff"] = coherenceDiff
 	out["stageSummary"] = stageSummary
+	out["assignmentRecommendations"] = assignmentRecommendations
 	out["sitePressure"] = sitePressure
 	out["patchQueue"] = patchQueue
 	out["experimentSummary"] = experimentSummary

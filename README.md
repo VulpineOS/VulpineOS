@@ -263,6 +263,7 @@ The panel now also includes:
 - **Settings** Sentinel probe summary table grouped by domain, script, probe family, and API so operator triage stays ranked instead of purely chronological
 - **Settings** Sentinel experiment board grouped by variant bundle and trust recipe so trust-building holdouts can be compared directly
 - **Settings** Sentinel stage board grouped by domain, variant bundle, and trust recipe so inferred maturity and assignment-rule fit stay explicit
+- **Settings** Sentinel assignment recommendation board grouped by domain, variant bundle, and trust recipe so the next hold/promote/demote/rotate/quarantine action stays explicit
 - **Settings** Sentinel site-pressure board grouped by domain and challenge vendor so target-specific trust work stays ranked
 - **Settings** Sentinel trust-activity board grouped by domain and state so warmup coverage can be compared directly
 - **Settings** Sentinel trust-effectiveness board grouped by domain, variant bundle, and trust recipe so warming effort can be compared against actual outcomes
@@ -272,6 +273,7 @@ The panel now also includes:
 - **Settings** Sentinel coherence-diff board grouped by domain, variant bundle, and trust recipe so identity-state and route invariants stay ranked
 - **Settings** Sentinel patch queue ranked by browser-probe pressure and recent challenge outcomes so the next browser-surface fixes stay explicit
 - Sentinel capture timelines now ingest page-level browser probe evidence (canvas, WebGL, audio, navigator, media-device, permissions, screen, and Intl reads), trust-warming lifecycle events with prior-domain revisit evidence, trust-asset carry-forward snapshots from persisted cookie/storage state, provider-ready lifecycle signals, monitor-detected rate-limit/captcha/block alerts, and proxy-rotation transport observations with agent/context/session scope during normal runtime flow, and carry explicit experiment-assignment tags when available
+- The Sentinel assignment recommendation board combines stage, coherence, trust-asset carry-forward, and recent challenge pressure into concrete next actions for each domain plus variant plus trust pairing
 - **Agent Detail** controls for per-agent budget overrides, recording export, and fingerprint regeneration
 - **Proxies** controls for persisted per-agent rotation rules
 - **Scripts** execution against a real browser context through the server-side scripting engine

@@ -47,6 +47,7 @@ type SentinelProvider interface {
 	SummarizeTransportEvidence(ctx context.Context) ([]SentinelTransportEvidenceSummary, error)
 	SummarizeCoherenceDiff(ctx context.Context) ([]SentinelCoherenceDiffSummary, error)
 	SummarizeStages(ctx context.Context) ([]SentinelStageSummary, error)
+	SummarizeAssignmentRecommendations(ctx context.Context) ([]SentinelAssignmentRecommendation, error)
 	SummarizeSitePressure(ctx context.Context) ([]SentinelSitePressureSummary, error)
 	SummarizePatchQueue(ctx context.Context) ([]SentinelPatchCandidate, error)
 	SummarizeExperiments(ctx context.Context) ([]SentinelExperimentSummary, error)
@@ -439,6 +440,27 @@ type SentinelStageSummary struct {
 	LastSeenAt         time.Time `json:"lastSeenAt,omitempty"`
 }
 
+// SentinelAssignmentRecommendation captures the next action Sentinel
+// believes operators should take for a domain plus variant plus trust
+// pairing after combining maturity stage, coherence, and challenge
+// evidence.
+type SentinelAssignmentRecommendation struct {
+	Domain                string    `json:"domain,omitempty"`
+	VariantBundleID       string    `json:"variantBundleId,omitempty"`
+	TrustRecipeID         string    `json:"trustRecipeId,omitempty"`
+	CurrentStage          string    `json:"currentStage,omitempty"`
+	Action                string    `json:"action,omitempty"`
+	TargetVariantBundleID string    `json:"targetVariantBundleId,omitempty"`
+	TargetTrustRecipeID   string    `json:"targetTrustRecipeId,omitempty"`
+	Reason                string    `json:"reason,omitempty"`
+	Priority              string    `json:"priority,omitempty"`
+	Score                 int       `json:"score"`
+	HardChallengeCount    int       `json:"hardChallengeCount"`
+	BlockCount            int       `json:"blockCount"`
+	CoherenceSeverity     string    `json:"coherenceSeverity,omitempty"`
+	LastSeenAt            time.Time `json:"lastSeenAt,omitempty"`
+}
+
 var defaultSentinelProvider SentinelProvider = noopSentinelProvider{}
 
 type noopSentinelProvider struct{}
@@ -512,6 +534,10 @@ func (noopSentinelProvider) SummarizeCoherenceDiff(ctx context.Context) ([]Senti
 }
 
 func (noopSentinelProvider) SummarizeStages(ctx context.Context) ([]SentinelStageSummary, error) {
+	return nil, ErrUnavailable
+}
+
+func (noopSentinelProvider) SummarizeAssignmentRecommendations(ctx context.Context) ([]SentinelAssignmentRecommendation, error) {
 	return nil, ErrUnavailable
 }
 

@@ -4,7 +4,7 @@ export default function Settings({ ws }) {
   const [cfg, setCfg] = useState({})
   const [providers, setProviders] = useState([])
   const [status, setStatus] = useState({})
-  const [sentinel, setSentinel] = useState({ variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], trustAssets: [], maturityEvidence: [], transportEvidence: [], coherenceDiff: [], stageSummary: [], sitePressure: [], patchQueue: [], experimentSummary: [] })
+  const [sentinel, setSentinel] = useState({ variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], trustAssets: [], maturityEvidence: [], transportEvidence: [], coherenceDiff: [], stageSummary: [], assignmentRecommendations: [], sitePressure: [], patchQueue: [], experimentSummary: [] })
   const [sentinelTimeline, setSentinelTimeline] = useState([])
   const [defaultBudgetCost, setDefaultBudgetCost] = useState('0')
   const [defaultBudgetTokens, setDefaultBudgetTokens] = useState('0')
@@ -19,7 +19,7 @@ export default function Settings({ ws }) {
       setDefaultBudgetTokens(String(r?.defaultBudgetMaxTokens ?? 0))
     }).catch(() => {})
     ws.call('status.get').then(r => setStatus(r || {})).catch(() => {})
-    ws.call('sentinel.get').then(r => setSentinel(r || { variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], trustAssets: [], maturityEvidence: [], transportEvidence: [], coherenceDiff: [], stageSummary: [], sitePressure: [], patchQueue: [], experimentSummary: [] })).catch(() => {})
+    ws.call('sentinel.get').then(r => setSentinel(r || { variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], trustAssets: [], maturityEvidence: [], transportEvidence: [], coherenceDiff: [], stageSummary: [], assignmentRecommendations: [], sitePressure: [], patchQueue: [], experimentSummary: [] })).catch(() => {})
     ws.call('sentinel.timeline', { limit: 4 }).then(r => setSentinelTimeline(r?.sessions || [])).catch(() => {})
   }, [ws.connected])
 
@@ -40,6 +40,7 @@ export default function Settings({ ws }) {
   const sentinelTransportEvidence = sentinel.transportEvidence || []
   const sentinelCoherenceDiff = sentinel.coherenceDiff || []
   const sentinelStageSummary = sentinel.stageSummary || []
+  const sentinelAssignmentRecommendations = sentinel.assignmentRecommendations || []
   const sentinelSitePressure = sentinel.sitePressure || []
   const sentinelPatchQueue = sentinel.patchQueue || []
   const sentinelExperimentSummary = sentinel.experimentSummary || []
@@ -623,6 +624,40 @@ export default function Settings({ ws }) {
                           <td>{row.challengeFreeRuns || 0}</td>
                           <td>{row.sessionAgeSeconds ? `${row.sessionAgeSeconds}s` : '0s'}</td>
                           <td>{row.hardChallengeCount || 0}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              <div>
+                <h4 style={{ margin: '0 0 10px' }}>Assignment recommendations</h4>
+                {sentinelAssignmentRecommendations.length === 0 ? (
+                  <div className="empty-state">No assignment recommendations have been derived yet.</div>
+                ) : (
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Domain</th>
+                        <th>Current</th>
+                        <th>Stage</th>
+                        <th>Action</th>
+                        <th>Target</th>
+                        <th>Reason</th>
+                        <th>Priority</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sentinelAssignmentRecommendations.map((row, index) => (
+                        <tr key={`${row.domain || 'domain'}-${row.variantBundleId || 'variant'}-${row.trustRecipeId || 'trust'}-${index}`}>
+                          <td>{row.domain || 'unknown'}</td>
+                          <td>{`${variantNameFor(row.variantBundleId)} / ${trustNameFor(row.trustRecipeId)}`}</td>
+                          <td>{(row.currentStage || 'cold').toUpperCase()}</td>
+                          <td>{(row.action || 'hold').toUpperCase()}</td>
+                          <td>{row.targetVariantBundleId || row.targetTrustRecipeId ? `${variantNameFor(row.targetVariantBundleId)} / ${trustNameFor(row.targetTrustRecipeId)}` : 'n/a'}</td>
+                          <td>{row.reason || 'none'}</td>
+                          <td>{(row.priority || 'low').toUpperCase()}</td>
                         </tr>
                       ))}
                     </tbody>
