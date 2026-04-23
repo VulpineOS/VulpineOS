@@ -267,6 +267,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		VendorRollout: []extensions.SentinelVendorRolloutSummary{
 			{VendorFamily: "cloudflare", LeadingVariantBundleID: "returning-visitor", LeadingTrustRecipeID: "returning-visitor", ControlVariantBundleID: "control", ControlTrustRecipeID: "baseline-warmup", BaselineAvailable: true, ArmCount: 2, LeadingTotalOutcomes: 4, ScoreDelta: 8, SuccessRateDeltaPct: 25, ChallengeRateDeltaPct: -25, Recommendation: "expand", Confidence: "medium", Reason: "family-local uplift beats control with enough evidence to widen the arm"},
 		},
+		TrustPlaybook: []extensions.SentinelTrustPlaybookSummary{
+			{VariantBundleID: "returning-visitor", TrustRecipeID: "returning-visitor", VendorFamilyCount: 2, ExpandCount: 2, AverageScoreDelta: 8, AverageSuccessDeltaPct: 25, AverageChallengeDeltaPct: -25, Recommendation: "double-down", Confidence: "low", VendorFamilies: []string{"cloudflare", "queue-it"}},
+		},
 		SitePressure: []extensions.SentinelSitePressureSummary{
 			{Domain: "example.com", ChallengeVendor: "cloudflare", ProbeCount: 2, SessionCount: 2, SoftChallengeCount: 1, SuccessCount: 1, TotalOutcomes: 2, PressureScore: 6},
 		},
@@ -323,6 +326,7 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		VendorEffectiveness       []extensions.SentinelVendorEffectivenessSummary `json:"vendorEffectiveness"`
 		VendorUplift              []extensions.SentinelVendorUpliftSummary        `json:"vendorUplift"`
 		VendorRollout             []extensions.SentinelVendorRolloutSummary       `json:"vendorRollout"`
+		TrustPlaybook             []extensions.SentinelTrustPlaybookSummary       `json:"trustPlaybook"`
 		SitePressure              []extensions.SentinelSitePressureSummary        `json:"sitePressure"`
 		PatchQueue                []extensions.SentinelPatchCandidate             `json:"patchQueue"`
 		ExperimentSummary         []extensions.SentinelExperimentSummary          `json:"experimentSummary"`
@@ -401,6 +405,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	}
 	if len(result.VendorRollout) != 1 || result.VendorRollout[0].Recommendation != "expand" {
 		t.Fatalf("vendorRollout = %+v", result.VendorRollout)
+	}
+	if len(result.TrustPlaybook) != 1 || result.TrustPlaybook[0].Recommendation != "double-down" {
+		t.Fatalf("trustPlaybook = %+v", result.TrustPlaybook)
 	}
 	if len(result.SitePressure) != 1 || result.SitePressure[0].ChallengeVendor != "cloudflare" {
 		t.Fatalf("sitePressure = %+v", result.SitePressure)

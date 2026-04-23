@@ -277,6 +277,20 @@ describe('Settings page', () => {
               recommendation: 'expand',
               confidence: 'medium',
             }],
+            trustPlaybook: [{
+              variantBundleId: 'returning-visitor',
+              trustRecipeId: 'returning-visitor',
+              vendorFamilyCount: 2,
+              expandCount: 2,
+              holdCount: 0,
+              collectControlCount: 0,
+              rollbackCount: 0,
+              averageScoreDelta: 8,
+              averageSuccessDeltaPct: 25,
+              averageChallengeDeltaPct: -25,
+              recommendation: 'double-down',
+              confidence: 'low',
+            }],
             coherenceDiff: [{
               domain: 'example.com',
               variantBundleId: 'authority-ramp',
@@ -379,6 +393,9 @@ describe('Settings page', () => {
     expect(screen.getAllByText('MEDIUM').length).toBeGreaterThan(0)
     expect(screen.getByText('Vendor rollout board')).toBeInTheDocument()
     expect(screen.getByText('EXPAND')).toBeInTheDocument()
+    expect(screen.getByText('Trust playbook board')).toBeInTheDocument()
+    expect(screen.getByText('DOUBLE-DOWN')).toBeInTheDocument()
+    expect(screen.getByText('LOW')).toBeInTheDocument()
     expect(screen.getByText('Recent capture timeline')).toBeInTheDocument()
     expect(screen.getByText('example.com · 1 events · 1 outcomes')).toBeInTheDocument()
     expect(screen.getByText('browser_probe · canvas.toDataURL · seen 2 sessions · 2 days · gap 12.0h · Control / Baseline warmup')).toBeInTheDocument()

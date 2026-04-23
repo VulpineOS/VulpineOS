@@ -295,6 +295,7 @@ type FakeSentinelProvider struct {
 	VendorEffectiveness       []extensions.SentinelVendorEffectivenessSummary
 	VendorUplift              []extensions.SentinelVendorUpliftSummary
 	VendorRollout             []extensions.SentinelVendorRolloutSummary
+	TrustPlaybook             []extensions.SentinelTrustPlaybookSummary
 	SitePressure              []extensions.SentinelSitePressureSummary
 	PatchQueue                []extensions.SentinelPatchCandidate
 	ExperimentBoard           []extensions.SentinelExperimentSummary
@@ -475,6 +476,13 @@ func (f *FakeSentinelProvider) SetVendorRollout(v []extensions.SentinelVendorRol
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.VendorRollout = append([]extensions.SentinelVendorRolloutSummary(nil), v...)
+}
+
+// SetTrustPlaybook replaces the canned trust-playbook rows.
+func (f *FakeSentinelProvider) SetTrustPlaybook(v []extensions.SentinelTrustPlaybookSummary) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.TrustPlaybook = append([]extensions.SentinelTrustPlaybookSummary(nil), v...)
 }
 
 // SetSitePressure replaces the canned site pressure rows under the write lock.
@@ -735,6 +743,15 @@ func (f *FakeSentinelProvider) SummarizeVendorRollout(ctx context.Context) ([]ex
 	defer f.mu.RUnlock()
 	out := make([]extensions.SentinelVendorRolloutSummary, len(f.VendorRollout))
 	copy(out, f.VendorRollout)
+	return out, nil
+}
+
+// SummarizeTrustPlaybook returns a copy of the canned trust-playbook rows.
+func (f *FakeSentinelProvider) SummarizeTrustPlaybook(ctx context.Context) ([]extensions.SentinelTrustPlaybookSummary, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make([]extensions.SentinelTrustPlaybookSummary, len(f.TrustPlaybook))
+	copy(out, f.TrustPlaybook)
 	return out, nil
 }
 

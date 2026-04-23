@@ -4,7 +4,7 @@ export default function Settings({ ws }) {
   const [cfg, setCfg] = useState({})
   const [providers, setProviders] = useState([])
   const [status, setStatus] = useState({})
-  const [sentinel, setSentinel] = useState({ variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], trustAssets: [], maturityEvidence: [], transportEvidence: [], coherenceDiff: [], stageSummary: [], assignmentRecommendations: [], canarySummary: [], variantCompareSummary: [], siteIntelligenceSummary: [], probeSequenceSummary: [], vendorIntelligenceSummary: [], vendorEffectiveness: [], vendorUplift: [], vendorRollout: [], sitePressure: [], patchQueue: [], experimentSummary: [] })
+  const [sentinel, setSentinel] = useState({ variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], trustAssets: [], maturityEvidence: [], transportEvidence: [], coherenceDiff: [], stageSummary: [], assignmentRecommendations: [], canarySummary: [], variantCompareSummary: [], siteIntelligenceSummary: [], probeSequenceSummary: [], vendorIntelligenceSummary: [], vendorEffectiveness: [], vendorUplift: [], vendorRollout: [], trustPlaybook: [], sitePressure: [], patchQueue: [], experimentSummary: [] })
   const [sentinelTimeline, setSentinelTimeline] = useState([])
   const [defaultBudgetCost, setDefaultBudgetCost] = useState('0')
   const [defaultBudgetTokens, setDefaultBudgetTokens] = useState('0')
@@ -19,7 +19,7 @@ export default function Settings({ ws }) {
       setDefaultBudgetTokens(String(r?.defaultBudgetMaxTokens ?? 0))
     }).catch(() => {})
     ws.call('status.get').then(r => setStatus(r || {})).catch(() => {})
-    ws.call('sentinel.get').then(r => setSentinel(r || { variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], trustAssets: [], maturityEvidence: [], transportEvidence: [], coherenceDiff: [], stageSummary: [], assignmentRecommendations: [], canarySummary: [], variantCompareSummary: [], siteIntelligenceSummary: [], probeSequenceSummary: [], vendorIntelligenceSummary: [], vendorEffectiveness: [], vendorUplift: [], vendorRollout: [], sitePressure: [], patchQueue: [], experimentSummary: [] })).catch(() => {})
+    ws.call('sentinel.get').then(r => setSentinel(r || { variantBundles: [], trustRecipes: [], maturityMetrics: [], assignmentRules: [], outcomeLabels: [], outcomeSummary: [], probeSummary: [], trustActivity: [], trustEffectiveness: [], trustAssets: [], maturityEvidence: [], transportEvidence: [], coherenceDiff: [], stageSummary: [], assignmentRecommendations: [], canarySummary: [], variantCompareSummary: [], siteIntelligenceSummary: [], probeSequenceSummary: [], vendorIntelligenceSummary: [], vendorEffectiveness: [], vendorUplift: [], vendorRollout: [], trustPlaybook: [], sitePressure: [], patchQueue: [], experimentSummary: [] })).catch(() => {})
     ws.call('sentinel.timeline', { limit: 4 }).then(r => setSentinelTimeline(r?.sessions || [])).catch(() => {})
   }, [ws.connected])
 
@@ -49,6 +49,7 @@ export default function Settings({ ws }) {
   const sentinelVendorEffectiveness = sentinel.vendorEffectiveness || []
   const sentinelVendorUplift = sentinel.vendorUplift || []
   const sentinelVendorRollout = sentinel.vendorRollout || []
+  const sentinelTrustPlaybook = sentinel.trustPlaybook || []
   const sentinelSitePressure = sentinel.sitePressure || []
   const sentinelPatchQueue = sentinel.patchQueue || []
   const sentinelExperimentSummary = sentinel.experimentSummary || []
@@ -652,6 +653,50 @@ export default function Settings({ ws }) {
                           <td>{row.scoreDelta || 0}</td>
                           <td>{row.successRateDeltaPct || 0}%</td>
                           <td>{row.challengeRateDeltaPct || 0}%</td>
+                          <td>{(row.recommendation || 'unknown').toUpperCase()}</td>
+                          <td>{(row.confidence || 'unknown').toUpperCase()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              <div>
+                <h4 style={{ margin: '0 0 10px' }}>Trust playbook board</h4>
+                {sentinelTrustPlaybook.length === 0 ? (
+                  <div className="empty-state">No trust playbook has been summarized yet.</div>
+                ) : (
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Variant</th>
+                        <th>Trust</th>
+                        <th>Families</th>
+                        <th>Expand</th>
+                        <th>Hold</th>
+                        <th>Collect</th>
+                        <th>Rollback</th>
+                        <th>Avg score Δ</th>
+                        <th>Avg success Δ</th>
+                        <th>Avg challenge Δ</th>
+                        <th>Recommendation</th>
+                        <th>Confidence</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sentinelTrustPlaybook.map((row, index) => (
+                        <tr key={`${row.variantBundleId || 'variant'}-${row.trustRecipeId || 'trust'}-${index}`}>
+                          <td>{variantNameFor(row.variantBundleId)}</td>
+                          <td>{trustNameFor(row.trustRecipeId)}</td>
+                          <td>{row.vendorFamilyCount || 0}</td>
+                          <td>{row.expandCount || 0}</td>
+                          <td>{row.holdCount || 0}</td>
+                          <td>{row.collectControlCount || 0}</td>
+                          <td>{row.rollbackCount || 0}</td>
+                          <td>{row.averageScoreDelta || 0}</td>
+                          <td>{row.averageSuccessDeltaPct || 0}%</td>
+                          <td>{row.averageChallengeDeltaPct || 0}%</td>
                           <td>{(row.recommendation || 'unknown').toUpperCase()}</td>
                           <td>{(row.confidence || 'unknown').toUpperCase()}</td>
                         </tr>
