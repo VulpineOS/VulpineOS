@@ -291,6 +291,15 @@ describe('Settings page', () => {
               recommendation: 'double-down',
               confidence: 'low',
             }],
+            experimentGaps: [{
+              vendorFamily: 'cloudflare',
+              baselineAvailable: true,
+              nonBaselineArmCount: 1,
+              leadingVariantBundleId: 'returning-visitor',
+              leadingTrustRecipeId: 'returning-visitor',
+              bestConfidence: 'low',
+              nextAction: 'deepen-sample',
+            }],
             coherenceDiff: [{
               domain: 'example.com',
               variantBundleId: 'authority-ramp',
@@ -395,7 +404,9 @@ describe('Settings page', () => {
     expect(screen.getByText('EXPAND')).toBeInTheDocument()
     expect(screen.getByText('Trust playbook board')).toBeInTheDocument()
     expect(screen.getByText('DOUBLE-DOWN')).toBeInTheDocument()
-    expect(screen.getByText('LOW')).toBeInTheDocument()
+    expect(screen.getAllByText('LOW').length).toBeGreaterThan(0)
+    expect(screen.getByText('Experiment gap board')).toBeInTheDocument()
+    expect(screen.getByText('DEEPEN-SAMPLE')).toBeInTheDocument()
     expect(screen.getByText('Recent capture timeline')).toBeInTheDocument()
     expect(screen.getByText('example.com · 1 events · 1 outcomes')).toBeInTheDocument()
     expect(screen.getByText('browser_probe · canvas.toDataURL · seen 2 sessions · 2 days · gap 12.0h · Control / Baseline warmup')).toBeInTheDocument()

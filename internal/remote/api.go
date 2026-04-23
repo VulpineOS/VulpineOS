@@ -1214,6 +1214,7 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 		"vendorUplift":              []extensions.SentinelVendorUpliftSummary{},
 		"vendorRollout":             []extensions.SentinelVendorRolloutSummary{},
 		"trustPlaybook":             []extensions.SentinelTrustPlaybookSummary{},
+		"experimentGaps":            []extensions.SentinelExperimentGapSummary{},
 		"sitePressure":              []extensions.SentinelSitePressureSummary{},
 		"patchQueue":                []extensions.SentinelPatchCandidate{},
 		"experimentSummary":         []extensions.SentinelExperimentSummary{},
@@ -1321,6 +1322,10 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
+	experimentGaps, err := provider.SummarizeExperimentGaps(context.Background())
+	if err != nil {
+		return nil, err
+	}
 	sitePressure, err := provider.SummarizeSitePressure(context.Background())
 	if err != nil {
 		return nil, err
@@ -1357,6 +1362,7 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 	out["vendorUplift"] = vendorUplift
 	out["vendorRollout"] = vendorRollout
 	out["trustPlaybook"] = trustPlaybook
+	out["experimentGaps"] = experimentGaps
 	out["sitePressure"] = sitePressure
 	out["patchQueue"] = patchQueue
 	out["experimentSummary"] = experimentSummary

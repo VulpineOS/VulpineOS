@@ -57,6 +57,7 @@ type SentinelProvider interface {
 	SummarizeVendorUplift(ctx context.Context) ([]SentinelVendorUpliftSummary, error)
 	SummarizeVendorRollout(ctx context.Context) ([]SentinelVendorRolloutSummary, error)
 	SummarizeTrustPlaybook(ctx context.Context) ([]SentinelTrustPlaybookSummary, error)
+	SummarizeExperimentGaps(ctx context.Context) ([]SentinelExperimentGapSummary, error)
 	SummarizeSitePressure(ctx context.Context) ([]SentinelSitePressureSummary, error)
 	SummarizePatchQueue(ctx context.Context) ([]SentinelPatchCandidate, error)
 	SummarizeExperiments(ctx context.Context) ([]SentinelExperimentSummary, error)
@@ -611,6 +612,18 @@ type SentinelTrustPlaybookSummary struct {
 	LastSeenAt               time.Time `json:"lastSeenAt,omitempty"`
 }
 
+type SentinelExperimentGapSummary struct {
+	VendorFamily           string    `json:"vendorFamily,omitempty"`
+	BaselineAvailable      bool      `json:"baselineAvailable"`
+	NonBaselineArmCount    int       `json:"nonBaselineArmCount"`
+	LeadingVariantBundleID string    `json:"leadingVariantBundleId,omitempty"`
+	LeadingTrustRecipeID   string    `json:"leadingTrustRecipeId,omitempty"`
+	BestConfidence         string    `json:"bestConfidence,omitempty"`
+	NextAction             string    `json:"nextAction,omitempty"`
+	Reason                 string    `json:"reason,omitempty"`
+	LastSeenAt             time.Time `json:"lastSeenAt,omitempty"`
+}
+
 var defaultSentinelProvider SentinelProvider = noopSentinelProvider{}
 
 type noopSentinelProvider struct{}
@@ -724,6 +737,10 @@ func (noopSentinelProvider) SummarizeVendorRollout(ctx context.Context) ([]Senti
 }
 
 func (noopSentinelProvider) SummarizeTrustPlaybook(ctx context.Context) ([]SentinelTrustPlaybookSummary, error) {
+	return nil, ErrUnavailable
+}
+
+func (noopSentinelProvider) SummarizeExperimentGaps(ctx context.Context) ([]SentinelExperimentGapSummary, error) {
 	return nil, ErrUnavailable
 }
 

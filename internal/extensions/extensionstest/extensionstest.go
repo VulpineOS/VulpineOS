@@ -296,6 +296,7 @@ type FakeSentinelProvider struct {
 	VendorUplift              []extensions.SentinelVendorUpliftSummary
 	VendorRollout             []extensions.SentinelVendorRolloutSummary
 	TrustPlaybook             []extensions.SentinelTrustPlaybookSummary
+	ExperimentGaps            []extensions.SentinelExperimentGapSummary
 	SitePressure              []extensions.SentinelSitePressureSummary
 	PatchQueue                []extensions.SentinelPatchCandidate
 	ExperimentBoard           []extensions.SentinelExperimentSummary
@@ -483,6 +484,13 @@ func (f *FakeSentinelProvider) SetTrustPlaybook(v []extensions.SentinelTrustPlay
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.TrustPlaybook = append([]extensions.SentinelTrustPlaybookSummary(nil), v...)
+}
+
+// SetExperimentGaps replaces the canned experiment-gap rows.
+func (f *FakeSentinelProvider) SetExperimentGaps(v []extensions.SentinelExperimentGapSummary) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.ExperimentGaps = append([]extensions.SentinelExperimentGapSummary(nil), v...)
 }
 
 // SetSitePressure replaces the canned site pressure rows under the write lock.
@@ -752,6 +760,15 @@ func (f *FakeSentinelProvider) SummarizeTrustPlaybook(ctx context.Context) ([]ex
 	defer f.mu.RUnlock()
 	out := make([]extensions.SentinelTrustPlaybookSummary, len(f.TrustPlaybook))
 	copy(out, f.TrustPlaybook)
+	return out, nil
+}
+
+// SummarizeExperimentGaps returns a copy of the canned experiment-gap rows.
+func (f *FakeSentinelProvider) SummarizeExperimentGaps(ctx context.Context) ([]extensions.SentinelExperimentGapSummary, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make([]extensions.SentinelExperimentGapSummary, len(f.ExperimentGaps))
+	copy(out, f.ExperimentGaps)
 	return out, nil
 }
 
