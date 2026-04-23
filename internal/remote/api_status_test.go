@@ -256,7 +256,7 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 			{Domain: "example.com", ScriptURL: "https://cdn.example.com/fp.js", Sequence: "canvas_probe.toDataURL -> webgl_probe.getParameter", StepCount: 2, SequenceCount: 2, LatestOutcome: extensions.SentinelOutcomeHardChallenge, LatestChallengeVendor: "cloudflare", LatestCanaryStatus: "regressed"},
 		},
 		VendorIntelligenceSummary: []extensions.SentinelVendorIntelligenceSummary{
-			{ScriptHost: "cdn.example.com", ChallengeVendor: "cloudflare", DomainCount: 2, TopProbeFamily: "canvas_probe", PressureScore: 18, LatestOutcome: extensions.SentinelOutcomeHardChallenge, LatestCanaryStatus: "regressed"},
+			{VendorFamily: "cloudflare", ScriptHost: "cdn.example.com", ChallengeVendor: "cloudflare", DomainCount: 2, DomainSamples: []string{"example.com", "shop.example.com"}, TopProbeFamily: "canvas_probe", PressureScore: 18, LatestOutcome: extensions.SentinelOutcomeHardChallenge, LatestCanaryStatus: "regressed"},
 		},
 		SitePressure: []extensions.SentinelSitePressureSummary{
 			{Domain: "example.com", ChallengeVendor: "cloudflare", ProbeCount: 2, SessionCount: 2, SoftChallengeCount: 1, SuccessCount: 1, TotalOutcomes: 2, PressureScore: 6},
@@ -378,7 +378,7 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	if len(result.ProbeSequenceSummary) != 1 || result.ProbeSequenceSummary[0].SequenceCount != 2 {
 		t.Fatalf("probeSequenceSummary = %+v", result.ProbeSequenceSummary)
 	}
-	if len(result.VendorIntelligenceSummary) != 1 || result.VendorIntelligenceSummary[0].DomainCount != 2 {
+	if len(result.VendorIntelligenceSummary) != 1 || result.VendorIntelligenceSummary[0].VendorFamily != "cloudflare" {
 		t.Fatalf("vendorIntelligenceSummary = %+v", result.VendorIntelligenceSummary)
 	}
 	if len(result.SitePressure) != 1 || result.SitePressure[0].ChallengeVendor != "cloudflare" {

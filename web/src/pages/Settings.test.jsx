@@ -228,9 +228,11 @@ describe('Settings page', () => {
               latestCanaryStatus: 'regressed',
             }],
             vendorIntelligenceSummary: [{
+              vendorFamily: 'cloudflare',
               scriptHost: 'cdn.example.com',
               challengeVendor: 'cloudflare',
               domainCount: 2,
+              domainSamples: ['example.com', 'shop.example.com'],
               topProbeFamily: 'canvas_probe',
               pressureScore: 18,
               latestOutcome: 'hard_challenge',
@@ -327,7 +329,9 @@ describe('Settings page', () => {
     expect(screen.getByText('canvas_probe.toDataURL -> webgl_probe.getParameter')).toBeInTheDocument()
     expect(screen.getAllByText('hard_challenge').length).toBeGreaterThan(0)
     expect(screen.getByText('Vendor intelligence board')).toBeInTheDocument()
+    expect(screen.getAllByText('cloudflare').length).toBeGreaterThan(0)
     expect(screen.getByText('cdn.example.com')).toBeInTheDocument()
+    expect(screen.getByText('example.com, shop.example.com')).toBeInTheDocument()
     expect(screen.getByText('Recent capture timeline')).toBeInTheDocument()
     expect(screen.getByText('example.com · 1 events · 1 outcomes')).toBeInTheDocument()
     expect(screen.getByText('browser_probe · canvas.toDataURL · seen 2 sessions · 2 days · gap 12.0h · Control / Baseline warmup')).toBeInTheDocument()

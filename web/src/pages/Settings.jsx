@@ -512,9 +512,11 @@ export default function Settings({ ws }) {
                   <table className="table">
                     <thead>
                       <tr>
+                        <th>Family</th>
                         <th>Script host</th>
                         <th>Vendor</th>
                         <th>Domains</th>
+                        <th>Samples</th>
                         <th>Top probe</th>
                         <th>Pressure</th>
                         <th>Outcome</th>
@@ -524,9 +526,11 @@ export default function Settings({ ws }) {
                     <tbody>
                       {sentinelVendorIntelligenceSummary.map((row, index) => (
                         <tr key={`${row.scriptHost || 'host'}-${row.challengeVendor || 'vendor'}-${index}`}>
+                          <td>{row.vendorFamily || 'unknown'}</td>
                           <td className="mono-cell">{row.scriptHost || 'unknown'}</td>
                           <td>{row.challengeVendor || 'unknown'}</td>
                           <td>{row.domainCount || 0}</td>
+                          <td>{(row.domainSamples || []).join(', ') || 'n/a'}</td>
                           <td>{row.topProbeFamily || 'n/a'}</td>
                           <td>{row.pressureScore || 0}</td>
                           <td>{row.latestOutcome || 'n/a'}</td>

@@ -521,9 +521,11 @@ type SentinelProbeSequenceSummary struct {
 }
 
 type SentinelVendorIntelligenceSummary struct {
+	VendorFamily       string    `json:"vendorFamily,omitempty"`
 	ScriptHost         string    `json:"scriptHost,omitempty"`
 	ChallengeVendor    string    `json:"challengeVendor,omitempty"`
 	DomainCount        int       `json:"domainCount"`
+	DomainSamples      []string  `json:"domainSamples,omitempty"`
 	TopProbeFamily     string    `json:"topProbeFamily,omitempty"`
 	PressureScore      int       `json:"pressureScore"`
 	LatestOutcome      string    `json:"latestOutcome,omitempty"`
