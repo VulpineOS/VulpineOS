@@ -268,23 +268,24 @@ func (f *FakeMobileBridge) Available() bool {
 // FakeSentinelProvider records events and outcomes while returning
 // canned status and variant bundles.
 type FakeSentinelProvider struct {
-	mu               sync.RWMutex
-	AvailableFlag    bool
-	StatusValue      extensions.SentinelStatus
-	VariantBundles   []extensions.SentinelVariantBundle
-	TrustRecipes     []extensions.SentinelTrustRecipe
-	MaturityMetrics  []extensions.SentinelMaturityMetric
-	AssignmentRules  []extensions.SentinelAssignmentRule
-	SessionTimelines []extensions.SentinelSessionTimeline
-	OutcomeLabels    []extensions.SentinelOutcomeLabel
-	OutcomeSummary   []extensions.SentinelOutcomeSummary
-	ProbeSummary     []extensions.SentinelProbeSummary
-	TrustActivity    []extensions.SentinelTrustActivitySummary
-	SitePressure     []extensions.SentinelSitePressureSummary
-	PatchQueue       []extensions.SentinelPatchCandidate
-	ExperimentBoard  []extensions.SentinelExperimentSummary
-	Events           []extensions.SentinelEvent
-	Outcomes         []extensions.SentinelOutcome
+	mu                 sync.RWMutex
+	AvailableFlag      bool
+	StatusValue        extensions.SentinelStatus
+	VariantBundles     []extensions.SentinelVariantBundle
+	TrustRecipes       []extensions.SentinelTrustRecipe
+	MaturityMetrics    []extensions.SentinelMaturityMetric
+	AssignmentRules    []extensions.SentinelAssignmentRule
+	SessionTimelines   []extensions.SentinelSessionTimeline
+	OutcomeLabels      []extensions.SentinelOutcomeLabel
+	OutcomeSummary     []extensions.SentinelOutcomeSummary
+	ProbeSummary       []extensions.SentinelProbeSummary
+	TrustActivity      []extensions.SentinelTrustActivitySummary
+	TrustEffectiveness []extensions.SentinelTrustEffectivenessSummary
+	SitePressure       []extensions.SentinelSitePressureSummary
+	PatchQueue         []extensions.SentinelPatchCandidate
+	ExperimentBoard    []extensions.SentinelExperimentSummary
+	Events             []extensions.SentinelEvent
+	Outcomes           []extensions.SentinelOutcome
 }
 
 // SetAvailable toggles AvailableFlag under the write lock.
@@ -362,6 +363,13 @@ func (f *FakeSentinelProvider) SetTrustActivity(v []extensions.SentinelTrustActi
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.TrustActivity = append([]extensions.SentinelTrustActivitySummary(nil), v...)
+}
+
+// SetTrustEffectiveness replaces the canned trust-effectiveness rows under the write lock.
+func (f *FakeSentinelProvider) SetTrustEffectiveness(v []extensions.SentinelTrustEffectivenessSummary) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.TrustEffectiveness = append([]extensions.SentinelTrustEffectivenessSummary(nil), v...)
 }
 
 // SetSitePressure replaces the canned site pressure rows under the write lock.
@@ -487,6 +495,15 @@ func (f *FakeSentinelProvider) SummarizeTrustActivity(ctx context.Context) ([]ex
 	defer f.mu.RUnlock()
 	out := make([]extensions.SentinelTrustActivitySummary, len(f.TrustActivity))
 	copy(out, f.TrustActivity)
+	return out, nil
+}
+
+// SummarizeTrustEffectiveness returns a copy of the canned trust-effectiveness rows.
+func (f *FakeSentinelProvider) SummarizeTrustEffectiveness(ctx context.Context) ([]extensions.SentinelTrustEffectivenessSummary, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make([]extensions.SentinelTrustEffectivenessSummary, len(f.TrustEffectiveness))
+	copy(out, f.TrustEffectiveness)
 	return out, nil
 }
 

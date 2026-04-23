@@ -41,6 +41,7 @@ type SentinelProvider interface {
 	SummarizeOutcomes(ctx context.Context) ([]SentinelOutcomeSummary, error)
 	SummarizeProbes(ctx context.Context) ([]SentinelProbeSummary, error)
 	SummarizeTrustActivity(ctx context.Context) ([]SentinelTrustActivitySummary, error)
+	SummarizeTrustEffectiveness(ctx context.Context) ([]SentinelTrustEffectivenessSummary, error)
 	SummarizeSitePressure(ctx context.Context) ([]SentinelSitePressureSummary, error)
 	SummarizePatchQueue(ctx context.Context) ([]SentinelPatchCandidate, error)
 	SummarizeExperiments(ctx context.Context) ([]SentinelExperimentSummary, error)
@@ -306,6 +307,28 @@ type SentinelTrustActivitySummary struct {
 	LastSeenAt   time.Time `json:"lastSeenAt,omitempty"`
 }
 
+// SentinelTrustEffectivenessSummary correlates trust-warming activity
+// with experiment outcomes by domain and trust recipe so operators can
+// tell which recipes appear to reduce friction.
+type SentinelTrustEffectivenessSummary struct {
+	Domain             string    `json:"domain,omitempty"`
+	VariantBundleID    string    `json:"variantBundleId,omitempty"`
+	TrustRecipeID      string    `json:"trustRecipeId,omitempty"`
+	WarmingCount       int       `json:"warmingCount"`
+	SessionCount       int       `json:"sessionCount"`
+	SuccessCount       int       `json:"successCount"`
+	DegradedCount      int       `json:"degradedCount"`
+	SoftChallengeCount int       `json:"softChallengeCount"`
+	HardChallengeCount int       `json:"hardChallengeCount"`
+	BlockCount         int       `json:"blockCount"`
+	RetryLoopCount     int       `json:"retryLoopCount"`
+	BurnCount          int       `json:"burnCount"`
+	TotalOutcomes      int       `json:"totalOutcomes"`
+	EffectivenessScore int       `json:"effectivenessScore"`
+	ChallengeVendors   []string  `json:"challengeVendors,omitempty"`
+	LastSeenAt         time.Time `json:"lastSeenAt,omitempty"`
+}
+
 var defaultSentinelProvider SentinelProvider = noopSentinelProvider{}
 
 type noopSentinelProvider struct{}
@@ -355,6 +378,10 @@ func (noopSentinelProvider) SummarizeProbes(ctx context.Context) ([]SentinelProb
 }
 
 func (noopSentinelProvider) SummarizeTrustActivity(ctx context.Context) ([]SentinelTrustActivitySummary, error) {
+	return nil, ErrUnavailable
+}
+
+func (noopSentinelProvider) SummarizeTrustEffectiveness(ctx context.Context) ([]SentinelTrustEffectivenessSummary, error) {
 	return nil, ErrUnavailable
 }
 
