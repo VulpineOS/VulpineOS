@@ -34,6 +34,7 @@ export default function Settings({ ws }) {
     patchQueue: [],
     patchInvestment: [],
     surfaceHotspots: [],
+    surfaceEffectiveness: [],
     experimentSummary: [],
   });
   const [sentinelTimeline, setSentinelTimeline] = useState([]);
@@ -89,6 +90,7 @@ export default function Settings({ ws }) {
             patchQueue: [],
             patchInvestment: [],
             surfaceHotspots: [],
+            surfaceEffectiveness: [],
             experimentSummary: [],
           },
         ),
@@ -142,6 +144,7 @@ export default function Settings({ ws }) {
   const sentinelPatchQueue = sentinel.patchQueue || [];
   const sentinelPatchInvestment = sentinel.patchInvestment || [];
   const sentinelSurfaceHotspots = sentinel.surfaceHotspots || [];
+  const sentinelSurfaceEffectiveness = sentinel.surfaceEffectiveness || [];
   const sentinelExperimentSummary = sentinel.experimentSummary || [];
   const variantNameFor = (id) =>
     sentinelVariants.find((bundle) => bundle.id === id)?.name ||
@@ -1210,6 +1213,65 @@ export default function Settings({ ws }) {
                               : "n/a"}
                           </td>
                           <td>{(row.confidence || "low").toUpperCase()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              <div>
+                <h4 style={{ margin: "0 0 10px" }}>
+                  Surface effectiveness board
+                </h4>
+                {sentinelSurfaceEffectiveness.length === 0 ? (
+                  <div className="empty-state">
+                    No per-arm surface effectiveness has been summarized yet.
+                  </div>
+                ) : (
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Surface</th>
+                        <th>Arm</th>
+                        <th>Families</th>
+                        <th>Domains</th>
+                        <th>Outcomes</th>
+                        <th>Pressure</th>
+                        <th>Call</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sentinelSurfaceEffectiveness.map((row, index) => (
+                        <tr
+                          key={`${row.probeType || "probe"}-${row.api || "api"}-${row.variantBundleId || "variant"}-${row.trustRecipeId || "trust"}-${index}`}
+                        >
+                          <td>
+                            <div>{`${row.probeType || "unknown"}.${row.api || "unknown"}`}</div>
+                            <div style={{ fontSize: 11, color: "#666" }}>
+                              {row.probeCount || 0} probes
+                            </div>
+                          </td>
+                          <td>{`${variantNameFor(row.variantBundleId)} / ${trustNameFor(row.trustRecipeId)}`}</td>
+                          <td>
+                            <div>
+                              {(row.vendorFamilies || []).join(", ") || "none"}
+                            </div>
+                            <div style={{ fontSize: 11, color: "#666" }}>
+                              {row.familyCount || 0} families
+                            </div>
+                          </td>
+                          <td>
+                            <div>
+                              {(row.sampleDomains || []).join(", ") || "none"}
+                            </div>
+                            <div style={{ fontSize: 11, color: "#666" }}>
+                              {row.domainCount || 0} domains
+                            </div>
+                          </td>
+                          <td>{`${row.successCount || 0} success · ${row.softChallengeCount || 0} soft · ${row.hardChallengeCount || 0} hard · ${row.blockCount || 0} block`}</td>
+                          <td>{`${row.challengeRatePct || 0}% challenge / ${row.pressureScore || 0}`}</td>
+                          <td>{`${(row.recommendation || "observe").toUpperCase()} · ${(row.confidence || "low").toUpperCase()}`}</td>
                         </tr>
                       ))}
                     </tbody>
