@@ -20,6 +20,7 @@ export default function Settings({ ws }) {
     coherenceDiff: [],
     stageSummary: [],
     assignmentRecommendations: [],
+    trustStrategy: [],
     canarySummary: [],
     variantCompareSummary: [],
     siteIntelligenceSummary: [],
@@ -77,6 +78,7 @@ export default function Settings({ ws }) {
             coherenceDiff: [],
             stageSummary: [],
             assignmentRecommendations: [],
+            trustStrategy: [],
             canarySummary: [],
             variantCompareSummary: [],
             siteIntelligenceSummary: [],
@@ -130,6 +132,7 @@ export default function Settings({ ws }) {
   const sentinelStageSummary = sentinel.stageSummary || [];
   const sentinelAssignmentRecommendations =
     sentinel.assignmentRecommendations || [];
+  const sentinelTrustStrategy = sentinel.trustStrategy || [];
   const sentinelCanarySummary = sentinel.canarySummary || [];
   const sentinelVariantCompareSummary = sentinel.variantCompareSummary || [];
   const sentinelSiteIntelligenceSummary =
@@ -1671,6 +1674,67 @@ export default function Settings({ ws }) {
                           </td>
                           <td>{row.reason || "none"}</td>
                           <td>{(row.priority || "low").toUpperCase()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              <div>
+                <h4 style={{ margin: "0 0 10px" }}>Trust strategy board</h4>
+                {sentinelTrustStrategy.length === 0 ? (
+                  <div className="empty-state">
+                    No trust strategy rows have been derived yet.
+                  </div>
+                ) : (
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Domain</th>
+                        <th>Current</th>
+                        <th>Stage</th>
+                        <th>Assets</th>
+                        <th>Maturity</th>
+                        <th>Transport</th>
+                        <th>Assignment</th>
+                        <th>Target</th>
+                        <th>Strategy</th>
+                        <th>Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sentinelTrustStrategy.map((row, index) => (
+                        <tr
+                          key={`${row.domain || "domain"}-${row.variantBundleId || "variant"}-${row.trustRecipeId || "trust"}-${index}`}
+                        >
+                          <td>{row.domain || "unknown"}</td>
+                          <td>{`${variantNameFor(row.variantBundleId)} / ${trustNameFor(row.trustRecipeId)}`}</td>
+                          <td>
+                            {`${(row.currentStage || "cold").toUpperCase()} / ${(row.ruleStage || "none").toUpperCase()} · ${row.ruleAligned ? "FIT" : "MISS"}`}
+                          </td>
+                          <td>
+                            {`${row.assetScore || 0} score · ${row.snapshotCount || 0} snap · ${row.cookieBackedCount || 0} cookie · ${row.storageBackedCount || 0} storage`}
+                          </td>
+                          <td>
+                            {`${row.maturityScore || 0} score · ${row.distinctDays || 0} days · ${row.challengeFreeRuns || 0} quiet`}
+                          </td>
+                          <td>
+                            {`${row.transportScore || 0} score · ${row.rotationCount || 0} rotations`}
+                          </td>
+                          <td>
+                            {`${(row.assignmentAction || "hold").toUpperCase()} · ${row.assignmentScore || 0}`}
+                          </td>
+                          <td>
+                            {row.targetVariantBundleId ||
+                            row.targetTrustRecipeId
+                              ? `${variantNameFor(row.targetVariantBundleId)} / ${trustNameFor(row.targetTrustRecipeId)}`
+                              : "n/a"}
+                          </td>
+                          <td>
+                            {`${(row.nextAction || "hold").toUpperCase()} · ${(row.priority || "low").toUpperCase()} · ${(row.confidence || "low").toUpperCase()}`}
+                          </td>
+                          <td>{row.reason || row.blockingReason || "none"}</td>
                         </tr>
                       ))}
                     </tbody>

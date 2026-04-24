@@ -48,6 +48,7 @@ type SentinelProvider interface {
 	SummarizeCoherenceDiff(ctx context.Context) ([]SentinelCoherenceDiffSummary, error)
 	SummarizeStages(ctx context.Context) ([]SentinelStageSummary, error)
 	SummarizeAssignmentRecommendations(ctx context.Context) ([]SentinelAssignmentRecommendation, error)
+	SummarizeTrustStrategy(ctx context.Context) ([]SentinelTrustStrategySummary, error)
 	SummarizeCanaries(ctx context.Context) ([]SentinelCanarySummary, error)
 	SummarizeVariantCompare(ctx context.Context) ([]SentinelVariantCompareSummary, error)
 	SummarizeSiteIntelligence(ctx context.Context) ([]SentinelSiteIntelligenceSummary, error)
@@ -584,6 +585,43 @@ type SentinelAssignmentRecommendation struct {
 	LastSeenAt            time.Time `json:"lastSeenAt,omitempty"`
 }
 
+// SentinelTrustStrategySummary condenses trust assets, maturity evidence,
+// transport stability, stage fit, and assignment decisions into one
+// operator-facing call per domain plus variant plus trust recipe.
+type SentinelTrustStrategySummary struct {
+	Domain                string    `json:"domain,omitempty"`
+	VariantBundleID       string    `json:"variantBundleId,omitempty"`
+	TrustRecipeID         string    `json:"trustRecipeId,omitempty"`
+	CurrentStage          string    `json:"currentStage,omitempty"`
+	RuleStage             string    `json:"ruleStage,omitempty"`
+	RuleAligned           bool      `json:"ruleAligned"`
+	BlockingReason        string    `json:"blockingReason,omitempty"`
+	SessionCount          int       `json:"sessionCount"`
+	SuccessCount          int       `json:"successCount"`
+	SoftChallengeCount    int       `json:"softChallengeCount"`
+	HardChallengeCount    int       `json:"hardChallengeCount"`
+	BlockCount            int       `json:"blockCount"`
+	SnapshotCount         int       `json:"snapshotCount"`
+	CookieBackedCount     int       `json:"cookieBackedCount"`
+	StorageBackedCount    int       `json:"storageBackedCount"`
+	DistinctDays          int       `json:"distinctDays"`
+	ChallengeFreeRuns     int       `json:"challengeFreeRuns"`
+	RotationCount         int       `json:"rotationCount"`
+	AssetScore            int       `json:"assetScore"`
+	MaturityScore         int       `json:"maturityScore"`
+	TransportScore        int       `json:"transportScore"`
+	AssignmentAction      string    `json:"assignmentAction,omitempty"`
+	AssignmentScore       int       `json:"assignmentScore"`
+	TargetVariantBundleID string    `json:"targetVariantBundleId,omitempty"`
+	TargetTrustRecipeID   string    `json:"targetTrustRecipeId,omitempty"`
+	NextAction            string    `json:"nextAction,omitempty"`
+	StrategyScore         int       `json:"strategyScore"`
+	Priority              string    `json:"priority,omitempty"`
+	Reason                string    `json:"reason,omitempty"`
+	Confidence            string    `json:"confidence,omitempty"`
+	LastSeenAt            time.Time `json:"lastSeenAt,omitempty"`
+}
+
 type SentinelCanarySummary struct {
 	Domain                     string    `json:"domain,omitempty"`
 	VariantBundleID            string    `json:"variantBundleId,omitempty"`
@@ -814,6 +852,10 @@ func (noopSentinelProvider) SummarizeStages(ctx context.Context) ([]SentinelStag
 }
 
 func (noopSentinelProvider) SummarizeAssignmentRecommendations(ctx context.Context) ([]SentinelAssignmentRecommendation, error) {
+	return nil, ErrUnavailable
+}
+
+func (noopSentinelProvider) SummarizeTrustStrategy(ctx context.Context) ([]SentinelTrustStrategySummary, error) {
 	return nil, ErrUnavailable
 }
 

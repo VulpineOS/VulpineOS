@@ -215,6 +215,38 @@ describe("Settings page", () => {
                 score: 10,
               },
             ],
+            trustStrategy: [
+              {
+                domain: "example.com",
+                variantBundleId: "control",
+                trustRecipeId: "baseline-warmup",
+                currentStage: "warm",
+                ruleStage: "cold",
+                ruleAligned: true,
+                blockingReason: "needs presence across 3 days",
+                sessionCount: 2,
+                successCount: 1,
+                softChallengeCount: 1,
+                hardChallengeCount: 1,
+                snapshotCount: 1,
+                cookieBackedCount: 1,
+                storageBackedCount: 1,
+                distinctDays: 2,
+                rotationCount: 2,
+                assetScore: 12,
+                maturityScore: 10,
+                transportScore: 10,
+                assignmentAction: "promote",
+                assignmentScore: 10,
+                targetVariantBundleId: "returning-visitor",
+                targetTrustRecipeId: "returning-visitor",
+                nextAction: "promote",
+                strategyScore: 19,
+                priority: "critical",
+                reason: "warm evidence now supports the returning-visitor path",
+                confidence: "high",
+              },
+            ],
             canarySummary: [
               {
                 domain: "example.com",
@@ -663,8 +695,19 @@ describe("Settings page", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Assignment recommendations")).toBeInTheDocument();
     expect(
-      screen.getByText("warm evidence now supports the returning-visitor path"),
+      screen.getAllByText(
+        "warm evidence now supports the returning-visitor path",
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByText("Trust strategy board")).toBeInTheDocument();
+    expect(screen.getByText("WARM / COLD · FIT")).toBeInTheDocument();
+    expect(
+      screen.getByText("12 score · 1 snap · 1 cookie · 1 storage"),
     ).toBeInTheDocument();
+    expect(screen.getByText("10 score · 2 days · 0 quiet")).toBeInTheDocument();
+    expect(screen.getByText("10 score · 2 rotations")).toBeInTheDocument();
+    expect(screen.getByText("PROMOTE · 10")).toBeInTheDocument();
+    expect(screen.getByText("PROMOTE · CRITICAL · HIGH")).toBeInTheDocument();
     expect(screen.getByText("Canary board")).toBeInTheDocument();
     expect(screen.getAllByText("REGRESSED").length).toBeGreaterThan(0);
     expect(screen.getByText("ROTATE")).toBeInTheDocument();
