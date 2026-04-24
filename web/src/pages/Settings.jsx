@@ -22,6 +22,7 @@ export default function Settings({ ws }) {
     assignmentRecommendations: [],
     trustStrategy: [],
     trustRecipeStrategy: [],
+    trustRollout: [],
     canarySummary: [],
     variantCompareSummary: [],
     siteIntelligenceSummary: [],
@@ -81,6 +82,7 @@ export default function Settings({ ws }) {
             assignmentRecommendations: [],
             trustStrategy: [],
             trustRecipeStrategy: [],
+            trustRollout: [],
             canarySummary: [],
             variantCompareSummary: [],
             siteIntelligenceSummary: [],
@@ -136,6 +138,7 @@ export default function Settings({ ws }) {
     sentinel.assignmentRecommendations || [];
   const sentinelTrustStrategy = sentinel.trustStrategy || [];
   const sentinelTrustRecipeStrategy = sentinel.trustRecipeStrategy || [];
+  const sentinelTrustRollout = sentinel.trustRollout || [];
   const sentinelCanarySummary = sentinel.canarySummary || [];
   const sentinelVariantCompareSummary = sentinel.variantCompareSummary || [];
   const sentinelSiteIntelligenceSummary =
@@ -1791,6 +1794,55 @@ export default function Settings({ ws }) {
                             {`${(row.leadingAction || "hold").toUpperCase()} · ${(row.confidence || "low").toUpperCase()}`}
                           </td>
                           <td>{row.topReason || "none"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              <div>
+                <h4 style={{ margin: "0 0 10px" }}>Trust rollout board</h4>
+                {sentinelTrustRollout.length === 0 ? (
+                  <div className="empty-state">
+                    No trust rollout rows have been derived yet.
+                  </div>
+                ) : (
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Variant</th>
+                        <th>Trust</th>
+                        <th>Domains</th>
+                        <th>Ready</th>
+                        <th>Pressure</th>
+                        <th>Rollout</th>
+                        <th>Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sentinelTrustRollout.map((row, index) => (
+                        <tr
+                          key={`${row.variantBundleId || "variant"}-${row.trustRecipeId || "trust"}-${index}`}
+                        >
+                          <td>{variantNameFor(row.variantBundleId)}</td>
+                          <td>{trustNameFor(row.trustRecipeId)}</td>
+                          <td>
+                            {`${row.domainCount || 0} domains`}
+                            {(row.sampleDomains || []).length > 0
+                              ? ` · ${(row.sampleDomains || []).join(", ")}`
+                              : ""}
+                          </td>
+                          <td>
+                            {`${row.promoteCount || 0} promote · ${row.expandCount || 0} expand`}
+                          </td>
+                          <td>
+                            {`${row.actionPressureScore || 0} total · ${row.buildTrustCount || 0} build · ${row.stabilizeRouteCount || 0} route · ${row.quarantineCount || 0} retire · ${row.holdCount || 0} hold`}
+                          </td>
+                          <td>
+                            {`${(row.rolloutAction || "hold").toUpperCase()} · ${(row.confidence || "low").toUpperCase()}`}
+                          </td>
+                          <td>{row.reason || "none"}</td>
                         </tr>
                       ))}
                     </tbody>

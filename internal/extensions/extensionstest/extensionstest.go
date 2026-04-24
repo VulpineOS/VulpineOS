@@ -289,6 +289,7 @@ type FakeSentinelProvider struct {
 	AssignmentRecommendations []extensions.SentinelAssignmentRecommendation
 	TrustStrategy             []extensions.SentinelTrustStrategySummary
 	TrustRecipeStrategy       []extensions.SentinelTrustRecipeStrategySummary
+	TrustRollout              []extensions.SentinelTrustRolloutSummary
 	CanarySummary             []extensions.SentinelCanarySummary
 	VariantCompareSummary     []extensions.SentinelVariantCompareSummary
 	SiteIntelligenceSummary   []extensions.SentinelSiteIntelligenceSummary
@@ -441,6 +442,13 @@ func (f *FakeSentinelProvider) SetTrustRecipeStrategy(v []extensions.SentinelTru
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.TrustRecipeStrategy = append([]extensions.SentinelTrustRecipeStrategySummary(nil), v...)
+}
+
+// SetTrustRollout replaces the canned trust-rollout rows.
+func (f *FakeSentinelProvider) SetTrustRollout(v []extensions.SentinelTrustRolloutSummary) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.TrustRollout = append([]extensions.SentinelTrustRolloutSummary(nil), v...)
 }
 
 // SetCanarySummary replaces the canned canary rows.
@@ -745,6 +753,15 @@ func (f *FakeSentinelProvider) SummarizeTrustRecipeStrategy(ctx context.Context)
 	defer f.mu.RUnlock()
 	out := make([]extensions.SentinelTrustRecipeStrategySummary, len(f.TrustRecipeStrategy))
 	copy(out, f.TrustRecipeStrategy)
+	return out, nil
+}
+
+// SummarizeTrustRollout returns a copy of the canned trust-rollout rows.
+func (f *FakeSentinelProvider) SummarizeTrustRollout(ctx context.Context) ([]extensions.SentinelTrustRolloutSummary, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make([]extensions.SentinelTrustRolloutSummary, len(f.TrustRollout))
+	copy(out, f.TrustRollout)
 	return out, nil
 }
 
