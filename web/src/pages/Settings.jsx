@@ -21,6 +21,7 @@ export default function Settings({ ws }) {
     stageSummary: [],
     assignmentRecommendations: [],
     trustStrategy: [],
+    trustRecipeStrategy: [],
     canarySummary: [],
     variantCompareSummary: [],
     siteIntelligenceSummary: [],
@@ -79,6 +80,7 @@ export default function Settings({ ws }) {
             stageSummary: [],
             assignmentRecommendations: [],
             trustStrategy: [],
+            trustRecipeStrategy: [],
             canarySummary: [],
             variantCompareSummary: [],
             siteIntelligenceSummary: [],
@@ -133,6 +135,7 @@ export default function Settings({ ws }) {
   const sentinelAssignmentRecommendations =
     sentinel.assignmentRecommendations || [];
   const sentinelTrustStrategy = sentinel.trustStrategy || [];
+  const sentinelTrustRecipeStrategy = sentinel.trustRecipeStrategy || [];
   const sentinelCanarySummary = sentinel.canarySummary || [];
   const sentinelVariantCompareSummary = sentinel.variantCompareSummary || [];
   const sentinelSiteIntelligenceSummary =
@@ -1735,6 +1738,59 @@ export default function Settings({ ws }) {
                             {`${(row.nextAction || "hold").toUpperCase()} · ${(row.priority || "low").toUpperCase()} · ${(row.confidence || "low").toUpperCase()}`}
                           </td>
                           <td>{row.reason || row.blockingReason || "none"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              <div>
+                <h4 style={{ margin: "0 0 10px" }}>
+                  Trust recipe strategy board
+                </h4>
+                {sentinelTrustRecipeStrategy.length === 0 ? (
+                  <div className="empty-state">
+                    No trust recipe strategy rows have been derived yet.
+                  </div>
+                ) : (
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Variant</th>
+                        <th>Trust</th>
+                        <th>Domains</th>
+                        <th>Action mix</th>
+                        <th>Avg scores</th>
+                        <th>Aggregate</th>
+                        <th>Lead</th>
+                        <th>Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sentinelTrustRecipeStrategy.map((row, index) => (
+                        <tr
+                          key={`${row.variantBundleId || "variant"}-${row.trustRecipeId || "trust"}-${index}`}
+                        >
+                          <td>{variantNameFor(row.variantBundleId)}</td>
+                          <td>{trustNameFor(row.trustRecipeId)}</td>
+                          <td>
+                            {`${row.domainCount || 0} domains`}
+                            {(row.sampleDomains || []).length > 0
+                              ? ` · ${(row.sampleDomains || []).join(", ")}`
+                              : ""}
+                          </td>
+                          <td>
+                            {`${row.buildTrustCount || 0} build · ${row.stabilizeRouteCount || 0} route · ${row.quarantineCount || 0} quarantine · ${row.promoteCount || 0} promote · ${row.expandCount || 0} expand · ${row.holdCount || 0} hold`}
+                          </td>
+                          <td>
+                            {`A${row.averageAssetScore || 0} · M${row.averageMaturityScore || 0} · T${row.averageTransportScore || 0}`}
+                          </td>
+                          <td>{`${row.aggregateScore || 0} total · ${row.totalRows || 0} rows`}</td>
+                          <td>
+                            {`${(row.leadingAction || "hold").toUpperCase()} · ${(row.confidence || "low").toUpperCase()}`}
+                          </td>
+                          <td>{row.topReason || "none"}</td>
                         </tr>
                       ))}
                     </tbody>

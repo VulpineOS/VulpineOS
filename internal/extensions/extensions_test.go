@@ -159,6 +159,9 @@ func TestDefaultSentinelProviderUnavailable(t *testing.T) {
 	if _, err := s.SummarizeTrustStrategy(ctx); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("SummarizeTrustStrategy: expected ErrUnavailable, got %v", err)
 	}
+	if _, err := s.SummarizeTrustRecipeStrategy(ctx); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("SummarizeTrustRecipeStrategy: expected ErrUnavailable, got %v", err)
+	}
 }
 
 // TestRegistryConcurrentSetGet runs many goroutines that race on

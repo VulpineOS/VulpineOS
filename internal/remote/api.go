@@ -1206,6 +1206,7 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 		"stageSummary":              []extensions.SentinelStageSummary{},
 		"assignmentRecommendations": []extensions.SentinelAssignmentRecommendation{},
 		"trustStrategy":             []extensions.SentinelTrustStrategySummary{},
+		"trustRecipeStrategy":       []extensions.SentinelTrustRecipeStrategySummary{},
 		"canarySummary":             []extensions.SentinelCanarySummary{},
 		"variantCompareSummary":     []extensions.SentinelVariantCompareSummary{},
 		"siteIntelligenceSummary":   []extensions.SentinelSiteIntelligenceSummary{},
@@ -1295,6 +1296,10 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
+	trustRecipeStrategy, err := provider.SummarizeTrustRecipeStrategy(context.Background())
+	if err != nil {
+		return nil, err
+	}
 	canarySummary, err := provider.SummarizeCanaries(context.Background())
 	if err != nil {
 		return nil, err
@@ -1379,6 +1384,7 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 	out["stageSummary"] = stageSummary
 	out["assignmentRecommendations"] = assignmentRecommendations
 	out["trustStrategy"] = trustStrategy
+	out["trustRecipeStrategy"] = trustRecipeStrategy
 	out["canarySummary"] = canarySummary
 	out["variantCompareSummary"] = variantCompareSummary
 	out["siteIntelligenceSummary"] = siteIntelligenceSummary

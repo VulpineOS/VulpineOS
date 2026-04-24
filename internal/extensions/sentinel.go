@@ -49,6 +49,7 @@ type SentinelProvider interface {
 	SummarizeStages(ctx context.Context) ([]SentinelStageSummary, error)
 	SummarizeAssignmentRecommendations(ctx context.Context) ([]SentinelAssignmentRecommendation, error)
 	SummarizeTrustStrategy(ctx context.Context) ([]SentinelTrustStrategySummary, error)
+	SummarizeTrustRecipeStrategy(ctx context.Context) ([]SentinelTrustRecipeStrategySummary, error)
 	SummarizeCanaries(ctx context.Context) ([]SentinelCanarySummary, error)
 	SummarizeVariantCompare(ctx context.Context) ([]SentinelVariantCompareSummary, error)
 	SummarizeSiteIntelligence(ctx context.Context) ([]SentinelSiteIntelligenceSummary, error)
@@ -622,6 +623,33 @@ type SentinelTrustStrategySummary struct {
 	LastSeenAt            time.Time `json:"lastSeenAt,omitempty"`
 }
 
+// SentinelTrustRecipeStrategySummary aggregates the per-domain trust strategy
+// rows back up to one operator-facing posture per variant bundle plus trust recipe.
+type SentinelTrustRecipeStrategySummary struct {
+	VariantBundleID       string    `json:"variantBundleId,omitempty"`
+	TrustRecipeID         string    `json:"trustRecipeId,omitempty"`
+	DomainCount           int       `json:"domainCount"`
+	SampleDomains         []string  `json:"sampleDomains,omitempty"`
+	TotalRows             int       `json:"totalRows"`
+	PromoteCount          int       `json:"promoteCount"`
+	BuildTrustCount       int       `json:"buildTrustCount"`
+	StabilizeRouteCount   int       `json:"stabilizeRouteCount"`
+	QuarantineCount       int       `json:"quarantineCount"`
+	HoldCount             int       `json:"holdCount"`
+	ExpandCount           int       `json:"expandCount"`
+	AverageAssetScore     int       `json:"averageAssetScore"`
+	AverageMaturityScore  int       `json:"averageMaturityScore"`
+	AverageTransportScore int       `json:"averageTransportScore"`
+	AggregateScore        int       `json:"aggregateScore"`
+	HighConfidenceCount   int       `json:"highConfidenceCount"`
+	MediumConfidenceCount int       `json:"mediumConfidenceCount"`
+	LowConfidenceCount    int       `json:"lowConfidenceCount"`
+	LeadingAction         string    `json:"leadingAction,omitempty"`
+	TopReason             string    `json:"topReason,omitempty"`
+	Confidence            string    `json:"confidence,omitempty"`
+	LastSeenAt            time.Time `json:"lastSeenAt,omitempty"`
+}
+
 type SentinelCanarySummary struct {
 	Domain                     string    `json:"domain,omitempty"`
 	VariantBundleID            string    `json:"variantBundleId,omitempty"`
@@ -856,6 +884,10 @@ func (noopSentinelProvider) SummarizeAssignmentRecommendations(ctx context.Conte
 }
 
 func (noopSentinelProvider) SummarizeTrustStrategy(ctx context.Context) ([]SentinelTrustStrategySummary, error) {
+	return nil, ErrUnavailable
+}
+
+func (noopSentinelProvider) SummarizeTrustRecipeStrategy(ctx context.Context) ([]SentinelTrustRecipeStrategySummary, error) {
 	return nil, ErrUnavailable
 }
 

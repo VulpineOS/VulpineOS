@@ -247,6 +247,31 @@ describe("Settings page", () => {
                 confidence: "high",
               },
             ],
+            trustRecipeStrategy: [
+              {
+                variantBundleId: "control",
+                trustRecipeId: "baseline-warmup",
+                domainCount: 2,
+                sampleDomains: ["example.com", "shop.example.com"],
+                totalRows: 2,
+                promoteCount: 1,
+                buildTrustCount: 1,
+                stabilizeRouteCount: 0,
+                quarantineCount: 0,
+                holdCount: 0,
+                expandCount: 0,
+                averageAssetScore: 9,
+                averageMaturityScore: 8,
+                averageTransportScore: 5,
+                aggregateScore: 24,
+                highConfidenceCount: 1,
+                mediumConfidenceCount: 1,
+                lowConfidenceCount: 0,
+                leadingAction: "build-trust",
+                topReason: "needs presence across 3 days",
+                confidence: "medium",
+              },
+            ],
             canarySummary: [
               {
                 domain: "example.com",
@@ -691,8 +716,8 @@ describe("Settings page", () => {
     expect(screen.getByText("Stage board")).toBeInTheDocument();
     expect(screen.getByText("Cold holdout (cold)")).toBeInTheDocument();
     expect(
-      screen.getByText("needs presence across 3 days"),
-    ).toBeInTheDocument();
+      screen.getAllByText("needs presence across 3 days").length,
+    ).toBeGreaterThan(0);
     expect(screen.getByText("Assignment recommendations")).toBeInTheDocument();
     expect(
       screen.getAllByText(
@@ -708,6 +733,18 @@ describe("Settings page", () => {
     expect(screen.getByText("10 score · 2 rotations")).toBeInTheDocument();
     expect(screen.getByText("PROMOTE · 10")).toBeInTheDocument();
     expect(screen.getByText("PROMOTE · CRITICAL · HIGH")).toBeInTheDocument();
+    expect(screen.getByText("Trust recipe strategy board")).toBeInTheDocument();
+    expect(
+      screen.getByText("2 domains · example.com, shop.example.com"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "1 build · 0 route · 0 quarantine · 1 promote · 0 expand · 0 hold",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("A9 · M8 · T5")).toBeInTheDocument();
+    expect(screen.getByText("24 total · 2 rows")).toBeInTheDocument();
+    expect(screen.getByText("BUILD-TRUST · MEDIUM")).toBeInTheDocument();
     expect(screen.getByText("Canary board")).toBeInTheDocument();
     expect(screen.getAllByText("REGRESSED").length).toBeGreaterThan(0);
     expect(screen.getByText("ROTATE")).toBeInTheDocument();

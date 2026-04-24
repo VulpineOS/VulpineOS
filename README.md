@@ -278,6 +278,7 @@ The panel now also includes:
 - **Settings** Sentinel stage board grouped by domain, variant bundle, and trust recipe so inferred maturity and assignment-rule fit stay explicit
 - **Settings** Sentinel assignment recommendation board grouped by domain, variant bundle, and trust recipe so the next hold/promote/demote/rotate/quarantine action stays explicit
 - **Settings** Sentinel trust-strategy board grouped by domain, variant bundle, and trust recipe so trust assets, maturity, transport stability, and assignment posture collapse into one operator-facing plan
+- **Settings** Sentinel trust recipe strategy board grouped by variant bundle and trust recipe so the same trust posture can be triaged across all covered domains in one row
 - **Settings** Sentinel canary board grouped by domain, variant bundle, and trust recipe so benchmark regressions stay visible before broader rollout
 - **Settings** Sentinel site-pressure board grouped by domain and challenge vendor so target-specific trust work stays ranked
 - **Settings** Sentinel trust-activity board grouped by domain and state so warmup coverage can be compared directly
@@ -304,6 +305,7 @@ The panel now also includes:
 - The Sentinel surface effectiveness board then breaks those same shared surfaces back out by experiment arm so operators can see whether a hotspot is a browser-wide failure or mostly concentrated in one variant and trust recipe pairing
 - The Sentinel surface strategy board then collapses those hotspot and arm-level rows back into one next action per shared browser surface so browser-patch work, arm tuning, promotion, and evidence collection do not have to be inferred by hand
 - The Sentinel trust-strategy board then folds trust assets, maturity evidence, transport stability, and assignment posture back into one operator-facing plan so each domain plus variant plus trust row carries a single next trust action with explicit evidence behind it
+- The Sentinel trust recipe strategy board then rolls those per-domain trust plans up to one row per variant bundle and trust recipe so recipe-level widen/hold/build/route/quarantine posture is visible without scanning every target
 - **Agent Detail** controls for per-agent budget overrides, recording export, and fingerprint regeneration
 - **Proxies** controls for persisted per-agent rotation rules
 - **Scripts** execution against a real browser context through the server-side scripting engine
