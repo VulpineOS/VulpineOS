@@ -252,6 +252,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		TrustRollout: []extensions.SentinelTrustRolloutSummary{
 			{VariantBundleID: "control", TrustRecipeID: "baseline-warmup", DomainCount: 2, SampleDomains: []string{"example.com", "shop.example.com"}, TotalRows: 2, PromoteCount: 1, BuildTrustCount: 1, AggregateScore: 24, ActionPressureScore: 1, RolloutAction: "keep-building", Reason: "needs presence across 3 days", Confidence: "medium"},
 		},
+		TrustRolloutDebt: []extensions.SentinelTrustRolloutDebtSummary{
+			{VariantBundleID: "control", TrustRecipeID: "baseline-warmup", DomainCount: 2, SampleDomains: []string{"example.com", "shop.example.com"}, RegressedDomainCount: 1, RegressedDomains: []string{"example.com"}, RolloutAction: "keep-building", HardChallengeCount: 1, TotalOutcomes: 2, ChallengeRatePct: 50, DebtScore: 8, Blocker: "canary regressions still block wider rollout", Confidence: "medium"},
+		},
 		CanarySummary: []extensions.SentinelCanarySummary{
 			{Domain: "example.com", VariantBundleID: "control", TrustRecipeID: "baseline-warmup", CanarySessionCount: 4, LatestOutcome: extensions.SentinelOutcomeHardChallenge, LatestRecommendationAction: "rotate", ChallengeFreeStreak: 0, RegressionDelta: -3, Regressed: true},
 		},
@@ -345,6 +348,7 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		TrustStrategy             []extensions.SentinelTrustStrategySummary        `json:"trustStrategy"`
 		TrustRecipeStrategy       []extensions.SentinelTrustRecipeStrategySummary  `json:"trustRecipeStrategy"`
 		TrustRollout              []extensions.SentinelTrustRolloutSummary         `json:"trustRollout"`
+		TrustRolloutDebt          []extensions.SentinelTrustRolloutDebtSummary     `json:"trustRolloutDebt"`
 		CanarySummary             []extensions.SentinelCanarySummary               `json:"canarySummary"`
 		VariantCompareSummary     []extensions.SentinelVariantCompareSummary       `json:"variantCompareSummary"`
 		SiteIntelligenceSummary   []extensions.SentinelSiteIntelligenceSummary     `json:"siteIntelligenceSummary"`
@@ -422,6 +426,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	}
 	if len(result.TrustRollout) != 1 || result.TrustRollout[0].RolloutAction != "keep-building" {
 		t.Fatalf("trustRollout = %+v", result.TrustRollout)
+	}
+	if len(result.TrustRolloutDebt) != 1 || result.TrustRolloutDebt[0].Blocker != "canary regressions still block wider rollout" {
+		t.Fatalf("trustRolloutDebt = %+v", result.TrustRolloutDebt)
 	}
 	if len(result.CanarySummary) != 1 || !result.CanarySummary[0].Regressed {
 		t.Fatalf("canarySummary = %+v", result.CanarySummary)

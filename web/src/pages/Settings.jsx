@@ -23,6 +23,7 @@ export default function Settings({ ws }) {
     trustStrategy: [],
     trustRecipeStrategy: [],
     trustRollout: [],
+    trustRolloutDebt: [],
     canarySummary: [],
     variantCompareSummary: [],
     siteIntelligenceSummary: [],
@@ -83,6 +84,7 @@ export default function Settings({ ws }) {
             trustStrategy: [],
             trustRecipeStrategy: [],
             trustRollout: [],
+            trustRolloutDebt: [],
             canarySummary: [],
             variantCompareSummary: [],
             siteIntelligenceSummary: [],
@@ -139,6 +141,7 @@ export default function Settings({ ws }) {
   const sentinelTrustStrategy = sentinel.trustStrategy || [];
   const sentinelTrustRecipeStrategy = sentinel.trustRecipeStrategy || [];
   const sentinelTrustRollout = sentinel.trustRollout || [];
+  const sentinelTrustRolloutDebt = sentinel.trustRolloutDebt || [];
   const sentinelCanarySummary = sentinel.canarySummary || [];
   const sentinelVariantCompareSummary = sentinel.variantCompareSummary || [];
   const sentinelSiteIntelligenceSummary =
@@ -1843,6 +1846,58 @@ export default function Settings({ ws }) {
                             {`${(row.rolloutAction || "hold").toUpperCase()} · ${(row.confidence || "low").toUpperCase()}`}
                           </td>
                           <td>{row.reason || "none"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              <div>
+                <h4 style={{ margin: "0 0 10px" }}>Trust rollout debt board</h4>
+                {sentinelTrustRolloutDebt.length === 0 ? (
+                  <div className="empty-state">
+                    No trust rollout debt rows have been derived yet.
+                  </div>
+                ) : (
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Variant</th>
+                        <th>Trust</th>
+                        <th>Domains</th>
+                        <th>Regressions</th>
+                        <th>Outcomes</th>
+                        <th>Debt</th>
+                        <th>Blocker</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sentinelTrustRolloutDebt.map((row, index) => (
+                        <tr
+                          key={`${row.variantBundleId || "variant"}-${row.trustRecipeId || "trust"}-${index}`}
+                        >
+                          <td>{variantNameFor(row.variantBundleId)}</td>
+                          <td>{trustNameFor(row.trustRecipeId)}</td>
+                          <td>
+                            {`${row.domainCount || 0} domains`}
+                            {(row.sampleDomains || []).length > 0
+                              ? ` · ${(row.sampleDomains || []).join(", ")}`
+                              : ""}
+                          </td>
+                          <td>
+                            {`${row.regressedDomainCount || 0} regressed`}
+                            {(row.regressedDomains || []).length > 0
+                              ? ` · ${(row.regressedDomains || []).join(", ")}`
+                              : ""}
+                          </td>
+                          <td>
+                            {`${row.totalOutcomes || 0} total · ${row.softChallengeCount || 0} soft · ${row.hardChallengeCount || 0} hard · ${row.blockCount || 0} block · ${row.burnCount || 0} burn · ${row.challengeRatePct || 0}%`}
+                          </td>
+                          <td>
+                            {`${row.debtScore || 0} score · ${(row.rolloutAction || "hold").toUpperCase()} · ${(row.confidence || "low").toUpperCase()}`}
+                          </td>
+                          <td>{row.blocker || "none"}</td>
                         </tr>
                       ))}
                     </tbody>

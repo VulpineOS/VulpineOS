@@ -292,6 +292,26 @@ describe("Settings page", () => {
                 confidence: "medium",
               },
             ],
+            trustRolloutDebt: [
+              {
+                variantBundleId: "control",
+                trustRecipeId: "baseline-warmup",
+                domainCount: 2,
+                sampleDomains: ["example.com", "shop.example.com"],
+                regressedDomainCount: 1,
+                regressedDomains: ["example.com"],
+                rolloutAction: "keep-building",
+                softChallengeCount: 0,
+                hardChallengeCount: 1,
+                blockCount: 0,
+                burnCount: 0,
+                totalOutcomes: 2,
+                challengeRatePct: 50,
+                debtScore: 8,
+                blocker: "canary regressions still block wider rollout",
+                confidence: "medium",
+              },
+            ],
             canarySummary: [
               {
                 domain: "example.com",
@@ -771,6 +791,18 @@ describe("Settings page", () => {
       screen.getByText("1 total · 1 build · 0 route · 0 retire · 0 hold"),
     ).toBeInTheDocument();
     expect(screen.getByText("KEEP-BUILDING · MEDIUM")).toBeInTheDocument();
+    expect(screen.getByText("Trust rollout debt board")).toBeInTheDocument();
+    expect(screen.getByText("1 regressed · example.com")).toBeInTheDocument();
+    expect(
+      screen.getByText("2 total · 0 soft · 1 hard · 0 block · 0 burn · 50%"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("8 score · KEEP-BUILDING · MEDIUM"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByText("canary regressions still block wider rollout")
+        .length,
+    ).toBeGreaterThan(0);
     expect(screen.getByText("Canary board")).toBeInTheDocument();
     expect(screen.getAllByText("REGRESSED").length).toBeGreaterThan(0);
     expect(screen.getByText("ROTATE")).toBeInTheDocument();

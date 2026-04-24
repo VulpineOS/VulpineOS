@@ -51,6 +51,7 @@ type SentinelProvider interface {
 	SummarizeTrustStrategy(ctx context.Context) ([]SentinelTrustStrategySummary, error)
 	SummarizeTrustRecipeStrategy(ctx context.Context) ([]SentinelTrustRecipeStrategySummary, error)
 	SummarizeTrustRollout(ctx context.Context) ([]SentinelTrustRolloutSummary, error)
+	SummarizeTrustRolloutDebt(ctx context.Context) ([]SentinelTrustRolloutDebtSummary, error)
 	SummarizeCanaries(ctx context.Context) ([]SentinelCanarySummary, error)
 	SummarizeVariantCompare(ctx context.Context) ([]SentinelVariantCompareSummary, error)
 	SummarizeSiteIntelligence(ctx context.Context) ([]SentinelSiteIntelligenceSummary, error)
@@ -673,6 +674,28 @@ type SentinelTrustRolloutSummary struct {
 	LastSeenAt          time.Time `json:"lastSeenAt,omitempty"`
 }
 
+// SentinelTrustRolloutDebtSummary combines rollout posture with canary and
+// outcome pressure so operators can see what is still blocking wider rollout.
+type SentinelTrustRolloutDebtSummary struct {
+	VariantBundleID      string    `json:"variantBundleId,omitempty"`
+	TrustRecipeID        string    `json:"trustRecipeId,omitempty"`
+	DomainCount          int       `json:"domainCount"`
+	SampleDomains        []string  `json:"sampleDomains,omitempty"`
+	RegressedDomainCount int       `json:"regressedDomainCount"`
+	RegressedDomains     []string  `json:"regressedDomains,omitempty"`
+	RolloutAction        string    `json:"rolloutAction,omitempty"`
+	SoftChallengeCount   int       `json:"softChallengeCount"`
+	HardChallengeCount   int       `json:"hardChallengeCount"`
+	BlockCount           int       `json:"blockCount"`
+	BurnCount            int       `json:"burnCount"`
+	TotalOutcomes        int       `json:"totalOutcomes"`
+	ChallengeRatePct     int       `json:"challengeRatePct"`
+	DebtScore            int       `json:"debtScore"`
+	Blocker              string    `json:"blocker,omitempty"`
+	Confidence           string    `json:"confidence,omitempty"`
+	LastSeenAt           time.Time `json:"lastSeenAt,omitempty"`
+}
+
 type SentinelCanarySummary struct {
 	Domain                     string    `json:"domain,omitempty"`
 	VariantBundleID            string    `json:"variantBundleId,omitempty"`
@@ -915,6 +938,10 @@ func (noopSentinelProvider) SummarizeTrustRecipeStrategy(ctx context.Context) ([
 }
 
 func (noopSentinelProvider) SummarizeTrustRollout(ctx context.Context) ([]SentinelTrustRolloutSummary, error) {
+	return nil, ErrUnavailable
+}
+
+func (noopSentinelProvider) SummarizeTrustRolloutDebt(ctx context.Context) ([]SentinelTrustRolloutDebtSummary, error) {
 	return nil, ErrUnavailable
 }
 

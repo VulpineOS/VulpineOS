@@ -280,6 +280,7 @@ The panel now also includes:
 - **Settings** Sentinel trust-strategy board grouped by domain, variant bundle, and trust recipe so trust assets, maturity, transport stability, and assignment posture collapse into one operator-facing plan
 - **Settings** Sentinel trust recipe strategy board grouped by variant bundle and trust recipe so the same trust posture can be triaged across all covered domains in one row
 - **Settings** Sentinel trust rollout board grouped by variant bundle and trust recipe so widen/hold/build/stabilize/retire posture stays explicit before more traffic is spent
+- **Settings** Sentinel trust rollout debt board grouped by variant bundle and trust recipe so rollout blockers from regressions and outcome pressure stay explicit before more traffic is widened
 - **Settings** Sentinel canary board grouped by domain, variant bundle, and trust recipe so benchmark regressions stay visible before broader rollout
 - **Settings** Sentinel site-pressure board grouped by domain and challenge vendor so target-specific trust work stays ranked
 - **Settings** Sentinel trust-activity board grouped by domain and state so warmup coverage can be compared directly
@@ -308,6 +309,7 @@ The panel now also includes:
 - The Sentinel trust-strategy board then folds trust assets, maturity evidence, transport stability, and assignment posture back into one operator-facing plan so each domain plus variant plus trust row carries a single next trust action with explicit evidence behind it
 - The Sentinel trust recipe strategy board then rolls those per-domain trust plans up to one row per variant bundle and trust recipe so recipe-level widen/hold/build/route/quarantine posture is visible without scanning every target
 - The Sentinel trust rollout board then collapses those recipe-level posture rows into one rollout call per variant bundle and trust recipe so widen, hold, keep-building, stabilize, and retire decisions are visible before scaling traffic
+- The Sentinel trust rollout debt board then layers canary regressions and live outcome pressure back onto those rollout rows so the exact blockers to wider traffic stay visible before operator spend increases
 - **Agent Detail** controls for per-agent budget overrides, recording export, and fingerprint regeneration
 - **Proxies** controls for persisted per-agent rotation rules
 - **Scripts** execution against a real browser context through the server-side scripting engine
