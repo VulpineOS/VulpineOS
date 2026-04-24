@@ -243,6 +243,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		AssignmentRecommendations: []extensions.SentinelAssignmentRecommendation{
 			{Domain: "example.com", VariantBundleID: "control", TrustRecipeID: "baseline-warmup", CurrentStage: "warm", Action: "promote", TargetVariantBundleID: "returning-visitor", TargetTrustRecipeID: "returning-visitor", Reason: "warm evidence now supports the returning-visitor path", Priority: "high", Score: 10},
 		},
+		TrustStrategy: []extensions.SentinelTrustStrategySummary{
+			{Domain: "example.com", VariantBundleID: "control", TrustRecipeID: "baseline-warmup", CurrentStage: "warm", RuleStage: "cold", RuleAligned: true, BlockingReason: "needs presence across 3 days", SessionCount: 2, SuccessCount: 1, SoftChallengeCount: 1, HardChallengeCount: 1, SnapshotCount: 1, CookieBackedCount: 1, StorageBackedCount: 1, DistinctDays: 2, RotationCount: 2, AssetScore: 12, MaturityScore: 10, TransportScore: 10, AssignmentAction: "promote", AssignmentScore: 10, TargetVariantBundleID: "returning-visitor", TargetTrustRecipeID: "returning-visitor", NextAction: "promote", StrategyScore: 19, Priority: "critical", Reason: "warm evidence now supports the returning-visitor path", Confidence: "high"},
+		},
 		CanarySummary: []extensions.SentinelCanarySummary{
 			{Domain: "example.com", VariantBundleID: "control", TrustRecipeID: "baseline-warmup", CanarySessionCount: 4, LatestOutcome: extensions.SentinelOutcomeHardChallenge, LatestRecommendationAction: "rotate", ChallengeFreeStreak: 0, RegressionDelta: -3, Regressed: true},
 		},
@@ -333,6 +336,7 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		CoherenceDiff             []extensions.SentinelCoherenceDiffSummary        `json:"coherenceDiff"`
 		StageSummary              []extensions.SentinelStageSummary                `json:"stageSummary"`
 		AssignmentRecommendations []extensions.SentinelAssignmentRecommendation    `json:"assignmentRecommendations"`
+		TrustStrategy             []extensions.SentinelTrustStrategySummary        `json:"trustStrategy"`
 		CanarySummary             []extensions.SentinelCanarySummary               `json:"canarySummary"`
 		VariantCompareSummary     []extensions.SentinelVariantCompareSummary       `json:"variantCompareSummary"`
 		SiteIntelligenceSummary   []extensions.SentinelSiteIntelligenceSummary     `json:"siteIntelligenceSummary"`
@@ -401,6 +405,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	}
 	if len(result.AssignmentRecommendations) != 1 || result.AssignmentRecommendations[0].Action != "promote" {
 		t.Fatalf("assignmentRecommendations = %+v", result.AssignmentRecommendations)
+	}
+	if len(result.TrustStrategy) != 1 || result.TrustStrategy[0].NextAction != "promote" {
+		t.Fatalf("trustStrategy = %+v", result.TrustStrategy)
 	}
 	if len(result.CanarySummary) != 1 || !result.CanarySummary[0].Regressed {
 		t.Fatalf("canarySummary = %+v", result.CanarySummary)
