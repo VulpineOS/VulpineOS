@@ -291,6 +291,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		PatchQueue: []extensions.SentinelPatchCandidate{
 			{Domain: "example.com", ProbeType: "canvas_probe", API: "toDataURL", Priority: "high", Score: 10, Recommendation: "Review canvas surface coherence and pixel-read behavior."},
 		},
+		TrustRepairQueue: []extensions.SentinelTrustRepairQueueSummary{
+			{VariantBundleID: "control", TrustRecipeID: "baseline-warmup", DomainCount: 2, SampleDomains: []string{"example.com", "shop.example.com"}, DebtScore: 8, RolloutAction: "keep-building", TopProbeType: "canvas_probe", TopAPI: "toDataURL", SurfacePressureScore: 20, SurfaceRecommendation: "tune-arm", RepairAction: "tune-surface", Blocker: "canary regressions still block wider rollout", Confidence: "medium"},
+		},
 		PatchInvestment: []extensions.SentinelPatchInvestmentSummary{
 			{VendorFamily: "cloudflare", CandidateCount: 1, DomainCount: 1, SampleDomains: []string{"example.com"}, TopDomain: "example.com", TopProbeType: "canvas_probe", TopAPI: "toDataURL", TopPriority: "high", TopScore: 10, TotalPatchScore: 10, TopRecommendation: "Review canvas surface coherence and pixel-read behavior.", RolloutRecommendation: "expand", GapAction: "deepen-sample", LeadingVariantBundleID: "returning-visitor", LeadingTrustRecipeID: "returning-visitor", Focus: "patch-first", Reason: "probe pressure is still the most concrete next engineering investment", Confidence: "medium"},
 		},
@@ -361,6 +364,7 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		ExperimentGaps            []extensions.SentinelExperimentGapSummary        `json:"experimentGaps"`
 		SitePressure              []extensions.SentinelSitePressureSummary         `json:"sitePressure"`
 		PatchQueue                []extensions.SentinelPatchCandidate              `json:"patchQueue"`
+		TrustRepairQueue          []extensions.SentinelTrustRepairQueueSummary     `json:"trustRepairQueue"`
 		PatchInvestment           []extensions.SentinelPatchInvestmentSummary      `json:"patchInvestment"`
 		SurfaceHotspots           []extensions.SentinelSurfaceHotspotSummary       `json:"surfaceHotspots"`
 		SurfaceEffectiveness      []extensions.SentinelSurfaceEffectivenessSummary `json:"surfaceEffectiveness"`
@@ -465,6 +469,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	}
 	if len(result.PatchQueue) != 1 || result.PatchQueue[0].Priority != "high" {
 		t.Fatalf("patchQueue = %+v", result.PatchQueue)
+	}
+	if len(result.TrustRepairQueue) != 1 || result.TrustRepairQueue[0].RepairAction != "tune-surface" {
+		t.Fatalf("trustRepairQueue = %+v", result.TrustRepairQueue)
 	}
 	if len(result.PatchInvestment) != 1 || result.PatchInvestment[0].Focus != "patch-first" {
 		t.Fatalf("patchInvestment = %+v", result.PatchInvestment)

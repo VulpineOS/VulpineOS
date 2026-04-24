@@ -281,6 +281,7 @@ The panel now also includes:
 - **Settings** Sentinel trust recipe strategy board grouped by variant bundle and trust recipe so the same trust posture can be triaged across all covered domains in one row
 - **Settings** Sentinel trust rollout board grouped by variant bundle and trust recipe so widen/hold/build/stabilize/retire posture stays explicit before more traffic is spent
 - **Settings** Sentinel trust rollout debt board grouped by variant bundle and trust recipe so rollout blockers from regressions and outcome pressure stay explicit before more traffic is widened
+- **Settings** Sentinel trust repair queue grouped by variant bundle and trust recipe so the next repair action and dominant browser surface stay explicit instead of remaining implicit debt
 - **Settings** Sentinel canary board grouped by domain, variant bundle, and trust recipe so benchmark regressions stay visible before broader rollout
 - **Settings** Sentinel site-pressure board grouped by domain and challenge vendor so target-specific trust work stays ranked
 - **Settings** Sentinel trust-activity board grouped by domain and state so warmup coverage can be compared directly
@@ -310,6 +311,7 @@ The panel now also includes:
 - The Sentinel trust recipe strategy board then rolls those per-domain trust plans up to one row per variant bundle and trust recipe so recipe-level widen/hold/build/route/quarantine posture is visible without scanning every target
 - The Sentinel trust rollout board then collapses those recipe-level posture rows into one rollout call per variant bundle and trust recipe so widen, hold, keep-building, stabilize, and retire decisions are visible before scaling traffic
 - The Sentinel trust rollout debt board then layers canary regressions and live outcome pressure back onto those rollout rows so the exact blockers to wider traffic stay visible before operator spend increases
+- The Sentinel trust repair queue then ties those debt rows back to the dominant browser surface for each variant and trust pairing so the next engineering repair action is ranked instead of implied
 - **Agent Detail** controls for per-agent budget overrides, recording export, and fingerprint regeneration
 - **Proxies** controls for persisted per-agent rotation rules
 - **Scripts** execution against a real browser context through the server-side scripting engine

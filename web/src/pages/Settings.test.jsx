@@ -312,6 +312,23 @@ describe("Settings page", () => {
                 confidence: "medium",
               },
             ],
+            trustRepairQueue: [
+              {
+                variantBundleId: "control",
+                trustRecipeId: "baseline-warmup",
+                domainCount: 2,
+                sampleDomains: ["example.com", "shop.example.com"],
+                debtScore: 8,
+                rolloutAction: "keep-building",
+                topProbeType: "canvas_probe",
+                topApi: "toDataURL",
+                surfacePressureScore: 20,
+                surfaceRecommendation: "tune-arm",
+                repairAction: "tune-surface",
+                blocker: "canary regressions still block wider rollout",
+                confidence: "medium",
+              },
+            ],
             canarySummary: [
               {
                 domain: "example.com",
@@ -803,6 +820,12 @@ describe("Settings page", () => {
       screen.getAllByText("canary regressions still block wider rollout")
         .length,
     ).toBeGreaterThan(0);
+    expect(screen.getByText("Trust repair queue")).toBeInTheDocument();
+    expect(screen.getByText("8 score · KEEP-BUILDING")).toBeInTheDocument();
+    expect(
+      screen.getByText("canvas_probe / toDataURL · 20 · TUNE-ARM"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("TUNE-SURFACE · MEDIUM")).toBeInTheDocument();
     expect(screen.getByText("Canary board")).toBeInTheDocument();
     expect(screen.getAllByText("REGRESSED").length).toBeGreaterThan(0);
     expect(screen.getByText("ROTATE")).toBeInTheDocument();

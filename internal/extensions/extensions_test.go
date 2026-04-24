@@ -144,6 +144,12 @@ func TestDefaultSentinelProviderUnavailable(t *testing.T) {
 	if _, err := s.SummarizeExperimentGaps(ctx); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("SummarizeExperimentGaps: expected ErrUnavailable, got %v", err)
 	}
+	if _, err := s.SummarizePatchQueue(ctx); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("SummarizePatchQueue: expected ErrUnavailable, got %v", err)
+	}
+	if _, err := s.SummarizeTrustRepairQueue(ctx); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("SummarizeTrustRepairQueue: expected ErrUnavailable, got %v", err)
+	}
 	if _, err := s.SummarizePatchInvestment(ctx); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("SummarizePatchInvestment: expected ErrUnavailable, got %v", err)
 	}

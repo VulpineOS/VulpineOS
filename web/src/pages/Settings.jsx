@@ -36,6 +36,7 @@ export default function Settings({ ws }) {
     experimentGaps: [],
     sitePressure: [],
     patchQueue: [],
+    trustRepairQueue: [],
     patchInvestment: [],
     surfaceHotspots: [],
     surfaceEffectiveness: [],
@@ -97,6 +98,7 @@ export default function Settings({ ws }) {
             experimentGaps: [],
             sitePressure: [],
             patchQueue: [],
+            trustRepairQueue: [],
             patchInvestment: [],
             surfaceHotspots: [],
             surfaceEffectiveness: [],
@@ -156,6 +158,7 @@ export default function Settings({ ws }) {
   const sentinelExperimentGaps = sentinel.experimentGaps || [];
   const sentinelSitePressure = sentinel.sitePressure || [];
   const sentinelPatchQueue = sentinel.patchQueue || [];
+  const sentinelTrustRepairQueue = sentinel.trustRepairQueue || [];
   const sentinelPatchInvestment = sentinel.patchInvestment || [];
   const sentinelSurfaceHotspots = sentinel.surfaceHotspots || [];
   const sentinelSurfaceEffectiveness = sentinel.surfaceEffectiveness || [];
@@ -1896,6 +1899,57 @@ export default function Settings({ ws }) {
                           </td>
                           <td>
                             {`${row.debtScore || 0} score · ${(row.rolloutAction || "hold").toUpperCase()} · ${(row.confidence || "low").toUpperCase()}`}
+                          </td>
+                          <td>{row.blocker || "none"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              <div>
+                <h4 style={{ margin: "0 0 10px" }}>Trust repair queue</h4>
+                {sentinelTrustRepairQueue.length === 0 ? (
+                  <div className="empty-state">
+                    No trust repair rows have been derived yet.
+                  </div>
+                ) : (
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Variant</th>
+                        <th>Trust</th>
+                        <th>Domains</th>
+                        <th>Debt</th>
+                        <th>Surface</th>
+                        <th>Action</th>
+                        <th>Blocker</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sentinelTrustRepairQueue.map((row, index) => (
+                        <tr
+                          key={`${row.variantBundleId || "variant"}-${row.trustRecipeId || "trust"}-${index}`}
+                        >
+                          <td>{variantNameFor(row.variantBundleId)}</td>
+                          <td>{trustNameFor(row.trustRecipeId)}</td>
+                          <td>
+                            {`${row.domainCount || 0} domains`}
+                            {(row.sampleDomains || []).length > 0
+                              ? ` · ${(row.sampleDomains || []).join(", ")}`
+                              : ""}
+                          </td>
+                          <td>
+                            {`${row.debtScore || 0} score · ${(row.rolloutAction || "hold").toUpperCase()}`}
+                          </td>
+                          <td>
+                            {row.topProbeType || row.topApi
+                              ? `${row.topProbeType || "unknown"} / ${row.topApi || "unknown"} · ${row.surfacePressureScore || 0} · ${(row.surfaceRecommendation || "observe").toUpperCase()}`
+                              : "none"}
+                          </td>
+                          <td>
+                            {`${(row.repairAction || "monitor").toUpperCase()} · ${(row.confidence || "low").toUpperCase()}`}
                           </td>
                           <td>{row.blocker || "none"}</td>
                         </tr>

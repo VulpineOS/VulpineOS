@@ -1221,6 +1221,7 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 		"experimentGaps":            []extensions.SentinelExperimentGapSummary{},
 		"sitePressure":              []extensions.SentinelSitePressureSummary{},
 		"patchQueue":                []extensions.SentinelPatchCandidate{},
+		"trustRepairQueue":          []extensions.SentinelTrustRepairQueueSummary{},
 		"patchInvestment":           []extensions.SentinelPatchInvestmentSummary{},
 		"surfaceHotspots":           []extensions.SentinelSurfaceHotspotSummary{},
 		"surfaceEffectiveness":      []extensions.SentinelSurfaceEffectivenessSummary{},
@@ -1358,6 +1359,10 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
+	trustRepairQueue, err := provider.SummarizeTrustRepairQueue(context.Background())
+	if err != nil {
+		return nil, err
+	}
 	patchInvestment, err := provider.SummarizePatchInvestment(context.Background())
 	if err != nil {
 		return nil, err
@@ -1409,6 +1414,7 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 	out["experimentGaps"] = experimentGaps
 	out["sitePressure"] = sitePressure
 	out["patchQueue"] = patchQueue
+	out["trustRepairQueue"] = trustRepairQueue
 	out["patchInvestment"] = patchInvestment
 	out["surfaceHotspots"] = surfaceHotspots
 	out["surfaceEffectiveness"] = surfaceEffectiveness

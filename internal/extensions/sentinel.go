@@ -64,6 +64,7 @@ type SentinelProvider interface {
 	SummarizeExperimentGaps(ctx context.Context) ([]SentinelExperimentGapSummary, error)
 	SummarizeSitePressure(ctx context.Context) ([]SentinelSitePressureSummary, error)
 	SummarizePatchQueue(ctx context.Context) ([]SentinelPatchCandidate, error)
+	SummarizeTrustRepairQueue(ctx context.Context) ([]SentinelTrustRepairQueueSummary, error)
 	SummarizePatchInvestment(ctx context.Context) ([]SentinelPatchInvestmentSummary, error)
 	SummarizeSurfaceHotspots(ctx context.Context) ([]SentinelSurfaceHotspotSummary, error)
 	SummarizeSurfaceEffectiveness(ctx context.Context) ([]SentinelSurfaceEffectivenessSummary, error)
@@ -696,6 +697,25 @@ type SentinelTrustRolloutDebtSummary struct {
 	LastSeenAt           time.Time `json:"lastSeenAt,omitempty"`
 }
 
+// SentinelTrustRepairQueueSummary turns trust debt into a ranked repair queue
+// for each variant bundle plus trust recipe pairing.
+type SentinelTrustRepairQueueSummary struct {
+	VariantBundleID       string    `json:"variantBundleId,omitempty"`
+	TrustRecipeID         string    `json:"trustRecipeId,omitempty"`
+	DomainCount           int       `json:"domainCount"`
+	SampleDomains         []string  `json:"sampleDomains,omitempty"`
+	DebtScore             int       `json:"debtScore"`
+	RolloutAction         string    `json:"rolloutAction,omitempty"`
+	TopProbeType          string    `json:"topProbeType,omitempty"`
+	TopAPI                string    `json:"topApi,omitempty"`
+	SurfacePressureScore  int       `json:"surfacePressureScore"`
+	SurfaceRecommendation string    `json:"surfaceRecommendation,omitempty"`
+	RepairAction          string    `json:"repairAction,omitempty"`
+	Blocker               string    `json:"blocker,omitempty"`
+	Confidence            string    `json:"confidence,omitempty"`
+	LastSeenAt            time.Time `json:"lastSeenAt,omitempty"`
+}
+
 type SentinelCanarySummary struct {
 	Domain                     string    `json:"domain,omitempty"`
 	VariantBundleID            string    `json:"variantBundleId,omitempty"`
@@ -990,6 +1010,10 @@ func (noopSentinelProvider) SummarizeSitePressure(ctx context.Context) ([]Sentin
 }
 
 func (noopSentinelProvider) SummarizePatchQueue(ctx context.Context) ([]SentinelPatchCandidate, error) {
+	return nil, ErrUnavailable
+}
+
+func (noopSentinelProvider) SummarizeTrustRepairQueue(ctx context.Context) ([]SentinelTrustRepairQueueSummary, error) {
 	return nil, ErrUnavailable
 }
 

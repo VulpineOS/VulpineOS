@@ -303,6 +303,7 @@ type FakeSentinelProvider struct {
 	ExperimentGaps            []extensions.SentinelExperimentGapSummary
 	SitePressure              []extensions.SentinelSitePressureSummary
 	PatchQueue                []extensions.SentinelPatchCandidate
+	TrustRepairQueue          []extensions.SentinelTrustRepairQueueSummary
 	PatchInvestment           []extensions.SentinelPatchInvestmentSummary
 	SurfaceHotspots           []extensions.SentinelSurfaceHotspotSummary
 	SurfaceEffectiveness      []extensions.SentinelSurfaceEffectivenessSummary
@@ -541,6 +542,13 @@ func (f *FakeSentinelProvider) SetPatchQueue(v []extensions.SentinelPatchCandida
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.PatchQueue = append([]extensions.SentinelPatchCandidate(nil), v...)
+}
+
+// SetTrustRepairQueue replaces the canned trust repair queue rows.
+func (f *FakeSentinelProvider) SetTrustRepairQueue(v []extensions.SentinelTrustRepairQueueSummary) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.TrustRepairQueue = append([]extensions.SentinelTrustRepairQueueSummary(nil), v...)
 }
 
 // SetPatchInvestment replaces the canned patch investment rows under the write lock.
@@ -887,6 +895,15 @@ func (f *FakeSentinelProvider) SummarizePatchQueue(ctx context.Context) ([]exten
 	defer f.mu.RUnlock()
 	out := make([]extensions.SentinelPatchCandidate, len(f.PatchQueue))
 	copy(out, f.PatchQueue)
+	return out, nil
+}
+
+// SummarizeTrustRepairQueue returns a copy of the canned trust repair queue rows.
+func (f *FakeSentinelProvider) SummarizeTrustRepairQueue(ctx context.Context) ([]extensions.SentinelTrustRepairQueueSummary, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make([]extensions.SentinelTrustRepairQueueSummary, len(f.TrustRepairQueue))
+	copy(out, f.TrustRepairQueue)
 	return out, nil
 }
 
