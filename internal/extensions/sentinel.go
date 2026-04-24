@@ -50,6 +50,7 @@ type SentinelProvider interface {
 	SummarizeAssignmentRecommendations(ctx context.Context) ([]SentinelAssignmentRecommendation, error)
 	SummarizeTrustStrategy(ctx context.Context) ([]SentinelTrustStrategySummary, error)
 	SummarizeTrustRecipeStrategy(ctx context.Context) ([]SentinelTrustRecipeStrategySummary, error)
+	SummarizeTrustRollout(ctx context.Context) ([]SentinelTrustRolloutSummary, error)
 	SummarizeCanaries(ctx context.Context) ([]SentinelCanarySummary, error)
 	SummarizeVariantCompare(ctx context.Context) ([]SentinelVariantCompareSummary, error)
 	SummarizeSiteIntelligence(ctx context.Context) ([]SentinelSiteIntelligenceSummary, error)
@@ -650,6 +651,28 @@ type SentinelTrustRecipeStrategySummary struct {
 	LastSeenAt            time.Time `json:"lastSeenAt,omitempty"`
 }
 
+// SentinelTrustRolloutSummary collapses each recipe-strategy row into one
+// operator-facing rollout posture per variant bundle plus trust recipe.
+type SentinelTrustRolloutSummary struct {
+	VariantBundleID     string    `json:"variantBundleId,omitempty"`
+	TrustRecipeID       string    `json:"trustRecipeId,omitempty"`
+	DomainCount         int       `json:"domainCount"`
+	SampleDomains       []string  `json:"sampleDomains,omitempty"`
+	TotalRows           int       `json:"totalRows"`
+	PromoteCount        int       `json:"promoteCount"`
+	ExpandCount         int       `json:"expandCount"`
+	BuildTrustCount     int       `json:"buildTrustCount"`
+	StabilizeRouteCount int       `json:"stabilizeRouteCount"`
+	QuarantineCount     int       `json:"quarantineCount"`
+	HoldCount           int       `json:"holdCount"`
+	AggregateScore      int       `json:"aggregateScore"`
+	ActionPressureScore int       `json:"actionPressureScore"`
+	RolloutAction       string    `json:"rolloutAction,omitempty"`
+	Reason              string    `json:"reason,omitempty"`
+	Confidence          string    `json:"confidence,omitempty"`
+	LastSeenAt          time.Time `json:"lastSeenAt,omitempty"`
+}
+
 type SentinelCanarySummary struct {
 	Domain                     string    `json:"domain,omitempty"`
 	VariantBundleID            string    `json:"variantBundleId,omitempty"`
@@ -888,6 +911,10 @@ func (noopSentinelProvider) SummarizeTrustStrategy(ctx context.Context) ([]Senti
 }
 
 func (noopSentinelProvider) SummarizeTrustRecipeStrategy(ctx context.Context) ([]SentinelTrustRecipeStrategySummary, error) {
+	return nil, ErrUnavailable
+}
+
+func (noopSentinelProvider) SummarizeTrustRollout(ctx context.Context) ([]SentinelTrustRolloutSummary, error) {
 	return nil, ErrUnavailable
 }
 

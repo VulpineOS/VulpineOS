@@ -272,6 +272,26 @@ describe("Settings page", () => {
                 confidence: "medium",
               },
             ],
+            trustRollout: [
+              {
+                variantBundleId: "control",
+                trustRecipeId: "baseline-warmup",
+                domainCount: 2,
+                sampleDomains: ["example.com", "shop.example.com"],
+                totalRows: 2,
+                promoteCount: 1,
+                expandCount: 0,
+                buildTrustCount: 1,
+                stabilizeRouteCount: 0,
+                quarantineCount: 0,
+                holdCount: 0,
+                aggregateScore: 24,
+                actionPressureScore: 1,
+                rolloutAction: "keep-building",
+                reason: "needs presence across 3 days",
+                confidence: "medium",
+              },
+            ],
             canarySummary: [
               {
                 domain: "example.com",
@@ -735,8 +755,8 @@ describe("Settings page", () => {
     expect(screen.getByText("PROMOTE · CRITICAL · HIGH")).toBeInTheDocument();
     expect(screen.getByText("Trust recipe strategy board")).toBeInTheDocument();
     expect(
-      screen.getByText("2 domains · example.com, shop.example.com"),
-    ).toBeInTheDocument();
+      screen.getAllByText("2 domains · example.com, shop.example.com").length,
+    ).toBeGreaterThan(0);
     expect(
       screen.getByText(
         "1 build · 0 route · 0 quarantine · 1 promote · 0 expand · 0 hold",
@@ -745,6 +765,12 @@ describe("Settings page", () => {
     expect(screen.getByText("A9 · M8 · T5")).toBeInTheDocument();
     expect(screen.getByText("24 total · 2 rows")).toBeInTheDocument();
     expect(screen.getByText("BUILD-TRUST · MEDIUM")).toBeInTheDocument();
+    expect(screen.getByText("Trust rollout board")).toBeInTheDocument();
+    expect(screen.getByText("1 promote · 0 expand")).toBeInTheDocument();
+    expect(
+      screen.getByText("1 total · 1 build · 0 route · 0 retire · 0 hold"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("KEEP-BUILDING · MEDIUM")).toBeInTheDocument();
     expect(screen.getByText("Canary board")).toBeInTheDocument();
     expect(screen.getAllByText("REGRESSED").length).toBeGreaterThan(0);
     expect(screen.getByText("ROTATE")).toBeInTheDocument();
