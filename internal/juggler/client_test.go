@@ -115,6 +115,31 @@ func TestClient_Subscribe_ReceivesEvents(t *testing.T) {
 	}
 }
 
+func TestClient_SubscribeWithCancel_RemovesHandler(t *testing.T) {
+	mt := newMemTransport()
+	c := NewClient(mt)
+	defer c.Close()
+
+	received := make(chan json.RawMessage, 1)
+	cancel := c.SubscribeWithCancel("Page.loadFired", func(_ string, params json.RawMessage) {
+		received <- params
+	})
+	cancel()
+	cancel()
+
+	payload, _ := json.Marshal(map[string]int{"timestamp": 42})
+	mt.incoming <- &Message{
+		Method: "Page.loadFired",
+		Params: payload,
+	}
+
+	select {
+	case params := <-received:
+		t.Fatalf("handler received event after cancellation: %s", params)
+	case <-time.After(100 * time.Millisecond):
+	}
+}
+
 func TestClient_CallWithContext_TimesOut(t *testing.T) {
 	mt := newMemTransport()
 	// Don't respond — let it hang
