@@ -279,6 +279,19 @@ func TestRecordingExportWrapsDownloadPayload(t *testing.T) {
 	}
 }
 
+func TestRecordingControlsRejectUnsafeAgentID(t *testing.T) {
+	api, _ := newPanelAPITestFixture(t)
+
+	for _, method := range []string{"recording.getTimeline", "recording.export"} {
+		t.Run(method, func(t *testing.T) {
+			_, err := api.HandleMessage(method, json.RawMessage(`{"agentId":"../escape"}`))
+			if err == nil || !strings.Contains(err.Error(), "invalid agentId") {
+				t.Fatalf("error = %v, want invalid agentId", err)
+			}
+		})
+	}
+}
+
 func TestFingerprintsGeneratePersistsAgentFingerprint(t *testing.T) {
 	api, db := newPanelAPITestFixture(t)
 
