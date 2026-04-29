@@ -22,8 +22,8 @@ import (
 )
 
 func TestLiveScopedSessionSoak(t *testing.T) {
-	if os.Getenv("VULPINEOS_RUN_SOAK") == "" {
-		t.Skip("set VULPINEOS_RUN_SOAK=1 to run the scoped-session soak harness")
+	if strings.TrimSpace(os.Getenv("VULPINEOS_RUN_SOAK")) == "" || strings.TrimSpace(os.Getenv("VULPINEOS_RUN_LIVE")) == "" {
+		t.Skip("set VULPINEOS_RUN_SOAK=1 and VULPINEOS_RUN_LIVE=1 to run the scoped-session soak harness")
 	}
 
 	iterations := 3

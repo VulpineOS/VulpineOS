@@ -26,6 +26,7 @@ set +e
 (
   cd "${ROOT_DIR}"
   VULPINEOS_RUN_SOAK=1 \
+  VULPINEOS_RUN_LIVE=1 \
   VULPINEOS_SOAK_ITERATIONS="${ITERATIONS}" \
   go test ./internal/mcp -run TestLiveScopedSessionSoak -count=1 -v
 ) 2>&1 | tee "${LOG_FILE}"
