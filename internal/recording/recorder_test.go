@@ -75,6 +75,47 @@ func TestRecorderTrimsOldestActionsAtLimit(t *testing.T) {
 	}
 }
 
+func TestRecorderRedactsSensitiveActionData(t *testing.T) {
+	r := NewRecorder()
+	r.Record("agent-1", ActionType_, json.RawMessage(`{
+		"selector":"input[type=password]",
+		"text":"correct-horse",
+		"headers":{"Authorization":"Bearer token-123"},
+		"apiKey":"key-123",
+		"nested":{"cookie":"session=abc"}
+	}`))
+	r.Record("agent-1", ActionType_, json.RawMessage(`{"selector":"input[name=q]","text":"public search"}`))
+
+	timeline := r.GetTimeline("agent-1")
+	if len(timeline) != 2 {
+		t.Fatalf("expected 2 retained actions, got %d", len(timeline))
+	}
+
+	var secret map[string]interface{}
+	if err := json.Unmarshal(timeline[0].Data, &secret); err != nil {
+		t.Fatalf("unmarshal redacted action: %v", err)
+	}
+	if secret["text"] != "[redacted]" || secret["apiKey"] != "[redacted]" {
+		t.Fatalf("sensitive top-level values were not redacted: %#v", secret)
+	}
+	headers, ok := secret["headers"].(map[string]interface{})
+	if !ok || headers["Authorization"] != "[redacted]" {
+		t.Fatalf("authorization header was not redacted: %#v", secret["headers"])
+	}
+	nested, ok := secret["nested"].(map[string]interface{})
+	if !ok || nested["cookie"] != "[redacted]" {
+		t.Fatalf("nested cookie was not redacted: %#v", secret["nested"])
+	}
+
+	var public map[string]interface{}
+	if err := json.Unmarshal(timeline[1].Data, &public); err != nil {
+		t.Fatalf("unmarshal public action: %v", err)
+	}
+	if public["text"] != "public search" {
+		t.Fatalf("public text should be preserved: %#v", public)
+	}
+}
+
 func TestExportEmptyTimeline(t *testing.T) {
 	r := NewRecorder()
 
