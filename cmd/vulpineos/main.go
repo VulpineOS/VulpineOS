@@ -894,6 +894,27 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 			return nil
 		}
 		if startErr != nil {
+			if wd != nil {
+				wd.Stop()
+			}
+			if gw != nil {
+				gw.Stop()
+			}
+			if fb != nil {
+				fb.Stop()
+			}
+			if orch != nil {
+				orch.Close()
+			}
+			if k != nil {
+				_ = k.Stop()
+			}
+			if v != nil {
+				_ = v.Close()
+			}
+			if audit != nil {
+				audit.Close()
+			}
 			return startErr
 		}
 		if warning := kernel.DetectStaleBinary(resolvedBinaryPath); warning != nil {
