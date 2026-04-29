@@ -13,7 +13,7 @@ describe('Webhooks page', () => {
           id: 'hook-1',
           url: params.url,
           events: params.events,
-          secret: params.secret,
+          hasSecret: !!params.secret,
         }]
         return { id: 'hook-1' }
       }
@@ -43,7 +43,7 @@ describe('Webhooks page', () => {
     })
     expect(await screen.findByText('https://example.com/hook')).toBeInTheDocument()
     expect(screen.getByText('agent.completed, budget.alert')).toBeInTheDocument()
-    expect(screen.getByText('••••••')).toBeInTheDocument()
+    expect(screen.getByText('set')).toBeInTheDocument()
 
     fireEvent.click(screen.getByText('Remove'))
     await waitFor(() => {
