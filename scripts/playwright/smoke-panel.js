@@ -2,8 +2,7 @@ async (page) => {
   const env = typeof process !== 'undefined' && process?.env ? process.env : {}
   const panelURL = env.VULPINE_PANEL_SMOKE_URL || 'http://127.0.0.1:8443'
   const accessKey = env.VULPINE_PANEL_SMOKE_ACCESS_KEY || ''
-  const screenshotPath =
-    env.VULPINE_PANEL_SMOKE_SCREENSHOT || '/tmp/vulpineos-panel-smoke.png'
+  const screenshotPath = env.VULPINE_PANEL_SMOKE_SCREENSHOT || ''
 
   await page.setViewportSize({ width: 1440, height: 960 })
   await page.goto(panelURL, { waitUntil: 'domcontentloaded' })
@@ -26,12 +25,14 @@ async (page) => {
   await page.getByRole('link', { name: 'Settings', exact: true }).click()
   await page.getByRole('heading', { name: 'Settings', exact: true }).waitFor()
 
-  await page.locator('main').screenshot({ path: screenshotPath })
+  if (screenshotPath) {
+    await page.locator('main').screenshot({ path: screenshotPath })
+  }
 
   return {
     ok: true,
     page: 'panel',
     url: page.url(),
-    screenshotPath,
+    screenshotPath: screenshotPath || null,
   }
 }
