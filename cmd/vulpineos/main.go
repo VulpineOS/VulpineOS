@@ -559,6 +559,21 @@ func normalizeRemotePanelURL(rawURL string, apiKey string) (string, error) {
 	return u.String(), nil
 }
 
+func normalizeRemotePanelDisplayURL(rawURL string) (string, error) {
+	panelURL, err := normalizeRemotePanelURL(rawURL, "")
+	if err != nil {
+		return "", err
+	}
+	u, err := url.Parse(panelURL)
+	if err != nil {
+		return "", err
+	}
+	query := u.Query()
+	query.Del("token")
+	u.RawQuery = query.Encode()
+	return u.String(), nil
+}
+
 func normalizeRemoteTUIURL(rawURL string) (string, error) {
 	rawURL = strings.TrimSpace(rawURL)
 	if rawURL == "" {
@@ -643,7 +658,7 @@ func runRemotePanel(rawURL string, apiKey string) error {
 	if err != nil {
 		return err
 	}
-	displayURL, err := normalizeRemotePanelURL(rawURL, "")
+	displayURL, err := normalizeRemotePanelDisplayURL(rawURL)
 	if err != nil {
 		return err
 	}

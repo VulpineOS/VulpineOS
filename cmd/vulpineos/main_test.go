@@ -111,6 +111,17 @@ func TestNormalizeRemotePanelURL_DefaultLocalURL(t *testing.T) {
 	}
 }
 
+func TestNormalizeRemotePanelDisplayURLStripsToken(t *testing.T) {
+	got, err := normalizeRemotePanelDisplayURL("wss://example.com:8443/ws?token=secret&view=agents")
+	if err != nil {
+		t.Fatalf("normalizeRemotePanelDisplayURL error: %v", err)
+	}
+	want := "https://example.com:8443/?view=agents"
+	if got != want {
+		t.Fatalf("normalizeRemotePanelDisplayURL = %q, want %q", got, want)
+	}
+}
+
 func TestNormalizeRemoteTUIURL(t *testing.T) {
 	got, err := normalizeRemoteTUIURL("https://example.com:8443")
 	if err != nil {
