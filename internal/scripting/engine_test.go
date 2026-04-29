@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"vulpineos/internal/juggler"
 )
@@ -342,6 +343,28 @@ func TestExecuteMultipleSteps(t *testing.T) {
 	// Screenshot should store variable.
 	if v := engine.GetVar("page.png"); v != "page.png" {
 		t.Errorf("expected screenshot store='page.png', got %q", v)
+	}
+}
+
+func TestWaitRejectsLongOrNegativeDurations(t *testing.T) {
+	transport := newMockTransport()
+	client := juggler.NewClient(transport)
+	defer client.Close()
+
+	engine := NewEngine(client)
+	cases := []Step{
+		{Action: "wait", Value: (maxScriptWaitDuration + time.Second).String()},
+		{Action: "wait", Value: "-1s"},
+	}
+	for _, step := range cases {
+		start := time.Now()
+		err := engine.Execute(&Script{Steps: []Step{step}})
+		if err == nil {
+			t.Fatalf("expected wait duration error for %#v", step)
+		}
+		if time.Since(start) > time.Second {
+			t.Fatalf("invalid wait duration blocked too long: %s", time.Since(start))
+		}
 	}
 }
 
