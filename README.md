@@ -247,7 +247,7 @@ A React SPA served from the Go binary — no separate frontend deployment needed
 
 **12 pages:** Dashboard, Agents, Agent Detail, Bus, Contexts, Proxies, Security, Webhooks, Scripts, Settings, Logs, Login
 
-**48 control messages** covering: agent CRUD plus bulk controls and session-log access; config get/set/providers; cost usage plus persisted per-agent/default budgets; webhooks; proxy management plus rotation get/set; agent bus pending/approve/reject/policies/add/remove; session recording export; fingerprint get/generate-and-apply; runtime-backed script execution; runtime-backed security status; status; Sentinel lab inspection plus raw session timelines; runtime audit history with retention/export controls; and context create/remove/list.
+**48 control messages** covering: agent CRUD plus bulk controls and session-log access; config get/set/providers; cost usage plus persisted per-agent/default budgets; webhooks; proxy management plus rotation get/set; agent bus pending/approve/reject/policies/add/remove; session recording export; fingerprint get/generate-and-apply; runtime-backed script execution; runtime-backed security status; status; optional extension availability and timelines; runtime audit history with retention/export controls; and context create/remove/list.
 
 Agent Detail includes separate conversation, action trace, raw session log, recording, and fingerprint views so operator-visible tool activity is inspectable without exposing hidden reasoning.
 
@@ -258,60 +258,7 @@ failed websocket states inline instead of relying on browser alerts.
 The panel now also includes:
 - a dedicated **Bus** page for pending approvals and communication policies
 - **Settings** controls for persisted default agent budgets
-- **Settings** Sentinel trust-lab visibility for variant bundles, trust recipes, maturity metrics, assignment rules, outcome taxonomy, and captured outcome summaries
-- **Settings** recent Sentinel capture timelines grouped by session with raw evidence rows and explicit variant/trust assignment tags
-- **Settings** Sentinel probe summary table grouped by domain, script, probe family, and API so operator triage stays ranked instead of purely chronological
-- **Settings** Sentinel experiment board grouped by variant bundle and trust recipe so trust-building holdouts can be compared directly
-- **Settings** Sentinel variant compare board grouped by domain, variant bundle, and trust recipe so assignment performance stays comparable within each target
-- **Settings** Sentinel site intelligence board grouped by domain so dominant scripts, probe families, vendors, and recommendation pressure stay visible together
-- **Settings** Sentinel probe sequence board grouped by domain and script so ordered browser-test flows stay visible before each challenge or success
-- **Settings** Sentinel vendor intelligence board grouped by script host and canonical vendor family so recurring detection stacks stay visible across targets
-- **Settings** Sentinel vendor effectiveness board grouped by canonical vendor family, variant bundle, and trust recipe so experiment performance stays comparable within each detection stack
-- **Settings** Sentinel vendor uplift board grouped by canonical vendor family, variant bundle, and trust recipe so promotion or rollback decisions stay tied to the local control baseline
-- **Settings** Sentinel vendor rollout board grouped by canonical vendor family so the next expand, hold, collect-control, or rollback decision stays explicit per detection stack
-- **Settings** Sentinel trust playbook board grouped by variant bundle and trust recipe so cross-family rollout wins stay visible as product-level guidance
-- **Settings** Sentinel experiment gap board grouped by canonical vendor family so missing baselines and under-sampled challenger arms stay ranked for the next experiment wave
-- **Settings** Sentinel patch investment board grouped by canonical vendor family so the next patch-first, experiment-first, or rollout-first call stays explicit per detection stack
-- **Settings** Sentinel surface hotspot board grouped by browser probe surface so cross-family browser patch work stays ranked above one-off site triage
-- **Settings** Sentinel surface effectiveness board grouped by browser probe surface plus variant bundle plus trust recipe so browser-wide failures can be separated from arm-specific regressions
-- **Settings** Sentinel surface strategy board grouped by browser probe surface so one operator call can collapse hotspot pressure and arm-level outcomes back into a shared browser-surface plan
-- **Settings** Sentinel stage board grouped by domain, variant bundle, and trust recipe so inferred maturity and assignment-rule fit stay explicit
-- **Settings** Sentinel assignment recommendation board grouped by domain, variant bundle, and trust recipe so the next hold/promote/demote/rotate/quarantine action stays explicit
-- **Settings** Sentinel trust-strategy board grouped by domain, variant bundle, and trust recipe so trust assets, maturity, transport stability, and assignment posture collapse into one operator-facing plan
-- **Settings** Sentinel trust recipe strategy board grouped by variant bundle and trust recipe so the same trust posture can be triaged across all covered domains in one row
-- **Settings** Sentinel trust rollout board grouped by variant bundle and trust recipe so widen/hold/build/stabilize/retire posture stays explicit before more traffic is spent
-- **Settings** Sentinel trust rollout debt board grouped by variant bundle and trust recipe so rollout blockers from regressions and outcome pressure stay explicit before more traffic is widened
-- **Settings** Sentinel trust repair queue grouped by variant bundle and trust recipe so the next repair action and dominant browser surface stay explicit instead of remaining implicit debt
-- **Settings** Sentinel canary board grouped by domain, variant bundle, and trust recipe so benchmark regressions stay visible before broader rollout
-- **Settings** Sentinel site-pressure board grouped by domain and challenge vendor so target-specific trust work stays ranked
-- **Settings** Sentinel trust-activity board grouped by domain and state so warmup coverage can be compared directly
-- **Settings** Sentinel trust-effectiveness board grouped by domain, variant bundle, and trust recipe so warming effort can be compared against actual outcomes
-- **Settings** Sentinel trust-asset board grouped by domain, variant bundle, and trust recipe so cookie/storage carry-forward and state continuity stay measurable
-- **Settings** Sentinel maturity-evidence board grouped by domain, variant bundle, and trust recipe so revisit cadence and distinct-day coverage stay measurable
-- **Settings** Sentinel transport-evidence board grouped by domain, variant bundle, and trust recipe so proxy churn and route instability can be compared against challenges
-- **Settings** Sentinel coherence-diff board grouped by domain, variant bundle, and trust recipe so identity-state and route invariants stay ranked
-- **Settings** Sentinel patch queue ranked by browser-probe pressure and recent challenge outcomes so the next browser-surface fixes stay explicit
-- Sentinel capture timelines now ingest page-level browser probe evidence (canvas, WebGL, audio, navigator, media-device, permissions, screen, and Intl reads), trust-warming lifecycle events with prior-domain revisit evidence, trust-asset carry-forward snapshots from persisted cookie/storage state, provider-ready lifecycle signals, monitor-detected rate-limit/captcha/block alerts, and proxy-rotation transport observations with agent/context/session scope during normal runtime flow, and carry explicit experiment-assignment tags when available
-- The Sentinel assignment recommendation board combines stage, coherence, trust-asset carry-forward, and recent challenge pressure into concrete next actions for each domain plus variant plus trust pairing
-- The Sentinel canary board compares recent grouped outcomes against each row's own prior benchmark window so regressions surface before broader promotion decisions
-- The Sentinel variant compare board keeps per-domain assignment rows together while ranking the worst current pressure first, so A/B trust work stays comparable within each target
-- The Sentinel site intelligence board condenses probe summaries, challenge pressure, patch recommendations, and canary status into one per-domain operator view
-- The Sentinel probe sequence board condenses ordered browser-probe flows by domain and script so the trust lab can show what each target tests before the latest outcome lands
-- The Sentinel vendor intelligence board clusters recurring script hosts into canonical vendor families with sample domains so common detection stacks stay ranked together
-- The Sentinel vendor effectiveness board compares variant and trust bundles within each canonical vendor family so experiment results stay attributable to the detection stack they hit
-- The Sentinel vendor uplift board compares each family-local experiment arm against the matching control baseline so success, challenge, and score deltas stay attributable before promotion or rollback
-- The Sentinel vendor rollout board condenses family-local uplift into one recommended next action per detection stack so operators can widen, hold, or pull back an arm without reading every experiment row
-- The Sentinel trust playbook board aggregates rollout outcomes across vendor families so the recipes that keep earning expansion decisions stay obvious at the product level
-- The Sentinel experiment gap board shows which vendor families still need control traffic, challenger traffic, or deeper samples before rollout calls are truly defensible
-- The Sentinel patch investment board combines ranked browser-surface patch pressure with rollout and experiment-gap posture so engineering work can be pointed at the families that need patching before more traffic or rollout spend
-- The Sentinel surface hotspot board flips that family-by-family pressure back onto shared browser probe surfaces so cross-cutting canvas, navigator, or other browser-patch work can be ranked across multiple detection stacks at once
-- The Sentinel surface effectiveness board then breaks those same shared surfaces back out by experiment arm so operators can see whether a hotspot is a browser-wide failure or mostly concentrated in one variant and trust recipe pairing
-- The Sentinel surface strategy board then collapses those hotspot and arm-level rows back into one next action per shared browser surface so browser-patch work, arm tuning, promotion, and evidence collection do not have to be inferred by hand
-- The Sentinel trust-strategy board then folds trust assets, maturity evidence, transport stability, and assignment posture back into one operator-facing plan so each domain plus variant plus trust row carries a single next trust action with explicit evidence behind it
-- The Sentinel trust recipe strategy board then rolls those per-domain trust plans up to one row per variant bundle and trust recipe so recipe-level widen/hold/build/route/quarantine posture is visible without scanning every target
-- The Sentinel trust rollout board then collapses those recipe-level posture rows into one rollout call per variant bundle and trust recipe so widen, hold, keep-building, stabilize, and retire decisions are visible before scaling traffic
-- The Sentinel trust rollout debt board then layers canary regressions and live outcome pressure back onto those rollout rows so the exact blockers to wider traffic stay visible before operator spend increases
-- The Sentinel trust repair queue then ties those debt rows back to the dominant browser surface for each variant and trust pairing so the next engineering repair action is ranked instead of implied
+- source-closed extension status surfaces when an optional provider is attached
 - **Agent Detail** controls for per-agent budget overrides, recording export, and fingerprint regeneration
 - **Proxies** controls for persisted per-agent rotation rules
 - **Scripts** execution against a real browser context through the server-side scripting engine
