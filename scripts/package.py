@@ -15,7 +15,7 @@ UNNEEDED_PATHS = {'uninstall', 'pingsender.exe', 'pingsender', 'vaapitest', 'glx
 
 
 def extract_macos_dmg(package_file, temp_dir):
-    """Extract a macOS DMG using native tooling when p7zip is unavailable."""
+    """Extract a macOS DMG using native tooling so app metadata is preserved."""
     mount_dir = os.path.join(temp_dir, 'mount')
     os.makedirs(mount_dir, exist_ok=True)
     subprocess.run(
@@ -50,7 +50,6 @@ def add_includes_to_package(package_file, includes, fonts, new_file, target):
         use_native_macos = (
             target == 'macos'
             and package_file.endswith('.dmg')
-            and shutil.which('7z') is None
             and shutil.which('hdiutil') is not None
             and shutil.which('ditto') is not None
         )
