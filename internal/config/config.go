@@ -391,17 +391,20 @@ func ClearReconfigureRequest() error {
 
 // GenerateOpenClawConfig writes an openclaw.json that uses VulpineOS as the browser.
 func (c *Config) GenerateOpenClawConfig(vulpineosBinary, camoufoxBinary string) error {
-	provider := GetProvider(c.Provider)
+	providerID := strings.TrimSpace(c.Provider)
+	model := strings.TrimSpace(c.Model)
+	apiKey := strings.TrimSpace(c.APIKey)
+	provider := GetProvider(providerID)
 	if provider == nil {
-		return fmt.Errorf("unknown provider: %s", c.Provider)
+		return fmt.Errorf("unknown provider: %s", providerID)
 	}
 
 	existing, _ := readExistingOpenClawConfig()
 
 	// Build env map
 	env := map[string]interface{}{}
-	if provider.EnvVar != "" && c.APIKey != "" {
-		env[provider.EnvVar] = c.APIKey
+	if provider.EnvVar != "" && apiKey != "" {
+		env[provider.EnvVar] = apiKey
 	}
 
 	// Build skills entries from global skills config
@@ -428,7 +431,7 @@ func (c *Config) GenerateOpenClawConfig(vulpineosBinary, camoufoxBinary string) 
 			"defaults": map[string]interface{}{
 				"workspace": OpenClawWorkspaceDir(),
 				"model": map[string]interface{}{
-					"primary": c.Model,
+					"primary": model,
 				},
 				"compaction": map[string]interface{}{
 					"mode": "safeguard",

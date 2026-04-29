@@ -194,9 +194,9 @@ func TestGenerateOpenClawConfig(t *testing.T) {
 	}
 
 	cfg := &Config{
-		Provider:               "anthropic",
-		APIKey:                 "sk-ant-test-key-99999",
-		Model:                  "anthropic/claude-sonnet-4-6",
+		Provider:               " anthropic ",
+		APIKey:                 " sk-ant-test-key-99999 ",
+		Model:                  " anthropic/claude-sonnet-4-6 ",
 		SetupComplete:          true,
 		ResizePanelsWithArrows: true,
 		GlobalSkills: []SkillEntry{
