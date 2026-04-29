@@ -51,7 +51,7 @@ func (api *PanelAPI) scriptsRun(params json.RawMessage) (json.RawMessage, error)
 		"contextId": contextID,
 		"sessionId": sessionID,
 		"results":   results,
-		"vars":      engine.Vars(),
+		"vars":      engine.RedactedVars(),
 	}
 	if runErr != nil {
 		payload["error"] = runErr.Error()
