@@ -60,8 +60,7 @@ node --check additions/juggler/content/*.js
 If the web panel changed:
 
 ```bash
-cd web
-npm run build
+npm --prefix web run build
 ```
 
 ## Public-boundary checks
