@@ -102,6 +102,7 @@ func (e *Engine) ExecuteWithResults(script *Script) ([]StepResult, error) {
 			DurationMS: time.Since(start).Milliseconds(),
 		}
 		if err != nil {
+			err = safeScriptStepError(step, err)
 			result.Status = "error"
 			result.Output = err.Error()
 			results = append(results, result)
@@ -319,6 +320,16 @@ func safeScriptField(value string) string {
 		return redactedScriptValue
 	}
 	return value
+}
+
+func safeScriptStepError(step Step, err error) error {
+	if err == nil {
+		return nil
+	}
+	if scriptStepSensitive(step) || sensitiveScriptToken(err.Error()) {
+		return fmt.Errorf("%s failed with redacted sensitive details", step.Action)
+	}
+	return err
 }
 
 func scriptStepSensitive(step Step) bool {

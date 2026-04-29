@@ -12,13 +12,15 @@ import (
 
 // mockTransport records calls and returns canned responses.
 type mockTransport struct {
-	mu      sync.Mutex
-	calls   []mockCall
-	nextID  int
-	sendCh  chan *juggler.Message
-	recvCh  chan *juggler.Message
-	closed  bool
-	closeCh chan struct{}
+	mu             sync.Mutex
+	calls          []mockCall
+	nextID         int
+	sendCh         chan *juggler.Message
+	recvCh         chan *juggler.Message
+	closed         bool
+	closeCh        chan struct{}
+	errorForMethod string
+	errorMessage   string
 }
 
 type mockCall struct {
@@ -41,6 +43,13 @@ func (m *mockTransport) Send(msg *juggler.Message) error {
 		return fmt.Errorf("transport closed")
 	}
 	m.calls = append(m.calls, mockCall{Method: msg.Method, Params: msg.Params})
+	if m.errorForMethod == msg.Method {
+		m.recvCh <- &juggler.Message{
+			ID:    msg.ID,
+			Error: &juggler.Error{Message: m.errorMessage},
+		}
+		return nil
+	}
 
 	// Auto-respond with success.
 	resp := &juggler.Message{
@@ -186,6 +195,33 @@ func TestExecuteWithResultsRedactsSensitiveValues(t *testing.T) {
 	}
 	if vars["search"] != "public query" {
 		t.Fatalf("public var should be preserved: %#v", vars)
+	}
+}
+
+func TestExecuteWithResultsRedactsSensitiveErrors(t *testing.T) {
+	transport := newMockTransport()
+	transport.errorForMethod = "Runtime.evaluate"
+	transport.errorMessage = `evaluation failed with "secret-token"`
+	client := juggler.NewClient(transport)
+	defer client.Close()
+
+	engine := NewEngine(client)
+	script := &Script{
+		Steps: []Step{
+			{Action: "type", Target: "input[type=password]", Value: "secret-token"},
+		},
+	}
+
+	results, err := engine.ExecuteWithResults(script)
+	if err == nil {
+		t.Fatal("expected sensitive step error")
+	}
+	encodedResults, _ := json.Marshal(results)
+	if strings.Contains(err.Error(), "secret-token") || strings.Contains(string(encodedResults), "secret-token") {
+		t.Fatalf("sensitive error leaked: err=%q results=%s", err.Error(), encodedResults)
+	}
+	if !strings.Contains(err.Error(), "redacted sensitive details") {
+		t.Fatalf("error should explain redaction: %v", err)
 	}
 }
 
