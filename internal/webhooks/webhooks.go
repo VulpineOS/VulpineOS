@@ -25,6 +25,23 @@ const (
 	BudgetExceeded    EventType = "budget.exceeded"
 )
 
+var supportedEvents = map[EventType]struct{}{
+	AgentCompleted:    {},
+	AgentFailed:       {},
+	AgentPaused:       {},
+	AgentInterrupted:  {},
+	RateLimitDetected: {},
+	InjectionDetected: {},
+	BudgetAlert:       {},
+	BudgetExceeded:    {},
+}
+
+// SupportedEvent reports whether event is a built-in webhook event type.
+func SupportedEvent(event EventType) bool {
+	_, ok := supportedEvents[event]
+	return ok
+}
+
 // Webhook is a registered webhook endpoint.
 type Webhook struct {
 	ID     string      `json:"id"`
