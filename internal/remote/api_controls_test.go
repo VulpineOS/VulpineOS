@@ -208,6 +208,24 @@ func TestProxyPanelRedactsCredentialsAndUsesIDsForRotation(t *testing.T) {
 	}
 }
 
+func TestProxiesDeleteRejectsBlankID(t *testing.T) {
+	api, db := newPanelAPITestFixture(t)
+	if _, err := db.AddProxy(`{"host":"example.com","port":8080}`, "", "example"); err != nil {
+		t.Fatalf("AddProxy: %v", err)
+	}
+
+	if _, err := api.HandleMessage("proxies.delete", json.RawMessage(`{"proxyId":"   "}`)); err == nil {
+		t.Fatal("expected blank proxy id error")
+	}
+	proxies, err := db.ListProxies()
+	if err != nil {
+		t.Fatalf("ListProxies: %v", err)
+	}
+	if len(proxies) != 1 {
+		t.Fatalf("blank delete removed proxies; len = %d", len(proxies))
+	}
+}
+
 func TestBusRemovePolicyRemovesConfiguredRule(t *testing.T) {
 	api, _ := newPanelAPITestFixture(t)
 	api.AgentBus.AddPolicy("alpha", "beta", true)
