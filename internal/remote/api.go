@@ -147,8 +147,14 @@ func (api *PanelAPI) HandleMessage(method string, params json.RawMessage) (json.
 	case "status.get":
 		return api.statusGet()
 	case "sentinel.get":
+		if !extensions.Registry.Sentinel().Available() {
+			return json.Marshal(map[string]interface{}{"available": false})
+		}
 		return api.sentinelGet()
 	case "sentinel.timeline":
+		if !extensions.Registry.Sentinel().Available() {
+			return json.Marshal(map[string]interface{}{"available": false, "timelines": []interface{}{}})
+		}
 		return api.sentinelTimeline(params)
 
 	// --- Runtime audit ---

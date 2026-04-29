@@ -171,11 +171,62 @@ func TestPrintPanelAccessGeneratedKey(t *testing.T) {
 	out := outBuf.String()
 	for _, want := range []string{
 		"Listening on: 0.0.0.0:8443",
-		"Panel URL: https://localhost:8443/?token=secret",
+		"Panel URL: https://localhost:8443/",
 		"API key: secret (generated)",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("printPanelAccess output %q missing %q", out, want)
 		}
+	}
+	if strings.Contains(out, "?token=secret") {
+		t.Fatalf("generated-key output leaked token URL: %q", out)
+	}
+}
+
+func TestPrintPanelAccessExplicitKeyAvoidsTokenURL(t *testing.T) {
+	var outBuf bytes.Buffer
+
+	prevOut := stdout
+	stdout = &outBuf
+	t.Cleanup(func() {
+		stdout = prevOut
+	})
+
+	got := printPanelAccess("127.0.0.1", 8443, false, "secret", false)
+	if got != "http://127.0.0.1:8443/?token=secret" {
+		t.Fatalf("printPanelAccess URL = %q", got)
+	}
+
+	out := outBuf.String()
+	if strings.Contains(out, "?token=secret") {
+		t.Fatalf("explicit-key output leaked token URL: %q", out)
+	}
+	for _, want := range []string{
+		"Panel URL: http://127.0.0.1:8443/",
+		"API key: secret",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("printPanelAccess output %q missing %q", out, want)
+		}
+	}
+}
+
+func TestRunRemoteRejectsUnknownMode(t *testing.T) {
+	var outBuf, errBuf bytes.Buffer
+
+	prevOut, prevErr := stdout, stderr
+	stdout = &outBuf
+	stderr = &errBuf
+	t.Cleanup(func() {
+		stdout = prevOut
+		stderr = prevErr
+	})
+
+	code := runRemoteSubcommand([]string{"foo"})
+	if code != 2 {
+		t.Fatalf("runRemoteSubcommand unknown mode code = %d, want 2", code)
+	}
+	if !strings.Contains(errBuf.String(), `unknown remote mode "foo"`) {
+		t.Fatalf("stderr = %q", errBuf.String())
 	}
 }

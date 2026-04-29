@@ -43,6 +43,15 @@ func (c *wsClient) write(ctx context.Context, typ websocket.MessageType, data []
 	return c.conn.Write(ctx, typ, data)
 }
 
+func (c *wsClient) close(status websocket.StatusCode, reason string) error {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+	if c.conn == nil {
+		return nil
+	}
+	return c.conn.Close(status, reason)
+}
+
 // NewServer creates a remote access server.
 func NewServer(addr string, apiKey string, jugglerClient *juggler.Client) *Server {
 	s := &Server{
@@ -102,6 +111,11 @@ func (s *Server) StartTLS(certFile, keyFile string) error {
 
 // Stop gracefully shuts down the server.
 func (s *Server) Stop(ctx context.Context) error {
+	clients := s.snapshotClients()
+	for _, c := range clients {
+		_ = c.close(websocket.StatusGoingAway, "server shutting down")
+	}
+	s.removeClients(clients)
 	return s.server.Shutdown(ctx)
 }
 
@@ -185,7 +199,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		s.clientsMu.Lock()
 		delete(s.clients, wsc)
 		s.clientsMu.Unlock()
-		conn.Close(websocket.StatusNormalClosure, "")
+		_ = wsc.close(websocket.StatusNormalClosure, "")
 	}()
 
 	log.Printf("Remote client connected from %s", r.RemoteAddr)

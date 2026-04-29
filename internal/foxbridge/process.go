@@ -18,6 +18,7 @@ import (
 // Supports two modes: external subprocess (Start) or embedded in-process (StartEmbeddedMode).
 type Process struct {
 	cmd      *exec.Cmd
+	logFile  *os.File
 	port     int
 	binary   string
 	embedded *EmbeddedServer // non-nil when running in embedded mode
@@ -82,6 +83,7 @@ func (p *Process) Start(cfg Config) error {
 	if logFile, err := os.Create(logPath); err == nil {
 		p.cmd.Stdout = logFile
 		p.cmd.Stderr = logFile
+		p.logFile = logFile
 	}
 
 	if err := p.cmd.Start(); err != nil {
@@ -176,6 +178,10 @@ func (p *Process) Stop() {
 		p.cmd.Process.Kill()
 		p.cmd.Wait()
 		p.cmd = nil
+		if p.logFile != nil {
+			_ = p.logFile.Close()
+			p.logFile = nil
+		}
 		log.Println("foxbridge stopped")
 		p.logRuntimeEvent("info", "stopped", "foxbridge external proxy stopped", map[string]string{
 			"mode": "external",

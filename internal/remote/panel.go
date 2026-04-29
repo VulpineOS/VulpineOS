@@ -22,6 +22,9 @@ func ServePanel(mux *http.ServeMux, webFS fs.FS) {
 	fileServer := http.FileServer(http.FS(webFS))
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Referrer-Policy", "no-referrer")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+
 		// Skip WebSocket and API paths
 		if r.URL.Path == "/ws" || r.URL.Path == "/health" || strings.HasPrefix(r.URL.Path, "/api/") {
 			return

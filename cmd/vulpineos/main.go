@@ -11,11 +11,14 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -215,6 +218,14 @@ func enableBrowser(client *juggler.Client, label string) error {
 	return fmt.Errorf("%s: %w", label, lastErr)
 }
 
+func isRemoteBrowserUnavailable(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "browser unavailable") || strings.Contains(msg, "server started without a kernel")
+}
+
 func main() {
 	os.Exit(Run(os.Args))
 }
@@ -402,6 +413,11 @@ func runRemoteSubcommand(args []string) int {
 		case "panel", "tui":
 			mode = args[0]
 			args = args[1:]
+		default:
+			if !strings.Contains(args[0], "://") && !strings.Contains(args[0], ".") && !strings.Contains(args[0], ":") && args[0] != "localhost" {
+				fmt.Fprintf(stderr, "error: unknown remote mode %q (expected panel or tui)\n", args[0])
+				return 2
+			}
 		}
 	}
 
@@ -574,13 +590,14 @@ func normalizeRemoteTUIURL(rawURL string) (string, error) {
 
 func printPanelAccess(host string, port int, useTLS bool, apiKey string, generated bool) string {
 	panelURL := buildPanelURL(host, port, useTLS, apiKey)
+	displayURL := buildPanelURL(host, port, useTLS, "")
 	if normalized := strings.TrimSpace(host); normalized == "" || normalized == "0.0.0.0" || normalized == "::" || normalized == "[::]" {
 		if normalized == "" {
 			normalized = "0.0.0.0"
 		}
 		fmt.Fprintf(stdout, "Listening on: %s:%d\n", normalized, port)
 	}
-	fmt.Fprintf(stdout, "Panel URL: %s\n", panelURL)
+	fmt.Fprintf(stdout, "Panel URL: %s\n", displayURL)
 	if generated {
 		fmt.Fprintf(stdout, "API key: %s (generated)\n", apiKey)
 	} else if strings.TrimSpace(apiKey) != "" {
@@ -626,7 +643,11 @@ func runRemotePanel(rawURL string, apiKey string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(stdout, "Panel URL: %s\n", panelURL)
+	displayURL, err := normalizeRemotePanelURL(rawURL, "")
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(stdout, "Panel URL: %s\n", displayURL)
 	if strings.TrimSpace(apiKey) != "" {
 		fmt.Fprintf(stdout, "API key: %s\n", apiKey)
 	}
@@ -654,6 +675,9 @@ func runMCPServer(binaryPath string, headless bool, profileDir string, connectUR
 		defer client.Close()
 		extensions.InitWithClient(client)
 		if err := enableBrowser(client, "Browser.enable (remote MCP)"); err != nil {
+			if isRemoteBrowserUnavailable(err) {
+				return fmt.Errorf("remote server was started without a browser; MCP browser tools are unavailable, use `vulpineos remote panel` for panel-only servers")
+			}
 			return err
 		}
 
@@ -1016,6 +1040,9 @@ func runRemote(addr string, apiKey string) error {
 
 	extensions.InitWithClient(client)
 	if err := enableBrowser(client, "Browser.enable (remote)"); err != nil {
+		if isRemoteBrowserUnavailable(err) {
+			return fmt.Errorf("remote server was started without a browser; use `vulpineos remote panel` for panel-only servers")
+		}
 		return err
 	}
 
@@ -1395,7 +1422,7 @@ func runServe(binaryPath string, headless bool, profileDir string, host string, 
 
 	if noTLS {
 		log.Printf("TLS disabled — serving plain ws:// on port %d", port)
-		return server.Start()
+		return runServerUntilSignal(server.Start, server)
 	}
 
 	// Resolve TLS certificates
@@ -1414,5 +1441,37 @@ func runServe(binaryPath string, headless bool, profileDir string, host string, 
 	if err == nil {
 		log.Printf("TLS cert fingerprint: %s", fp)
 	}
-	return server.StartTLS(certFile, keyFile)
+	return runServerUntilSignal(func() error {
+		return server.StartTLS(certFile, keyFile)
+	}, server)
+}
+
+func runServerUntilSignal(start func() error, server *remote.Server) error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- start()
+	}()
+
+	select {
+	case err := <-errCh:
+		if err == nil || errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
+		return err
+	case <-ctx.Done():
+		stop()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := server.Stop(shutdownCtx); err != nil {
+			return fmt.Errorf("shutdown server: %w", err)
+		}
+		err := <-errCh
+		if err == nil || errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
+		return err
+	}
 }
