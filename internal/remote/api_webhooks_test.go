@@ -2,6 +2,7 @@ package remote
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"vulpineos/internal/webhooks"
@@ -77,7 +78,7 @@ func TestWebhooksAddRejectsUnsupportedEvents(t *testing.T) {
 
 func TestWebhooksListDoesNotExposeSecrets(t *testing.T) {
 	api := &PanelAPI{Webhooks: webhooks.New()}
-	api.Webhooks.Register("https://example.com/hook", nil, "secret-token")
+	api.Webhooks.Register("https://user:pass@example.com/hook?token=url-token&view=events", nil, "secret-token")
 
 	payload, err := api.HandleMessage("webhooks.list", nil)
 	if err != nil {
@@ -99,6 +100,12 @@ func TestWebhooksListDoesNotExposeSecrets(t *testing.T) {
 	}
 	if result.Webhooks[0].Secret != "" {
 		t.Fatalf("secret leaked in list response: %q", result.Webhooks[0].Secret)
+	}
+	if strings.Contains(result.Webhooks[0].URL, "user") || strings.Contains(result.Webhooks[0].URL, "pass") || strings.Contains(result.Webhooks[0].URL, "url-token") {
+		t.Fatalf("webhook URL leaked credentials: %q", result.Webhooks[0].URL)
+	}
+	if !strings.Contains(result.Webhooks[0].URL, "token=%5Bredacted%5D") || !strings.Contains(result.Webhooks[0].URL, "view=events") {
+		t.Fatalf("webhook URL was not redacted as expected: %q", result.Webhooks[0].URL)
 	}
 	if !result.Webhooks[0].HasSecret {
 		t.Fatal("hasSecret = false, want true")

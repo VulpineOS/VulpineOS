@@ -756,7 +756,7 @@ func (api *PanelAPI) webhooksList() (json.RawMessage, error) {
 	for _, hook := range hooks {
 		out = append(out, webhookSummary{
 			ID:        hook.ID,
-			URL:       hook.URL,
+			URL:       redactPanelURLSecrets(hook.URL),
 			Events:    hook.Events,
 			Active:    hook.Active,
 			HasSecret: hook.Secret != "",
@@ -1097,6 +1097,38 @@ func redactProxyURL(raw string) string {
 	}
 	parsed.User = url.UserPassword("redacted", "redacted")
 	return parsed.String()
+}
+
+func redactPanelURLSecrets(raw string) string {
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return raw
+	}
+	if parsed.User != nil {
+		parsed.User = url.UserPassword("redacted", "redacted")
+	}
+	query := parsed.Query()
+	redacted := false
+	for key := range query {
+		if sensitivePanelURLKey(key) {
+			query.Set(key, "[redacted]")
+			redacted = true
+		}
+	}
+	if redacted {
+		parsed.RawQuery = query.Encode()
+	}
+	return parsed.String()
+}
+
+func sensitivePanelURLKey(key string) bool {
+	normalized := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(key), "-", "_"))
+	for _, marker := range []string{"api_key", "apikey", "token", "secret", "password", "credential", "authorization", "cookie", "session"} {
+		if strings.Contains(normalized, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 // ---------------------------------------------------------------------------
