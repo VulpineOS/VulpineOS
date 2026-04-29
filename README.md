@@ -384,6 +384,8 @@ does not write screenshots unless
 When no `--binary` flag is provided, VulpineOS prefers a repo-local
 `camoufox-*/obj-*/dist` build before falling back to a saved configured
 binary or older installed copies.
+`--binary` may point directly at the executable, at `Camoufox.app`, at a browser
+`dist` directory, or at the repo root containing `camoufox-*/obj-*/dist`.
 
 First launch opens a setup wizard to configure your AI provider (Anthropic, OpenAI, Google, xAI, and 27 more).
 

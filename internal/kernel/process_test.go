@@ -85,6 +85,59 @@ func TestBinaryLocatorFallsBackToRepoBinWhenAppBundleMissing(t *testing.T) {
 	}
 }
 
+func TestBinaryLocatorResolvesRequestedRepoDirectory(t *testing.T) {
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	execPath := filepath.Join(root, "bin", "vulpineos")
+	repoBinary := filepath.Join(root, "camoufox-146.0.1-beta.25", "obj-aarch64-apple-darwin", "dist", "Camoufox.app", "Contents", "MacOS", "camoufox")
+
+	mustWriteExecutable(t, execPath)
+	mustWriteExecutable(t, repoBinary)
+
+	locator := binaryLocator{
+		execPath: execPath,
+		cwd:      filepath.Join(root, "elsewhere"),
+		home:     home,
+		goos:     "darwin",
+		lookPath: func(string) (string, error) { return "", os.ErrNotExist },
+	}
+
+	resolved, err := locator.Resolve(root)
+	if err != nil {
+		t.Fatalf("Resolve(%q): %v", root, err)
+	}
+	if resolved != repoBinary {
+		t.Fatalf("Resolve(%q) = %q, want %q", root, resolved, repoBinary)
+	}
+}
+
+func TestBinaryLocatorResolvesRequestedAppBundleDirectory(t *testing.T) {
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	execPath := filepath.Join(root, "bin", "vulpineos")
+	appBundle := filepath.Join(root, "Camoufox.app")
+	appBinary := filepath.Join(appBundle, "Contents", "MacOS", "camoufox")
+
+	mustWriteExecutable(t, execPath)
+	mustWriteExecutable(t, appBinary)
+
+	locator := binaryLocator{
+		execPath: execPath,
+		cwd:      root,
+		home:     home,
+		goos:     "darwin",
+		lookPath: func(string) (string, error) { return "", os.ErrNotExist },
+	}
+
+	resolved, err := locator.Resolve(appBundle)
+	if err != nil {
+		t.Fatalf("Resolve(%q): %v", appBundle, err)
+	}
+	if resolved != appBinary {
+		t.Fatalf("Resolve(%q) = %q, want %q", appBundle, resolved, appBinary)
+	}
+}
+
 func TestBinaryLocatorDetectDriftWarnsOnOlderExplicitBinary(t *testing.T) {
 	root := t.TempDir()
 	home := filepath.Join(root, "home")
