@@ -3,6 +3,7 @@ package openclaw
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -253,5 +254,55 @@ func TestResumeWithSessionIsolatedRunsCleanupOnStartFailure(t *testing.T) {
 	}
 	if !called {
 		t.Fatal("expected cleanup to run on start failure")
+	}
+}
+
+func TestSpawnWithSessionRejectsUnsafeSessionNameAndRunsCleanup(t *testing.T) {
+	for _, sessionName := range []string{"../escape", `..\escape`, "nested/session", "."} {
+		t.Run(sessionName, func(t *testing.T) {
+			m := NewManager("/not-needed")
+			called := false
+			_, err := m.SpawnWithSessionIsolated("agent-1", "task", sessionName, config.OpenClawConfigPath(), func() {
+				called = true
+			})
+			if err == nil || !strings.Contains(err.Error(), "invalid sessionName") {
+				t.Fatalf("error = %v, want invalid sessionName", err)
+			}
+			if !called {
+				t.Fatal("expected cleanup to run on validation failure")
+			}
+		})
+	}
+}
+
+func TestSafeSessionNameDefaultsToAgentID(t *testing.T) {
+	got, err := safeSessionName("agent-1", "")
+	if err != nil {
+		t.Fatalf("safeSessionName: %v", err)
+	}
+	if got != "vulpine-agent-1" {
+		t.Fatalf("session name = %q, want vulpine-agent-1", got)
+	}
+}
+
+func TestSessionLogPathForSessionIDRejectsTraversal(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	path, err := sessionLogPathForSessionID("vulpine-agent-1")
+	if err != nil {
+		t.Fatalf("sessionLogPathForSessionID: %v", err)
+	}
+	want := filepath.Join(config.OpenClawProfileDir(), "agents", "main", "sessions", "vulpine-agent-1.jsonl")
+	if path != want {
+		t.Fatalf("path = %q, want %q", path, want)
+	}
+
+	for _, sessionID := range []string{"../escape", `..\escape`, "nested/session"} {
+		t.Run(sessionID, func(t *testing.T) {
+			_, err := sessionLogPathForSessionID(sessionID)
+			if err == nil || !strings.Contains(err.Error(), "invalid sessionName") {
+				t.Fatalf("error = %v, want invalid sessionName", err)
+			}
+		})
 	}
 }

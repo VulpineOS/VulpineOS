@@ -99,8 +99,18 @@ func (m *Manager) SpawnWithSession(agentID, task, sessionName, configPath string
 
 // SpawnWithSessionIsolated creates and starts a new agent with an optional cleanup hook.
 func (m *Manager) SpawnWithSessionIsolated(agentID, task, sessionName, configPath string, cleanup func()) (string, error) {
+	sessionName, err := safeSessionName(agentID, sessionName)
+	if err != nil {
+		if cleanup != nil {
+			cleanup()
+		}
+		return "", err
+	}
 	openclawBin := m.findOpenClaw()
 	if openclawBin == "" {
+		if cleanup != nil {
+			cleanup()
+		}
 		return "", fmt.Errorf("OpenClaw not found. Run 'npm install' in the VulpineOS directory or install globally: npm install -g openclaw")
 	}
 
@@ -403,6 +413,17 @@ func waitAgentDone(agent *Agent, timeout time.Duration) {
 
 func (m *Manager) startManagedAgent(agentID, contextID, openclawBin string, args []string, configPath string, cleanup func()) (string, error) {
 	var old *managedAgent
+	sessionLogPath := ""
+	if sessionID := sessionIDFromArgs(args); sessionID != "" {
+		path, err := sessionLogPathForSessionID(sessionID)
+		if err != nil {
+			if cleanup != nil {
+				cleanup()
+			}
+			return "", err
+		}
+		sessionLogPath = path
+	}
 
 	m.mu.Lock()
 	if existing, ok := m.agents[agentID]; ok {
@@ -419,9 +440,7 @@ func (m *Manager) startManagedAgent(agentID, contextID, openclawBin string, args
 	}
 
 	agent := newAgent(agentID, contextID, m.statusSource)
-	if sessionID := sessionIDFromArgs(args); sessionID != "" {
-		agent.sessionLogPath = filepath.Join(config.OpenClawProfileDir(), "agents", "main", "sessions", sessionID+".jsonl")
-	}
+	agent.sessionLogPath = sessionLogPath
 	if configPath != "" {
 		agent.env = runtimeEnvForConfig(configPath)
 	}
@@ -493,6 +512,38 @@ func (m *Manager) startManagedAgent(agentID, contextID, openclawBin string, args
 	}()
 
 	return agentID, nil
+}
+
+func safeSessionName(agentID, sessionName string) (string, error) {
+	name := strings.TrimSpace(sessionName)
+	if name == "" {
+		id := strings.TrimSpace(agentID)
+		if id == "" {
+			return "", fmt.Errorf("agentID is required")
+		}
+		name = "vulpine-" + id
+	}
+	if strings.ContainsAny(name, `/\`) || name == "." || name == ".." {
+		return "", fmt.Errorf("invalid sessionName")
+	}
+	return name, nil
+}
+
+func sessionLogPathForSessionID(sessionID string) (string, error) {
+	id := strings.TrimSpace(sessionID)
+	if id == "" {
+		return "", nil
+	}
+	if strings.ContainsAny(id, `/\`) || id == "." || id == ".." {
+		return "", fmt.Errorf("invalid sessionName")
+	}
+	sessionsDir := filepath.Join(config.OpenClawProfileDir(), "agents", "main", "sessions")
+	path := filepath.Join(sessionsDir, id+".jsonl")
+	rel, err := filepath.Rel(sessionsDir, path)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		return "", fmt.Errorf("invalid sessionName")
+	}
+	return path, nil
 }
 
 func sessionIDFromArgs(args []string) string {
