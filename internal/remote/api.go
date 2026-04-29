@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -735,7 +736,23 @@ func (api *PanelAPI) webhooksAdd(params json.RawMessage) (json.RawMessage, error
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
-	id := api.Webhooks.Register(p.URL, p.Events, p.Secret)
+	webhookURL := strings.TrimSpace(p.URL)
+	if webhookURL == "" {
+		return nil, fmt.Errorf("webhook url is required")
+	}
+	parsedURL, err := url.Parse(webhookURL)
+	if err != nil || parsedURL.Host == "" || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
+		return nil, fmt.Errorf("webhook url must be an http or https URL")
+	}
+	events := make([]webhooks.EventType, 0, len(p.Events))
+	for _, event := range p.Events {
+		trimmed := strings.TrimSpace(string(event))
+		if trimmed == "" {
+			continue
+		}
+		events = append(events, webhooks.EventType(trimmed))
+	}
+	id := api.Webhooks.Register(webhookURL, events, strings.TrimSpace(p.Secret))
 	return json.Marshal(map[string]string{"id": id})
 }
 

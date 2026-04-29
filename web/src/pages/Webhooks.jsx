@@ -14,9 +14,9 @@ export default function Webhooks({ ws }) {
 
   const addHook = async () => {
     if (!url.trim()) return
-    const eventList = events.trim() ? events.split(',').map(e => e.trim()) : []
+    const eventList = events.trim() ? events.split(',').map(e => e.trim()).filter(Boolean) : []
     try {
-      await ws.call('webhooks.add', { url: url.trim(), events: eventList, secret })
+      await ws.call('webhooks.add', { url: url.trim(), events: eventList, secret: secret.trim() })
       setUrl(''); setSecret(''); setEvents('')
       refresh()
     } catch (e) { ws.notify?.(e.message) }
