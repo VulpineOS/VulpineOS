@@ -1,0 +1,62 @@
+package remote
+
+import (
+	"encoding/json"
+	"testing"
+
+	"vulpineos/internal/webhooks"
+)
+
+func TestWebhooksAddNormalizesInput(t *testing.T) {
+	api := &PanelAPI{Webhooks: webhooks.New()}
+
+	payload, err := api.HandleMessage("webhooks.add", json.RawMessage(`{
+		"url":"  https://example.com/hook  ",
+		"events":[" agent.completed ",""," agent.interrupted "],
+		"secret":"  secret-token  "
+	}`))
+	if err != nil {
+		t.Fatalf("webhooks.add: %v", err)
+	}
+
+	var result struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(payload, &result); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+	if result.ID == "" {
+		t.Fatal("expected webhook id")
+	}
+
+	hooks := api.Webhooks.List()
+	if len(hooks) != 1 {
+		t.Fatalf("hooks len = %d, want 1", len(hooks))
+	}
+	if hooks[0].URL != "https://example.com/hook" {
+		t.Fatalf("url = %q, want trimmed URL", hooks[0].URL)
+	}
+	if hooks[0].Secret != "secret-token" {
+		t.Fatalf("secret = %q, want trimmed secret", hooks[0].Secret)
+	}
+	wantEvents := []webhooks.EventType{webhooks.AgentCompleted, webhooks.AgentInterrupted}
+	if len(hooks[0].Events) != len(wantEvents) {
+		t.Fatalf("events = %#v, want %#v", hooks[0].Events, wantEvents)
+	}
+	for i, want := range wantEvents {
+		if hooks[0].Events[i] != want {
+			t.Fatalf("event[%d] = %q, want %q", i, hooks[0].Events[i], want)
+		}
+	}
+}
+
+func TestWebhooksAddRejectsInvalidURL(t *testing.T) {
+	api := &PanelAPI{Webhooks: webhooks.New()}
+
+	if _, err := api.HandleMessage("webhooks.add", json.RawMessage(`{"url":"ftp://example.com/hook"}`)); err == nil {
+		t.Fatal("expected invalid URL error")
+	}
+	if len(api.Webhooks.List()) != 0 {
+		t.Fatal("invalid webhook should not be registered")
+	}
+}

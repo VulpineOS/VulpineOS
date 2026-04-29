@@ -30,8 +30,8 @@ describe('Webhooks page', () => {
     expect(await screen.findByText('No webhooks registered.')).toBeInTheDocument()
 
     fireEvent.change(screen.getByPlaceholderText('https://your-server.com/webhook'), { target: { value: 'https://example.com/hook' } })
-    fireEvent.change(screen.getByPlaceholderText('Secret (optional)'), { target: { value: 'secret-token' } })
-    fireEvent.change(screen.getByPlaceholderText('Events (comma-separated, empty=all)'), { target: { value: 'agent.completed, budget.alert' } })
+    fireEvent.change(screen.getByPlaceholderText('Secret (optional)'), { target: { value: ' secret-token ' } })
+    fireEvent.change(screen.getByPlaceholderText('Events (comma-separated, empty=all)'), { target: { value: 'agent.completed, , budget.alert' } })
     fireEvent.click(screen.getByText('Add'))
 
     await waitFor(() => {
