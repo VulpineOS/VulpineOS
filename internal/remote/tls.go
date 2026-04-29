@@ -33,9 +33,9 @@ func GenerateSelfSignedCert() (string, string, error) {
 	// If both files exist, return them
 	if _, err := os.Stat(certPath); err == nil {
 		if _, err := os.Stat(keyPath); err == nil {
-			_ = os.Chmod(tlsDir, 0700)
-			_ = os.Chmod(certPath, 0644)
-			_ = os.Chmod(keyPath, 0600)
+			if err := setTLSFilePermissions(tlsDir, certPath, keyPath); err != nil {
+				return "", "", err
+			}
 			return certPath, keyPath, nil
 		}
 	}
@@ -117,7 +117,23 @@ func GenerateSelfSignedCert() (string, string, error) {
 		return "", "", fmt.Errorf("close key: %w", err)
 	}
 
+	if err := setTLSFilePermissions(tlsDir, certPath, keyPath); err != nil {
+		return "", "", err
+	}
 	return certPath, keyPath, nil
+}
+
+func setTLSFilePermissions(tlsDir, certPath, keyPath string) error {
+	if err := os.Chmod(tlsDir, 0700); err != nil {
+		return fmt.Errorf("chmod tls dir: %w", err)
+	}
+	if err := os.Chmod(certPath, 0644); err != nil {
+		return fmt.Errorf("chmod cert: %w", err)
+	}
+	if err := os.Chmod(keyPath, 0600); err != nil {
+		return fmt.Errorf("chmod key: %w", err)
+	}
+	return nil
 }
 
 // CertFingerprint returns the SHA-256 fingerprint of a PEM certificate file.
