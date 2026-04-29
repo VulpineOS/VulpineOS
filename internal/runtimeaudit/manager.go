@@ -1,10 +1,15 @@
 package runtimeaudit
 
 import (
+	"net/url"
+	"regexp"
+	"strings"
 	"sync"
 
 	"vulpineos/internal/vault"
 )
+
+var bearerTokenPattern = regexp.MustCompile(`(?i)(bearer\s+)[^\s,;]+`)
 
 // Manager persists and broadcasts recent runtime lifecycle events.
 type Manager struct {
@@ -28,6 +33,7 @@ func (m *Manager) Log(component, level, event, message string, metadata map[stri
 	if m == nil || m.vault == nil {
 		return nil, nil
 	}
+	metadata = sanitizeRuntimeMetadata(metadata)
 	entry, err := m.vault.AppendRuntimeEvent(component, level, event, message, metadata)
 	if err != nil || entry == nil {
 		return entry, err
@@ -89,6 +95,52 @@ func (m *Manager) Unsubscribe(ch chan vault.RuntimeEvent) {
 		delete(m.subs, ch)
 		close(ch)
 	}
+}
+
+func sanitizeRuntimeMetadata(metadata map[string]string) map[string]string {
+	if metadata == nil {
+		return nil
+	}
+	sanitized := make(map[string]string, len(metadata))
+	for key, value := range metadata {
+		if sensitiveRuntimeMetadataKey(key) {
+			sanitized[key] = "[redacted]"
+			continue
+		}
+		sanitized[key] = redactRuntimeValue(value)
+	}
+	return sanitized
+}
+
+func sensitiveRuntimeMetadataKey(key string) bool {
+	normalized := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(key), "-", "_"))
+	for _, marker := range []string{"api_key", "apikey", "token", "secret", "password", "credential", "authorization"} {
+		if strings.Contains(normalized, marker) {
+			return true
+		}
+	}
+	return normalized == "auth" || strings.HasSuffix(normalized, "_auth")
+}
+
+func redactRuntimeValue(value string) string {
+	value = bearerTokenPattern.ReplaceAllString(value, "${1}[redacted]")
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return value
+	}
+	query := parsed.Query()
+	redacted := false
+	for key := range query {
+		if sensitiveRuntimeMetadataKey(key) {
+			query.Set(key, "[redacted]")
+			redacted = true
+		}
+	}
+	if redacted {
+		parsed.RawQuery = query.Encode()
+		return parsed.String()
+	}
+	return value
 }
 
 // Close closes all subscribers.
