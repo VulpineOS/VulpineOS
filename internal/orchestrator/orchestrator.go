@@ -414,7 +414,7 @@ func (o *Orchestrator) applySecurityToContext(contextID, ownerID string) {
 // statusRelay forwards agent status updates (for use by TUI or other consumers).
 func (o *Orchestrator) statusRelay() {
 	for status := range o.Agents.StatusChan() {
-		if status.Status == "completed" || status.Status == "error" {
+		if isTerminalAgentStatus(status.Status) {
 			o.agentToSlotMu.Lock()
 			slot, ok := o.agentToSlot[status.AgentID]
 			if ok {
@@ -425,6 +425,15 @@ func (o *Orchestrator) statusRelay() {
 				o.Pool.Release(slot)
 			}
 		}
+	}
+}
+
+func isTerminalAgentStatus(status string) bool {
+	switch status {
+	case "completed", "error", "failed", "interrupted":
+		return true
+	default:
+		return false
 	}
 }
 

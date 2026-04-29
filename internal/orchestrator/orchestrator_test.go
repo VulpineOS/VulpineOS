@@ -104,3 +104,19 @@ func TestStatusZeroValues(t *testing.T) {
 		t.Errorf("zero Status ActiveAgents = %d, want 0", s.ActiveAgents)
 	}
 }
+
+func TestInterruptedStatusIsTerminal(t *testing.T) {
+	terminalStatuses := []string{"completed", "error", "failed", "interrupted"}
+	for _, status := range terminalStatuses {
+		if !isTerminalAgentStatus(status) {
+			t.Fatalf("%q should be terminal", status)
+		}
+	}
+
+	nonTerminalStatuses := []string{"", "starting", "running", "active", "thinking", "paused"}
+	for _, status := range nonTerminalStatuses {
+		if isTerminalAgentStatus(status) {
+			t.Fatalf("%q should not be terminal", status)
+		}
+	}
+}

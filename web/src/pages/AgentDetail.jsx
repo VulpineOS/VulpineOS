@@ -13,6 +13,16 @@ function downloadTextFile(content, fileName, contentType = 'application/json') {
   URL.revokeObjectURL(url)
 }
 
+const TERMINAL_AGENT_STATUSES = new Set(['completed', 'error', 'failed', 'interrupted'])
+
+function agentStatusBadgeClass(status) {
+  if (status === 'active') return 'green'
+  if (status === 'paused') return 'yellow'
+  if (status === 'completed') return 'blue'
+  if (status === 'error' || status === 'failed') return 'red'
+  return 'gray'
+}
+
 export default function AgentDetail({ ws }) {
   const { id } = useParams()
   const [agent, setAgent] = useState(null)
@@ -225,12 +235,12 @@ export default function AgentDetail({ ws }) {
           <h1>Agent {id.substring(0, 12)}</h1>
         </div>
         <div className="page-actions">
-          <span className={`badge badge-${agent?.status === 'active' ? 'green' : agent?.status === 'paused' ? 'yellow' : agent?.status === 'completed' ? 'blue' : 'gray'}`}>
+          <span className={`badge badge-${agentStatusBadgeClass(agent?.status)}`}>
             {agent?.status || 'unknown'}
           </span>
           {agent?.status === 'active' && <button className="btn btn-ghost" onClick={pause}>Pause</button>}
           {agent?.status === 'paused' && <button className="btn btn-ghost" onClick={resume}>Resume</button>}
-          {agent?.status !== 'completed' && <button className="btn btn-danger" onClick={() => setConfirmKill(true)}>Kill</button>}
+          {agent && !TERMINAL_AGENT_STATUSES.has(agent.status) && <button className="btn btn-danger" onClick={() => setConfirmKill(true)}>Kill</button>}
           <button className="btn btn-ghost" onClick={refresh}>Refresh</button>
         </div>
       </div>

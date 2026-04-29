@@ -792,7 +792,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		// Update agent detail if this is the selected agent
 		if msg.AgentID == a.selectedAgentID {
-			if msg.Status == "completed" || msg.Status == "error" {
+			if isTerminalAgentStatus(msg.Status) {
 				a.conversation.SetThinking(false)
 			}
 			if a.pendingChatFocusAgentID == msg.AgentID && msg.Status != "starting" && msg.Status != "running" && msg.Status != "active" && msg.Status != "thinking" {
@@ -1029,6 +1029,15 @@ func (a App) updateNameInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		a.nameInput, cmd = a.nameInput.Update(msg)
 		return a, cmd
+	}
+}
+
+func isTerminalAgentStatus(status string) bool {
+	switch status {
+	case "completed", "error", "failed", "interrupted":
+		return true
+	default:
+		return false
 	}
 }
 

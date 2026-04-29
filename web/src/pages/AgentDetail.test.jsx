@@ -208,5 +208,6 @@ describe('AgentDetail page', () => {
       expect(call).toHaveBeenCalledWith('agents.kill', { agentId: 'agent-1' })
     })
     expect(screen.getByText('interrupted')).toBeInTheDocument()
+    expect(screen.queryByText('Kill')).not.toBeInTheDocument()
   })
 })
