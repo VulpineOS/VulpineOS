@@ -235,7 +235,7 @@ New agents now start by working on the assigned task immediately instead of spen
 
 The live operator path is covered by env-gated soak tests in `internal/agent_soak_integration_test.go` and `internal/remote/panel_agent_soak_test.go`, including persisted-session resume plus panel-driven pause and kill flows.
 
-Live browser, OpenClaw, and MCP-browser integration tests in `internal/integration_test.go` and `internal/mcp/live_integration_test.go` are gated behind `VULPINEOS_RUN_LIVE=1` so the default `go test` and CI path stay hermetic even on machines that already have Camoufox installed.
+Live browser, OpenClaw, and MCP-browser integration tests in `internal/integration_test.go` and `internal/mcp/live_integration_test.go` are gated behind `VULPINEOS_RUN_LIVE=1` so the default `go test` and CI path stay hermetic even on machines that already have Camoufox installed. The scoped MCP soak harness requires both `VULPINEOS_RUN_SOAK=1` and `VULPINEOS_RUN_LIVE=1`; `./scripts/run-soak.sh` sets both before running it.
 
 ---
 

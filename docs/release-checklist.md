@@ -47,8 +47,8 @@ keep the JSON artifact with the release notes:
 ./scripts/run-soak.sh 3
 ```
 
-This writes a log plus a small JSON result artifact under
-`.artifacts/soak/`.
+This wrapper sets both `VULPINEOS_RUN_SOAK=1` and `VULPINEOS_RUN_LIVE=1`,
+then writes a log plus a small JSON result artifact under `.artifacts/soak/`.
 
 For Juggler JavaScript changes:
 
