@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -268,6 +269,9 @@ func Run(args []string) int {
 	}
 	if err := fs.Parse(parseArgs); err != nil {
 		// ContinueOnError means Parse already printed to stderr.
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
 		return 2
 	}
 
@@ -331,6 +335,9 @@ func runTUISubcommand(args []string) int {
 	profileDir := fs.String("profile", "", "Firefox profile directory")
 	noBrowser := fs.Bool("no-browser", false, "Start without launching browser/kernel")
 	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
 		return 2
 	}
 	if err := runLocal(*binaryPath, *headless, *profileDir, *noBrowser); err != nil {
@@ -350,6 +357,9 @@ func runPanelSubcommand(args []string) int {
 	apiKey := fs.String("api-key", "", "Access key for panel auth (auto-generated if omitted)")
 	noBrowser := fs.Bool("no-browser", false, "Start without launching browser/kernel")
 	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
 		return 2
 	}
 	if err := runServe(*binaryPath, *headless, *profileDir, "127.0.0.1", *port, *apiKey, "", "", true, *noBrowser, true); err != nil {
@@ -373,6 +383,9 @@ func runServeSubcommand(args []string) int {
 	noTLS := fs.Bool("no-tls", false, "Disable TLS (plain http/ws)")
 	noBrowser := fs.Bool("no-browser", false, "Start without launching browser/kernel")
 	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
 		return 2
 	}
 	if err := runServe(*binaryPath, *headless, *profileDir, *host, *port, *apiKey, *tlsCert, *tlsKey, *noTLS, *noBrowser, false); err != nil {
@@ -397,6 +410,9 @@ func runRemoteSubcommand(args []string) int {
 	rawURL := fs.String("url", "", "Remote panel/server URL")
 	apiKey := fs.String("api-key", "", "Remote access key")
 	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
 		return 2
 	}
 	if *rawURL == "" && fs.NArg() > 0 {
@@ -436,6 +452,9 @@ func runMCPSubcommand(args []string) int {
 	connect := fs.String("connect", "", "Remote VulpineOS URL for MCP to attach to")
 	apiKey := fs.String("api-key", "", "API key for remote MCP authentication")
 	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
 		return 2
 	}
 	if err := runMCPServer(*binaryPath, *headless, *profileDir, *connect, *apiKey); err != nil {
