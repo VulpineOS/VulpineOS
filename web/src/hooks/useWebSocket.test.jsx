@@ -118,4 +118,54 @@ describe('useWebSocket', () => {
     expect(result.current.events[0].seq).toBe(6)
     expect(result.current.events[199].seq).toBe(205)
   })
+
+  it('ignores close events from a stale socket after manual retry creates a new connection', async () => {
+    const { result } = renderHook(() => useWebSocket('secret'))
+    act(() => {
+      FakeWebSocket.instances[0].triggerOpen()
+    })
+    expect(result.current.connectionState).toBe('connected')
+
+    act(() => {
+      result.current.retry()
+    })
+    expect(FakeWebSocket.instances).toHaveLength(2)
+
+    act(() => {
+      FakeWebSocket.instances[1].triggerOpen()
+    })
+    expect(result.current.connectionState).toBe('connected')
+
+    act(() => {
+      FakeWebSocket.instances[0].triggerClose({ code: 1006, reason: 'old socket closed late' })
+    })
+
+    expect(result.current.connectionState).toBe('connected')
+    expect(result.current.connected).toBe(true)
+    expect(result.current.lastError).toBe('')
+  })
+
+  it('rejects panel calls immediately when websocket send throws', async () => {
+    const { result } = renderHook(() => useWebSocket('secret'))
+    act(() => {
+      FakeWebSocket.instances[0].triggerOpen()
+    })
+    FakeWebSocket.instances[0].send.mockImplementation(() => {
+      throw new Error('send failed')
+    })
+
+    await expect(result.current.call('status.get')).rejects.toThrow('send failed')
+  })
+
+  it('rejects juggler calls immediately when websocket send throws', async () => {
+    const { result } = renderHook(() => useWebSocket('secret'))
+    act(() => {
+      FakeWebSocket.instances[0].triggerOpen()
+    })
+    FakeWebSocket.instances[0].send.mockImplementation(() => {
+      throw new Error('send failed')
+    })
+
+    await expect(result.current.juggler('Browser.enable')).rejects.toThrow('send failed')
+  })
 })
