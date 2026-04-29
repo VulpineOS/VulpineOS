@@ -33,6 +33,9 @@ func GenerateSelfSignedCert() (string, string, error) {
 	// If both files exist, return them
 	if _, err := os.Stat(certPath); err == nil {
 		if _, err := os.Stat(keyPath); err == nil {
+			_ = os.Chmod(tlsDir, 0700)
+			_ = os.Chmod(certPath, 0644)
+			_ = os.Chmod(keyPath, 0600)
 			return certPath, keyPath, nil
 		}
 	}
@@ -93,7 +96,9 @@ func GenerateSelfSignedCert() (string, string, error) {
 		certFile.Close()
 		return "", "", fmt.Errorf("encode cert: %w", err)
 	}
-	certFile.Close()
+	if err := certFile.Close(); err != nil {
+		return "", "", fmt.Errorf("close cert: %w", err)
+	}
 
 	// Write key PEM
 	keyDER, err := x509.MarshalECPrivateKey(key)
@@ -108,7 +113,9 @@ func GenerateSelfSignedCert() (string, string, error) {
 		keyFile.Close()
 		return "", "", fmt.Errorf("encode key: %w", err)
 	}
-	keyFile.Close()
+	if err := keyFile.Close(); err != nil {
+		return "", "", fmt.Errorf("close key: %w", err)
+	}
 
 	return certPath, keyPath, nil
 }
