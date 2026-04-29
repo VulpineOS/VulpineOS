@@ -299,7 +299,7 @@ func (c *Config) Save() error {
 		return fmt.Errorf("marshal config: %w", err)
 	}
 
-	return os.WriteFile(Path(), data, 0600)
+	return writePrivateFile(Path(), data)
 }
 
 // RefreshSetupComplete recomputes whether the config is complete enough to skip setup.
