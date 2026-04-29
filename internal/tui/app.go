@@ -1148,7 +1148,7 @@ func (a *App) handleBrowserToggle() {
 	url := a.contextList.SelectedURL()
 	if url != "" && url != "about:blank" {
 		_ = startExternalCommand("open", url)
-		a.notice = "Opened " + url
+		a.notice = "Opened " + contextlist.SafeDisplayURL(url)
 		a.noticeTTL = 3
 	}
 }
