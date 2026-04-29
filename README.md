@@ -16,7 +16,7 @@ VulpineOS is the operating system for AI browser agents: a Firefox/Camoufox-base
 
 <p align="center">
   <a href="https://docs.vulpineos.com">Documentation</a> ·
-  <a href="https://vulpineos.com">Vulpine API</a> ·
+  <a href="https://vulpineos.com">Website</a> ·
   <a href="https://github.com/VulpineOS/foxbridge">Foxbridge CDP Proxy</a> ·
   <a href="https://github.com/VulpineOS/VulpineOS/issues">Issues</a>
 </p>
