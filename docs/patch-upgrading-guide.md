@@ -399,26 +399,26 @@ For critical patches, test with actual Playwright scenarios after building.
 
 ## Best Practices
 
-### DO:
+### Do
 
-1. ✅ **Always use `make clean`** to reset Firefox source
-2. ✅ **Read and understand** what the patch is trying to do before fixing rejects
-3. ✅ **Search for API changes** in Firefox release notes when functions have changed
-4. ✅ **Use grep/search** extensively to find where code moved
-5. ✅ **Extract userContextId properly** using the standard pattern
-6. ✅ **Test patches apply cleanly** before considering them done
-7. ✅ **Keep commits atomic** - one patch fix per session
-8. ✅ **Document major API changes** you discover
+1. **Always use `make clean`** to reset Firefox source
+2. **Read and understand** what the patch is trying to do before fixing rejects
+3. **Search for API changes** in Firefox release notes when functions have changed
+4. **Use grep/search** extensively to find where code moved
+5. **Extract userContextId properly** using the standard pattern
+6. **Test patches apply cleanly** before considering them done
+7. **Keep commits atomic** - one patch fix per session
+8. **Document major API changes** you discover
 
-### DON'T:
+### Avoid
 
-1. ❌ **Don't use `git reset` or `git clean`** on Firefox source directory
-2. ❌ **Don't leave TODO comments** - fix things properly as you go
-3. ❌ **Don't guess parameter values** - extract them properly or investigate
-4. ❌ **Don't skip verification** - always test the patch applies cleanly
-5. ❌ **Don't batch multiple patch updates** - do them one at a time
-6. ❌ **Don't assume line numbers are correct** in reject files
-7. ❌ **Don't ignore warnings** during patch application
+1. **Don't use `git reset` or `git clean`** on Firefox source directory
+2. **Don't leave TODO comments** - fix things properly as you go
+3. **Don't guess parameter values** - extract them properly or investigate
+4. **Don't skip verification** - always test the patch applies cleanly
+5. **Don't batch multiple patch updates** - do them one at a time
+6. **Don't assume line numbers are correct** in reject files
+7. **Don't ignore warnings** during patch application
 
 ### Common Pitfalls
 
