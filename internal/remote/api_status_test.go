@@ -3,6 +3,7 @@ package remote
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 
 	"vulpineos/internal/config"
@@ -200,6 +201,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 		StatusValue: extensions.SentinelStatus{
 			Provider:        "sentinel-private",
 			Mode:            "private_scaffold",
+			EventSink:       "https://ops.example/events?token=status-token",
+			OutcomeSink:     "https://ops.example/outcomes?api_key=outcome-key",
+			VariantSource:   "https://user:pass@ops.example/variants",
 			VariantBundles:  1,
 			TrustRecipes:    1,
 			MaturityMetrics: 1,
@@ -224,7 +228,7 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 			{Outcome: extensions.SentinelOutcomeSoftChallenge, Count: 1, Vendors: []string{"cloudflare"}},
 		},
 		ProbeSummary: []extensions.SentinelProbeSummary{
-			{Domain: "example.com", ScriptURL: "https://cdn.example.com/fp.js", ProbeType: "canvas_probe", API: "toDataURL", Count: 2},
+			{Domain: "example.com", ScriptURL: "https://cdn.example.com/fp.js?token=script-token", LastURL: "https://user:pass@example.com/path?session=last-token", Detail: "Authorization: Bearer detail-token", ProbeType: "canvas_probe", API: "toDataURL", Count: 2},
 		},
 		TrustActivity: []extensions.SentinelTrustActivitySummary{
 			{Domain: "example.com", State: "WARMING", Count: 3, SessionCount: 1},
@@ -239,7 +243,7 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 			{Domain: "example.com", VariantBundleID: "control", TrustRecipeID: "baseline-warmup", SessionCount: 2, WarmingCount: 3, RevisitCount: 2, DistinctDays: 2, AverageGapHours: 12, SuccessCount: 1, SoftChallengeCount: 1, TotalOutcomes: 2, MaturityScore: 10},
 		},
 		TransportEvidence: []extensions.SentinelTransportEvidenceSummary{
-			{Domain: "example.com", VariantBundleID: "control", TrustRecipeID: "baseline-warmup", SessionCount: 1, RotationCount: 2, SoftChallengeCount: 1, HardChallengeCount: 1, TransportScore: 10, Reasons: []string{"rate_limit"}, ProxyEndpoints: []string{"old.example:8080", "new.example:8080"}, ChallengeVendors: []string{"cloudflare"}},
+			{Domain: "example.com", VariantBundleID: "control", TrustRecipeID: "baseline-warmup", SessionCount: 1, RotationCount: 2, SoftChallengeCount: 1, HardChallengeCount: 1, TransportScore: 10, Reasons: []string{"rate_limit", "token=reason-token"}, ProxyEndpoints: []string{"http://user:pass@old.example:8080", "user:pass@new.example:8080"}, ChallengeVendors: []string{"cloudflare"}},
 		},
 		CoherenceDiff: []extensions.SentinelCoherenceDiffSummary{
 			{Domain: "example.com", VariantBundleID: "authority-ramp", TrustRecipeID: "authority-ramp", SessionCount: 1, HardChallengeCount: 1, Severity: "high", Score: 14, Findings: []string{"warm recipe on cold identity"}},
@@ -269,10 +273,10 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 			{Domain: "example.com", VariantBundleID: "returning-visitor", TrustRecipeID: "returning-visitor", SessionCount: 4, SuccessCount: 2, SoftCount: 1, HardCount: 1, TotalOutcomes: 4, PressureScore: 12, CanaryStatus: "regressed", LatestOutcome: extensions.SentinelOutcomeHardChallenge},
 		},
 		SiteIntelligenceSummary: []extensions.SentinelSiteIntelligenceSummary{
-			{Domain: "example.com", TopScriptURL: "https://cdn.example.com/fp.js", TopProbeFamily: "canvas_probe", DominantChallengeVendor: "cloudflare", PressureScore: 12, ActiveRecommendationCount: 1, LatestCanaryStatus: "regressed"},
+			{Domain: "example.com", TopScriptURL: "https://cdn.example.com/fp.js?token=top-script-token", TopProbeFamily: "canvas_probe", DominantChallengeVendor: "cloudflare", PressureScore: 12, ActiveRecommendationCount: 1, LatestCanaryStatus: "regressed"},
 		},
 		ProbeSequenceSummary: []extensions.SentinelProbeSequenceSummary{
-			{Domain: "example.com", ScriptURL: "https://cdn.example.com/fp.js", Sequence: "canvas_probe.toDataURL -> webgl_probe.getParameter", StepCount: 2, SequenceCount: 2, LatestOutcome: extensions.SentinelOutcomeHardChallenge, LatestChallengeVendor: "cloudflare", LatestCanaryStatus: "regressed"},
+			{Domain: "example.com", ScriptURL: "https://cdn.example.com/fp.js?token=sequence-token", Sequence: "canvas_probe.toDataURL -> webgl_probe.getParameter Authorization: Bearer sequence-bearer", StepCount: 2, SequenceCount: 2, LatestOutcome: extensions.SentinelOutcomeHardChallenge, LatestChallengeVendor: "cloudflare", LatestCanaryStatus: "regressed"},
 		},
 		VendorIntelligenceSummary: []extensions.SentinelVendorIntelligenceSummary{
 			{VendorFamily: "cloudflare", ScriptHost: "cdn.example.com", ChallengeVendor: "cloudflare", DomainCount: 2, DomainSamples: []string{"example.com", "shop.example.com"}, TopProbeFamily: "canvas_probe", PressureScore: 18, LatestOutcome: extensions.SentinelOutcomeHardChallenge, LatestCanaryStatus: "regressed"},
@@ -321,10 +325,21 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 				SessionID:    "session-1",
 				AgentID:      "agent-1",
 				Domain:       "example.com",
+				URL:          "https://user:pass@example.com/page?token=timeline-token",
 				EventCount:   1,
 				OutcomeCount: 1,
 				Items: []extensions.SentinelTimelineItem{
-					{Type: "event", Kind: extensions.SentinelEventKindBrowserProbe, Name: "canvas.toDataURL"},
+					{
+						Type:  "event",
+						Kind:  extensions.SentinelEventKindBrowserProbe,
+						Name:  "canvas.toDataURL Authorization: Bearer name-token",
+						Scope: extensions.SentinelScope{URL: "https://example.com/path?api_key=scope-key", ScriptURL: "https://cdn.example.com/fp.js?token=scope-script-token"},
+						Attributes: map[string]string{
+							"authorization": "Bearer attr-token",
+							"note":          "cookie=attr-cookie",
+						},
+						Payload: json.RawMessage(`{"headers":{"Authorization":"Bearer payload-token"},"url":"https://example.com/?token=payload-url-token"}`),
+					},
 					{Type: "outcome", Outcome: extensions.SentinelOutcomeSoftChallenge},
 				},
 			},
@@ -340,6 +355,7 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 
 	var result struct {
 		Available                 bool                                             `json:"available"`
+		Status                    extensions.SentinelStatus                        `json:"status"`
 		VariantBundles            []extensions.SentinelVariantBundle               `json:"variantBundles"`
 		TrustRecipes              []extensions.SentinelTrustRecipe                 `json:"trustRecipes"`
 		MaturityMetrics           []extensions.SentinelMaturityMetric              `json:"maturityMetrics"`
@@ -384,6 +400,14 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	if !result.Available {
 		t.Fatal("expected sentinel to be available")
 	}
+	for _, leaked := range []string{"status-token", "outcome-key", "user:pass", "script-token", "last-token", "detail-token", "reason-token", "sequence-bearer", "top-script-token"} {
+		if strings.Contains(string(payload), leaked) {
+			t.Fatalf("sentinel response leaked %q in %s", leaked, payload)
+		}
+	}
+	if result.Status.EventSink != "https://ops.example/events?token=[redacted]" || result.Status.OutcomeSink != "https://ops.example/outcomes?api_key=[redacted]" || result.Status.VariantSource != "https://redacted:redacted@ops.example/variants" {
+		t.Fatalf("status = %+v", result.Status)
+	}
 	if len(result.VariantBundles) != 1 || result.VariantBundles[0].ID != "control" {
 		t.Fatalf("variantBundles = %+v", result.VariantBundles)
 	}
@@ -405,6 +429,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	if len(result.ProbeSummary) != 1 || result.ProbeSummary[0].API != "toDataURL" {
 		t.Fatalf("probeSummary = %+v", result.ProbeSummary)
 	}
+	if result.ProbeSummary[0].ScriptURL != "https://cdn.example.com/fp.js?token=%5Bredacted%5D" || result.ProbeSummary[0].LastURL != "https://redacted:redacted@example.com/path?session=%5Bredacted%5D" || result.ProbeSummary[0].Detail != "Authorization: [redacted]" {
+		t.Fatalf("probeSummary redaction = %+v", result.ProbeSummary[0])
+	}
 	if len(result.TrustActivity) != 1 || result.TrustActivity[0].State != "WARMING" {
 		t.Fatalf("trustActivity = %+v", result.TrustActivity)
 	}
@@ -419,6 +446,9 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	}
 	if len(result.TransportEvidence) != 1 || result.TransportEvidence[0].RotationCount != 2 {
 		t.Fatalf("transportEvidence = %+v", result.TransportEvidence)
+	}
+	if result.TransportEvidence[0].ProxyEndpoints[0] != "http://redacted:redacted@old.example:8080" || result.TransportEvidence[0].ProxyEndpoints[1] != "redacted@new.example:8080" || result.TransportEvidence[0].Reasons[1] != "token=[redacted]" {
+		t.Fatalf("transportEvidence redaction = %+v", result.TransportEvidence[0])
 	}
 	if len(result.CoherenceDiff) != 1 || result.CoherenceDiff[0].Severity != "high" {
 		t.Fatalf("coherenceDiff = %+v", result.CoherenceDiff)
@@ -450,8 +480,14 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	if len(result.SiteIntelligenceSummary) != 1 || result.SiteIntelligenceSummary[0].TopProbeFamily != "canvas_probe" {
 		t.Fatalf("siteIntelligenceSummary = %+v", result.SiteIntelligenceSummary)
 	}
+	if result.SiteIntelligenceSummary[0].TopScriptURL != "https://cdn.example.com/fp.js?token=%5Bredacted%5D" {
+		t.Fatalf("siteIntelligenceSummary redaction = %+v", result.SiteIntelligenceSummary[0])
+	}
 	if len(result.ProbeSequenceSummary) != 1 || result.ProbeSequenceSummary[0].SequenceCount != 2 {
 		t.Fatalf("probeSequenceSummary = %+v", result.ProbeSequenceSummary)
+	}
+	if result.ProbeSequenceSummary[0].ScriptURL != "https://cdn.example.com/fp.js?token=%5Bredacted%5D" || strings.Contains(result.ProbeSequenceSummary[0].Sequence, "sequence-bearer") {
+		t.Fatalf("probeSequenceSummary redaction = %+v", result.ProbeSequenceSummary[0])
 	}
 	if len(result.VendorIntelligenceSummary) != 1 || result.VendorIntelligenceSummary[0].VendorFamily != "cloudflare" {
 		t.Fatalf("vendorIntelligenceSummary = %+v", result.VendorIntelligenceSummary)
@@ -507,10 +543,21 @@ func TestSentinelTimelineReturnsSessions(t *testing.T) {
 				SessionID:    "session-1",
 				AgentID:      "agent-1",
 				Domain:       "example.com",
+				URL:          "https://user:pass@example.com/page?token=timeline-token",
 				EventCount:   1,
 				OutcomeCount: 1,
 				Items: []extensions.SentinelTimelineItem{
-					{Type: "event", Kind: extensions.SentinelEventKindBrowserProbe, Name: "canvas.toDataURL"},
+					{
+						Type:  "event",
+						Kind:  extensions.SentinelEventKindBrowserProbe,
+						Name:  "canvas.toDataURL Authorization: Bearer name-token",
+						Scope: extensions.SentinelScope{URL: "https://example.com/path?api_key=scope-key", ScriptURL: "https://cdn.example.com/fp.js?token=scope-script-token"},
+						Attributes: map[string]string{
+							"authorization": "Bearer attr-token",
+							"note":          "cookie=attr-cookie",
+						},
+						Payload: json.RawMessage(`{"headers":{"Authorization":"Bearer payload-token"},"url":"https://example.com/?token=payload-url-token"}`),
+					},
 					{Type: "outcome", Outcome: extensions.SentinelOutcomeSoftChallenge},
 				},
 			},
@@ -535,6 +582,27 @@ func TestSentinelTimelineReturnsSessions(t *testing.T) {
 	}
 	if len(result.Sessions[0].Items) != 2 {
 		t.Fatalf("items = %+v", result.Sessions[0].Items)
+	}
+	for _, leaked := range []string{"user:pass", "timeline-token", "name-token", "scope-key", "scope-script-token", "attr-token", "attr-cookie", "payload-token", "payload-url-token"} {
+		if strings.Contains(string(payload), leaked) {
+			t.Fatalf("sentinel timeline leaked %q in %s", leaked, payload)
+		}
+	}
+	if result.Sessions[0].URL != "https://redacted:redacted@example.com/page?token=%5Bredacted%5D" {
+		t.Fatalf("session URL = %q", result.Sessions[0].URL)
+	}
+	item := result.Sessions[0].Items[0]
+	if item.Name != "canvas.toDataURL Authorization: [redacted]" {
+		t.Fatalf("item name = %q", item.Name)
+	}
+	if item.Scope.URL != "https://example.com/path?api_key=%5Bredacted%5D" || item.Scope.ScriptURL != "https://cdn.example.com/fp.js?token=%5Bredacted%5D" {
+		t.Fatalf("item scope = %+v", item.Scope)
+	}
+	if item.Attributes["authorization"] != "[redacted]" || item.Attributes["note"] != "cookie=[redacted]" {
+		t.Fatalf("item attributes = %+v", item.Attributes)
+	}
+	if strings.Contains(string(item.Payload), "payload-token") || strings.Contains(string(item.Payload), "payload-url-token") {
+		t.Fatalf("item payload leaked secrets: %s", item.Payload)
 	}
 }
 
