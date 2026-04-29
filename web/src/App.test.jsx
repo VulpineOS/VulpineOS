@@ -36,6 +36,11 @@ class FakeWebSocket {
     this.readyState = 1
     this.onopen?.()
   }
+
+  triggerClose(event = { code: 1006, reason: '' }) {
+    this.readyState = 3
+    this.onclose?.(event)
+  }
 }
 
 function makeFetch(status = {}) {
@@ -142,5 +147,26 @@ describe('App shell', () => {
     expect(screen.getAllByText('GUI').length).toBeGreaterThan(0)
     expect(screen.getAllByText('VISIBLE').length).toBeGreaterThan(0)
     expect(screen.getAllByText('RUNNING').length).toBeGreaterThan(0)
+  })
+
+  it('clears stored access keys when the websocket rejects auth', async () => {
+    sessionStorage.setItem('vulpine_key', 'stale')
+    vi.stubGlobal('fetch', makeFetch())
+    vi.stubGlobal('WebSocket', FakeWebSocket)
+
+    render(
+      <MemoryRouter>
+        <App />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => {
+      expect(FakeWebSocket.instances).toHaveLength(1)
+    })
+
+    FakeWebSocket.instances[0].triggerClose({ code: 1008, reason: '' })
+
+    expect(await screen.findByPlaceholderText('Access Key')).toBeInTheDocument()
+    expect(sessionStorage.getItem('vulpine_key')).toBeNull()
   })
 })
