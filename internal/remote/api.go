@@ -1867,7 +1867,11 @@ func (api *PanelAPI) contextsList() (json.RawMessage, error) {
 	if api.Contexts == nil {
 		return json.Marshal(map[string]interface{}{"contexts": []ContextInfo{}})
 	}
-	return json.Marshal(map[string]interface{}{"contexts": api.Contexts.List()})
+	contexts := api.Contexts.List()
+	for i := range contexts {
+		contexts[i].LastURL = redactPanelURLSecrets(contexts[i].LastURL)
+	}
+	return json.Marshal(map[string]interface{}{"contexts": contexts})
 }
 
 func (api *PanelAPI) contextsCreate(params json.RawMessage) (json.RawMessage, error) {
