@@ -18,11 +18,15 @@ export default function Proxies({ ws }) {
   const [rotationSource, setRotationSource] = useState('default')
   const [importText, setImportText] = useState('')
   const [showImport, setShowImport] = useState(false)
+  const [testedLatency, setTestedLatency] = useState({})
 
   const refreshProxies = async () => {
     try {
       const result = await ws.call('proxies.list')
-      setProxies(result?.proxies || [])
+      setProxies((result?.proxies || []).map(proxy => ({
+        ...proxy,
+        latencyMs: proxy.latencyMs || testedLatency[proxy.id] || 0,
+      })))
     } catch (e) {
       ws.notify?.(e.message)
     }
@@ -81,8 +85,10 @@ export default function Proxies({ ws }) {
   const testProxy = async (id) => {
     try {
       const r = await ws.call('proxies.test', { proxyId: id })
-      ws.notify?.(`Latency: ${r?.latencyMs || '?'}ms`, 'success')
-      refreshProxies()
+      const latencyMs = r?.latencyMs || r?.latency || 0
+      setTestedLatency(current => ({ ...current, [id]: latencyMs }))
+      setProxies(current => current.map(proxy => proxy.id === id ? { ...proxy, latencyMs } : proxy))
+      ws.notify?.(`Latency: ${latencyMs || '?'}ms`, 'success')
     } catch (e) {
       ws.notify?.(`Test failed: ${e.message}`)
     }

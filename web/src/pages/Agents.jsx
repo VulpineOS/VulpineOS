@@ -148,9 +148,12 @@ export default function Agents({ ws }) {
             }}
           >
             <option value="">Shared browser</option>
-            {contexts.map(ctx => (
-              <option key={ctx.id} value={ctx.id}>{ctx.id.slice(0, 12)} · {ctx.url.slice(0, 32)}</option>
-            ))}
+            {contexts.map(ctx => {
+              const contextURL = ctx.url || 'about:blank'
+              return (
+                <option key={ctx.id} value={ctx.id}>{ctx.id.slice(0, 12)} · {contextURL.slice(0, 32)}</option>
+              )
+            })}
           </select>
           <input className="input" style={{ width: 300 }} placeholder="Task description..." value={task}
             onChange={e => setTask(e.target.value)} onKeyDown={e => e.key === 'Enter' && spawn()} />

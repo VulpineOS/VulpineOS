@@ -26,7 +26,7 @@ export default function AgentDetail({ ws }) {
   const [budgetTokens, setBudgetTokens] = useState('0')
   const [inheritDefaultBudget, setInheritDefaultBudget] = useState(true)
   const [fingerprintSeed, setFingerprintSeed] = useState('')
-  const lastEventCountRef = useRef(0)
+  const lastEventRef = useRef(0)
 
   const conversationMessages = messages.filter(m => m.role !== 'system')
   const traceMessages = messages.filter(m => m.role === 'system')
@@ -83,7 +83,7 @@ export default function AgentDetail({ ws }) {
   }, [agent?.id, agent?.budgetMaxCostUsd, agent?.budgetMaxTokens, agent?.budgetSource])
 
   useEffect(() => {
-    lastEventCountRef.current = 0
+    lastEventRef.current = 0
   }, [id])
 
   useEffect(() => {
@@ -97,11 +97,20 @@ export default function AgentDetail({ ws }) {
 
   useEffect(() => {
     if (!id) return
-    if (ws.events.length < lastEventCountRef.current) {
-      lastEventCountRef.current = 0
+    const sequencedEvents = ws.events.filter(event => Number.isFinite(event.seq))
+    let nextEvents
+    if (sequencedEvents.length > 0) {
+      nextEvents = sequencedEvents.filter(event => event.seq > lastEventRef.current)
+      if (nextEvents.length > 0) {
+        lastEventRef.current = Math.max(...nextEvents.map(event => event.seq))
+      }
+    } else {
+      if (ws.events.length < lastEventRef.current) {
+        lastEventRef.current = 0
+      }
+      nextEvents = ws.events.slice(lastEventRef.current)
+      lastEventRef.current = ws.events.length
     }
-    const nextEvents = ws.events.slice(lastEventCountRef.current)
-    lastEventCountRef.current = ws.events.length
     for (const event of nextEvents) {
       if (event.method === 'Vulpine.agentStatus' && event.params?.agentId === id) {
         setAgent(prev => ({

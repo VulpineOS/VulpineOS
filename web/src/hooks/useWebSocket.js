@@ -29,6 +29,7 @@ export function useWebSocket(apiKey) {
   const [retryDelayMs, setRetryDelayMs] = useState(0)
   const wsRef = useRef(null)
   const idRef = useRef(1)
+  const eventSeqRef = useRef(0)
   const pendingRef = useRef({})
   const reconnectTimerRef = useRef(null)
   const manualCloseRef = useRef(false)
@@ -136,7 +137,9 @@ export function useWebSocket(apiKey) {
           }
           const method = payload.method || ''
           const params = payload.params || {}
-          setEvents(prev => [...prev.slice(-199), { method, params, ts: Date.now() }])
+          eventSeqRef.current += 1
+          const seq = eventSeqRef.current
+          setEvents(prev => [...prev.slice(-199), { method, params, ts: Date.now(), seq }])
           if (method === 'Browser.telemetryUpdate') setTelemetry(params)
         }
       } catch {}
@@ -157,6 +160,9 @@ export function useWebSocket(apiKey) {
       setConnected(false)
       setConnectionState('disconnected')
       setLastError('')
+      setEvents([])
+      setTelemetry({})
+      eventSeqRef.current = 0
       hasConnectedRef.current = false
       return () => {}
     }

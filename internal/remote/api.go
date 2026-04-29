@@ -1450,12 +1450,12 @@ func (api *PanelAPI) sentinelTimeline(params json.RawMessage) (json.RawMessage, 
 
 func (api *PanelAPI) browserRoute() (string, string) {
 	switch {
+	case api.Kernel == nil:
+		return "disabled", "server"
 	case api.Config != nil && strings.TrimSpace(api.Config.FoxbridgeCDPURL) != "":
 		return "camoufox", "runtime"
 	case config.OpenClawProfileBrowserRoute() != "":
 		return config.OpenClawProfileBrowserRoute(), "profile"
-	case api.Kernel == nil:
-		return "disabled", "server"
 	case api.Kernel != nil && api.Kernel.IsHeadless():
 		return "headless", "kernel"
 	default:
