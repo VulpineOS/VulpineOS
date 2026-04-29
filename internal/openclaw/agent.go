@@ -15,6 +15,8 @@ import (
 
 var traceBearerPattern = regexp.MustCompile(`(?i)(bearer\s+)[^\s,;"]+`)
 var traceQuerySecretPattern = regexp.MustCompile(`(?i)([?&](?:api[_-]?key|apikey|token|access[_-]?token|access[_-]?key|secret|password|credential|authorization)=)[^&#\s"]+`)
+var traceJSONSecretPattern = regexp.MustCompile(`(?i)("(?:apiKey|api_key|apikey|token|access_token|access_key|secret|password|credential|authorization|cookie|session)"\s*:\s*")[^"]+(")`)
+var traceKVSecretPattern = regexp.MustCompile(`(?i)(^|[^?&A-Za-z0-9_])((?:api[_-]?key|apikey|token|access[_-]?token|access[_-]?key|secret|password|credential|authorization|cookie|session)\s*=\s*)[^\s,;"]+`)
 
 // ConversationMsg represents a captured conversation message from an agent.
 type ConversationMsg struct {
@@ -950,7 +952,9 @@ func compactJSON(v interface{}) string {
 
 func redactTraceText(value string) string {
 	value = traceBearerPattern.ReplaceAllString(value, "${1}[redacted]")
-	return traceQuerySecretPattern.ReplaceAllString(value, "${1}[redacted]")
+	value = traceQuerySecretPattern.ReplaceAllString(value, "${1}[redacted]")
+	value = traceJSONSecretPattern.ReplaceAllString(value, "${1}[redacted]${2}")
+	return traceKVSecretPattern.ReplaceAllString(value, "${1}${2}[redacted]")
 }
 
 func redactTraceTextForArgs(args map[string]interface{}, value string) string {
