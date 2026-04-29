@@ -69,6 +69,74 @@ func TestScopedBackendInjectsContextOnNewPage(t *testing.T) {
 	}
 }
 
+func TestScopedBackendInjectsContextOnContextScopedBrowserMethods(t *testing.T) {
+	client := &fakeJugglerBackend{}
+	be := newScopedBackend(client, "ctx-7")
+
+	if _, err := be.Call("", "Browser.setCookies", json.RawMessage(`{"cookies":[]}`)); err != nil {
+		t.Fatalf("Call returned error: %v", err)
+	}
+
+	var payload map[string]interface{}
+	if err := json.Unmarshal(client.lastParams, &payload); err != nil {
+		t.Fatalf("unmarshal forwarded params: %v", err)
+	}
+	if client.lastMethod != "Browser.setCookies" {
+		t.Fatalf("lastMethod = %q, want Browser.setCookies", client.lastMethod)
+	}
+	if payload["browserContextId"] != "ctx-7" {
+		t.Fatalf("browserContextId = %v, want ctx-7", payload["browserContextId"])
+	}
+}
+
+func TestScopedBackendRejectsOtherBrowserContext(t *testing.T) {
+	client := &fakeJugglerBackend{}
+	be := newScopedBackend(client, "ctx-7")
+
+	if _, err := be.Call("", "Browser.setCookies", json.RawMessage(`{"browserContextId":"ctx-other","cookies":[]}`)); err == nil {
+		t.Fatal("expected context mismatch error")
+	}
+	if client.lastMethod != "" {
+		t.Fatalf("forwarded forbidden call to %s", client.lastMethod)
+	}
+}
+
+func TestScopedBackendBlocksBrowserClose(t *testing.T) {
+	client := &fakeJugglerBackend{}
+	be := newScopedBackend(client, "ctx-7")
+
+	if _, err := be.Call("", "Browser.close", nil); err == nil {
+		t.Fatal("expected Browser.close to be blocked")
+	}
+	if client.lastMethod != "" {
+		t.Fatalf("forwarded forbidden call to %s", client.lastMethod)
+	}
+}
+
+func TestScopedBackendAllowsSafeGlobalBrowserMethods(t *testing.T) {
+	client := &fakeJugglerBackend{}
+	be := newScopedBackend(client, "ctx-7")
+
+	if _, err := be.Call("", "Browser.getInfo", nil); err != nil {
+		t.Fatalf("Call returned error: %v", err)
+	}
+	if client.lastMethod != "Browser.getInfo" {
+		t.Fatalf("lastMethod = %q, want Browser.getInfo", client.lastMethod)
+	}
+}
+
+func TestScopedBackendBlocksUnknownBrowserMethods(t *testing.T) {
+	client := &fakeJugglerBackend{}
+	be := newScopedBackend(client, "ctx-7")
+
+	if _, err := be.Call("", "Browser.setGlobalDanger", nil); err == nil {
+		t.Fatal("expected unknown Browser method to be blocked")
+	}
+	if client.lastMethod != "" {
+		t.Fatalf("forwarded forbidden call to %s", client.lastMethod)
+	}
+}
+
 func TestScopedBackendFiltersEvents(t *testing.T) {
 	client := &fakeJugglerBackend{}
 	be := newScopedBackend(client, "ctx-1")
