@@ -43,6 +43,8 @@ export default function Login({ onLogin }) {
             placeholder="Access Key"
             value={key}
             onChange={e => { setKey(e.target.value); setError('') }}
+            autoComplete="off"
+            spellCheck={false}
             autoFocus
           />
           {error && <p style={{ color: '#ef4444', fontSize: 13, marginTop: 8 }}>{error}</p>}
