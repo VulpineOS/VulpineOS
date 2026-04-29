@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"time"
 
 	"nhooyr.io/websocket"
 
@@ -23,11 +24,23 @@ type Server struct {
 	clients   map[*wsClient]struct{}
 	clientsMu sync.RWMutex
 	panelAPI  *PanelAPI
+
+	writeTimeout time.Duration
 }
 
 type wsClient struct {
-	conn *websocket.Conn
-	ctx  context.Context
+	conn    *websocket.Conn
+	ctx     context.Context
+	writeMu sync.Mutex
+}
+
+func (c *wsClient) write(ctx context.Context, typ websocket.MessageType, data []byte) error {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+	if c.conn == nil {
+		return fmt.Errorf("websocket connection unavailable")
+	}
+	return c.conn.Write(ctx, typ, data)
 }
 
 // NewServer creates a remote access server.
@@ -37,6 +50,8 @@ func NewServer(addr string, apiKey string, jugglerClient *juggler.Client) *Serve
 		client:  jugglerClient,
 		addr:    addr,
 		clients: make(map[*wsClient]struct{}),
+
+		writeTimeout: 2 * time.Second,
 	}
 
 	mux := http.NewServeMux()
@@ -103,20 +118,42 @@ func (s *Server) BroadcastEvent(method, sessionID string, params json.RawMessage
 		return
 	}
 
-	s.clientsMu.RLock()
-	var dead []*wsClient
-	for c := range s.clients {
-		if err := c.conn.Write(c.ctx, websocket.MessageText, env); err != nil {
+	clients := s.snapshotClients()
+	dead := make([]*wsClient, 0)
+	for _, c := range clients {
+		baseCtx := c.ctx
+		if baseCtx == nil {
+			baseCtx = context.Background()
+		}
+		ctx, cancel := context.WithTimeout(baseCtx, s.writeTimeout)
+		err := c.write(ctx, websocket.MessageText, env)
+		cancel()
+		if err != nil {
 			dead = append(dead, c)
 		}
 	}
-	s.clientsMu.RUnlock()
 
+	s.removeClients(dead)
+}
+
+func (s *Server) snapshotClients() []*wsClient {
+	s.clientsMu.RLock()
+	defer s.clientsMu.RUnlock()
+	clients := make([]*wsClient, 0, len(s.clients))
+	for c := range s.clients {
+		clients = append(clients, c)
+	}
+	return clients
+}
+
+func (s *Server) removeClients(dead []*wsClient) {
 	if len(dead) > 0 {
 		s.clientsMu.Lock()
 		for _, c := range dead {
 			delete(s.clients, c)
-			c.conn.Close(websocket.StatusGoingAway, "write error")
+			if c.conn != nil {
+				c.conn.Close(websocket.StatusGoingAway, "write error")
+			}
 		}
 		s.clientsMu.Unlock()
 	}
