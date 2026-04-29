@@ -721,7 +721,25 @@ func (api *PanelAPI) webhooksList() (json.RawMessage, error) {
 	if api.Webhooks == nil {
 		return nil, fmt.Errorf("webhook manager not available")
 	}
-	return json.Marshal(map[string]interface{}{"webhooks": api.Webhooks.List()})
+	type webhookSummary struct {
+		ID        string               `json:"id"`
+		URL       string               `json:"url"`
+		Events    []webhooks.EventType `json:"events"`
+		Active    bool                 `json:"active"`
+		HasSecret bool                 `json:"hasSecret"`
+	}
+	hooks := api.Webhooks.List()
+	out := make([]webhookSummary, 0, len(hooks))
+	for _, hook := range hooks {
+		out = append(out, webhookSummary{
+			ID:        hook.ID,
+			URL:       hook.URL,
+			Events:    hook.Events,
+			Active:    hook.Active,
+			HasSecret: hook.Secret != "",
+		})
+	}
+	return json.Marshal(map[string]interface{}{"webhooks": out})
 }
 
 func (api *PanelAPI) webhooksAdd(params json.RawMessage) (json.RawMessage, error) {

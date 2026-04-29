@@ -51,7 +51,7 @@ export default function Webhooks({ ws }) {
               <tr key={h.id}>
                 <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{h.url}</td>
                 <td>{h.events?.length > 0 ? h.events.join(', ') : 'all'}</td>
-                <td>{h.secret ? '••••••' : '—'}</td>
+                <td>{h.hasSecret ? 'set' : '—'}</td>
                 <td><button className="btn btn-ghost btn-sm" onClick={() => removeHook(h.id)}>Remove</button></td>
               </tr>
             ))}

@@ -60,3 +60,33 @@ func TestWebhooksAddRejectsInvalidURL(t *testing.T) {
 		t.Fatal("invalid webhook should not be registered")
 	}
 }
+
+func TestWebhooksListDoesNotExposeSecrets(t *testing.T) {
+	api := &PanelAPI{Webhooks: webhooks.New()}
+	api.Webhooks.Register("https://example.com/hook", nil, "secret-token")
+
+	payload, err := api.HandleMessage("webhooks.list", nil)
+	if err != nil {
+		t.Fatalf("webhooks.list: %v", err)
+	}
+
+	var result struct {
+		Webhooks []struct {
+			URL       string `json:"url"`
+			Secret    string `json:"secret"`
+			HasSecret bool   `json:"hasSecret"`
+		} `json:"webhooks"`
+	}
+	if err := json.Unmarshal(payload, &result); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+	if len(result.Webhooks) != 1 {
+		t.Fatalf("webhooks len = %d, want 1", len(result.Webhooks))
+	}
+	if result.Webhooks[0].Secret != "" {
+		t.Fatalf("secret leaked in list response: %q", result.Webhooks[0].Secret)
+	}
+	if !result.Webhooks[0].HasSecret {
+		t.Fatal("hasSecret = false, want true")
+	}
+}
