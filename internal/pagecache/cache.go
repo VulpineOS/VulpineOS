@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -34,9 +35,9 @@ type PageState struct {
 
 // Cache manages page state persistence.
 type Cache struct {
-	mu      sync.RWMutex
-	states  map[string]*PageState // agentID → state
-	dir     string                // persistence directory
+	mu     sync.RWMutex
+	states map[string]*PageState // agentID → state
+	dir    string                // persistence directory
 }
 
 // New creates a page cache. If dir is non-empty, states persist to disk.
@@ -51,6 +52,9 @@ func New(dir string) *Cache {
 func (c *Cache) Save(state *PageState) error {
 	if state == nil || state.AgentID == "" {
 		return fmt.Errorf("invalid state: missing agentId")
+	}
+	if err := validateAgentID(state.AgentID); err != nil {
+		return err
 	}
 	state.CapturedAt = time.Now()
 
@@ -67,6 +71,9 @@ func (c *Cache) Save(state *PageState) error {
 
 // Load retrieves a cached page state for an agent.
 func (c *Cache) Load(agentID string) *PageState {
+	if validateAgentID(agentID) != nil {
+		return nil
+	}
 	c.mu.RLock()
 	state := c.states[agentID]
 	c.mu.RUnlock()
@@ -89,6 +96,9 @@ func (c *Cache) Load(agentID string) *PageState {
 
 // Delete removes a cached state.
 func (c *Cache) Delete(agentID string) {
+	if validateAgentID(agentID) != nil {
+		return
+	}
 	c.mu.Lock()
 	delete(c.states, agentID)
 	c.mu.Unlock()
@@ -100,6 +110,9 @@ func (c *Cache) Delete(agentID string) {
 
 // Has returns true if a cached state exists for the agent.
 func (c *Cache) Has(agentID string) bool {
+	if validateAgentID(agentID) != nil {
+		return false
+	}
 	c.mu.RLock()
 	_, ok := c.states[agentID]
 	c.mu.RUnlock()
@@ -126,6 +139,17 @@ func (c *Cache) List() []string {
 
 func (c *Cache) filePath(agentID string) string {
 	return filepath.Join(c.dir, agentID+".json")
+}
+
+func validateAgentID(agentID string) error {
+	id := strings.TrimSpace(agentID)
+	if id == "" {
+		return fmt.Errorf("invalid state: missing agentId")
+	}
+	if strings.ContainsAny(id, `/\`) || id == "." || id == ".." {
+		return fmt.Errorf("invalid agentId")
+	}
+	return nil
 }
 
 func (c *Cache) saveToDisk(state *PageState) error {
