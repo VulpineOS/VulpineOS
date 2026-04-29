@@ -528,7 +528,7 @@ func (api *PanelAPI) agentsGetSessionLog(params json.RawMessage) (json.RawMessag
 		return nil, err
 	}
 	return json.Marshal(map[string]interface{}{
-		"path":       path,
+		"path":       filepath.Base(path),
 		"content":    content,
 		"truncated":  meta.truncated,
 		"bytes":      meta.bytes,
