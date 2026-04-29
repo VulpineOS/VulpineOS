@@ -99,6 +99,32 @@ check_pattern() {
   fi
 }
 
+check_vulpineos_public_polish() {
+  local repo="$1"
+  local matches
+
+  matches="$(git -C "$repo" grep -nI --color=never --perl-regexp '[\x{1F300}-\x{1FAFF}\x{2600}-\x{27BF}]' -- web/src || true)"
+  if [[ -n "$matches" ]]; then
+    fail "VulpineOS: web panel source contains decorative emoji"
+    printf '%s\n' "$matches"
+  fi
+
+  matches="$(git -C "$repo" grep -nI --color=never --perl-regexp '\b(window\.)?(alert|confirm)\s*\(' -- web/src || true)"
+  if [[ -n "$matches" ]]; then
+    fail "VulpineOS: web panel source uses browser-native alert/confirm dialogs"
+    printf '%s\n' "$matches"
+  fi
+
+  extra_media="$(
+    git -C "$repo" ls-files 'assets/*.gif' 'assets/*.jpeg' 'assets/*.jpg' 'assets/*.png' 'assets/*.webp' \
+      | grep -Ev '^assets/(VulpineOSBanner\.png|VulpineOSCircleLogo\.png|VulpineOSLogo\.png)$' || true
+  )"
+  if [[ -n "$extra_media" ]]; then
+    fail "VulpineOS: unreviewed tracked screenshot/media assets"
+    printf '%s\n' "$extra_media"
+  fi
+}
+
 check_repo() {
   local repo="$1"
   local expected_name="$2"
@@ -118,6 +144,10 @@ check_repo() {
   check_pattern "$repo" "$expected_name" "tracked Linux absolute path" '(^|[^A-Za-z0-9_])/home/(?!<user>|<username>|example/|name/|appveyor/|runner/|runneradmin/|ubuntu/|vsts/)[A-Za-z0-9._-]+/'
   check_pattern "$repo" "$expected_name" "tracked Windows absolute path" '(^|[^A-Za-z0-9_])[A-Za-z]:\\\\Users\\\\(?!<user>|<username>|example\\\\|name\\\\)[^\\\\\\s]+\\\\'
   check_pattern "$repo" "$expected_name" "high-confidence secret token" 'ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{20,}|lin_api_[A-Za-z0-9]{20,}|xox[pbar]-[A-Za-z0-9-]{20,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|sk-(proj-)?[A-Za-z0-9]{20,}'
+
+  if [[ "$expected_name" == "VulpineOS" ]]; then
+    check_vulpineos_public_polish "$repo"
+  fi
 }
 
 for i in "${!public_repo_paths[@]}"; do
