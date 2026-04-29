@@ -34,14 +34,26 @@ type Action struct {
 // Recorder stores browser actions per agent as replayable timelines.
 // Recordings are ephemeral (in-memory only, not persisted to vault).
 type Recorder struct {
-	mu      sync.Mutex
-	actions map[string][]Action // agentID -> actions
+	mu                 sync.Mutex
+	maxActionsPerAgent int
+	actions            map[string][]Action // agentID -> actions
 }
+
+const defaultMaxActionsPerAgent = 2000
 
 // NewRecorder creates a new empty Recorder.
 func NewRecorder() *Recorder {
+	return NewRecorderWithLimit(defaultMaxActionsPerAgent)
+}
+
+// NewRecorderWithLimit creates a Recorder that keeps the newest N actions per agent.
+func NewRecorderWithLimit(maxActionsPerAgent int) *Recorder {
+	if maxActionsPerAgent <= 0 {
+		maxActionsPerAgent = defaultMaxActionsPerAgent
+	}
 	return &Recorder{
-		actions: make(map[string][]Action),
+		maxActionsPerAgent: maxActionsPerAgent,
+		actions:            make(map[string][]Action),
 	}
 }
 
@@ -50,12 +62,18 @@ func (r *Recorder) Record(agentID string, actionType ActionType, data json.RawMe
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.actions[agentID] = append(r.actions[agentID], Action{
+	timeline := append(r.actions[agentID], Action{
 		AgentID:   agentID,
 		Type:      actionType,
 		Timestamp: time.Now(),
 		Data:      data,
 	})
+	if len(timeline) > r.maxActionsPerAgent {
+		kept := make([]Action, r.maxActionsPerAgent)
+		copy(kept, timeline[len(timeline)-r.maxActionsPerAgent:])
+		timeline = kept
+	}
+	r.actions[agentID] = timeline
 }
 
 // GetTimeline returns all recorded actions for the given agent, sorted by timestamp.
