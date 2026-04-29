@@ -101,3 +101,43 @@ func TestManagerLogRedactsSensitiveMetadata(t *testing.T) {
 		t.Fatalf("stored message leaked token: %q", events[0].Message)
 	}
 }
+
+func TestManagerLogRedactsInlineSecretFragments(t *testing.T) {
+	db, err := vault.OpenPath(t.TempDir() + "/vault.db")
+	if err != nil {
+		t.Fatalf("OpenPath: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	manager := New(db)
+	t.Cleanup(manager.Close)
+
+	event, err := manager.Log(
+		"gateway",
+		"error",
+		"failed",
+		`request failed with token=plain-token cookie=session-cookie payload {"token":"json-token"} but gateway token mismatch remained visible`,
+		map[string]string{
+			"detail":    `secret=metadata-secret payload {"password":"json-password"}`,
+			"sessionId": "vulpine-agent-1",
+		},
+	)
+	if err != nil {
+		t.Fatalf("Log: %v", err)
+	}
+
+	for _, leaked := range []string{"plain-token", "session-cookie", "json-token", "metadata-secret", "json-password"} {
+		if strings.Contains(event.Message, leaked) {
+			t.Fatalf("message leaked %q: %q", leaked, event.Message)
+		}
+		if strings.Contains(event.Metadata["detail"], leaked) {
+			t.Fatalf("metadata leaked %q: %q", leaked, event.Metadata["detail"])
+		}
+	}
+	if !strings.Contains(event.Message, "gateway token mismatch") {
+		t.Fatalf("non-secret diagnostic was over-redacted: %q", event.Message)
+	}
+	if event.Metadata["sessionId"] != "vulpine-agent-1" {
+		t.Fatalf("sessionId = %q, want unchanged", event.Metadata["sessionId"])
+	}
+}

@@ -150,7 +150,7 @@ Beyond the four core phases, VulpineOS includes hardened runtime security:
 
 | Feature | Description |
 |---------|-------------|
-| **Web Panel** | React SPA (Vite) with 12 pages — Dashboard, Agents, Agent Detail, Bus, Contexts, Proxies, Security, Webhooks, Scripts, Settings, Logs, and Login. 46 WebSocket control messages, including persisted runtime audit history, reconnect/session auth, budget controls, bus approvals, proxy rotation, runtime-backed security status, real script execution, and a denser operator dashboard shell with runtime alerts and quick actions. |
+| **Web Panel** | React SPA (Vite) with 12 pages — Dashboard, Agents, Agent Detail, Bus, Contexts, Proxies, Security, Webhooks, Scripts, Settings, Logs, and Login. 46 WebSocket control messages, including secret-redacted persisted runtime audit history, reconnect/session auth, budget controls, bus approvals, proxy rotation, runtime-backed security status, real script execution, and a denser operator dashboard shell with runtime alerts and quick actions. |
 | **Agent Bus** | Inter-agent communication (ask, delegate, reply, notify) with user-controlled approval policies and full audit trail |
 | **Cost Tracking** | Per-agent token usage and API cost tracking with budget limits. Built-in pricing for Claude, GPT-4o, Gemini. Alerts at configurable thresholds. |
 | **Session Recording** | Record browser actions as timestamped timelines with a bounded per-agent in-memory window and sensitive action-data redaction. Export to JSON. Terminal-based replay at real speed. |
@@ -204,7 +204,7 @@ Saving provider settings from the web panel now also marks setup complete and re
 The web panel Settings page now loads the live provider registry from the runtime and presents provider/model dropdowns instead of raw free-text IDs, reducing config typos.
 Served mode now starts the OpenClaw gateway with the same repair path as local mode, so browser-backed agents do not silently lose gateway support when you move from the local TUI to the hosted panel/server path.
 Served mode also supports `--no-browser`, which keeps the panel and control API available without launching a kernel; the panel reports that state as `DISABLED` route/mode instead of crashing in `Browser.enable`.
-Gateway start, stop, and profile-repair failures now also land in the runtime audit stream, so startup problems appear in the system panel/runtime views instead of only in raw log files.
+Gateway start, stop, and profile-repair failures now also land in the secret-redacted runtime audit stream, so startup problems appear in the system panel/runtime views instead of only in raw log files.
 Pause/resume flows now keep scoped OpenClaw runtime configs alive for the full resumed agent lifecycle, so a context-pinned agent does not silently fall back to the shared browser route after resume.
 If the conversation panel is awake but the cursor has dropped out of the input, the next typed character re-focuses chat automatically, while `v` still works as a browser show or hide shortcut from that unfocused state.
 After a newly created agent sends its first real reply, VulpineOS automatically snaps focus back to the chat box so the conversation is immediately writable again.
