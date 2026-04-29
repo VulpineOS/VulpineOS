@@ -72,6 +72,44 @@ func TestBroadcastEventPreservesSessionID(t *testing.T) {
 	}
 }
 
+func TestBroadcastEventDoesNotHoldClientRegistryWhileWriting(t *testing.T) {
+	server := NewServer(":0", "secret", nil)
+	blocked := &wsClient{ctx: context.Background()}
+	blocked.writeMu.Lock()
+	server.clients[blocked] = struct{}{}
+
+	done := make(chan struct{})
+	go func() {
+		server.BroadcastEvent("Page.frameAttached", "session-1", json.RawMessage(`{}`))
+		close(done)
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		locked := make(chan struct{})
+		go func() {
+			server.clientsMu.Lock()
+			server.clientsMu.Unlock()
+			close(locked)
+		}()
+		select {
+		case <-locked:
+			blocked.writeMu.Unlock()
+			select {
+			case <-done:
+			case <-time.After(2 * time.Second):
+				t.Fatal("BroadcastEvent did not return after blocked writer was released")
+			}
+			return
+		case <-time.After(10 * time.Millisecond):
+			if time.Now().After(deadline) {
+				blocked.writeMu.Unlock()
+				t.Fatal("client registry lock remained blocked during websocket write")
+			}
+		}
+	}
+}
+
 func TestHandleWSJugglerWithoutKernelReturnsError(t *testing.T) {
 	server := NewServer(":0", "secret", nil)
 	httpServer := httptest.NewServer(server.Mux())
