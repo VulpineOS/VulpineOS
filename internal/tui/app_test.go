@@ -1158,3 +1158,48 @@ func TestBrowserEventsDoNotPolluteSelectedConversation(t *testing.T) {
 		t.Fatalf("conversation changed after unrelated browser events\nbefore:\n%s\n\nafter:\n%s", before, after)
 	}
 }
+
+func TestStopForwardersPreventsBlockedEventSends(t *testing.T) {
+	app := NewApp(nil, nil, nil, nil, nil, nil)
+	for i := 0; i < cap(app.eventCh); i++ {
+		app.eventCh <- statusNotice{text: "fill"}
+	}
+
+	app.stopForwarders()
+
+	done := make(chan struct{})
+	go func() {
+		app.emitEvent(statusNotice{text: "late"})
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("emitEvent blocked after TUI stop")
+	}
+
+	_, ok := <-app.monitor.AlertChan()
+	if ok {
+		t.Fatal("monitor alert channel should close when TUI forwarders stop")
+	}
+}
+
+func TestWaitForEventReturnsAfterStop(t *testing.T) {
+	app := NewApp(nil, nil, nil, nil, nil, nil)
+	app.stopForwarders()
+
+	done := make(chan tea.Msg, 1)
+	go func() {
+		done <- app.waitForEvent()()
+	}()
+
+	select {
+	case msg := <-done:
+		if msg != nil {
+			t.Fatalf("waitForEvent returned %T after stop, want nil", msg)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("waitForEvent did not return after TUI stop")
+	}
+}
