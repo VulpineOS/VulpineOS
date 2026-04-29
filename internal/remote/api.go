@@ -513,9 +513,6 @@ func (api *PanelAPI) agentsGetSessionLog(params json.RawMessage) (json.RawMessag
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
-	if strings.TrimSpace(p.AgentID) == "" {
-		return nil, fmt.Errorf("agentId is required")
-	}
 	path, err := agentSessionLogPath(p.AgentID)
 	if err != nil {
 		return nil, err
@@ -537,12 +534,9 @@ func (api *PanelAPI) agentsGetSessionLog(params json.RawMessage) (json.RawMessag
 }
 
 func agentSessionLogPath(agentID string) (string, error) {
-	id := strings.TrimSpace(agentID)
-	if id == "" {
-		return "", fmt.Errorf("agentId is required")
-	}
-	if strings.ContainsAny(id, `/\`) || id == "." || id == ".." {
-		return "", fmt.Errorf("invalid agentId")
+	id, err := safePanelAgentID(agentID)
+	if err != nil {
+		return "", err
 	}
 	sessionsDir := filepath.Join(config.OpenClawProfileDir(), "agents", "main", "sessions")
 	path := filepath.Join(sessionsDir, "vulpine-"+id+".jsonl")
@@ -551,6 +545,17 @@ func agentSessionLogPath(agentID string) (string, error) {
 		return "", fmt.Errorf("invalid agentId")
 	}
 	return path, nil
+}
+
+func safePanelAgentID(agentID string) (string, error) {
+	id := strings.TrimSpace(agentID)
+	if id == "" {
+		return "", fmt.Errorf("agentId is required")
+	}
+	if strings.ContainsAny(id, `/\`) || id == "." || id == ".." {
+		return "", fmt.Errorf("invalid agentId")
+	}
+	return id, nil
 }
 
 // ---------------------------------------------------------------------------
@@ -1226,7 +1231,11 @@ func (api *PanelAPI) recordingGetTimeline(params json.RawMessage) (json.RawMessa
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
-	timeline := api.Recorder.GetTimeline(p.AgentID)
+	agentID, err := safePanelAgentID(p.AgentID)
+	if err != nil {
+		return nil, err
+	}
+	timeline := api.Recorder.GetTimeline(agentID)
 	if timeline == nil {
 		timeline = []recording.Action{}
 	}
@@ -1243,14 +1252,18 @@ func (api *PanelAPI) recordingExport(params json.RawMessage) (json.RawMessage, e
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
-	data, err := api.Recorder.Export(p.AgentID)
+	agentID, err := safePanelAgentID(p.AgentID)
+	if err != nil {
+		return nil, err
+	}
+	data, err := api.Recorder.Export(agentID)
 	if err != nil {
 		return nil, err
 	}
 	return json.Marshal(map[string]interface{}{
 		"content":     string(data),
 		"contentType": "application/json",
-		"fileName":    fmt.Sprintf("agent-%s-recording.json", p.AgentID),
+		"fileName":    fmt.Sprintf("agent-%s-recording.json", agentID),
 	})
 }
 
