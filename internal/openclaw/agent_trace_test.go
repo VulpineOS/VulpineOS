@@ -92,6 +92,46 @@ func TestSummarizeToolResultTreatsNonZeroExitCodeAsError(t *testing.T) {
 	}
 }
 
+func TestSummarizeToolResultContentFailureOverridesWrapperCompleted(t *testing.T) {
+	content := []struct {
+		Type      string                 `json:"type"`
+		Text      string                 `json:"text"`
+		Thinking  string                 `json:"thinking"`
+		ID        string                 `json:"id"`
+		Name      string                 `json:"name"`
+		Arguments map[string]interface{} `json:"arguments"`
+	}{
+		{Type: "text", Text: `{"status":"error","error":"gateway token mismatch"}`},
+	}
+	got := summarizeToolResult("browser", toolCallInfo{}, false, content, map[string]interface{}{
+		"status": "completed",
+	})
+	want := "Tool failed: browser — gateway token mismatch"
+	if got != want {
+		t.Fatalf("summarizeToolResult = %q, want %q", got, want)
+	}
+}
+
+func TestSummarizeToolResultContentExitCodeOverridesWrapperCompleted(t *testing.T) {
+	content := []struct {
+		Type      string                 `json:"type"`
+		Text      string                 `json:"text"`
+		Thinking  string                 `json:"thinking"`
+		ID        string                 `json:"id"`
+		Name      string                 `json:"name"`
+		Arguments map[string]interface{} `json:"arguments"`
+	}{
+		{Type: "text", Text: `{"exitCode":2,"stderr":"permission denied"}`},
+	}
+	got := summarizeToolResult("exec", toolCallInfo{}, false, content, map[string]interface{}{
+		"status": "completed",
+	})
+	want := "Tool failed: exec — permission denied"
+	if got != want {
+		t.Fatalf("summarizeToolResult = %q, want %q", got, want)
+	}
+}
+
 func TestSummarizeToolResultIncomplete(t *testing.T) {
 	got := summarizeToolResult("browser", toolCallInfo{
 		Name: "browser",

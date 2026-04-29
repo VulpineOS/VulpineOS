@@ -629,6 +629,9 @@ func toolResultStatus(isError bool, content []struct {
 		if errText, _ = details["error"].(string); errText != "" {
 			return "error", errText
 		}
+		if stderr, _ := details["stderr"].(string); stderr != "" {
+			return "error", stderr
+		}
 		return "error", fmt.Sprintf("command exited with code %d", exitCode)
 	}
 	if okValue, ok := details["ok"].(bool); ok && !okValue {
@@ -636,6 +639,27 @@ func toolResultStatus(isError bool, content []struct {
 			return "error", errText
 		}
 		return "error", ""
+	}
+
+	if status, _ = details["status"].(string); status != "" {
+		errText, _ = details["error"].(string)
+		normalized := normalizeToolStatus(status)
+		if isProblemToolStatus(normalized) {
+			return normalized, errText
+		}
+	}
+
+	for _, item := range content {
+		if item.Type != "text" || item.Text == "" {
+			continue
+		}
+		var payload map[string]interface{}
+		if json.Unmarshal([]byte(item.Text), &payload) != nil {
+			continue
+		}
+		if status, errText, ok := problemToolStatusFromPayload(payload); ok {
+			return status, errText
+		}
 	}
 
 	if status, _ = details["status"].(string); status != "" {
@@ -659,6 +683,38 @@ func toolResultStatus(isError bool, content []struct {
 	}
 
 	return "", ""
+}
+
+func problemToolStatusFromPayload(payload map[string]interface{}) (status string, errText string, ok bool) {
+	if exitCode, exists := numericDetail(payload["exitCode"]); exists && exitCode != 0 {
+		if aggregated, _ := payload["aggregated"].(string); aggregated != "" {
+			return "error", aggregated, true
+		}
+		if errText, _ = payload["error"].(string); errText != "" {
+			return "error", errText, true
+		}
+		if stderr, _ := payload["stderr"].(string); stderr != "" {
+			return "error", stderr, true
+		}
+		return "error", fmt.Sprintf("command exited with code %d", exitCode), true
+	}
+	if okValue, exists := payload["ok"].(bool); exists && !okValue {
+		if errText, _ = payload["error"].(string); errText != "" {
+			return "error", errText, true
+		}
+		return "error", "", true
+	}
+	rawStatus, _ := payload["status"].(string)
+	normalized := normalizeToolStatus(rawStatus)
+	if isProblemToolStatus(normalized) {
+		errText, _ = payload["error"].(string)
+		return normalized, errText, true
+	}
+	return "", "", false
+}
+
+func isProblemToolStatus(status string) bool {
+	return status == "error" || status == "timeout" || status == "incomplete"
 }
 
 func normalizeToolStatus(status string) string {
