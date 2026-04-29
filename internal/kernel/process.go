@@ -229,7 +229,10 @@ func (l binaryLocator) Resolve(requested string) (string, error) {
 		if resolved := l.normalizeIfRunnable(requested); resolved != "" {
 			return resolved, nil
 		}
-		return "", fmt.Errorf("VulpineOS binary not found at %s", requested)
+		if resolved := l.resolveDirectory(requested); resolved != "" {
+			return resolved, nil
+		}
+		return "", fmt.Errorf("VulpineOS binary not found at %s (expected an executable, a Camoufox.app bundle, a browser dist directory, or a repo-local camoufox-*/obj-*/dist build)", requested)
 	}
 
 	if resolved := l.firstExisting(l.packagedCandidates()); resolved != "" {
@@ -326,6 +329,10 @@ func (l binaryLocator) installedCandidates() []string {
 }
 
 func (l binaryLocator) repoLocalBuild() string {
+	return l.repoLocalBuildInRoots(l.searchRoots())
+}
+
+func (l binaryLocator) repoLocalBuildInRoots(roots []string) string {
 	var preferred []string
 	var fallback []string
 	seen := map[string]struct{}{}
@@ -335,7 +342,7 @@ func (l binaryLocator) repoLocalBuild() string {
 	if l.goos == "darwin" {
 		patterns = append(patterns, filepath.Join("camoufox-*", "obj-*", "dist", "Camoufox.app", "Contents", "MacOS", "camoufox"))
 	}
-	for _, root := range l.searchRoots() {
+	for _, root := range roots {
 		for _, pattern := range patterns {
 			found, _ := filepath.Glob(filepath.Join(root, pattern))
 			sort.Strings(found)
@@ -358,6 +365,42 @@ func (l binaryLocator) repoLocalBuild() string {
 		return preferredPath
 	}
 	return newestExisting(fallback)
+}
+
+func (l binaryLocator) resolveDirectory(path string) string {
+	cleaned, err := filepath.Abs(filepath.Clean(path))
+	if err != nil {
+		cleaned = filepath.Clean(path)
+	}
+	info, err := os.Stat(cleaned)
+	if err != nil || !info.IsDir() {
+		return ""
+	}
+
+	var candidates []string
+	switch l.goos {
+	case "windows":
+		candidates = append(candidates, filepath.Join(cleaned, "camoufox.exe"))
+	default:
+		candidates = append(candidates,
+			filepath.Join(cleaned, "camoufox"),
+			filepath.Join(cleaned, "camoufox-bin"),
+			filepath.Join(cleaned, "bin", "camoufox"),
+		)
+	}
+	if l.goos == "darwin" {
+		candidates = append(candidates,
+			filepath.Join(cleaned, "Camoufox.app", "Contents", "MacOS", "camoufox"),
+			filepath.Join(cleaned, "camoufox.app", "Contents", "MacOS", "camoufox"),
+		)
+		if strings.HasSuffix(cleaned, ".app") {
+			candidates = append(candidates, filepath.Join(cleaned, "Contents", "MacOS", "camoufox"))
+		}
+	}
+	if resolved := l.firstExisting(candidates); resolved != "" {
+		return resolved
+	}
+	return l.repoLocalBuildInRoots([]string{cleaned})
 }
 
 func (l binaryLocator) searchRoots() []string {
