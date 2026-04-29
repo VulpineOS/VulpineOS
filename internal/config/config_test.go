@@ -21,6 +21,17 @@ func withTempHome(t *testing.T) string {
 	return tmpHome
 }
 
+func requireFileMode(t *testing.T, path string, want os.FileMode) {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat %s: %v", path, err)
+	}
+	if got := info.Mode().Perm(); got != want {
+		t.Fatalf("%s mode = %o, want %o", path, got, want)
+	}
+}
+
 func TestConfigSaveLoad(t *testing.T) {
 	// Create temp dir to act as config dir
 	tmpDir, err := os.MkdirTemp("", "vulpine-config-test-*")
@@ -185,6 +196,7 @@ func TestGenerateOpenClawConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read openclaw.json: %v", err)
 	}
+	requireFileMode(t, ocPath, 0600)
 
 	var oc map[string]interface{}
 	if err := json.Unmarshal(data, &oc); err != nil {
@@ -438,7 +450,7 @@ func TestRepairOpenClawProfileRestoresWorkspaceAndSkill(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal stale config: %v", err)
 	}
-	if err := os.WriteFile(OpenClawConfigPath(), data, 0600); err != nil {
+	if err := os.WriteFile(OpenClawConfigPath(), data, 0644); err != nil {
 		t.Fatalf("write stale config: %v", err)
 	}
 
@@ -459,6 +471,7 @@ func TestRepairOpenClawProfileRestoresWorkspaceAndSkill(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read repaired config: %v", err)
 	}
+	requireFileMode(t, OpenClawConfigPath(), 0600)
 	var cfg map[string]interface{}
 	if err := json.Unmarshal(out, &cfg); err != nil {
 		t.Fatalf("parse repaired config: %v", err)
