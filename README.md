@@ -327,13 +327,13 @@ from the visible URL after load.
 Networked serve mode:
 
 ```bash
-./vulpineos serve --host 0.0.0.0 --port 8443
+./vulpineos serve --host 0.0.0.0 --port 8443 --no-tls
 ```
 
 Explicit access key:
 
 ```bash
-./vulpineos serve --host 0.0.0.0 --port 8443 --api-key YOUR_KEY
+./vulpineos serve --host 0.0.0.0 --port 8443 --no-tls --api-key YOUR_KEY
 ```
 
 If `--api-key` is omitted in serve mode, VulpineOS generates one at startup
@@ -344,15 +344,15 @@ websocket session.
 Remote panel shortcut:
 
 ```bash
-./vulpineos remote panel --url https://your-host:8443 --api-key YOUR_KEY
+./vulpineos remote panel --url http://your-host:8443 --api-key YOUR_KEY
 # `panel` is the default remote mode, so this also works:
-./vulpineos remote --url https://your-host:8443 --api-key YOUR_KEY
+./vulpineos remote --url http://your-host:8443 --api-key YOUR_KEY
 ```
 
 Remote TUI:
 
 ```bash
-./vulpineos remote tui --url https://your-host:8443 --api-key YOUR_KEY
+./vulpineos remote tui --url http://your-host:8443 --api-key YOUR_KEY
 ```
 
 MCP server:
@@ -394,8 +394,9 @@ inside the container. By default the bundled `docker-compose.yml` exposes plain 
 port `8443`; add `VULPINE_TLS_CERT` and `VULPINE_TLS_KEY` plus mounted certificate files if
 you want HTTPS/WSS.
 
-The container reads its shared access key from `VULPINE_API_KEY`. Use the same value with
-`vulpineos remote panel` or `vulpineos remote tui` when connecting from another machine.
+The compose file requires `VULPINE_API_KEY` and will not fall back to a public default.
+Use the same value with `vulpineos remote panel` or `vulpineos remote tui` when connecting
+from another machine.
 If you want the full deployment notes, including required browser artifacts under
 `dist/camoufox-linux/`, persistent volumes, and optional TLS, see
 [vulpineos.com/docker](https://vulpineos.com/docker).
