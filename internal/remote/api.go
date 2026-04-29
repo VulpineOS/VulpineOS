@@ -520,7 +520,7 @@ func (api *PanelAPI) agentsGetSessionLog(params json.RawMessage) (json.RawMessag
 	if err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(path)
+	content, meta, err := readSessionLogPanelContent(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, fmt.Errorf("session log not found")
@@ -528,8 +528,11 @@ func (api *PanelAPI) agentsGetSessionLog(params json.RawMessage) (json.RawMessag
 		return nil, err
 	}
 	return json.Marshal(map[string]interface{}{
-		"path":    path,
-		"content": sanitizeSessionLog(string(data)),
+		"path":       path,
+		"content":    content,
+		"truncated":  meta.truncated,
+		"bytes":      meta.bytes,
+		"totalBytes": meta.totalBytes,
 	})
 }
 

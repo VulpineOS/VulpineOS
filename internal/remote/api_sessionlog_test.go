@@ -1,6 +1,7 @@
 package remote
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -19,7 +20,8 @@ func TestAgentsGetSessionLog(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
 		t.Fatalf("mkdir log dir: %v", err)
 	}
-	if err := os.WriteFile(logPath, []byte("{\"type\":\"message\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"thinking\",\"thinking\":\"secret chain\",\"thinkingSignature\":\"reasoning_content\"},{\"type\":\"text\",\"text\":\"Done\"}]}}\n"), 0644); err != nil {
+	logData := []byte("{\"type\":\"message\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"thinking\",\"thinking\":\"secret chain\",\"thinkingSignature\":\"reasoning_content\"},{\"type\":\"text\",\"text\":\"Done\"}]}}\n")
+	if err := os.WriteFile(logPath, logData, 0644); err != nil {
 		t.Fatalf("write log: %v", err)
 	}
 
@@ -30,8 +32,11 @@ func TestAgentsGetSessionLog(t *testing.T) {
 	}
 
 	var result struct {
-		Path    string `json:"path"`
-		Content string `json:"content"`
+		Path       string `json:"path"`
+		Content    string `json:"content"`
+		Truncated  bool   `json:"truncated"`
+		Bytes      int64  `json:"bytes"`
+		TotalBytes int64  `json:"totalBytes"`
 	}
 	if err := json.Unmarshal(payload, &result); err != nil {
 		t.Fatalf("unmarshal result: %v", err)
@@ -41,6 +46,15 @@ func TestAgentsGetSessionLog(t *testing.T) {
 	}
 	if !strings.HasSuffix(result.Content, "\n") {
 		t.Fatalf("content should preserve trailing newline: %q", result.Content)
+	}
+	if result.Truncated {
+		t.Fatalf("truncated = true, want false")
+	}
+	if result.Bytes != int64(len(logData)) {
+		t.Fatalf("bytes = %d, want raw file length %d", result.Bytes, len(logData))
+	}
+	if result.TotalBytes != int64(len(logData)) {
+		t.Fatalf("totalBytes = %d, want raw file length %d", result.TotalBytes, len(logData))
 	}
 
 	var entry map[string]interface{}
@@ -72,6 +86,57 @@ func TestAgentsGetSessionLog(t *testing.T) {
 	}
 	if got := textItem["text"]; got != "Done" {
 		t.Fatalf("text = %v, want Done", got)
+	}
+}
+
+func TestAgentsGetSessionLogTailsLargeLogsAtLineBoundary(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	logPath := filepath.Join(config.OpenClawProfileDir(), "agents", "main", "sessions", "vulpine-agent-1.jsonl")
+	if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
+		t.Fatalf("mkdir log dir: %v", err)
+	}
+	secretLine := []byte(`{"type":"message","message":{"role":"assistant","content":[{"type":"thinking","thinking":"` + strings.Repeat("secret-", int(maxPanelSessionLogBytes/7)+1000) + `","thinkingSignature":"sig"}]}}`)
+	tailLine := []byte(`{"type":"message","message":{"role":"assistant","content":[{"type":"text","text":"tail visible"}]}}`)
+	data := bytes.Join([][]byte{secretLine, tailLine}, []byte("\n"))
+	data = append(data, '\n')
+	if int64(len(data)) <= maxPanelSessionLogBytes {
+		t.Fatalf("test log size %d must exceed tail limit %d", len(data), maxPanelSessionLogBytes)
+	}
+	if err := os.WriteFile(logPath, data, 0644); err != nil {
+		t.Fatalf("write log: %v", err)
+	}
+
+	api := &PanelAPI{}
+	payload, err := api.HandleMessage("agents.getSessionLog", json.RawMessage(`{"agentId":"agent-1"}`))
+	if err != nil {
+		t.Fatalf("HandleMessage: %v", err)
+	}
+
+	var result struct {
+		Content    string `json:"content"`
+		Truncated  bool   `json:"truncated"`
+		Bytes      int64  `json:"bytes"`
+		TotalBytes int64  `json:"totalBytes"`
+	}
+	if err := json.Unmarshal(payload, &result); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+	if !result.Truncated {
+		t.Fatalf("truncated = false, want true")
+	}
+	if result.TotalBytes != int64(len(data)) {
+		t.Fatalf("totalBytes = %d, want %d", result.TotalBytes, len(data))
+	}
+	if result.Bytes >= result.TotalBytes {
+		t.Fatalf("bytes = %d should be less than totalBytes %d", result.Bytes, result.TotalBytes)
+	}
+	if strings.Contains(result.Content, "secret-") || strings.Contains(result.Content, "thinkingSignature") {
+		t.Fatalf("partial hidden reasoning line leaked through tail content: %.120q", result.Content)
+	}
+	if !strings.Contains(result.Content, "tail visible") {
+		t.Fatalf("tail content missing expected line: %.120q", result.Content)
 	}
 }
 
