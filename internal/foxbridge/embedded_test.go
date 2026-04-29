@@ -1,9 +1,13 @@
 package foxbridge
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"testing"
+	"time"
+
+	"github.com/VulpineOS/foxbridge/pkg/backend"
 )
 
 func TestStartEmbeddedNilClient(t *testing.T) {
@@ -45,6 +49,46 @@ func TestStopDoesNotPanic(t *testing.T) {
 	es := &EmbeddedServer{port: 9222, done: make(chan struct{})}
 	// Should not panic even without a running server
 	es.Stop()
+}
+
+type embeddedTestBackend struct{}
+
+func (b *embeddedTestBackend) Call(sessionID, method string, params json.RawMessage) (json.RawMessage, error) {
+	return json.RawMessage(`{}`), nil
+}
+
+func (b *embeddedTestBackend) Subscribe(event string, handler backend.EventHandler) {}
+
+func (b *embeddedTestBackend) Close() error {
+	return nil
+}
+
+func TestEmbeddedStopReleasesPort(t *testing.T) {
+	port, err := reservePort()
+	if err != nil {
+		t.Fatalf("reservePort: %v", err)
+	}
+	es, err := startEmbeddedWithBackend(&embeddedTestBackend{}, port, true)
+	if err != nil {
+		t.Fatalf("startEmbeddedWithBackend: %v", err)
+	}
+	if err := waitForPort(port, 2*time.Second); err != nil {
+		es.Stop()
+		t.Fatalf("waitForPort: %v", err)
+	}
+
+	es.Stop()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if err := ensurePortAvailable(port); err == nil {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("port %d was not released", port)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 func TestCDPURLFormat(t *testing.T) {

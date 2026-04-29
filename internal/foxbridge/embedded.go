@@ -1,10 +1,12 @@
 package foxbridge
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net"
+	"time"
 
 	"vulpineos/internal/juggler"
 
@@ -156,7 +158,19 @@ func (es *EmbeddedServer) Port() int {
 // Stop shuts down the embedded CDP server.
 // It does NOT close the underlying Juggler client (owned by the kernel).
 func (es *EmbeddedServer) Stop() {
-	// cdp.Server uses http.ListenAndServe which doesn't have a graceful shutdown.
-	// The server goroutine will exit when the process exits.
+	if es == nil || es.server == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	if err := es.server.Shutdown(ctx); err != nil {
+		log.Printf("embedded foxbridge graceful shutdown failed: %v", err)
+		_ = es.server.Close()
+	}
+	cancel()
+	select {
+	case <-es.done:
+	case <-time.After(2 * time.Second):
+		log.Printf("embedded foxbridge shutdown timed out")
+	}
 	log.Println("embedded foxbridge stopped")
 }
