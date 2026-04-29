@@ -40,6 +40,10 @@ func findCamoufoxBinary() string {
 func startLiveKernel(t *testing.T) (*kernel.Kernel, *juggler.Client) {
 	t.Helper()
 
+	if strings.TrimSpace(os.Getenv("VULPINEOS_RUN_LIVE")) == "" {
+		t.Skip("set VULPINEOS_RUN_LIVE=1 to run live VulpineOS MCP integration tests")
+	}
+
 	binary := findCamoufoxBinary()
 	if binary == "" {
 		t.Skip("Camoufox binary not found")

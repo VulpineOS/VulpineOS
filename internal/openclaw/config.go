@@ -9,8 +9,8 @@ import (
 
 // VulpineOSConfig generates an openclaw.json that routes browser ops through VulpineOS MCP.
 type VulpineOSConfig struct {
-	Plugins  PluginsConfig  `json:"plugins"`
-	Browser  BrowserConfig  `json:"browser"`
+	Plugins PluginsConfig `json:"plugins"`
+	Browser BrowserConfig `json:"browser"`
 }
 
 type PluginsConfig struct {
@@ -42,9 +42,9 @@ func GenerateConfig(vulpineosBinary string, wsURL string) (*VulpineOSConfig, err
 		vulpineosBinary = exe
 	}
 
-	args := []string{"--mcp-server"}
+	args := []string{"mcp"}
 	if wsURL != "" {
-		args = append(args, "--mcp-connect", wsURL)
+		args = append(args, "--connect", wsURL)
 	}
 
 	return &VulpineOSConfig{

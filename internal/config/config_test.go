@@ -504,6 +504,48 @@ func TestRepairOpenClawProfileRestoresWorkspaceAndSkill(t *testing.T) {
 	}
 }
 
+func TestRepairOpenClawProfileRemovesStaleCDPURLWhenUnavailable(t *testing.T) {
+	withTempHome(t)
+
+	if err := os.MkdirAll(OpenClawProfileDir(), 0700); err != nil {
+		t.Fatalf("mkdir profile: %v", err)
+	}
+	stale := map[string]interface{}{
+		"browser": map[string]interface{}{
+			"enabled":  true,
+			"headless": true,
+			"cdpUrl":   "ws://127.0.0.1:9222",
+		},
+	}
+	data, err := json.Marshal(stale)
+	if err != nil {
+		t.Fatalf("marshal stale config: %v", err)
+	}
+	if err := os.WriteFile(OpenClawConfigPath(), data, 0600); err != nil {
+		t.Fatalf("write stale config: %v", err)
+	}
+
+	if err := RepairOpenClawProfile(""); err != nil {
+		t.Fatalf("RepairOpenClawProfile: %v", err)
+	}
+
+	out, err := os.ReadFile(OpenClawConfigPath())
+	if err != nil {
+		t.Fatalf("read repaired config: %v", err)
+	}
+	var cfg map[string]interface{}
+	if err := json.Unmarshal(out, &cfg); err != nil {
+		t.Fatalf("parse repaired config: %v", err)
+	}
+	browser := cfg["browser"].(map[string]interface{})
+	if _, ok := browser["cdpUrl"]; ok {
+		t.Fatalf("browser.cdpUrl still present after repair without live foxbridge URL: %v", browser["cdpUrl"])
+	}
+	if got := OpenClawProfileBrowserRoute(); got != "headless" {
+		t.Fatalf("route after stale cdpUrl removal = %q, want headless", got)
+	}
+}
+
 func TestGenerateOpenClawConfigPreservesGatewayAuthAndCommands(t *testing.T) {
 	withTempHome(t)
 

@@ -668,6 +668,8 @@ func applyOpenClawProfileDefaults(cfg map[string]interface{}, cdpURL string) {
 	browser["headless"] = true
 	if strings.TrimSpace(cdpURL) != "" {
 		browser["cdpUrl"] = cdpURL
+	} else {
+		delete(browser, "cdpUrl")
 	}
 }
 

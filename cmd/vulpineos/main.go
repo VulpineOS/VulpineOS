@@ -245,15 +245,14 @@ func Run(args []string) int {
 		profileDir = fs.String("profile", "", "Firefox profile directory")
 		remoteAddr = fs.String("remote", "", "Connect to remote VulpineOS (wss://host:port/ws)")
 		serve      = fs.Bool("serve", false, "Run as remote-accessible server")
-		port       = fs.Int("port", 8443, "Server port (with --serve)")
+		port       = fs.Int("port", 8443, "Server port (with serve)")
 		apiKey     = fs.String("api-key", "", "API key for remote authentication")
-		tlsCert    = fs.String("tls-cert", "", "TLS certificate file (with --serve)")
-		tlsKey     = fs.String("tls-key", "", "TLS key file (with --serve)")
+		tlsCert    = fs.String("tls-cert", "", "TLS certificate file (with serve)")
+		tlsKey     = fs.String("tls-key", "", "TLS key file (with serve)")
 		noTLS      = fs.Bool("no-tls", false, "Disable TLS (plain ws:// instead of wss://)")
 		noBrowser  = fs.Bool("no-browser", false, "Start without launching browser/kernel (demo or panel-only mode)")
 		mcpServer  = fs.Bool("mcp-server", false, "Run as MCP stdio server (used by OpenClaw)")
 		mcpConnect = fs.String("mcp-connect", "", "WebSocket URL to connect MCP server to remote kernel")
-		_          = mcpConnect // M4 remote MCP — future use
 		listExt    = fs.Bool("list-extensions", false, "Print the status of optional extension providers and exit")
 		showVer    = fs.Bool("version", false, "Print version and exit")
 	)
@@ -289,7 +288,7 @@ func Run(args []string) int {
 	var err error
 	switch {
 	case *mcpServer:
-		err = runMCPServer(*binaryPath, *headless, *profileDir)
+		err = runMCPServer(*binaryPath, *headless, *profileDir, *mcpConnect, *apiKey)
 	case *remoteAddr != "":
 		err = runRemote(*remoteAddr, *apiKey)
 	case *serve:
@@ -433,10 +432,12 @@ func runMCPSubcommand(args []string) int {
 	binaryPath := fs.String("binary", "", "Path to VulpineOS/Camoufox binary")
 	headless := fs.Bool("headless", false, "Run in headless mode")
 	profileDir := fs.String("profile", "", "Firefox profile directory")
+	connect := fs.String("connect", "", "Remote VulpineOS URL for MCP to attach to")
+	apiKey := fs.String("api-key", "", "API key for remote MCP authentication")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	if err := runMCPServer(*binaryPath, *headless, *profileDir); err != nil {
+	if err := runMCPServer(*binaryPath, *headless, *profileDir, *connect, *apiKey); err != nil {
 		fmt.Fprintf(stderr, "error: %v\n", err)
 		return 1
 	}
@@ -613,7 +614,29 @@ func runRemotePanel(rawURL string, apiKey string) error {
 
 // runMCPServer runs as an MCP stdio server for OpenClaw integration.
 // It connects to a running VulpineOS kernel and translates MCP tool calls to Juggler protocol.
-func runMCPServer(binaryPath string, headless bool, profileDir string) error {
+func runMCPServer(binaryPath string, headless bool, profileDir string, connectURL string, apiKey string) error {
+	if strings.TrimSpace(connectURL) != "" {
+		wsURL, err := normalizeRemoteTUIURL(connectURL)
+		if err != nil {
+			return err
+		}
+		rc, err := remote.Dial(context.Background(), wsURL, apiKey)
+		if err != nil {
+			return fmt.Errorf("connect remote MCP transport: %w", err)
+		}
+		defer rc.Close()
+
+		client := juggler.NewClient(rc)
+		defer client.Close()
+		extensions.InitWithClient(client)
+		if err := enableBrowser(client, "Browser.enable (remote MCP)"); err != nil {
+			return err
+		}
+
+		server := mcp.NewServer(client)
+		return server.Run()
+	}
+
 	resolvedBinaryPath, err := kernel.ResolveBinaryPath(strings.TrimSpace(binaryPath))
 	if err != nil {
 		return err

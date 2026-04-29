@@ -7,7 +7,7 @@ Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp -ac &
 sleep 1
 
 # Build args
-ARGS="--serve --binary ./browser/camoufox --port 8443"
+ARGS="serve --binary ./browser/camoufox --port 8443"
 
 if [ -n "$VULPINE_API_KEY" ]; then
     ARGS="$ARGS --api-key $VULPINE_API_KEY"
