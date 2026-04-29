@@ -328,9 +328,9 @@ Local web panel:
 
 `vulpineos panel` binds to `127.0.0.1`, prints a direct panel URL, and
 opens the browser when possible. If no `--api-key` is provided, VulpineOS
-generates one for the session and includes it in the printed panel URL. The
-panel bootstraps that token into session-scoped browser storage and removes it
-from the visible URL after load.
+generates one for the session and prints it next to the panel URL. The
+auto-opened browser receives the token for session bootstrap, but the terminal
+output keeps the URL clean so access keys do not end up in copied logs.
 
 Networked serve mode:
 
@@ -345,9 +345,10 @@ Explicit access key:
 ```
 
 If `--api-key` is omitted in serve mode, VulpineOS generates one at startup
-and prints both the access key and a direct panel URL containing the token. The
-panel login validates explicit keys through `/auth/check` before opening the
-websocket session.
+and prints both the access key and the panel URL. Paste that key into the panel
+login, or pass an explicit `--api-key` when you want a stable key. The panel
+login validates explicit keys through `/auth/check` before opening the websocket
+session.
 
 Remote panel shortcut:
 
@@ -375,7 +376,10 @@ The repo ships a repo-local panel smoke script for the local Playwright MCP:
 
 - `scripts/playwright/smoke-panel.js`
 
-Point it at a running panel with `VULPINE_PANEL_SMOKE_URL`. If the panel is not already bootstrapped with a tokenized URL, also set `VULPINE_PANEL_SMOKE_ACCESS_KEY`. By default the script writes a viewport screenshot to `/tmp/vulpineos-panel-smoke.png`.
+Point it at a running panel with `VULPINE_PANEL_SMOKE_URL`. If the panel URL
+does not include a token, also set `VULPINE_PANEL_SMOKE_ACCESS_KEY`. The script
+does not write screenshots unless
+`VULPINE_PANEL_SMOKE_SCREENSHOT=/path/to/output.png` is set.
 
 When no `--binary` flag is provided, VulpineOS prefers a repo-local
 `camoufox-*/obj-*/dist` build before falling back to a saved configured
