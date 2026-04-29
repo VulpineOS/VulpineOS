@@ -595,14 +595,14 @@ func (api *PanelAPI) configSet(params json.RawMessage) (json.RawMessage, error) 
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
-	if p.Provider != "" {
-		api.Config.Provider = p.Provider
+	if provider := strings.TrimSpace(p.Provider); provider != "" {
+		api.Config.Provider = provider
 	}
-	if p.Model != "" {
-		api.Config.Model = p.Model
+	if model := strings.TrimSpace(p.Model); model != "" {
+		api.Config.Model = model
 	}
-	if p.APIKey != "" {
-		api.Config.APIKey = p.APIKey
+	if apiKey := strings.TrimSpace(p.APIKey); apiKey != "" {
+		api.Config.APIKey = apiKey
 	}
 	if p.DefaultBudgetMaxCostUSD != nil {
 		api.Config.DefaultBudgetMaxCostUSD = *p.DefaultBudgetMaxCostUSD
