@@ -938,6 +938,57 @@ describe("Settings page", () => {
     ).toBeInTheDocument();
   });
 
+  it("does not mark an empty provider key as stored", async () => {
+    const ws = {
+      connected: true,
+      call: vi.fn(async (method) => {
+        if (method === "config.providers") {
+          return {
+            providers: [
+              {
+                id: "anthropic",
+                name: "Anthropic",
+                envVar: "ANTHROPIC_API_KEY",
+                defaultModel: "claude-sonnet",
+                models: ["claude-sonnet"],
+                needsKey: true,
+              },
+            ],
+          };
+        }
+        if (method === "config.get") {
+          return {
+            provider: "anthropic",
+            model: "claude-sonnet",
+            hasKey: false,
+          };
+        }
+        if (method === "status.get") {
+          return {
+            sentinel_available: false,
+            kernel_running: false,
+            gateway_running: false,
+          };
+        }
+        return {};
+      }),
+    };
+
+    render(<Settings ws={ws} />);
+
+    expect(await screen.findByText("No key stored yet.")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Save Provider"));
+
+    await waitFor(() => {
+      expect(ws.call).toHaveBeenCalledWith("config.set", {
+        provider: "anthropic",
+        model: "claude-sonnet",
+        apiKey: "",
+      });
+    });
+    expect(screen.getByText("No key stored yet.")).toBeInTheDocument();
+  });
+
   it("keeps Sentinel UI hidden when the extension is unavailable", async () => {
     const ws = {
       connected: true,

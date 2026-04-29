@@ -203,13 +203,14 @@ export default function Settings({ ws }) {
   };
 
   const saveProvider = async () => {
+    const submittedKey = (cfg.apiKey || "").trim();
     try {
       await ws.call("config.set", {
         provider: cfg.provider,
         model: cfg.model,
-        apiKey: cfg.apiKey,
+        apiKey: submittedKey,
       });
-      setCfg((prev) => ({ ...prev, apiKey: "", hasKey: true }));
+      setCfg((prev) => ({ ...prev, apiKey: "", hasKey: prev.hasKey || submittedKey !== "" }));
       flashSaved("Provider saved");
     } catch (e) {
       ws.notify?.(e.message);
