@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -456,7 +457,7 @@ func (m *Manager) startManagedAgent(agentID, contextID, openclawBin string, args
 					"exit_code": fmt.Sprintf("%d", exitCode),
 					"attempt":   fmt.Sprintf("%d", agent.RestartCount),
 				})
-				fmt.Printf("agent %s crashed (exit %d), restarting (attempt %d/3)\n", agentID, exitCode, agent.RestartCount)
+				log.Printf("openclaw: agent %s crashed (exit %d), restarting (attempt %d/3)", agentID, exitCode, agent.RestartCount)
 				time.Sleep(time.Duration(agent.RestartCount) * time.Second)
 				if err := agent.restart(); err != nil {
 					m.logRuntimeEvent("error", "restart_failed", "OpenClaw agent restart failed", map[string]string{
@@ -465,7 +466,7 @@ func (m *Manager) startManagedAgent(agentID, contextID, openclawBin string, args
 						"attempt":  fmt.Sprintf("%d", agent.RestartCount),
 						"error":    err.Error(),
 					})
-					fmt.Printf("agent %s restart failed: %v\n", agentID, err)
+					log.Printf("openclaw: agent %s restart failed: %v", agentID, err)
 					break
 				}
 				m.logRuntimeEvent("warn", "restarted", "OpenClaw agent restarted", map[string]string{
@@ -511,7 +512,7 @@ func (m *Manager) logRuntimeEvent(level, event, message string, metadata map[str
 		return
 	}
 	if _, err := audit.Log("openclaw", level, event, message, metadata); err != nil {
-		fmt.Printf("runtime audit openclaw %s: %v\n", event, err)
+		log.Printf("runtime audit openclaw %s: %v", event, err)
 	}
 }
 
