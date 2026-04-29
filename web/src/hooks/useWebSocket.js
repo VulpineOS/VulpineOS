@@ -80,6 +80,9 @@ export function useWebSocket(apiKey) {
     }
 
     ws.onclose = (event) => {
+      if (wsRef.current !== ws && !manualCloseRef.current) {
+        return
+      }
       if (wsRef.current === ws) wsRef.current = null
       setConnected(false)
       rejectPending('Connection lost while waiting for a response')
@@ -222,7 +225,15 @@ export function useWebSocket(apiKey) {
         },
         reject,
       }
-      wsRef.current.send(envelope)
+      try {
+        wsRef.current.send(envelope)
+      } catch (err) {
+        if (pendingRef.current[id]) {
+          delete pendingRef.current[id]
+          clearTimeout(timer)
+        }
+        reject(err instanceof Error ? err : new Error(String(err)))
+      }
     })
   }, [connectionState, lastError])
 
@@ -248,7 +259,15 @@ export function useWebSocket(apiKey) {
         },
         reject,
       }
-      wsRef.current.send(JSON.stringify({ type: 'juggler', payload: { id, method, params } }))
+      try {
+        wsRef.current.send(JSON.stringify({ type: 'juggler', payload: { id, method, params } }))
+      } catch (err) {
+        if (pendingRef.current[id]) {
+          delete pendingRef.current[id]
+          clearTimeout(timer)
+        }
+        reject(err instanceof Error ? err : new Error(String(err)))
+      }
     })
   }, [connectionState, lastError])
 
