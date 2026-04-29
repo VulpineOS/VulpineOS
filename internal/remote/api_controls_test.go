@@ -97,6 +97,35 @@ func TestCostsSetBudgetPersistsOverrideAndCanRevertToDefault(t *testing.T) {
 	}
 }
 
+func TestAgentsGetMessagesCapsPanelLimit(t *testing.T) {
+	api, db := newPanelAPITestFixture(t)
+	agent, err := db.CreateAgent("Message Cap", "task", "{}")
+	if err != nil {
+		t.Fatalf("CreateAgent: %v", err)
+	}
+	for i := 0; i < maxPanelAgentMessages+5; i++ {
+		if err := db.AppendMessage(agent.ID, "assistant", "message", i); err != nil {
+			t.Fatalf("AppendMessage %d: %v", i, err)
+		}
+	}
+
+	payload, err := api.HandleMessage("agents.getMessages", json.RawMessage(`{"agentId":"`+agent.ID+`","limit":100000}`))
+	if err != nil {
+		t.Fatalf("HandleMessage agents.getMessages: %v", err)
+	}
+	var result struct {
+		Messages  []vault.AgentMessage `json:"messages"`
+		Limit     int                  `json:"limit"`
+		Truncated bool                 `json:"truncated"`
+	}
+	if err := json.Unmarshal(payload, &result); err != nil {
+		t.Fatalf("Unmarshal messages: %v", err)
+	}
+	if len(result.Messages) != maxPanelAgentMessages || result.Limit != maxPanelAgentMessages || !result.Truncated {
+		t.Fatalf("unexpected cap result: len=%d limit=%d truncated=%v", len(result.Messages), result.Limit, result.Truncated)
+	}
+}
+
 func TestProxyRotationPersistsAcrossPanelAPIInstances(t *testing.T) {
 	api, db := newPanelAPITestFixture(t)
 

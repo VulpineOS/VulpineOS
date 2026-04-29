@@ -39,6 +39,7 @@ export default function AgentDetail({ ws }) {
   const [messages, setMessages] = useState([])
   const [timeline, setTimeline] = useState([])
   const [fingerprint, setFingerprint] = useState(null)
+  const [messageMeta, setMessageMeta] = useState({ truncated: false, limit: 0 })
   const [sessionLog, setSessionLog] = useState('')
   const [sessionLogMeta, setSessionLogMeta] = useState({ truncated: false, bytes: 0, totalBytes: 0 })
   const [input, setInput] = useState('')
@@ -78,7 +79,10 @@ export default function AgentDetail({ ws }) {
       const nextAgent = (r?.agents || []).find(a => a.id === id) || null
       setAgent(nextAgent)
     }).catch(() => {})
-    ws.call('agents.getMessages', { agentId: id }).then(r => setMessages(r?.messages || [])).catch(() => {})
+    ws.call('agents.getMessages', { agentId: id }).then(r => {
+      setMessages(r?.messages || [])
+      setMessageMeta({ truncated: Boolean(r?.truncated), limit: Number(r?.limit || 0) })
+    }).catch(() => {})
     ws.call('recording.getTimeline', { agentId: id }).then(r => setTimeline(r?.actions || [])).catch(() => {})
     ws.call('fingerprints.get', { agentId: id }).then(r => setFingerprint(r)).catch(() => {})
   }
@@ -307,6 +311,11 @@ export default function AgentDetail({ ws }) {
       {tab === 'conversation' && (
         <div className="card">
           <h3>Conversation</h3>
+          {messageMeta.truncated && (
+            <p style={{ color: '#666', fontSize: 12, marginTop: -4, marginBottom: 12 }}>
+              Showing latest {messageMeta.limit || conversationMessages.length} persisted messages.
+            </p>
+          )}
           <div style={{ maxHeight: 500, overflowY: 'auto', marginBottom: 12 }}>
             {conversationMessages.length === 0 && <p style={{ color: '#666' }}>No messages yet.</p>}
             {conversationMessages.map((m, i) => (

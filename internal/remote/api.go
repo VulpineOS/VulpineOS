@@ -46,6 +46,8 @@ type PanelAPI struct {
 	RuntimeAudit *runtimeaudit.Manager
 }
 
+const maxPanelAgentMessages = 500
+
 // HandleMessage dispatches a control message to the appropriate handler.
 // Returns the JSON result or an error.
 func (api *PanelAPI) HandleMessage(method string, params json.RawMessage) (json.RawMessage, error) {
@@ -493,17 +495,23 @@ func (api *PanelAPI) agentsGetMessages(params json.RawMessage) (json.RawMessage,
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
-	var msgs []vault.AgentMessage
-	var err error
-	if p.Limit > 0 {
-		msgs, err = api.Vault.GetRecentMessages(p.AgentID, p.Limit)
-	} else {
-		msgs, err = api.Vault.GetMessages(p.AgentID)
-	}
+	agentID, err := safePanelAgentID(p.AgentID)
 	if err != nil {
 		return nil, err
 	}
-	return json.Marshal(map[string]interface{}{"messages": msgs})
+	limit := p.Limit
+	if limit <= 0 || limit > maxPanelAgentMessages {
+		limit = maxPanelAgentMessages
+	}
+	msgs, err := api.Vault.GetRecentMessages(agentID, limit)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(map[string]interface{}{
+		"messages":  msgs,
+		"limit":     limit,
+		"truncated": len(msgs) == limit,
+	})
 }
 
 func (api *PanelAPI) agentsGetSessionLog(params json.RawMessage) (json.RawMessage, error) {
