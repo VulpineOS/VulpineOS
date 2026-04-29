@@ -3,6 +3,7 @@ package foxbridge
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 
 	"vulpineos/internal/juggler"
@@ -40,14 +41,35 @@ func (b *scopedBackend) Call(sessionID, method string, params json.RawMessage) (
 	case "Browser.createBrowserContext":
 		return json.Marshal(map[string]string{"browserContextId": b.browserContextID})
 	case "Browser.removeBrowserContext":
+		if err := b.validateOptionalBrowserContext(method, params); err != nil {
+			return nil, err
+		}
 		return json.RawMessage(`{}`), nil
 	case "Browser.newPage":
-		withContext, err := b.injectBrowserContext(params)
+		withContext, err := b.injectBrowserContext(method, params)
 		if err != nil {
 			return nil, err
 		}
 		return b.client.Call(sessionID, method, withContext)
+	case "Browser.close":
+		return nil, fmt.Errorf("%s is blocked for scoped foxbridge sessions", method)
 	default:
+		if _, ok := contextScopedBrowserMethods[method]; ok {
+			withContext, err := b.injectBrowserContext(method, params)
+			if err != nil {
+				return nil, err
+			}
+			return b.client.Call(sessionID, method, withContext)
+		}
+		if _, ok := safeGlobalBrowserMethods[method]; ok {
+			return b.client.Call(sessionID, method, params)
+		}
+		if _, ok := requestScopedBrowserMethods[method]; ok {
+			return b.client.Call(sessionID, method, params)
+		}
+		if strings.HasPrefix(method, "Browser.") {
+			return nil, fmt.Errorf("%s is not allowed for scoped foxbridge sessions", method)
+		}
 		return b.client.Call(sessionID, method, params)
 	}
 }
@@ -65,20 +87,65 @@ func (b *scopedBackend) Close() error {
 	return nil
 }
 
-func (b *scopedBackend) injectBrowserContext(params json.RawMessage) (json.RawMessage, error) {
+var contextScopedBrowserMethods = map[string]struct{}{
+	"Browser.clearCookies":           {},
+	"Browser.getCookies":             {},
+	"Browser.grantPermissions":       {},
+	"Browser.setCookies":             {},
+	"Browser.setDefaultViewport":     {},
+	"Browser.setDownloadOptions":     {},
+	"Browser.setExtraHTTPHeaders":    {},
+	"Browser.setGeolocationOverride": {},
+	"Browser.setLocaleOverride":      {},
+	"Browser.setRequestInterception": {},
+	"Browser.setTimezoneOverride":    {},
+	"Browser.setTouchOverride":       {},
+	"Browser.setUserAgentOverride":   {},
+}
+
+var safeGlobalBrowserMethods = map[string]struct{}{
+	"Browser.enable":  {},
+	"Browser.getInfo": {},
+}
+
+var requestScopedBrowserMethods = map[string]struct{}{
+	"Browser.abortInterceptedRequest":    {},
+	"Browser.continueInterceptedRequest": {},
+	"Browser.fulfillInterceptedRequest":  {},
+	"Browser.getResponseBody":            {},
+	"Browser.handleAuthRequest":          {},
+}
+
+func (b *scopedBackend) injectBrowserContext(method string, params json.RawMessage) (json.RawMessage, error) {
 	payload := map[string]interface{}{}
 	if len(params) > 0 {
 		if err := json.Unmarshal(params, &payload); err != nil {
-			return nil, fmt.Errorf("parse Browser.newPage params: %w", err)
+			return nil, fmt.Errorf("parse %s params: %w", method, err)
 		}
 	}
 	if raw, ok := payload["browserContextId"]; ok {
-		if raw != nil && raw != b.browserContextID {
+		if contextID, _ := raw.(string); contextID != "" && contextID != b.browserContextID {
 			return nil, fmt.Errorf("browser context %v is outside scoped backend", raw)
 		}
 	}
 	payload["browserContextId"] = b.browserContextID
 	return json.Marshal(payload)
+}
+
+func (b *scopedBackend) validateOptionalBrowserContext(method string, params json.RawMessage) error {
+	if len(params) == 0 {
+		return nil
+	}
+	payload := map[string]interface{}{}
+	if err := json.Unmarshal(params, &payload); err != nil {
+		return fmt.Errorf("parse %s params: %w", method, err)
+	}
+	if raw, ok := payload["browserContextId"]; ok {
+		if contextID, _ := raw.(string); contextID != "" && contextID != b.browserContextID {
+			return fmt.Errorf("browser context %v is outside scoped backend", raw)
+		}
+	}
+	return nil
 }
 
 func (b *scopedBackend) shouldForward(event, sessionID string, params json.RawMessage) bool {
