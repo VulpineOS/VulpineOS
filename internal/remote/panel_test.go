@@ -30,6 +30,29 @@ func TestServePanelFallsBackToIndexForSPARoutes(t *testing.T) {
 	}
 }
 
+func TestServePanelSetsSecurityHeaders(t *testing.T) {
+	mux := http.NewServeMux()
+	ServePanel(mux, fstest.MapFS{
+		"index.html": {Data: []byte("<html>panel</html>")},
+	})
+
+	resp := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	mux.ServeHTTP(resp, req)
+
+	for name, want := range map[string]string{
+		"Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
+		"Permissions-Policy":      "camera=(), microphone=(), geolocation=()",
+		"Referrer-Policy":         "no-referrer",
+		"X-Content-Type-Options":  "nosniff",
+		"X-Frame-Options":         "DENY",
+	} {
+		if got := resp.Header().Get(name); got != want {
+			t.Fatalf("%s = %q, want %q", name, got, want)
+		}
+	}
+}
+
 func TestServePanelDoesNotSwallowReservedControlPaths(t *testing.T) {
 	for _, path := range []string{"/api/missing", "/ws", "/health"} {
 		t.Run(path, func(t *testing.T) {
