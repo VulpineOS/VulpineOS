@@ -15,7 +15,7 @@ func TestConfigSetMarksSetupCompleteAndRegeneratesProfile(t *testing.T) {
 		Config: &config.Config{},
 	}
 
-	params := json.RawMessage(`{"provider":"zai","model":"zai/glm-4.7","apiKey":"zai-test-key","defaultBudgetMaxCostUsd":1.25,"defaultBudgetMaxTokens":4000}`)
+	params := json.RawMessage(`{"provider":" zai ","model":" zai/glm-4.7 ","apiKey":" zai-test-key ","defaultBudgetMaxCostUsd":1.25,"defaultBudgetMaxTokens":4000}`)
 	payload, err := api.HandleMessage("config.set", params)
 	if err != nil {
 		t.Fatalf("HandleMessage: %v", err)
