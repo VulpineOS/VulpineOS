@@ -91,7 +91,7 @@ func TestNewServerConfiguresHTTPTimeouts(t *testing.T) {
 	}
 }
 
-func TestJSONEndpointsSetSecurityHeaders(t *testing.T) {
+func TestControlEndpointsSetSecurityHeaders(t *testing.T) {
 	server := NewServer(":0", "secret", nil)
 
 	for _, tc := range []struct {
@@ -102,6 +102,7 @@ func TestJSONEndpointsSetSecurityHeaders(t *testing.T) {
 		{name: "health", path: "/health", status: http.StatusOK},
 		{name: "auth ok", path: "/auth/check?token=secret", status: http.StatusOK},
 		{name: "auth rejected", path: "/auth/check", status: http.StatusUnauthorized},
+		{name: "websocket auth rejected", path: "/ws", status: http.StatusUnauthorized},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			resp := httptest.NewRecorder()

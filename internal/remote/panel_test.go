@@ -41,6 +41,7 @@ func TestServePanelSetsSecurityHeaders(t *testing.T) {
 	mux.ServeHTTP(resp, req)
 
 	for name, want := range map[string]string{
+		"Cache-Control":           "no-store",
 		"Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
 		"Permissions-Policy":      "camera=(), microphone=(), geolocation=()",
 		"Referrer-Policy":         "no-referrer",

@@ -188,6 +188,7 @@ func (s *Server) removeClients(dead []*wsClient) {
 }
 
 func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
+	setJSONSecurityHeaders(w)
 	// Authenticate
 	if !s.auth.Validate(r) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
