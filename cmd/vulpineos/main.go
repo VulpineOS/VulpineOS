@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/url"
 	"os"
 	"os/exec"
@@ -471,9 +472,13 @@ func buildPanelURL(host string, port int, useTLS bool, apiKey string) string {
 	if useTLS {
 		scheme = "https"
 	}
+	displayHost := panelDisplayHost(host)
+	if strings.HasPrefix(displayHost, "[") && strings.HasSuffix(displayHost, "]") {
+		displayHost = strings.TrimSuffix(strings.TrimPrefix(displayHost, "["), "]")
+	}
 	u := &url.URL{
 		Scheme: scheme,
-		Host:   fmt.Sprintf("%s:%d", panelDisplayHost(host), port),
+		Host:   net.JoinHostPort(displayHost, fmt.Sprintf("%d", port)),
 		Path:   "/",
 	}
 	if strings.TrimSpace(apiKey) != "" {

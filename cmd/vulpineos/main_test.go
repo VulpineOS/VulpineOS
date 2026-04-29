@@ -113,6 +113,16 @@ func TestBuildPanelURLRewritesWildcardHost(t *testing.T) {
 	}
 }
 
+func TestBuildPanelURLBracketsIPv6Host(t *testing.T) {
+	for _, host := range []string{"::1", "[::1]"} {
+		got := buildPanelURL(host, 8443, true, "secret")
+		want := "https://[::1]:8443/?token=secret"
+		if got != want {
+			t.Fatalf("buildPanelURL(%q) = %q, want %q", host, got, want)
+		}
+	}
+}
+
 func TestPrintPanelAccessGeneratedKey(t *testing.T) {
 	var outBuf bytes.Buffer
 
