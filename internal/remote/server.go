@@ -14,6 +14,8 @@ import (
 	"vulpineos/internal/juggler"
 )
 
+const maxWebSocketMessageBytes int64 = 2 << 20
+
 // Server exposes the VulpineOS kernel over WebSocket for remote TUI clients.
 type Server struct {
 	auth      *Authenticator
@@ -199,6 +201,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		log.Printf("websocket accept error: %v", err)
 		return
 	}
+	conn.SetReadLimit(maxWebSocketMessageBytes)
 
 	ctx := r.Context()
 	wsc := &wsClient{conn: conn, ctx: ctx}
