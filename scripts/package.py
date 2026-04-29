@@ -4,6 +4,7 @@ import argparse
 import glob
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 from shlex import join
@@ -13,10 +14,58 @@ from _mixin import find_src_dir, get_moz_target, list_files, run, temp_cd
 UNNEEDED_PATHS = {'uninstall', 'pingsender.exe', 'pingsender', 'vaapitest', 'glxtest'}
 
 
+def extract_macos_dmg(package_file, temp_dir):
+    """Extract a macOS DMG using native tooling when p7zip is unavailable."""
+    mount_dir = os.path.join(temp_dir, 'mount')
+    os.makedirs(mount_dir, exist_ok=True)
+    subprocess.run(
+        ['hdiutil', 'attach', '-nobrowse', '-readonly', '-mountpoint', mount_dir, package_file],
+        check=True,
+    )
+    try:
+        app_candidates = [
+            os.path.join(mount_dir, 'Camoufox.app'),
+            os.path.join(mount_dir, 'Camoufox', 'Camoufox.app'),
+        ]
+        app_path = next((path for path in app_candidates if os.path.exists(path)), None)
+        if not app_path:
+            raise FileNotFoundError(f'Camoufox.app not found in mounted DMG: {package_file}')
+        shutil.copytree(app_path, os.path.join(temp_dir, 'Camoufox.app'), symlinks=True)
+    finally:
+        subprocess.run(['hdiutil', 'detach', mount_dir], check=False)
+        shutil.rmtree(mount_dir, ignore_errors=True)
+
+
+def create_macos_zip(app_path, new_file):
+    """Create a macOS app zip with native resource-fork handling."""
+    subprocess.run(
+        ['ditto', '-c', '-k', '--sequesterRsrc', '--keepParent', app_path, new_file],
+        check=True,
+    )
+
+
 def add_includes_to_package(package_file, includes, fonts, new_file, target):
+    new_file = os.path.abspath(new_file)
     with tempfile.TemporaryDirectory() as temp_dir:
+        use_native_macos = (
+            target == 'macos'
+            and package_file.endswith('.dmg')
+            and shutil.which('7z') is None
+            and shutil.which('hdiutil') is not None
+            and shutil.which('ditto') is not None
+        )
+
         # Extract package
-        run(join(['7z', 'x', package_file, f'-o{temp_dir}']), exit_on_fail=False)
+        if use_native_macos:
+            extract_macos_dmg(package_file, temp_dir)
+        else:
+            if shutil.which('7z') is None:
+                print('Error: 7z is required for packaging this target. Install p7zip and retry.')
+                sys.exit(1)
+            if run(join(['7z', 'x', package_file, f'-o{temp_dir}']), exit_on_fail=False) != 0:
+                print(f'Error: failed to extract package: {package_file}')
+                sys.exit(1)
+
         # Delete package_file
         os.remove(package_file)
         if package_file.endswith('.tar.xz'):
@@ -33,11 +82,14 @@ def add_includes_to_package(package_file, includes, fonts, new_file, target):
         if target == 'macos':
             # Move Camoufox/Camoufox.app -> Camoufox.app
             nightly_dir = os.path.join(temp_dir, 'Camoufox')
-            shutil.move(
-                os.path.join(nightly_dir, 'Camoufox.app'), os.path.join(temp_dir, 'Camoufox.app')
-            )
-            # Remove old app dir and all content in it
-            shutil.rmtree(nightly_dir)
+            app_path = os.path.join(temp_dir, 'Camoufox.app')
+            nested_app_path = os.path.join(nightly_dir, 'Camoufox.app')
+            if os.path.exists(nested_app_path):
+                shutil.move(nested_app_path, app_path)
+                # Remove old app dir and all content in it
+                shutil.rmtree(nightly_dir)
+            elif not os.path.exists(app_path):
+                raise FileNotFoundError(f'Camoufox.app not found after extracting {package_file}')
         else:
             # Move contents out of camoufox folder if it exists
             old_camoufox_dir = os.path.join(temp_dir, 'camoufox')
@@ -92,7 +144,10 @@ def add_includes_to_package(package_file, includes, fonts, new_file, target):
                 os.remove(os.path.join(target_dir, path))
 
         # Update package
-        run(join(['7z', 'u', new_file, f'{temp_dir}/*', '-r', '-mx=9']))
+        if use_native_macos:
+            create_macos_zip(os.path.join(temp_dir, 'Camoufox.app'), new_file)
+        else:
+            run(join(['7z', 'u', new_file, f'{temp_dir}/*', '-r', '-mx=9']))
 
 
 def get_args():
