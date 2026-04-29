@@ -282,12 +282,19 @@ func TestReconcileNonTerminalAgents(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	failed, err := db.CreateAgent("Failed", "task", "{}")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if err := db.UpdateAgentStatus(active.ID, "active"); err != nil {
 		t.Fatalf("update active status: %v", err)
 	}
 	if err := db.UpdateAgentStatus(completed.ID, "completed"); err != nil {
 		t.Fatalf("update completed status: %v", err)
+	}
+	if err := db.UpdateAgentStatus(failed.ID, "failed"); err != nil {
+		t.Fatalf("update failed status: %v", err)
 	}
 
 	if err := db.ReconcileNonTerminalAgents("interrupted"); err != nil {
@@ -316,6 +323,14 @@ func TestReconcileNonTerminalAgents(t *testing.T) {
 	}
 	if gotCompleted.Status != "completed" {
 		t.Fatalf("completed status = %q, want completed", gotCompleted.Status)
+	}
+
+	gotFailed, err := db.GetAgent(failed.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotFailed.Status != "failed" {
+		t.Fatalf("failed status = %q, want failed", gotFailed.Status)
 	}
 }
 

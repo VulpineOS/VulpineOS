@@ -1,6 +1,16 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 
+const TERMINAL_AGENT_STATUSES = new Set(['completed', 'error', 'failed', 'interrupted'])
+
+function agentStatusBadgeClass(status) {
+  if (status === 'active') return 'green'
+  if (status === 'paused') return 'yellow'
+  if (status === 'completed') return 'blue'
+  if (status === 'error' || status === 'failed') return 'red'
+  return 'gray'
+}
+
 export default function Agents({ ws }) {
   const [agents, setAgents] = useState([])
   const [selected, setSelected] = useState({})
@@ -52,6 +62,8 @@ export default function Agents({ ws }) {
   }
 
   const requestKill = (id) => {
+    const agent = agents.find(a => a.id === id)
+    if (!agent || TERMINAL_AGENT_STATUSES.has(agent.status)) return
     setPendingKill({ type: 'single', ids: [id], label: `agent ${id.substring(0, 8)}` })
   }
 
@@ -82,11 +94,15 @@ export default function Agents({ ws }) {
   }
 
   const selectedIDs = agents.filter(a => selected[a.id]).map(a => a.id)
+  const selectedKillIDs = agents
+    .filter(a => selected[a.id] && !TERMINAL_AGENT_STATUSES.has(a.status))
+    .map(a => a.id)
 
   const runBulk = async (action) => {
     if (selectedIDs.length === 0) return
     if (action === 'kill') {
-      setPendingKill({ type: 'bulk', ids: selectedIDs, label: `${selectedIDs.length} selected agents` })
+      if (selectedKillIDs.length === 0) return
+      setPendingKill({ type: 'bulk', ids: selectedKillIDs, label: `${selectedKillIDs.length} selected agents` })
       return
     }
     try {
@@ -157,7 +173,7 @@ export default function Agents({ ws }) {
         <div className="page-actions">
           <button className="btn btn-ghost" disabled={selectedIDs.length === 0} onClick={() => runBulk('pause')}>Pause Selected</button>
           <button className="btn btn-ghost" disabled={selectedIDs.length === 0} onClick={() => runBulk('resume')}>Resume Selected</button>
-          <button className="btn btn-danger" disabled={selectedIDs.length === 0} onClick={() => runBulk('kill')}>Kill Selected</button>
+          <button className="btn btn-danger" disabled={selectedKillIDs.length === 0} onClick={() => runBulk('kill')}>Kill Selected</button>
           <select
             className="input"
             style={{ width: 220, maxWidth: '100%' }}
@@ -235,7 +251,7 @@ export default function Agents({ ws }) {
               <tr key={a.id}>
                 <td><input type="checkbox" checked={!!selected[a.id]} onChange={() => toggleSelected(a.id)} /></td>
                 <td><Link to={`/agents/${a.id}`} style={{ color: '#a78bfa', textDecoration: 'none' }}>{a.name || a.id.substring(0, 12)}</Link></td>
-                <td><span className={`badge badge-${a.status === 'active' ? 'green' : a.status === 'paused' ? 'yellow' : a.status === 'completed' ? 'blue' : 'gray'}`}>{a.status}</span></td>
+                <td><span className={`badge badge-${agentStatusBadgeClass(a.status)}`}>{a.status}</span></td>
                 <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{a.contextId ? a.contextId.slice(0, 12) : 'shared'}</td>
                 <td style={{ fontSize: 12, color: '#888' }}>{a.fingerprintSummary || '—'}</td>
                 <td>{getTokens(a.id)}</td>
@@ -244,7 +260,7 @@ export default function Agents({ ws }) {
                 <td>
                   {a.status === 'active' && <button className="btn btn-ghost btn-sm" onClick={() => pause(a.id)} style={{ marginRight: 4 }}>Pause</button>}
                   {a.status === 'paused' && <button className="btn btn-ghost btn-sm" onClick={() => resume(a.id)} style={{ marginRight: 4 }}>Resume</button>}
-                  <button className="btn btn-danger btn-sm" onClick={() => requestKill(a.id)}>Kill</button>
+                  {!TERMINAL_AGENT_STATUSES.has(a.status) && <button className="btn btn-danger btn-sm" onClick={() => requestKill(a.id)}>Kill</button>}
                 </td>
               </tr>
             ))}

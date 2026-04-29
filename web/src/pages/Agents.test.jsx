@@ -161,4 +161,40 @@ describe('Agents page', () => {
 
     expect(await screen.findByText('ctx-empty-ur · about:blank')).toBeInTheDocument()
   })
+
+  it('does not offer kill actions for terminal agents', async () => {
+    const calls = vi.fn(async (method) => {
+      if (method === 'agents.list') {
+        return {
+          agents: [
+            { id: 'agent-active', name: 'Active Agent', status: 'active', contextId: '', fingerprintSummary: '', totalTokens: 0 },
+            { id: 'agent-done', name: 'Done Agent', status: 'interrupted', contextId: '', fingerprintSummary: '', totalTokens: 0 },
+          ],
+        }
+      }
+      if (method === 'costs.getAll') return { usage: [], defaults: {} }
+      if (method === 'costs.total') return { totalCostUsd: 0 }
+      if (method === 'contexts.list') return { contexts: [] }
+      return {}
+    })
+
+    renderPage({ connected: true, events: [], call: calls })
+
+    const doneRow = (await screen.findByText('Done Agent')).closest('tr')
+    expect(within(doneRow).queryByText('Kill')).not.toBeInTheDocument()
+
+    const checkboxes = screen.getAllByRole('checkbox')
+    fireEvent.click(checkboxes[2])
+    expect(screen.getByText('Kill Selected')).toBeDisabled()
+
+    fireEvent.click(checkboxes[1])
+    expect(screen.getByText('Kill Selected')).not.toBeDisabled()
+    fireEvent.click(screen.getByText('Kill Selected'))
+    expect(screen.getByText('Confirm kill')).toBeInTheDocument()
+    const confirmBanner = screen.getByText('Confirm kill').closest('.panel-banner')
+    fireEvent.click(within(confirmBanner).getByText('Kill'))
+    await waitFor(() => {
+      expect(calls).toHaveBeenCalledWith('agents.killMany', { agentIds: ['agent-active'] })
+    })
+  })
 })

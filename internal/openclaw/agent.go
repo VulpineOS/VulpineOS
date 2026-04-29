@@ -24,7 +24,7 @@ type ConversationMsg struct {
 type AgentStatus struct {
 	AgentID   string `json:"agent_id"`
 	ContextID string `json:"context_id"`
-	Status    string `json:"status"`    // starting, running, thinking, completed, error
+	Status    string `json:"status"`    // starting, running, thinking, paused, completed, error, failed, interrupted
 	Objective string `json:"objective"` // current task description
 	Tokens    int    `json:"tokens"`    // tokens consumed
 }

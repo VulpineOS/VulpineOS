@@ -130,7 +130,7 @@ func (db *DB) ReconcileNonTerminalAgents(status string) error {
 	_, err := db.conn.Exec(
 		`UPDATE agents
 		 SET status = ?, last_active = ?
-		 WHERE status NOT IN ('completed', 'error', 'interrupted')`,
+		 WHERE status NOT IN ('completed', 'error', 'failed', 'interrupted')`,
 		status, time.Now().Unix(),
 	)
 	return err
