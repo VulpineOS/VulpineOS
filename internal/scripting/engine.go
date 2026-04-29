@@ -13,6 +13,7 @@ import (
 const (
 	redactedScriptValue       = "[redacted]"
 	maxScriptResultFieldBytes = 4096
+	maxScriptWaitDuration     = 30 * time.Second
 	truncatedScriptValue      = "... [truncated]"
 )
 
@@ -208,6 +209,12 @@ func (e *Engine) doWait(step Step) error {
 	if step.Value != "" {
 		d, err := time.ParseDuration(step.Value)
 		if err == nil {
+			if d < 0 {
+				return fmt.Errorf("wait duration must be non-negative")
+			}
+			if d > maxScriptWaitDuration {
+				return fmt.Errorf("wait duration %s exceeds maximum %s", d, maxScriptWaitDuration)
+			}
 			time.Sleep(d)
 			return nil
 		}
