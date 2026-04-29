@@ -1,9 +1,11 @@
 package recording
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -66,7 +68,7 @@ func (r *Recorder) Record(agentID string, actionType ActionType, data json.RawMe
 		AgentID:   agentID,
 		Type:      actionType,
 		Timestamp: time.Now(),
-		Data:      data,
+		Data:      sanitizeActionData(data),
 	})
 	if len(timeline) > r.maxActionsPerAgent {
 		kept := make([]Action, r.maxActionsPerAgent)
@@ -74,6 +76,95 @@ func (r *Recorder) Record(agentID string, actionType ActionType, data json.RawMe
 		timeline = kept
 	}
 	r.actions[agentID] = timeline
+}
+
+func sanitizeActionData(data json.RawMessage) json.RawMessage {
+	if len(bytes.TrimSpace(data)) == 0 {
+		return data
+	}
+	var payload interface{}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return data
+	}
+	sanitized := sanitizeActionDataValue(payload, false)
+	encoded, err := json.Marshal(sanitized)
+	if err != nil {
+		return data
+	}
+	return encoded
+}
+
+func sanitizeActionDataValue(value interface{}, sensitiveContext bool) interface{} {
+	switch typed := value.(type) {
+	case map[string]interface{}:
+		localSensitive := sensitiveContext
+		for key, child := range typed {
+			if sensitiveActionDataKey(key) || descriptorIdentifiesSensitiveField(key, child) {
+				localSensitive = true
+				break
+			}
+		}
+		out := make(map[string]interface{}, len(typed))
+		for key, child := range typed {
+			switch {
+			case sensitiveActionDataKey(key):
+				out[key] = "[redacted]"
+			case localSensitive && typedActionValueKey(key):
+				out[key] = "[redacted]"
+			default:
+				out[key] = sanitizeActionDataValue(child, localSensitive)
+			}
+		}
+		return out
+	case []interface{}:
+		out := make([]interface{}, len(typed))
+		for i, child := range typed {
+			out[i] = sanitizeActionDataValue(child, sensitiveContext)
+		}
+		return out
+	default:
+		return value
+	}
+}
+
+func sensitiveActionDataKey(key string) bool {
+	normalized := normalizeActionDataToken(key)
+	for _, marker := range []string{"api_key", "apikey", "token", "secret", "password", "credential", "authorization", "cookie", "session"} {
+		if strings.Contains(normalized, marker) {
+			return true
+		}
+	}
+	return normalized == "auth" || strings.HasSuffix(normalized, "_auth")
+}
+
+func descriptorIdentifiesSensitiveField(key string, value interface{}) bool {
+	normalized := normalizeActionDataToken(key)
+	switch normalized {
+	case "selector", "field", "field_name", "name", "label", "placeholder", "aria_label", "type", "input_type":
+	default:
+		return false
+	}
+	raw, ok := value.(string)
+	if !ok {
+		return false
+	}
+	return sensitiveActionDataKey(raw)
+}
+
+func typedActionValueKey(key string) bool {
+	switch normalizeActionDataToken(key) {
+	case "text", "value", "input", "typed_text":
+		return true
+	default:
+		return false
+	}
+}
+
+func normalizeActionDataToken(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	value = strings.ReplaceAll(value, "-", "_")
+	value = strings.ReplaceAll(value, " ", "_")
+	return value
 }
 
 // GetTimeline returns all recorded actions for the given agent, sorted by timestamp.
