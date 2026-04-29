@@ -28,6 +28,8 @@ describe('AgentDetail page', () => {
             { role: 'system', content: 'Thinking: Inspecting the loaded page state' },
             { role: 'system', content: 'Tool incomplete: browser click button.buy — target became detached before click completed' },
           ],
+          limit: 500,
+          truncated: true,
         }
       }
       if (method === 'recording.getTimeline') {
@@ -49,6 +51,7 @@ describe('AgentDetail page', () => {
     const { rerender } = renderDetail(ws)
 
     expect(await screen.findByText('hello')).toBeInTheDocument()
+    expect(screen.getByText('Showing latest 500 persisted messages.')).toBeInTheDocument()
     expect(screen.getByText('paused')).toBeInTheDocument()
     expect(screen.getByText('Resume')).toBeInTheDocument()
 
