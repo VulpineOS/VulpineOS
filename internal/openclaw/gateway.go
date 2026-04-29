@@ -6,13 +6,18 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"sync"
 	"time"
 )
 
 // Gateway manages the OpenClaw gateway daemon process.
 type Gateway struct {
-	cmd    *exec.Cmd
-	binary string
+	cmd           *exec.Cmd
+	binary        string
+	mu            sync.Mutex
+	exited        bool
+	exitCh        chan error
+	waitReadyFunc func(string) error
 }
 
 // NewGateway creates a gateway manager.
@@ -23,9 +28,12 @@ func NewGateway(binary string) *Gateway {
 // Start launches the OpenClaw gateway in the background.
 // Stops any stale gateway from a previous session first.
 func (g *Gateway) Start() error {
-	if g.cmd != nil {
+	g.mu.Lock()
+	if g.cmd != nil && !g.exited {
+		g.mu.Unlock()
 		return nil // already running
 	}
+	g.mu.Unlock()
 
 	openclawBin := g.binary
 	if openclawBin == "" {
@@ -49,35 +57,79 @@ func (g *Gateway) Start() error {
 		"--allow-unconfigured",
 	}
 
-	g.cmd = exec.Command(openclawBin, args...)
+	cmd := exec.Command(openclawBin, args...)
 
 	logPath := os.TempDir() + "/vulpineos-gateway.log"
 	if logFile, err := os.Create(logPath); err == nil {
-		g.cmd.Stdout = logFile
-		g.cmd.Stderr = logFile
+		cmd.Stdout = logFile
+		cmd.Stderr = logFile
 	}
 
-	if err := g.cmd.Start(); err != nil {
+	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("start gateway: %w", err)
 	}
 
-	log.Printf("OpenClaw gateway started (PID %d), log: %s", g.cmd.Process.Pid, logPath)
-	return g.waitReady(openclawBin)
+	g.mu.Lock()
+	g.cmd = cmd
+	g.exited = false
+	g.exitCh = make(chan error, 1)
+	exitCh := g.exitCh
+	g.mu.Unlock()
+
+	go func() {
+		err := cmd.Wait()
+		g.mu.Lock()
+		if g.cmd == cmd {
+			g.exited = true
+		}
+		g.mu.Unlock()
+		exitCh <- err
+		close(exitCh)
+	}()
+
+	log.Printf("OpenClaw gateway started (PID %d), log: %s", cmd.Process.Pid, logPath)
+	waitReady := g.waitReady
+	if g.waitReadyFunc != nil {
+		waitReady = g.waitReadyFunc
+	}
+	if err := waitReady(openclawBin); err != nil {
+		g.Stop()
+		return err
+	}
+	return nil
 }
 
 // Stop kills the gateway process.
 func (g *Gateway) Stop() {
-	if g.cmd != nil && g.cmd.Process != nil {
-		g.cmd.Process.Kill()
-		g.cmd.Wait()
-		g.cmd = nil
+	g.mu.Lock()
+	cmd := g.cmd
+	exitCh := g.exitCh
+	exited := g.exited
+	g.mu.Unlock()
+
+	if cmd != nil && cmd.Process != nil {
+		if !exited {
+			_ = cmd.Process.Kill()
+		}
+		if exitCh != nil {
+			<-exitCh
+		}
+		g.mu.Lock()
+		if g.cmd == cmd {
+			g.cmd = nil
+			g.exitCh = nil
+			g.exited = true
+		}
+		g.mu.Unlock()
 		log.Println("OpenClaw gateway stopped")
 	}
 }
 
 // Running returns true if the gateway process is alive.
 func (g *Gateway) Running() bool {
-	return g.cmd != nil && g.cmd.ProcessState == nil
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.cmd != nil && !g.exited
 }
 
 func (g *Gateway) waitReady(openclawBin string) error {
