@@ -16,7 +16,7 @@ import (
 
 // ProxyConfig holds the parsed proxy connection details.
 type ProxyConfig struct {
-	Type     string `json:"type"`               // http, https, socks, socks4, socks5
+	Type     string `json:"type"` // http, https, socks, socks4, socks5
 	Host     string `json:"host"`
 	Port     int    `json:"port"`
 	Username string `json:"username,omitempty"`
@@ -47,7 +47,7 @@ func ParseProxyURL(raw string) (*ProxyConfig, error) {
 	if !strings.Contains(raw, "://") {
 		host, portStr, err := net.SplitHostPort(raw)
 		if err != nil {
-			return nil, fmt.Errorf("invalid proxy format %q: %w", raw, err)
+			return nil, fmt.Errorf("invalid proxy host:port format")
 		}
 		port, err := strconv.Atoi(portStr)
 		if err != nil {
@@ -58,7 +58,7 @@ func ParseProxyURL(raw string) (*ProxyConfig, error) {
 
 	u, err := url.Parse(raw)
 	if err != nil {
-		return nil, fmt.Errorf("parse proxy URL: %w", err)
+		return nil, fmt.Errorf("parse proxy URL: invalid format")
 	}
 
 	scheme := strings.ToLower(u.Scheme)
@@ -69,6 +69,9 @@ func ParseProxyURL(raw string) (*ProxyConfig, error) {
 	}
 
 	host := u.Hostname()
+	if host == "" {
+		return nil, fmt.Errorf("proxy host is required")
+	}
 	portStr := u.Port()
 	if portStr == "" {
 		switch scheme {
@@ -101,14 +104,14 @@ func ParseProxyURL(raw string) (*ProxyConfig, error) {
 // Empty lines and lines starting with '#' are skipped.
 func ParseProxyList(text string) ([]*ProxyConfig, error) {
 	var proxies []*ProxyConfig
-	for _, line := range strings.Split(text, "\n") {
+	for i, line := range strings.Split(text, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
 		p, err := ParseProxyURL(line)
 		if err != nil {
-			return nil, fmt.Errorf("line %q: %w", line, err)
+			return nil, fmt.Errorf("line %d: %w", i+1, err)
 		}
 		proxies = append(proxies, p)
 	}
