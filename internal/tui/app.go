@@ -682,7 +682,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					for i, sp := range storedProxies {
 						items[i] = settings.ProxyItem{
 							ID:      sp.ID,
-							Label:   sp.Label,
+							Label:   safeProxyLabel(sp.Label),
 							Latency: "untested",
 						}
 						// Try to parse config for display
@@ -926,7 +926,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			configJSON, _ := json.Marshal(pc)
 			if a.vault != nil {
-				a.vault.AddProxy(string(configJSON), "", msg.URL)
+				a.vault.AddProxy(string(configJSON), "", pc.String())
 			}
 			a.notice = "Proxy added: " + pc.String()
 			a.noticeTTL = 3
@@ -1919,7 +1919,7 @@ func (a *App) reloadSettingsProxies() {
 	for i, sp := range storedProxies {
 		items[i] = settings.ProxyItem{
 			ID:      sp.ID,
-			Label:   sp.Label,
+			Label:   safeProxyLabel(sp.Label),
 			Latency: "untested",
 		}
 		var pc struct {
@@ -1940,6 +1940,17 @@ func (a *App) reloadSettingsProxies() {
 		}
 	}
 	a.settings.SetProxies(items)
+}
+
+func safeProxyLabel(label string) string {
+	label = strings.TrimSpace(label)
+	if label == "" {
+		return ""
+	}
+	if pc, err := proxy.ParseProxyURL(label); err == nil {
+		return pc.String()
+	}
+	return label
 }
 
 // testProxy spawns a goroutine to test proxy latency and resolve geo.
