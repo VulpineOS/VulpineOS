@@ -516,7 +516,10 @@ func (api *PanelAPI) agentsGetSessionLog(params json.RawMessage) (json.RawMessag
 	if strings.TrimSpace(p.AgentID) == "" {
 		return nil, fmt.Errorf("agentId is required")
 	}
-	path := filepath.Join(config.OpenClawProfileDir(), "agents", "main", "sessions", "vulpine-"+p.AgentID+".jsonl")
+	path, err := agentSessionLogPath(p.AgentID)
+	if err != nil {
+		return nil, err
+	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -528,6 +531,23 @@ func (api *PanelAPI) agentsGetSessionLog(params json.RawMessage) (json.RawMessag
 		"path":    path,
 		"content": sanitizeSessionLog(string(data)),
 	})
+}
+
+func agentSessionLogPath(agentID string) (string, error) {
+	id := strings.TrimSpace(agentID)
+	if id == "" {
+		return "", fmt.Errorf("agentId is required")
+	}
+	if strings.ContainsAny(id, `/\`) || id == "." || id == ".." {
+		return "", fmt.Errorf("invalid agentId")
+	}
+	sessionsDir := filepath.Join(config.OpenClawProfileDir(), "agents", "main", "sessions")
+	path := filepath.Join(sessionsDir, "vulpine-"+id+".jsonl")
+	rel, err := filepath.Rel(sessionsDir, path)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		return "", fmt.Errorf("invalid agentId")
+	}
+	return path, nil
 }
 
 // ---------------------------------------------------------------------------

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -71,5 +72,28 @@ func TestAgentsGetSessionLog(t *testing.T) {
 	}
 	if got := textItem["text"]; got != "Done" {
 		t.Fatalf("text = %v, want Done", got)
+	}
+}
+
+func TestAgentsGetSessionLogRejectsPathTraversalAgentID(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	escapePath := filepath.Join(config.OpenClawProfileDir(), "agents", "main", "escape.jsonl")
+	if err := os.MkdirAll(filepath.Dir(escapePath), 0755); err != nil {
+		t.Fatalf("mkdir escape dir: %v", err)
+	}
+	if err := os.WriteFile(escapePath, []byte("leaked"), 0600); err != nil {
+		t.Fatalf("write escape file: %v", err)
+	}
+
+	api := &PanelAPI{}
+	for _, agentID := range []string{"../escape", `..\escape`, "nested/escape"} {
+		t.Run(agentID, func(t *testing.T) {
+			_, err := api.HandleMessage("agents.getSessionLog", json.RawMessage(`{"agentId":`+strconv.Quote(agentID)+`}`))
+			if err == nil || !strings.Contains(err.Error(), "invalid agentId") {
+				t.Fatalf("error = %v, want invalid agentId", err)
+			}
+		})
 	}
 }
