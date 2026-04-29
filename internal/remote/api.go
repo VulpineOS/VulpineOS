@@ -1365,6 +1365,7 @@ func (api *PanelAPI) statusGet() (json.RawMessage, error) {
 		out["total_cost_usd"] = status.TotalCostUSD
 	}
 	if status, available, err := extensions.SentinelSnapshot(context.Background()); err == nil {
+		status = sanitizeSentinelStatus(status)
 		out["sentinel_available"] = available
 		out["sentinel_provider"] = status.Provider
 		out["sentinel_mode"] = status.Mode
@@ -1390,6 +1391,7 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
+	status = sanitizeSentinelStatus(status)
 	out := map[string]interface{}{
 		"available":                 available,
 		"status":                    status,
@@ -1592,12 +1594,12 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 	out["assignmentRules"] = assignmentRules
 	out["outcomeLabels"] = outcomeLabels
 	out["outcomeSummary"] = outcomeSummary
-	out["probeSummary"] = probeSummary
+	out["probeSummary"] = sanitizeSentinelProbeSummaries(probeSummary)
 	out["trustActivity"] = trustActivity
 	out["trustEffectiveness"] = trustEffectiveness
 	out["trustAssets"] = trustAssets
 	out["maturityEvidence"] = maturityEvidence
-	out["transportEvidence"] = transportEvidence
+	out["transportEvidence"] = sanitizeSentinelTransportEvidence(transportEvidence)
 	out["coherenceDiff"] = coherenceDiff
 	out["stageSummary"] = stageSummary
 	out["assignmentRecommendations"] = assignmentRecommendations
@@ -1607,8 +1609,8 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 	out["trustRolloutDebt"] = trustRolloutDebt
 	out["canarySummary"] = canarySummary
 	out["variantCompareSummary"] = variantCompareSummary
-	out["siteIntelligenceSummary"] = siteIntelligenceSummary
-	out["probeSequenceSummary"] = probeSequenceSummary
+	out["siteIntelligenceSummary"] = sanitizeSentinelSiteIntelligence(siteIntelligenceSummary)
+	out["probeSequenceSummary"] = sanitizeSentinelProbeSequences(probeSequenceSummary)
 	out["vendorIntelligenceSummary"] = vendorIntelligenceSummary
 	out["vendorEffectiveness"] = vendorEffectiveness
 	out["vendorUplift"] = vendorUplift
@@ -1616,7 +1618,7 @@ func (api *PanelAPI) sentinelGet() (json.RawMessage, error) {
 	out["trustPlaybook"] = trustPlaybook
 	out["experimentGaps"] = experimentGaps
 	out["sitePressure"] = sitePressure
-	out["patchQueue"] = patchQueue
+	out["patchQueue"] = sanitizeSentinelPatchCandidates(patchQueue)
 	out["trustRepairQueue"] = trustRepairQueue
 	out["patchInvestment"] = patchInvestment
 	out["surfaceHotspots"] = surfaceHotspots
@@ -1647,7 +1649,7 @@ func (api *PanelAPI) sentinelTimeline(params json.RawMessage) (json.RawMessage, 
 	if err != nil {
 		return nil, err
 	}
-	out["sessions"] = timelines
+	out["sessions"] = sanitizeSentinelTimelines(timelines)
 	return json.Marshal(out)
 }
 
