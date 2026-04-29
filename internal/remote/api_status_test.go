@@ -101,6 +101,13 @@ func TestStatusGetFallsBackToOpenClawProfileRoute(t *testing.T) {
 func TestStatusGetWithoutKernelReportsDisabledRoute(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
+	if err := os.MkdirAll(config.OpenClawProfileDir(), 0700); err != nil {
+		t.Fatalf("mkdir profile dir: %v", err)
+	}
+	if err := os.WriteFile(config.OpenClawConfigPath(), []byte(`{"browser":{"enabled":true,"cdpUrl":"ws://127.0.0.1:9222"}}`), 0600); err != nil {
+		t.Fatalf("write openclaw.json: %v", err)
+	}
+
 	api := &PanelAPI{
 		Config: &config.Config{},
 	}

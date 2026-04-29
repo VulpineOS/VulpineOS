@@ -65,6 +65,25 @@ export default function App() {
   }, [notice])
 
   useEffect(() => {
+    if (!apiKey) return undefined
+    let cancelled = false
+    fetch('/auth/check', { headers: { Authorization: `Bearer ${apiKey}` } })
+      .then((result) => {
+        if (cancelled || result.ok) return
+        if (result.status === 401) {
+          sessionStorage.removeItem('vulpine_key')
+          setApiKey('')
+          setShellStatus(null)
+          setNotice({ id: Date.now(), message: 'Access key rejected by panel server', level: 'error' })
+        }
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [apiKey])
+
+  useEffect(() => {
     if (!apiKey || !ws.connected) return undefined
     let cancelled = false
     const refresh = () => {

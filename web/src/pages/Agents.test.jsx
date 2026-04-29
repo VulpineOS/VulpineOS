@@ -129,4 +129,24 @@ describe('Agents page', () => {
     })
     expect(screen.getByText('Resumed 2 agents')).toBeInTheDocument()
   })
+
+  it('renders empty browser contexts without crashing', async () => {
+    const calls = vi.fn(async (method) => {
+      if (method === 'agents.list') return { agents: [] }
+      if (method === 'costs.getAll') return { usage: [], defaults: {} }
+      if (method === 'costs.total') return { totalCostUsd: 0 }
+      if (method === 'contexts.list') {
+        return {
+          contexts: [
+            { id: 'ctx-empty-url' },
+          ],
+        }
+      }
+      return {}
+    })
+
+    renderPage({ connected: true, events: [], call: calls })
+
+    expect(await screen.findByText('ctx-empty-ur · about:blank')).toBeInTheDocument()
+  })
 })

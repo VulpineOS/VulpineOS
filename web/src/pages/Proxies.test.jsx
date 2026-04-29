@@ -59,4 +59,33 @@ describe('Proxies page', () => {
       })
     })
   })
+
+  it('keeps proxy test latency visible after a successful test', async () => {
+    const ws = {
+      connected: true,
+      notify: vi.fn(),
+      call: vi.fn(async (method) => {
+        if (method === 'proxies.list') {
+          return { proxies: [{ id: 'proxy-1', url: 'http://a:80', latencyMs: 0 }] }
+        }
+        if (method === 'agents.list') {
+          return { agents: [] }
+        }
+        if (method === 'proxies.test') {
+          return { latencyMs: 123 }
+        }
+        return {}
+      }),
+    }
+
+    render(<Proxies ws={ws} />)
+
+    expect(await screen.findByText('untested')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Test'))
+
+    await waitFor(() => {
+      expect(screen.getByText('tested')).toBeInTheDocument()
+      expect(screen.getByText('123ms')).toBeInTheDocument()
+    })
+  })
 })

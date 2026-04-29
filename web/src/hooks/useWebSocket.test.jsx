@@ -96,4 +96,26 @@ describe('useWebSocket', () => {
     expect(result.current.connectionState).toBe('failed')
     expect(result.current.connected).toBe(false)
   })
+
+  it('assigns monotonic event sequence numbers while retaining the capped buffer', async () => {
+    const { result } = renderHook(() => useWebSocket('secret'))
+    act(() => {
+      FakeWebSocket.instances[0].triggerOpen()
+    })
+
+    act(() => {
+      for (let i = 0; i < 205; i += 1) {
+        FakeWebSocket.instances[0].onmessage?.({
+          data: JSON.stringify({
+            method: 'Vulpine.conversation',
+            params: { agentId: 'agent-1', content: `message-${i}` },
+          }),
+        })
+      }
+    })
+
+    expect(result.current.events).toHaveLength(200)
+    expect(result.current.events[0].seq).toBe(6)
+    expect(result.current.events[199].seq).toBe(205)
+  })
 })

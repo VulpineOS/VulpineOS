@@ -142,4 +142,45 @@ describe('AgentDetail page', () => {
       expect(call).toHaveBeenCalledWith('fingerprints.generate', expect.objectContaining({ agentId: 'agent-1' }))
     })
   })
+
+  it('continues consuming websocket events after the event buffer is capped', async () => {
+    const call = vi.fn(async (method) => {
+      if (method === 'agents.list') {
+        return { agents: [{ id: 'agent-1', name: 'Agent One', status: 'paused', contextId: '', totalTokens: 0 }] }
+      }
+      if (method === 'agents.getMessages') return { messages: [] }
+      if (method === 'recording.getTimeline') return { actions: [] }
+      if (method === 'fingerprints.get') return {}
+      return { status: 'ok' }
+    })
+
+    const baseEvents = Array.from({ length: 200 }, (_, index) => ({
+      seq: index + 1,
+      method: 'Browser.telemetryUpdate',
+      params: { activePages: index },
+    }))
+    const ws = { connected: true, events: baseEvents, call }
+    const { rerender } = renderDetail(ws)
+
+    expect(await screen.findByText('Agent agent-1')).toBeInTheDocument()
+
+    const cappedEvents = [
+      ...baseEvents.slice(1),
+      {
+        seq: 201,
+        method: 'Vulpine.conversation',
+        params: { agentId: 'agent-1', role: 'assistant', content: 'after cap', tokens: 3 },
+      },
+    ]
+
+    rerender(
+      <MemoryRouter initialEntries={['/agents/agent-1']}>
+        <Routes>
+          <Route path="/agents/:id" element={<AgentDetail ws={{ ...ws, events: cappedEvents }} />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => expect(screen.getByText('after cap')).toBeInTheDocument())
+  })
 })
