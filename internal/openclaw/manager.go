@@ -327,7 +327,7 @@ func (m *Manager) Kill(agentID string) error {
 	if !ok {
 		return fmt.Errorf("agent %s not found", agentID)
 	}
-	return entry.agent.Stop()
+	return entry.agent.stopWithStatus("interrupted")
 }
 
 // List returns the status of all active agents.
@@ -360,7 +360,7 @@ func (m *Manager) KillAll() {
 	m.mu.Unlock()
 
 	for _, a := range agents {
-		a.agent.Stop()
+		a.agent.stopWithStatus("interrupted")
 		waitAgentDone(a.agent, 2*time.Second)
 		if a.cleanup != nil {
 			a.cleanup()

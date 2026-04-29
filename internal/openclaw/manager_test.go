@@ -75,6 +75,32 @@ func TestKillNonexistent(t *testing.T) {
 	}
 }
 
+func TestKillMarksAgentInterrupted(t *testing.T) {
+	m := NewManager("test")
+	statusCh := m.StatusChan()
+	agent := newAgent("agent-1", "ctx-1", m.statusSource)
+	m.agents["agent-1"] = &managedAgent{agent: agent}
+
+	if err := m.Kill("agent-1"); err != nil {
+		t.Fatalf("kill agent: %v", err)
+	}
+	if got := agent.Status().Status; got != "interrupted" {
+		t.Fatalf("status = %q, want interrupted", got)
+	}
+
+	select {
+	case status := <-statusCh:
+		if status.AgentID != "agent-1" {
+			t.Fatalf("status agent = %q, want agent-1", status.AgentID)
+		}
+		if status.Status != "interrupted" {
+			t.Fatalf("emitted status = %q, want interrupted", status.Status)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for interrupted status")
+	}
+}
+
 func TestPauseNonexistent(t *testing.T) {
 	m := NewManager("test")
 	err := m.PauseAgent("nonexistent-id")

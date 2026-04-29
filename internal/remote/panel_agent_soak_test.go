@@ -162,7 +162,7 @@ func TestPanelAgentSessionSoak(t *testing.T) {
 	if err := startAndInterruptTurn(t, ctx, conn, "agents.resume", "agents.kill", agents[1].id, longOutputPrompt(killToken)); err != nil {
 		t.Fatalf("kill agent: %v", err)
 	}
-	waitForAgentStatusInVault(t, v, agents[1].id, "completed", 30*time.Second)
+	waitForAgentStatusInVault(t, v, agents[1].id, "interrupted", 30*time.Second)
 
 	resp, _ := controlCall(t, ctx, conn, "agents.getMessages", map[string]interface{}{
 		"agentId": agents[0].id,
