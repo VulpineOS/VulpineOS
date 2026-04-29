@@ -151,6 +151,15 @@ export default function App() {
     }
   }, [apiKey, ws.connected])
 
+  useEffect(() => {
+    if (!apiKey || ws.connectionState !== 'failed') return
+    if (!String(ws.lastError || '').toLowerCase().includes('access key rejected')) return
+    sessionStorage.removeItem('vulpine_key')
+    setApiKey('')
+    setShellStatus(null)
+    setNotice({ id: Date.now(), message: 'Access key rejected by panel server', level: 'error' })
+  }, [apiKey, ws.connectionState, ws.lastError])
+
   const clearSession = useCallback(() => {
     sessionStorage.removeItem('vulpine_key')
     setApiKey('')
@@ -216,9 +225,9 @@ export default function App() {
               <p>Operator panel</p>
             </div>
           </div>
-          <span className={`connection-pill connection-pill-${ws.connectionState}`}>
+          <span className={`connection-pill connection-pill-${ws.connectionState}`} title={shellConnectionLabel}>
             <span className={`status-dot ${ws.connectionState}`} />
-            <span>{shellConnectionLabel}</span>
+            <span className="connection-label">{shellConnectionLabel}</span>
           </span>
         </div>
         <div className="sidebar-runtime">
@@ -254,7 +263,7 @@ export default function App() {
             <div className="sidebar-section-title">{section.title}</div>
             <div className="nav-group">
               {section.items.map(n => (
-                <Link key={n.path} to={n.path} className={`nav-item ${location.pathname === n.path ? 'active' : ''}`}>
+                <Link key={n.path} to={n.path} title={n.label} aria-label={n.label} className={`nav-item ${location.pathname === n.path ? 'active' : ''}`}>
                   <span>{n.label}</span>
                 </Link>
               ))}
@@ -265,7 +274,7 @@ export default function App() {
         <div className="sidebar-footer-note">
           Session key is stored for this browser session only.
         </div>
-        <button className="nav-item logout" onClick={clearSession}>
+        <button className="nav-item logout" onClick={clearSession} title="Clear session" aria-label="Clear session">
           <span>Clear session</span>
         </button>
       </nav>

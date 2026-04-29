@@ -640,9 +640,26 @@
     display: none;
   }
 
+  .sidebar-header {
+    align-items: center;
+    padding-inline: 0;
+  }
+
+  .connection-pill {
+    justify-content: center;
+    padding: 8px;
+    width: 34px;
+  }
+
+  .connection-label,
+  .nav-item span {
+    display: none;
+  }
+
   .nav-item {
     justify-content: center;
     padding-inline: 8px;
+    min-height: 38px;
   }
 
   .content {

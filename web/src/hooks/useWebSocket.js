@@ -95,6 +95,12 @@ export function useWebSocket(apiKey) {
       const fallback = opened ? 'Connection closed by the panel server' : 'Unable to establish a panel session'
       setLastError(reason || (code === 1008 ? 'Access key rejected by panel server' : fallback))
 
+      if (code === 1008) {
+        setConnectionState('failed')
+        setRetryDelayMs(0)
+        return
+      }
+
       if (nextAttempt > MAX_RECONNECT_ATTEMPTS) {
         setConnectionState('failed')
         setRetryDelayMs(0)
