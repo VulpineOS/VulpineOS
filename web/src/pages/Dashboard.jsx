@@ -86,7 +86,7 @@ export default function Dashboard({ ws }) {
   )
 
   const activeAgents = useMemo(() => {
-    const order = { active: 0, paused: 1, error: 2, completed: 3 }
+    const order = { active: 0, paused: 1, error: 2, failed: 3, interrupted: 4, completed: 5 }
     return [...agents]
       .sort((a, b) => {
         const rankDelta = (order[a.status] ?? 99) - (order[b.status] ?? 99)
@@ -199,7 +199,7 @@ export default function Dashboard({ ws }) {
                         </Link>
                       </td>
                       <td>
-                        <span className={`badge badge-${agent.status === 'active' ? 'green' : agent.status === 'paused' ? 'yellow' : agent.status === 'error' ? 'red' : 'gray'}`}>
+                        <span className={`badge badge-${agent.status === 'active' ? 'green' : agent.status === 'paused' ? 'yellow' : agent.status === 'error' || agent.status === 'failed' ? 'red' : agent.status === 'completed' ? 'blue' : 'gray'}`}>
                           {agent.status}
                         </span>
                       </td>
