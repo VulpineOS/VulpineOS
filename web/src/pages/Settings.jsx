@@ -317,6 +317,8 @@ export default function Settings({ ws }) {
                 value={cfg.apiKey || ""}
                 onChange={(e) => setCfg({ ...cfg, apiKey: e.target.value })}
                 placeholder="sk-..."
+                autoComplete="off"
+                spellCheck={false}
               />
               <p style={{ fontSize: 11, color: "#555", marginTop: 4 }}>
                 {cfg.apiKey
