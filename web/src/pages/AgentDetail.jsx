@@ -224,7 +224,7 @@ export default function AgentDetail({ ws }) {
           <Link to="/agents" style={{ color: '#666', textDecoration: 'none' }}>Back to Agents</Link>
           <h1>Agent {id.substring(0, 12)}</h1>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div className="page-actions">
           <span className={`badge badge-${agent?.status === 'active' ? 'green' : agent?.status === 'paused' ? 'yellow' : agent?.status === 'completed' ? 'blue' : 'gray'}`}>
             {agent?.status || 'unknown'}
           </span>
