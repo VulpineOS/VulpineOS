@@ -40,11 +40,13 @@ describe('Logs page', () => {
           events: [{
             method: 'Vulpine.runtimeEvent',
             params: {
+              token: 'panel-token',
               id: 'evt-2',
               component: 'gateway',
               event: 'profile_repair_failed',
               level: 'warn',
               message: 'Gateway profile repair failed',
+              panelUrl: 'http://127.0.0.1:8443/?token=panel-token',
               timestamp: '2026-04-22T11:02:00Z',
             },
           }],
@@ -54,6 +56,8 @@ describe('Logs page', () => {
 
     expect(await screen.findByText('gateway.started')).toBeInTheDocument()
     expect(screen.getByText(/profile_repair_failed/)).toBeInTheDocument()
+    expect(screen.queryByText(/panel-token/)).not.toBeInTheDocument()
+    expect(screen.getByText(/"token":"\[redacted\]"/)).toBeInTheDocument()
 
     fireEvent.change(screen.getByDisplayValue('200'), { target: { value: '150' } })
     fireEvent.click(screen.getByText('Save'))

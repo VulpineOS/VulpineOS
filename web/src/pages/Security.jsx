@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { redactSensitiveText } from '../utils/redact'
 
 export default function Security({ ws }) {
   const [status, setStatus] = useState({ protections: [], sandboxBlockedAPIs: [], signaturePatternCount: 0 })
@@ -62,7 +63,7 @@ export default function Security({ ws }) {
               <div key={i} className="event">
                 <span className="event-time">{new Date(ev.ts).toLocaleTimeString()} </span>
                 <span style={{ color: '#ef4444' }}>INJECTION </span>
-                <span style={{ color: '#888', fontSize: 12 }}>{JSON.stringify(ev.params).substring(0, 120)}</span>
+                <span style={{ color: '#888', fontSize: 12 }}>{redactSensitiveText(ev.params).substring(0, 120)}</span>
               </div>
             ))}
           </div>

@@ -8,7 +8,7 @@ describe('Security page', () => {
     const ws = {
       connected: true,
       events: [
-        { method: 'Browser.injectionAttemptDetected', params: { url: 'https://example.com', blocked: true }, ts: Date.now() },
+        { method: 'Browser.injectionAttemptDetected', params: { url: 'https://example.com/?token=secret-token', blocked: true }, ts: Date.now() },
       ],
       call: vi.fn(async (method) => {
         if (method === 'security.status') {
@@ -36,5 +36,7 @@ describe('Security page', () => {
     expect(screen.getByText('Browser active: No')).toBeInTheDocument()
     expect(screen.getByText('Signature patterns loaded: 13')).toBeInTheDocument()
     expect(screen.getByText(/INJECTION/)).toBeInTheDocument()
+    expect(screen.queryByText(/secret-token/)).not.toBeInTheDocument()
+    expect(screen.getByText(/token=\[redacted\]/)).toBeInTheDocument()
   })
 })
