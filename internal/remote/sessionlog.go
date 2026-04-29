@@ -5,11 +5,18 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+	"regexp"
 	"strings"
 )
 
 const redactedReasoningText = "[redacted hidden reasoning]"
 const maxPanelSessionLogBytes int64 = 1 << 20
+
+var (
+	sessionLogBearerPattern       = regexp.MustCompile(`(?i)(bearer\s+)[^\s,;"]+`)
+	sessionLogInlineSecretPattern = regexp.MustCompile(`(?i)\b(api[_-]?key|apikey|access[_-]?key|access[_-]?token|token|secret|password|credential|authorization|cookie)(\s*[:=]\s*)(?:bearer\s+)?[^\s,;"]+`)
+	sessionLogURLPattern          = regexp.MustCompile(`\b(?:https?|wss?)://[^\s"'<>]+`)
+)
 
 type sessionLogPanelMeta struct {
 	truncated  bool
@@ -112,6 +119,10 @@ func sanitizeSessionLogValue(value interface{}) interface{} {
 		}
 
 		for key, child := range typed {
+			if sensitiveSessionLogKey(key) {
+				typed[key] = "[redacted]"
+				continue
+			}
 			typed[key] = sanitizeSessionLogValue(child)
 		}
 		return typed
@@ -120,7 +131,36 @@ func sanitizeSessionLogValue(value interface{}) interface{} {
 			typed[i] = sanitizeSessionLogValue(child)
 		}
 		return typed
+	case string:
+		return redactSessionLogString(typed)
 	default:
 		return value
 	}
+}
+
+func sensitiveSessionLogKey(key string) bool {
+	normalized := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(key), "-", "_"))
+	for _, marker := range []string{"api_key", "apikey", "access_key", "access_token", "token", "secret", "password", "credential", "authorization", "cookie", "bearer"} {
+		if strings.Contains(normalized, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func redactSessionLogString(value string) string {
+	if value == "" {
+		return value
+	}
+
+	value = sessionLogURLPattern.ReplaceAllStringFunc(value, func(match string) string {
+		core := strings.TrimRight(match, ".,;)]}")
+		if core == "" {
+			return match
+		}
+		return redactPanelURLSecrets(core) + strings.TrimPrefix(match, core)
+	})
+	value = sessionLogInlineSecretPattern.ReplaceAllString(value, "${1}${2}[redacted]")
+	value = sessionLogBearerPattern.ReplaceAllString(value, "${1}[redacted]")
+	return value
 }

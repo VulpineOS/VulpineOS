@@ -140,6 +140,65 @@ func TestAgentsGetSessionLogTailsLargeLogsAtLineBoundary(t *testing.T) {
 	}
 }
 
+func TestAgentsGetSessionLogRedactsOrdinarySecrets(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	logPath := filepath.Join(config.OpenClawProfileDir(), "agents", "main", "sessions", "vulpine-agent-1.jsonl")
+	if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
+		t.Fatalf("mkdir log dir: %v", err)
+	}
+	logData := []byte(`{"type":"tool_result","url":"https://user:pass@example.com/path?token=query-token&ok=1","headers":{"Authorization":"Bearer header-token","Cookie":"sid=cookie-token"},"content":"POST https://api.example.com/?api_key=url-key Authorization: Bearer inline-token cookie=session-token","nested":{"password":"plain-password","note":"keep this"}}` + "\n")
+	if err := os.WriteFile(logPath, logData, 0644); err != nil {
+		t.Fatalf("write log: %v", err)
+	}
+
+	api := &PanelAPI{}
+	payload, err := api.HandleMessage("agents.getSessionLog", json.RawMessage(`{"agentId":"agent-1"}`))
+	if err != nil {
+		t.Fatalf("HandleMessage: %v", err)
+	}
+
+	var result struct {
+		Content string `json:"content"`
+	}
+	if err := json.Unmarshal(payload, &result); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+	for _, leaked := range []string{"user:pass", "query-token", "header-token", "cookie-token", "url-key", "inline-token", "session-token", "plain-password"} {
+		if strings.Contains(result.Content, leaked) {
+			t.Fatalf("session log leaked %q in %s", leaked, result.Content)
+		}
+	}
+
+	var entry map[string]interface{}
+	if err := json.Unmarshal([]byte(strings.TrimSpace(result.Content)), &entry); err != nil {
+		t.Fatalf("unmarshal sanitized content: %v", err)
+	}
+	if got := entry["url"]; got != "https://redacted:redacted@example.com/path?ok=1&token=[redacted]" {
+		t.Fatalf("url = %v", got)
+	}
+	headers, ok := entry["headers"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("headers = %#v", entry["headers"])
+	}
+	if headers["Authorization"] != "[redacted]" || headers["Cookie"] != "[redacted]" {
+		t.Fatalf("headers = %#v", headers)
+	}
+	nested, ok := entry["nested"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("nested = %#v", entry["nested"])
+	}
+	if nested["password"] != "[redacted]" || nested["note"] != "keep this" {
+		t.Fatalf("nested = %#v", nested)
+	}
+	for _, expected := range []string{"api_key=[redacted]", "Authorization: [redacted]", "cookie=[redacted]"} {
+		if !strings.Contains(result.Content, expected) {
+			t.Fatalf("session log missing %q in %s", expected, result.Content)
+		}
+	}
+}
+
 func TestAgentsGetSessionLogRejectsPathTraversalAgentID(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
