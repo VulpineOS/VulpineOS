@@ -60,9 +60,9 @@ func TestSummarizeToolResultError(t *testing.T) {
 func TestSummarizeToolResultRedactsSensitiveError(t *testing.T) {
 	got := summarizeToolResult("browser", toolCallInfo{}, false, nil, map[string]interface{}{
 		"status": "error",
-		"error":  "request failed with Authorization: Bearer browser-token at https://example.com/?token=query-token",
+		"error":  "request failed with Authorization: Bearer browser-token at https://example.com/?token=query-token payload {\"token\":\"json-token\"} cookie=session-token",
 	})
-	want := "Tool failed: browser — request failed with Authorization: Bearer [redacted] at https://example.com/?token=[redacted]"
+	want := "Tool failed: browser — request failed with Authorization: Bearer [redacted] at https://example.com/?token=[redacted] payload {\"token\":\"[redacted]\"} cookie=[redacted]"
 	if got != want {
 		t.Fatalf("summarizeToolResult = %q, want %q", got, want)
 	}
