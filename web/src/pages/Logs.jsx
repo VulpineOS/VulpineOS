@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { redactSensitiveText } from '../utils/redact'
 
 export default function Logs({ ws }) {
   const [filter, setFilter] = useState('')
@@ -175,7 +176,7 @@ export default function Logs({ ws }) {
               </span>
               <span className="event-method" style={{ minWidth: 200 }}>{ev.method}</span>
               <span style={{ color: '#555', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {ev.params ? JSON.stringify(ev.params).substring(0, 100) : ''}
+                {ev.params ? redactSensitiveText(ev.params).substring(0, 100) : ''}
               </span>
             </div>
           ))}
