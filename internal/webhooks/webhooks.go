@@ -18,6 +18,7 @@ const (
 	AgentCompleted    EventType = "agent.completed"
 	AgentFailed       EventType = "agent.failed"
 	AgentPaused       EventType = "agent.paused"
+	AgentInterrupted  EventType = "agent.interrupted"
 	RateLimitDetected EventType = "rate_limit.detected"
 	InjectionDetected EventType = "injection.detected"
 	BudgetAlert       EventType = "budget.alert"
@@ -123,18 +124,18 @@ func (m *Manager) Fire(event EventType, data map[string]interface{}) {
 	}
 
 	for _, wh := range targets {
-		go m.deliver(wh, body)
+		go m.deliver(wh, event, body)
 	}
 }
 
-func (m *Manager) deliver(wh Webhook, body []byte) {
+func (m *Manager) deliver(wh Webhook, event EventType, body []byte) {
 	req, err := http.NewRequest("POST", wh.URL, bytes.NewReader(body))
 	if err != nil {
 		log.Printf("webhooks: request error for %s: %v", wh.URL, err)
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-VulpineOS-Event", string(AgentCompleted))
+	req.Header.Set("X-VulpineOS-Event", string(event))
 	if wh.Secret != "" {
 		req.Header.Set("X-VulpineOS-Secret", wh.Secret)
 	}
