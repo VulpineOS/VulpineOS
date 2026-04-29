@@ -34,7 +34,7 @@ describe('AgentDetail page', () => {
         return { actions: [] }
       }
       if (method === 'agents.getSessionLog') {
-        return { content: '{"type":"message","message":{"role":"assistant"}}\n' }
+        return { content: '{"type":"message","message":{"role":"assistant"}}\n', truncated: true, bytes: 2048, totalBytes: 4096 }
       }
       if (method === 'fingerprints.get') {
         return {}
@@ -113,6 +113,7 @@ describe('AgentDetail page', () => {
     fireEvent.click(screen.getByText('Raw'))
     expect(await screen.findByText('Raw Session Log')).toBeInTheDocument()
     expect(screen.getByText('Auto-refreshing')).toBeInTheDocument()
+    expect(screen.getByText(/Showing the latest 2.0 KB of a 4.0 KB sanitized log/)).toBeInTheDocument()
     expect(screen.getByText('{"type":"message","message":{"role":"assistant"}}')).toBeInTheDocument()
 
     fireEvent.click(screen.getByText('Conversation'))

@@ -15,6 +15,16 @@ function downloadTextFile(content, fileName, contentType = 'application/json') {
 
 const TERMINAL_AGENT_STATUSES = new Set(['completed', 'error', 'failed', 'interrupted'])
 
+function formatBytes(value) {
+  const bytes = Number(value || 0)
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
+  if (bytes < 1024) return `${bytes} B`
+  const kb = bytes / 1024
+  if (kb < 1024) return `${kb.toFixed(kb >= 10 ? 0 : 1)} KB`
+  const mb = kb / 1024
+  return `${mb.toFixed(mb >= 10 ? 0 : 1)} MB`
+}
+
 function agentStatusBadgeClass(status) {
   if (status === 'active') return 'green'
   if (status === 'paused') return 'yellow'
@@ -30,6 +40,7 @@ export default function AgentDetail({ ws }) {
   const [timeline, setTimeline] = useState([])
   const [fingerprint, setFingerprint] = useState(null)
   const [sessionLog, setSessionLog] = useState('')
+  const [sessionLogMeta, setSessionLogMeta] = useState({ truncated: false, bytes: 0, totalBytes: 0 })
   const [input, setInput] = useState('')
   const [tab, setTab] = useState('conversation')
   const [budgetCost, setBudgetCost] = useState('0')
@@ -76,6 +87,11 @@ export default function AgentDetail({ ws }) {
     try {
       const result = await ws.call('agents.getSessionLog', { agentId: id })
       setSessionLog(result?.content || '')
+      setSessionLogMeta({
+        truncated: Boolean(result?.truncated),
+        bytes: Number(result?.bytes || 0),
+        totalBytes: Number(result?.totalBytes || 0),
+      })
     } catch (e) {
       ws.notify?.(e.message)
     }
@@ -361,9 +377,16 @@ export default function AgentDetail({ ws }) {
           {sessionLog === '' ? (
             <p style={{ color: '#666' }}>No raw session log loaded yet.</p>
           ) : (
-            <pre style={{ fontSize: 12, color: '#aaa', overflow: 'auto', maxHeight: 500, whiteSpace: 'pre-wrap' }}>
-              {sessionLog}
-            </pre>
+            <>
+              {sessionLogMeta.truncated && (
+                <div className="panel-banner" style={{ marginBottom: 12 }}>
+                  Showing the latest {formatBytes(sessionLogMeta.bytes)} of a {formatBytes(sessionLogMeta.totalBytes)} sanitized log. Older complete lines are omitted.
+                </div>
+              )}
+              <pre style={{ fontSize: 12, color: '#aaa', overflow: 'auto', maxHeight: 500, whiteSpace: 'pre-wrap' }}>
+                {sessionLog}
+              </pre>
+            </>
           )}
         </div>
       )}

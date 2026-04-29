@@ -1,11 +1,64 @@
 package remote
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
+	"os"
 	"strings"
 )
 
 const redactedReasoningText = "[redacted hidden reasoning]"
+const maxPanelSessionLogBytes int64 = 1 << 20
+
+type sessionLogPanelMeta struct {
+	truncated  bool
+	bytes      int64
+	totalBytes int64
+}
+
+func readSessionLogPanelContent(path string) (string, sessionLogPanelMeta, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return "", sessionLogPanelMeta{}, err
+	}
+	meta := sessionLogPanelMeta{totalBytes: info.Size()}
+	if info.Size() == 0 {
+		return "", meta, nil
+	}
+
+	start := int64(0)
+	if info.Size() > maxPanelSessionLogBytes {
+		start = info.Size() - maxPanelSessionLogBytes
+		meta.truncated = true
+	}
+
+	file, err := os.Open(path)
+	if err != nil {
+		return "", meta, err
+	}
+	defer file.Close()
+
+	if start > 0 {
+		if _, err := file.Seek(start, io.SeekStart); err != nil {
+			return "", meta, err
+		}
+	}
+
+	data, err := io.ReadAll(io.LimitReader(file, maxPanelSessionLogBytes))
+	if err != nil {
+		return "", meta, err
+	}
+	if meta.truncated {
+		if newline := bytes.IndexByte(data, '\n'); newline >= 0 {
+			data = data[newline+1:]
+		} else {
+			data = nil
+		}
+	}
+	meta.bytes = int64(len(data))
+	return sanitizeSessionLog(string(data)), meta, nil
+}
 
 func sanitizeSessionLog(raw string) string {
 	if raw == "" {
