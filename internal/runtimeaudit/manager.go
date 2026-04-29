@@ -10,6 +10,7 @@ import (
 )
 
 var bearerTokenPattern = regexp.MustCompile(`(?i)(bearer\s+)[^\s,;]+`)
+var querySecretPattern = regexp.MustCompile(`(?i)([?&](?:api[_-]?key|apikey|token|access[_-]?token|access[_-]?key|secret|password|credential|authorization)=)[^&#\s"]+`)
 
 // Manager persists and broadcasts recent runtime lifecycle events.
 type Manager struct {
@@ -33,6 +34,7 @@ func (m *Manager) Log(component, level, event, message string, metadata map[stri
 	if m == nil || m.vault == nil {
 		return nil, nil
 	}
+	message = redactRuntimeValue(message)
 	metadata = sanitizeRuntimeMetadata(metadata)
 	entry, err := m.vault.AppendRuntimeEvent(component, level, event, message, metadata)
 	if err != nil || entry == nil {
@@ -124,6 +126,7 @@ func sensitiveRuntimeMetadataKey(key string) bool {
 
 func redactRuntimeValue(value string) string {
 	value = bearerTokenPattern.ReplaceAllString(value, "${1}[redacted]")
+	value = querySecretPattern.ReplaceAllString(value, "${1}[redacted]")
 	parsed, err := url.Parse(value)
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
 		return value
