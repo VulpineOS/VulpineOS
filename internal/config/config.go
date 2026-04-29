@@ -480,7 +480,7 @@ func (c *Config) GenerateOpenClawConfig(vulpineosBinary, camoufoxBinary string) 
 	}
 
 	path := filepath.Join(profileDir, "openclaw.json")
-	return os.WriteFile(path, data, 0644)
+	return writePrivateFile(path, data)
 }
 
 // RepairOpenClawProfile restores VulpineOS-required OpenClaw profile fields after
@@ -508,7 +508,14 @@ func RepairOpenClawProfile(cdpURL string) error {
 		return fmt.Errorf("marshal repaired openclaw config: %w", err)
 	}
 
-	return os.WriteFile(OpenClawConfigPath(), data, 0644)
+	return writePrivateFile(OpenClawConfigPath(), data)
+}
+
+func writePrivateFile(path string, data []byte) error {
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		return err
+	}
+	return os.Chmod(path, 0600)
 }
 
 // OpenClawProfileDir returns the OpenClaw profile directory for VulpineOS.
