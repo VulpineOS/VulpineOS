@@ -1,6 +1,7 @@
 package remote
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -219,5 +220,30 @@ func TestHandleWSJugglerWithoutKernelReturnsError(t *testing.T) {
 	}
 	if msg.Error == nil || msg.Error.Message != "browser unavailable: server started without a kernel" {
 		t.Fatalf("error = %#v, want browser unavailable", msg.Error)
+	}
+}
+
+func TestHandleWSRejectsOversizedMessage(t *testing.T) {
+	server := NewServer(":0", "secret", nil)
+	httpServer := httptest.NewServer(server.Mux())
+	defer httpServer.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(httpServer.URL, "http") + "/ws?token=secret"
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("dial websocket: %v", err)
+	}
+	defer conn.Close(websocket.StatusNormalClosure, "")
+
+	oversized := bytes.Repeat([]byte("x"), int(maxWebSocketMessageBytes)+1)
+	if err := conn.Write(ctx, websocket.MessageText, oversized); err != nil {
+		t.Fatalf("write oversized websocket payload: %v", err)
+	}
+	_, _, err = conn.Read(ctx)
+	if websocket.CloseStatus(err) != websocket.StatusMessageTooBig {
+		t.Fatalf("close status = %v, err = %v; want StatusMessageTooBig", websocket.CloseStatus(err), err)
 	}
 }
