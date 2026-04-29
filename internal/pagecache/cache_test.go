@@ -2,6 +2,7 @@ package pagecache
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -121,6 +122,36 @@ func TestSaveInvalidState(t *testing.T) {
 	}
 	if err := c.Save(&PageState{}); err == nil {
 		t.Error("should error on empty agentId")
+	}
+	for _, agentID := range []string{"../escape", `..\escape`, "nested/escape", "."} {
+		if err := c.Save(&PageState{AgentID: agentID}); err == nil {
+			t.Errorf("should error on unsafe agentId %q", agentID)
+		}
+	}
+}
+
+func TestDiskPersistenceRejectsUnsafeAgentIDs(t *testing.T) {
+	dir := t.TempDir()
+	c := New(dir)
+
+	outside := filepath.Join(filepath.Dir(dir), "escape.json")
+	if err := os.WriteFile(outside, []byte("do not remove"), 0600); err != nil {
+		t.Fatalf("write outside file: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Remove(outside) })
+
+	if err := c.Save(&PageState{AgentID: "../escape"}); err == nil {
+		t.Fatal("Save should reject path traversal agent id")
+	}
+	if c.Load("../escape") != nil {
+		t.Fatal("Load should reject path traversal agent id")
+	}
+	if c.Has("../escape") {
+		t.Fatal("Has should reject path traversal agent id")
+	}
+	c.Delete("../escape")
+	if _, err := os.Stat(outside); err != nil {
+		t.Fatalf("Delete removed or changed outside file: %v", err)
 	}
 }
 
