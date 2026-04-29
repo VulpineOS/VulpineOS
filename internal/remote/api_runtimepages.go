@@ -160,7 +160,7 @@ func (api *PanelAPI) ensureScriptSession(contextID string) (string, string, erro
 
 	sessionCh := make(chan string, 4)
 	if api.Client != nil {
-		api.Client.Subscribe("Browser.attachedToTarget", func(_ string, params json.RawMessage) {
+		unsubscribe := api.Client.SubscribeWithCancel("Browser.attachedToTarget", func(_ string, params json.RawMessage) {
 			var ev juggler.AttachedToTarget
 			if err := json.Unmarshal(params, &ev); err == nil && ev.TargetInfo.BrowserContextID == contextID && ev.SessionID != "" {
 				select {
@@ -169,6 +169,7 @@ func (api *PanelAPI) ensureScriptSession(contextID string) (string, string, erro
 				}
 			}
 		})
+		defer unsubscribe()
 	}
 
 	if _, err := api.Client.Call("", "Browser.newPage", map[string]interface{}{"browserContextId": contextID}); err != nil {

@@ -13,16 +13,22 @@ import (
 // sessionID identifies which page session the event belongs to (empty for browser events).
 type EventHandler func(sessionID string, params json.RawMessage)
 
+type eventSubscription struct {
+	id      int64
+	handler EventHandler
+}
+
 // Client is a high-level Juggler protocol client.
 type Client struct {
-	transport Transport
-	nextID    atomic.Int64
-	pending   map[int]chan *Message
-	pendingMu sync.Mutex
-	handlers  map[string][]EventHandler
-	handlerMu sync.RWMutex
-	done      chan struct{}
-	closeOnce sync.Once
+	transport     Transport
+	nextID        atomic.Int64
+	nextHandlerID atomic.Int64
+	pending       map[int]chan *Message
+	pendingMu     sync.Mutex
+	handlers      map[string][]eventSubscription
+	handlerMu     sync.RWMutex
+	done          chan struct{}
+	closeOnce     sync.Once
 }
 
 // NewClient creates a Juggler client using the given transport.
@@ -30,7 +36,7 @@ func NewClient(transport Transport) *Client {
 	c := &Client{
 		transport: transport,
 		pending:   make(map[int]chan *Message),
-		handlers:  make(map[string][]EventHandler),
+		handlers:  make(map[string][]eventSubscription),
 		done:      make(chan struct{}),
 	}
 	go c.readLoop()
@@ -97,9 +103,33 @@ func (c *Client) CallWithContext(ctx context.Context, sessionID, method string, 
 
 // Subscribe registers a handler for a Juggler event.
 func (c *Client) Subscribe(event string, handler EventHandler) {
+	c.SubscribeWithCancel(event, handler)
+}
+
+// SubscribeWithCancel registers a handler and returns a cancellation function.
+func (c *Client) SubscribeWithCancel(event string, handler EventHandler) func() {
+	id := c.nextHandlerID.Add(1)
 	c.handlerMu.Lock()
-	defer c.handlerMu.Unlock()
-	c.handlers[event] = append(c.handlers[event], handler)
+	c.handlers[event] = append(c.handlers[event], eventSubscription{id: id, handler: handler})
+	c.handlerMu.Unlock()
+
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			c.handlerMu.Lock()
+			defer c.handlerMu.Unlock()
+			subs := c.handlers[event]
+			for i, sub := range subs {
+				if sub.id == id {
+					c.handlers[event] = append(subs[:i], subs[i+1:]...)
+					if len(c.handlers[event]) == 0 {
+						delete(c.handlers, event)
+					}
+					return
+				}
+			}
+		})
+	}
 }
 
 // Close shuts down the client and transport.
@@ -136,10 +166,10 @@ func (c *Client) readLoop() {
 			}
 		} else if msg.IsEvent() {
 			c.handlerMu.RLock()
-			handlers := c.handlers[msg.Method]
+			subs := append([]eventSubscription(nil), c.handlers[msg.Method]...)
 			c.handlerMu.RUnlock()
-			for _, h := range handlers {
-				h(msg.SessionID, msg.Params)
+			for _, sub := range subs {
+				sub.handler(msg.SessionID, msg.Params)
 			}
 		}
 	}
