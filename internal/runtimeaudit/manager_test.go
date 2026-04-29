@@ -60,7 +60,7 @@ func TestManagerLogRedactsSensitiveMetadata(t *testing.T) {
 	manager := New(db)
 	t.Cleanup(manager.Close)
 
-	event, err := manager.Log("gateway", "info", "started", "gateway started", map[string]string{
+	event, err := manager.Log("gateway", "info", "started", "gateway started: http://127.0.0.1:8443/?token=message-token", map[string]string{
 		"gateway_token": "token-123",
 		"panel_url":     "http://127.0.0.1:8443/?token=token-123&view=agents",
 		"header":        "Authorization: Bearer token-123",
@@ -81,6 +81,9 @@ func TestManagerLogRedactsSensitiveMetadata(t *testing.T) {
 	if event.Metadata["pid"] != "44" {
 		t.Fatalf("pid = %q, want unchanged", event.Metadata["pid"])
 	}
+	if strings.Contains(event.Message, "message-token") || !strings.Contains(event.Message, "token=[redacted]") {
+		t.Fatalf("message was not redacted: %q", event.Message)
+	}
 
 	events, err := manager.List(vault.RuntimeEventFilter{Limit: 10})
 	if err != nil {
@@ -93,5 +96,8 @@ func TestManagerLogRedactsSensitiveMetadata(t *testing.T) {
 		if strings.Contains(value, "token-123") {
 			t.Fatalf("stored metadata %s leaked token: %q", key, value)
 		}
+	}
+	if strings.Contains(events[0].Message, "message-token") {
+		t.Fatalf("stored message leaked token: %q", events[0].Message)
 	}
 }
