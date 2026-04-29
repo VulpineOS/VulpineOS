@@ -11,6 +11,7 @@ export default function Agents({ ws }) {
   const [contexts, setContexts] = useState([])
   const [selectedContext, setSelectedContext] = useState(localStorage.getItem('vulpine_context_id') || '')
   const [notice, setNotice] = useState('')
+  const [pendingKill, setPendingKill] = useState(null)
 
   const refresh = () => {
     ws.call('agents.list').then(r => setAgents(r?.agents || [])).catch(() => {})
@@ -50,10 +51,8 @@ export default function Agents({ ws }) {
     } catch (e) { ws.notify?.(`Spawn failed: ${e.message}`) }
   }
 
-  const kill = async (id) => {
-    if (!confirm('Kill agent ' + id.substring(0, 8) + '?')) return
-    try { await ws.call('agents.kill', { agentId: id }); refresh() }
-    catch (e) { ws.notify?.(e.message) }
+  const requestKill = (id) => {
+    setPendingKill({ type: 'single', ids: [id], label: `agent ${id.substring(0, 8)}` })
   }
 
   const pause = async (id) => {
@@ -86,8 +85,11 @@ export default function Agents({ ws }) {
 
   const runBulk = async (action) => {
     if (selectedIDs.length === 0) return
+    if (action === 'kill') {
+      setPendingKill({ type: 'bulk', ids: selectedIDs, label: `${selectedIDs.length} selected agents` })
+      return
+    }
     try {
-      if (action === 'kill' && !confirm(`Kill ${selectedIDs.length} selected agents?`)) return
       const method = action === 'pause' ? 'agents.pauseMany' : action === 'resume' ? 'agents.resumeMany' : 'agents.killMany'
       const result = await ws.call(method, { agentIds: selectedIDs })
       const actionKey = action === 'pause' ? 'paused' : action === 'resume' ? 'resumed' : 'killed'
@@ -99,6 +101,24 @@ export default function Agents({ ws }) {
         setNotice(`${actionKey.charAt(0).toUpperCase() + actionKey.slice(1)} ${completed} agents`)
       }
       setSelected({})
+      refresh()
+    } catch (e) { ws.notify?.(e.message) }
+  }
+
+  const confirmKill = async () => {
+    if (!pendingKill || pendingKill.ids.length === 0) return
+    try {
+      if (pendingKill.type === 'single') {
+        await ws.call('agents.kill', { agentId: pendingKill.ids[0] })
+        setNotice(`Killed agent ${pendingKill.ids[0].substring(0, 8)}`)
+      } else {
+        const result = await ws.call('agents.killMany', { agentIds: pendingKill.ids })
+        const failures = Object.keys(result?.failures || {}).length
+        const killed = result?.killed ?? (failures === 0 ? pendingKill.ids.length : 0)
+        setNotice(failures > 0 ? `Killed ${killed} agents, ${failures} failed` : `Killed ${killed} agents`)
+        setSelected({})
+      }
+      setPendingKill(null)
       refresh()
     } catch (e) { ws.notify?.(e.message) }
   }
@@ -168,6 +188,19 @@ export default function Agents({ ws }) {
         </div>
       )}
 
+      {pendingKill && (
+        <div className="panel-banner panel-banner-red" style={{ marginBottom: 16 }}>
+          <div>
+            <strong>Confirm kill</strong>
+            <span>Stop {pendingKill.label} and mark the session interrupted.</span>
+          </div>
+          <div className="panel-banner-actions">
+            <button className="btn btn-danger btn-sm" onClick={confirmKill}>Kill</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => setPendingKill(null)}>Cancel</button>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-4" style={{ marginBottom: 16 }}>
         <div className="card metric-card">
           <div className="metric-kicker">Spend</div>
@@ -211,7 +244,7 @@ export default function Agents({ ws }) {
                 <td>
                   {a.status === 'active' && <button className="btn btn-ghost btn-sm" onClick={() => pause(a.id)} style={{ marginRight: 4 }}>Pause</button>}
                   {a.status === 'paused' && <button className="btn btn-ghost btn-sm" onClick={() => resume(a.id)} style={{ marginRight: 4 }}>Resume</button>}
-                  <button className="btn btn-danger btn-sm" onClick={() => kill(a.id)}>Kill</button>
+                  <button className="btn btn-danger btn-sm" onClick={() => requestKill(a.id)}>Kill</button>
                 </td>
               </tr>
             ))}

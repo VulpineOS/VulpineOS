@@ -26,6 +26,7 @@ export default function AgentDetail({ ws }) {
   const [budgetTokens, setBudgetTokens] = useState('0')
   const [inheritDefaultBudget, setInheritDefaultBudget] = useState(true)
   const [fingerprintSeed, setFingerprintSeed] = useState('')
+  const [confirmKill, setConfirmKill] = useState(false)
   const lastEventRef = useRef(0)
 
   const conversationMessages = messages.filter(m => m.role !== 'system')
@@ -155,10 +156,10 @@ export default function AgentDetail({ ws }) {
   }
 
   const kill = async () => {
-    if (!confirm('Kill agent ' + id.substring(0, 8) + '?')) return
     try {
       await ws.call('agents.kill', { agentId: id })
       setAgent(prev => prev ? { ...prev, status: 'interrupted' } : prev)
+      setConfirmKill(false)
     } catch (e) { ws.notify?.(e.message) }
   }
 
@@ -229,10 +230,23 @@ export default function AgentDetail({ ws }) {
           </span>
           {agent?.status === 'active' && <button className="btn btn-ghost" onClick={pause}>Pause</button>}
           {agent?.status === 'paused' && <button className="btn btn-ghost" onClick={resume}>Resume</button>}
-          {agent?.status !== 'completed' && <button className="btn btn-danger" onClick={kill}>Kill</button>}
+          {agent?.status !== 'completed' && <button className="btn btn-danger" onClick={() => setConfirmKill(true)}>Kill</button>}
           <button className="btn btn-ghost" onClick={refresh}>Refresh</button>
         </div>
       </div>
+
+      {confirmKill && (
+        <div className="panel-banner panel-banner-red" style={{ marginBottom: 16 }}>
+          <div>
+            <strong>Confirm kill</strong>
+            <span>Stop agent {id.substring(0, 8)} and mark the session interrupted.</span>
+          </div>
+          <div className="panel-banner-actions">
+            <button className="btn btn-danger btn-sm" onClick={kill}>Kill</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => setConfirmKill(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
 
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="page-header" style={{ marginBottom: 12 }}>

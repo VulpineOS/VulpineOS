@@ -1,5 +1,5 @@
 import React from 'react'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import AgentDetail from './AgentDetail'
@@ -182,5 +182,31 @@ describe('AgentDetail page', () => {
     )
 
     await waitFor(() => expect(screen.getByText('after cap')).toBeInTheDocument())
+  })
+
+  it('uses inline confirmation before killing an agent', async () => {
+    const call = vi.fn(async (method) => {
+      if (method === 'agents.list') {
+        return { agents: [{ id: 'agent-1', name: 'Agent One', status: 'active', contextId: '', totalTokens: 0 }] }
+      }
+      if (method === 'agents.getMessages') return { messages: [] }
+      if (method === 'recording.getTimeline') return { actions: [] }
+      if (method === 'fingerprints.get') return {}
+      return { status: 'ok' }
+    })
+
+    renderDetail({ connected: true, events: [], call })
+
+    expect(await screen.findByText('active')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Kill'))
+    expect(screen.getByText('Confirm kill')).toBeInTheDocument()
+    expect(call).not.toHaveBeenCalledWith('agents.kill', { agentId: 'agent-1' })
+
+    const confirmBanner = screen.getByText('Confirm kill').closest('.panel-banner')
+    fireEvent.click(within(confirmBanner).getByText('Kill'))
+    await waitFor(() => {
+      expect(call).toHaveBeenCalledWith('agents.kill', { agentId: 'agent-1' })
+    })
+    expect(screen.getByText('interrupted')).toBeInTheDocument()
   })
 })

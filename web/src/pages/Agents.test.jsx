@@ -1,5 +1,5 @@
 import React from 'react'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import Agents from './Agents'
@@ -128,6 +128,18 @@ describe('Agents page', () => {
       expect(calls).toHaveBeenCalledWith('agents.resumeMany', { agentIds: ['agent-1', 'agent-2'] })
     })
     expect(screen.getByText('Resumed 2 agents')).toBeInTheDocument()
+
+    checkboxes = screen.getAllByRole('checkbox')
+    fireEvent.click(checkboxes[1])
+    fireEvent.click(checkboxes[2])
+    fireEvent.click(screen.getByText('Kill Selected'))
+    expect(screen.getByText('Confirm kill')).toBeInTheDocument()
+    const confirmBanner = screen.getByText('Confirm kill').closest('.panel-banner')
+    fireEvent.click(within(confirmBanner).getByText('Kill'))
+    await waitFor(() => {
+      expect(calls).toHaveBeenCalledWith('agents.killMany', { agentIds: ['agent-1', 'agent-2'] })
+    })
+    expect(screen.getByText('Killed 2 agents')).toBeInTheDocument()
   })
 
   it('renders empty browser contexts without crashing', async () => {
