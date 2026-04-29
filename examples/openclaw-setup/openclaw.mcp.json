@@ -5,7 +5,7 @@
         "vulpineos": {
           "command": "vulpineos",
           "args": [
-            "--mcp-server"
+            "mcp"
           ],
           "env": {}
         }
