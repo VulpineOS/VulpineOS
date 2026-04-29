@@ -878,4 +878,47 @@ describe("Settings page", () => {
       });
     });
   }, 15000);
+
+  it("keeps Sentinel UI hidden when the extension is unavailable", async () => {
+    const ws = {
+      connected: true,
+      call: vi.fn(async (method) => {
+        if (method === "config.providers") return { providers: [] };
+        if (method === "config.get") {
+          return {
+            setupComplete: true,
+            defaultBudgetMaxCostUsd: 0,
+            defaultBudgetMaxTokens: 0,
+          };
+        }
+        if (method === "status.get") {
+          return {
+            browser_route: "camoufox",
+            browser_route_source: "runtime",
+            browser_window: "hidden",
+            gateway_running: true,
+            sentinel_available: false,
+            kernel_headless: false,
+            kernel_running: true,
+            openclaw_profile_configured: true,
+          };
+        }
+        return {};
+      }),
+    };
+
+    render(<Settings ws={ws} />);
+
+    expect(
+      await screen.findByText("Route: CAMOUFOX (runtime) · GUI"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Sentinel Trust Lab")).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Sentinel:/)).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(ws.call).not.toHaveBeenCalledWith("sentinel.get");
+      expect(ws.call).not.toHaveBeenCalledWith("sentinel.timeline", {
+        limit: 4,
+      });
+    });
+  });
 });

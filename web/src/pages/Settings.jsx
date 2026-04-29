@@ -1,48 +1,50 @@
 import React, { useEffect, useState } from "react";
 
+const emptySentinelState = () => ({
+  variantBundles: [],
+  trustRecipes: [],
+  maturityMetrics: [],
+  assignmentRules: [],
+  outcomeLabels: [],
+  outcomeSummary: [],
+  probeSummary: [],
+  trustActivity: [],
+  trustEffectiveness: [],
+  trustAssets: [],
+  maturityEvidence: [],
+  transportEvidence: [],
+  coherenceDiff: [],
+  stageSummary: [],
+  assignmentRecommendations: [],
+  trustStrategy: [],
+  trustRecipeStrategy: [],
+  trustRollout: [],
+  trustRolloutDebt: [],
+  canarySummary: [],
+  variantCompareSummary: [],
+  siteIntelligenceSummary: [],
+  probeSequenceSummary: [],
+  vendorIntelligenceSummary: [],
+  vendorEffectiveness: [],
+  vendorUplift: [],
+  vendorRollout: [],
+  trustPlaybook: [],
+  experimentGaps: [],
+  sitePressure: [],
+  patchQueue: [],
+  trustRepairQueue: [],
+  patchInvestment: [],
+  surfaceHotspots: [],
+  surfaceEffectiveness: [],
+  surfaceStrategy: [],
+  experimentSummary: [],
+});
+
 export default function Settings({ ws }) {
   const [cfg, setCfg] = useState({});
   const [providers, setProviders] = useState([]);
   const [status, setStatus] = useState({});
-  const [sentinel, setSentinel] = useState({
-    variantBundles: [],
-    trustRecipes: [],
-    maturityMetrics: [],
-    assignmentRules: [],
-    outcomeLabels: [],
-    outcomeSummary: [],
-    probeSummary: [],
-    trustActivity: [],
-    trustEffectiveness: [],
-    trustAssets: [],
-    maturityEvidence: [],
-    transportEvidence: [],
-    coherenceDiff: [],
-    stageSummary: [],
-    assignmentRecommendations: [],
-    trustStrategy: [],
-    trustRecipeStrategy: [],
-    trustRollout: [],
-    trustRolloutDebt: [],
-    canarySummary: [],
-    variantCompareSummary: [],
-    siteIntelligenceSummary: [],
-    probeSequenceSummary: [],
-    vendorIntelligenceSummary: [],
-    vendorEffectiveness: [],
-    vendorUplift: [],
-    vendorRollout: [],
-    trustPlaybook: [],
-    experimentGaps: [],
-    sitePressure: [],
-    patchQueue: [],
-    trustRepairQueue: [],
-    patchInvestment: [],
-    surfaceHotspots: [],
-    surfaceEffectiveness: [],
-    surfaceStrategy: [],
-    experimentSummary: [],
-  });
+  const [sentinel, setSentinel] = useState(emptySentinelState);
   const [sentinelTimeline, setSentinelTimeline] = useState([]);
   const [defaultBudgetCost, setDefaultBudgetCost] = useState("0");
   const [defaultBudgetTokens, setDefaultBudgetTokens] = useState("0");
@@ -61,55 +63,25 @@ export default function Settings({ ws }) {
       })
       .catch(() => {});
     ws.call("status.get")
-      .then((r) => setStatus(r || {}))
-      .catch(() => {});
-    ws.call("sentinel.get")
-      .then((r) =>
-        setSentinel(
-          r || {
-            variantBundles: [],
-            trustRecipes: [],
-            maturityMetrics: [],
-            assignmentRules: [],
-            outcomeLabels: [],
-            outcomeSummary: [],
-            probeSummary: [],
-            trustActivity: [],
-            trustEffectiveness: [],
-            trustAssets: [],
-            maturityEvidence: [],
-            transportEvidence: [],
-            coherenceDiff: [],
-            stageSummary: [],
-            assignmentRecommendations: [],
-            trustStrategy: [],
-            trustRecipeStrategy: [],
-            trustRollout: [],
-            trustRolloutDebt: [],
-            canarySummary: [],
-            variantCompareSummary: [],
-            siteIntelligenceSummary: [],
-            probeSequenceSummary: [],
-            vendorIntelligenceSummary: [],
-            vendorEffectiveness: [],
-            vendorUplift: [],
-            vendorRollout: [],
-            trustPlaybook: [],
-            experimentGaps: [],
-            sitePressure: [],
-            patchQueue: [],
-            trustRepairQueue: [],
-            patchInvestment: [],
-            surfaceHotspots: [],
-            surfaceEffectiveness: [],
-            surfaceStrategy: [],
-            experimentSummary: [],
-          },
-        ),
-      )
-      .catch(() => {});
-    ws.call("sentinel.timeline", { limit: 4 })
-      .then((r) => setSentinelTimeline(r?.sessions || []))
+      .then((r) => {
+        const nextStatus = r || {};
+        setStatus(nextStatus);
+        if (!nextStatus.sentinel_available) {
+          setSentinel(emptySentinelState());
+          setSentinelTimeline([]);
+          return;
+        }
+        ws.call("sentinel.get")
+          .then((sentinelResult) =>
+            setSentinel(sentinelResult || emptySentinelState()),
+          )
+          .catch(() => {});
+        ws.call("sentinel.timeline", { limit: 4 })
+          .then((timelineResult) =>
+            setSentinelTimeline(timelineResult?.sessions || []),
+          )
+          .catch(() => {});
+      })
       .catch(() => {});
   }, [ws.connected]);
 
@@ -456,37 +428,39 @@ export default function Settings({ ws }) {
               Window: {(status.browser_window || "unknown").toUpperCase()}
             </div>
             <div>Gateway: {status.gateway_running ? "RUNNING" : "STOPPED"}</div>
-            <div>
-              Sentinel:{" "}
-              {status.sentinel_available
-                ? (status.sentinel_mode || "ON").toUpperCase()
-                : "OFF"}
-              {status.sentinel_provider ? ` · ${status.sentinel_provider}` : ""}
-            </div>
-            <div>Variant bundles: {status.sentinel_variant_bundles || 0}</div>
-            <div>Trust recipes: {status.sentinel_trust_recipes || 0}</div>
-            <div>Maturity metrics: {status.sentinel_maturity_metrics || 0}</div>
-            <div>Assignment rules: {status.sentinel_assignment_rules || 0}</div>
-            <div>
-              Variant names:{" "}
-              {sentinelVariants.map((bundle) => bundle.name).join(", ") ||
-                "None"}
-            </div>
-            <div>
-              Trust names:{" "}
-              {sentinelTrustRecipes.map((recipe) => recipe.name).join(", ") ||
-                "None"}
-            </div>
+            {status.sentinel_available && (
+              <>
+                <div>
+                  Sentinel:{" "}
+                  {(status.sentinel_mode || "ON").toUpperCase()}
+                  {status.sentinel_provider
+                    ? ` · ${status.sentinel_provider}`
+                    : ""}
+                </div>
+                <div>Variant bundles: {status.sentinel_variant_bundles || 0}</div>
+                <div>Trust recipes: {status.sentinel_trust_recipes || 0}</div>
+                <div>
+                  Maturity metrics: {status.sentinel_maturity_metrics || 0}
+                </div>
+                <div>Assignment rules: {status.sentinel_assignment_rules || 0}</div>
+                <div>
+                  Variant names:{" "}
+                  {sentinelVariants.map((bundle) => bundle.name).join(", ") ||
+                    "None"}
+                </div>
+                <div>
+                  Trust names:{" "}
+                  {sentinelTrustRecipes.map((recipe) => recipe.name).join(", ") ||
+                    "None"}
+                </div>
+              </>
+            )}
           </div>
         </div>
 
-        <div className="card" style={{ gridColumn: "1 / -1" }}>
-          <h3>Sentinel Trust Lab</h3>
-          {!status.sentinel_available ? (
-            <div className="empty-state">
-              Sentinel is not available in this runtime.
-            </div>
-          ) : (
+        {status.sentinel_available && (
+          <div className="card" style={{ gridColumn: "1 / -1" }}>
+            <h3>Sentinel Trust Lab</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
               <div className="detail-grid">
                 <div className="detail-row">
@@ -2277,8 +2251,8 @@ export default function Settings({ ws }) {
                 )}
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
