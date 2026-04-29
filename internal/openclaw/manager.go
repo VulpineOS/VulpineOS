@@ -148,11 +148,18 @@ func (m *Manager) PauseAgent(agentID string) error {
 // forwardConversation reads from an agent's conversationCh and sends to the manager's channel.
 func (m *Manager) forwardConversation(agent *Agent) {
 	for msg := range agent.conversationCh {
-		select {
-		case m.conversationSource <- msg:
-		default:
-			// Manager channel full, drop
-		}
+		m.safeForwardConversation(msg)
+	}
+}
+
+func (m *Manager) safeForwardConversation(msg ConversationMsg) {
+	defer func() {
+		_ = recover()
+	}()
+	select {
+	case m.conversationSource <- msg:
+	default:
+		// Manager channel full or closing, drop
 	}
 }
 
@@ -344,15 +351,17 @@ func (m *Manager) Count() int {
 
 // KillAll stops all agents.
 func (m *Manager) KillAll() {
-	m.mu.RLock()
+	m.mu.Lock()
 	agents := make([]*managedAgent, 0, len(m.agents))
-	for _, a := range m.agents {
+	for id, a := range m.agents {
 		agents = append(agents, a)
+		delete(m.agents, id)
 	}
-	m.mu.RUnlock()
+	m.mu.Unlock()
 
 	for _, a := range agents {
 		a.agent.Stop()
+		waitAgentDone(a.agent, 2*time.Second)
 		if a.cleanup != nil {
 			a.cleanup()
 		}
@@ -363,11 +372,13 @@ func (m *Manager) KillAll() {
 func (m *Manager) Dispose() {
 	m.KillAll()
 	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		return
+	}
 	m.closed = true
-	m.mu.Unlock()
 	close(m.statusSource)
 	close(m.conversationSource)
-	m.mu.Lock()
 	for ch := range m.statusSubs {
 		close(ch)
 		delete(m.statusSubs, ch)
@@ -377,6 +388,16 @@ func (m *Manager) Dispose() {
 		delete(m.conversationSubs, ch)
 	}
 	m.mu.Unlock()
+}
+
+func waitAgentDone(agent *Agent, timeout time.Duration) {
+	if agent == nil {
+		return
+	}
+	select {
+	case <-agent.doneCh:
+	case <-time.After(timeout):
+	}
 }
 
 func (m *Manager) startManagedAgent(agentID, contextID, openclawBin string, args []string, configPath string, cleanup func()) (string, error) {

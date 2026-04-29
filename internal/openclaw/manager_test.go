@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"vulpineos/internal/config"
 )
@@ -100,6 +101,7 @@ func TestDisposeEmpty(t *testing.T) {
 	m := NewManager("test")
 	// Should not panic; channels should be closed
 	m.Dispose()
+	m.Dispose()
 
 	// Verify channels are closed
 	_, ok := <-m.StatusChan()
@@ -110,6 +112,52 @@ func TestDisposeEmpty(t *testing.T) {
 	if ok {
 		t.Error("ConversationChan should be closed after Dispose")
 	}
+}
+
+func TestAgentStatusAfterManagerDisposeDoesNotPanic(t *testing.T) {
+	m := NewManager("test")
+	agent := newAgent("agent-1", "ctx-1", m.statusSource)
+	m.Dispose()
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("emitStatus panicked after manager dispose: %v", r)
+		}
+	}()
+	agent.emitStatus()
+}
+
+func TestForwardConversationAfterManagerDisposeDoesNotPanic(t *testing.T) {
+	m := NewManager("test")
+	agent := newAgent("agent-1", "ctx-1", make(chan AgentStatus, 1))
+	m.Dispose()
+
+	done := make(chan struct{})
+	go func() {
+		m.forwardConversation(agent)
+		close(done)
+	}()
+
+	agent.conversationCh <- ConversationMsg{AgentID: "agent-1", Role: "assistant", Content: "late"}
+	close(agent.conversationCh)
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("forwardConversation did not exit")
+	}
+}
+
+func TestAgentConversationAfterCloseDoesNotPanic(t *testing.T) {
+	agent := newAgent("agent-1", "ctx-1", make(chan AgentStatus, 1))
+	close(agent.conversationCh)
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("emitConversation panicked after channel close: %v", r)
+		}
+	}()
+	agent.emitConversation(ConversationMsg{AgentID: "agent-1", Role: "system", Content: "late"})
 }
 
 func TestOpenClawInstalledFalseForBogus(t *testing.T) {

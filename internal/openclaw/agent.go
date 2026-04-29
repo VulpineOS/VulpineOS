@@ -952,6 +952,9 @@ func (a *Agent) emitStatus() {
 }
 
 func (a *Agent) emitStatusLocked() {
+	defer func() {
+		_ = recover()
+	}()
 	select {
 	case a.statusCh <- a.status:
 	default:
@@ -974,6 +977,9 @@ func (a *Agent) SendMessage(text string) error {
 
 // emitConversation sends a conversation message to the channel (non-blocking).
 func (a *Agent) emitConversation(msg ConversationMsg) {
+	defer func() {
+		_ = recover()
+	}()
 	select {
 	case a.conversationCh <- msg:
 	default:
