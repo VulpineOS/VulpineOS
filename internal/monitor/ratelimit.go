@@ -27,9 +27,9 @@ type Alert struct {
 type Monitor struct {
 	alertCh chan Alert
 
-	mu            sync.Mutex
-	blockCounts   map[string]int // per-agent ip_block match count
-	disposed      bool
+	mu          sync.Mutex
+	blockCounts map[string]int // per-agent ip_block match count
+	disposed    bool
 }
 
 // New creates a new Monitor with a buffered alert channel.
@@ -103,6 +103,11 @@ func (m *Monitor) CheckMessage(agentID, content string) {
 
 // sendAlert sends an alert on the channel without blocking.
 func (m *Monitor) sendAlert(a Alert) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.disposed {
+		return
+	}
 	select {
 	case m.alertCh <- a:
 	default:

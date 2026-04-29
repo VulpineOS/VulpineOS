@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -96,12 +97,15 @@ type App struct {
 	nameInput textinput.Model
 	taskInput textinput.Model
 
-	eventCh chan tea.Msg
+	eventCh  chan tea.Msg
+	stopCh   chan struct{}
+	stopOnce *sync.Once
 }
 
 // NewApp creates the root TUI model.
 func NewApp(k *kernel.Kernel, client *juggler.Client, orch *orchestrator.Orchestrator, v *vault.DB, cfg *config.Config, audit *runtimeaudit.Manager) App {
 	eventCh := make(chan tea.Msg, 64)
+	stopCh := make(chan struct{})
 
 	nameIn := textinput.New()
 	nameIn.Placeholder = "Agent name..."
@@ -136,7 +140,10 @@ func NewApp(k *kernel.Kernel, client *juggler.Client, orch *orchestrator.Orchest
 		poolStats:    poolstats.New(),
 		settings:     settings.New(),
 		eventCh:      eventCh,
+		stopCh:       stopCh,
+		stopOnce:     &sync.Once{},
 	}
+	emitEvent := app.emitEvent
 	if cfg != nil {
 		app.resizeMode = cfg.ResizePanelsWithArrows
 	}
@@ -151,8 +158,16 @@ func NewApp(k *kernel.Kernel, client *juggler.Client, orch *orchestrator.Orchest
 		}
 		sub := audit.Subscribe()
 		go func() {
-			for event := range sub {
-				eventCh <- shared.RuntimeEventMsg{Event: event}
+			for {
+				select {
+				case <-stopCh:
+					return
+				case event, ok := <-sub:
+					if !ok {
+						return
+					}
+					emitEvent(shared.RuntimeEventMsg{Event: event})
+				}
 			}
 		}()
 	}
@@ -191,48 +206,48 @@ func NewApp(k *kernel.Kernel, client *juggler.Client, orch *orchestrator.Orchest
 		client.Subscribe("Browser.attachedToTarget", func(sid string, params json.RawMessage) {
 			var e juggler.AttachedToTarget
 			json.Unmarshal(params, &e)
-			eventCh <- shared.TargetAttachedMsg{
+			emitEvent(shared.TargetAttachedMsg{
 				SessionID: e.SessionID,
 				TargetID:  e.TargetInfo.TargetID,
 				ContextID: e.TargetInfo.BrowserContextID,
 				URL:       e.TargetInfo.URL,
-			}
+			})
 		})
 		client.Subscribe("Browser.detachedFromTarget", func(sid string, params json.RawMessage) {
 			var e juggler.DetachedFromTarget
 			json.Unmarshal(params, &e)
-			eventCh <- shared.TargetDetachedMsg{
+			emitEvent(shared.TargetDetachedMsg{
 				SessionID: e.SessionID,
 				TargetID:  e.TargetID,
-			}
+			})
 		})
 		client.Subscribe("Browser.trustWarmingStateChanged", func(sid string, params json.RawMessage) {
 			var e juggler.TrustWarmingState
 			json.Unmarshal(params, &e)
 			_ = sentinelcapture.RecordTrustActivity(context.Background(), e)
-			eventCh <- shared.TrustWarmMsg{State: e.State, CurrentSite: e.CurrentSite}
+			emitEvent(shared.TrustWarmMsg{State: e.State, CurrentSite: e.CurrentSite})
 		})
 		client.Subscribe("Browser.telemetryUpdate", func(sid string, params json.RawMessage) {
 			var e juggler.TelemetryUpdate
 			json.Unmarshal(params, &e)
-			eventCh <- shared.TelemetryMsg{
+			emitEvent(shared.TelemetryMsg{
 				MemoryMB:           e.MemoryMB,
 				EventLoopLagMs:     e.EventLoopLagMs,
 				DetectionRiskScore: e.DetectionRiskScore,
 				ActiveContexts:     e.ActiveContexts,
 				ActivePages:        e.ActivePages,
-			}
+			})
 		})
 		client.Subscribe("Browser.injectionAttemptDetected", func(sid string, params json.RawMessage) {
 			var e juggler.InjectionAttempt
 			json.Unmarshal(params, &e)
-			eventCh <- shared.AlertMsg{
+			emitEvent(shared.AlertMsg{
 				Timestamp: time.Now(),
 				Type:      e.AttemptType,
 				URL:       e.URL,
 				Details:   e.Details,
 				Blocked:   e.Blocked,
-			}
+			})
 		})
 		client.Subscribe("Page.browserProbeDetected", func(sid string, params json.RawMessage) {
 			var e juggler.BrowserProbe
@@ -247,11 +262,11 @@ func NewApp(k *kernel.Kernel, client *juggler.Client, orch *orchestrator.Orchest
 				URL     string `json:"url"`
 			}
 			json.Unmarshal(params, &e)
-			eventCh <- shared.NavigationMsg{
+			emitEvent(shared.NavigationMsg{
 				SessionID: sid,
 				FrameID:   e.FrameID,
 				URL:       e.URL,
-			}
+			})
 		})
 		client.Subscribe("Page.eventFired", func(sid string, params json.RawMessage) {
 			var e struct {
@@ -259,11 +274,11 @@ func NewApp(k *kernel.Kernel, client *juggler.Client, orch *orchestrator.Orchest
 				Name    string `json:"name"`
 			}
 			json.Unmarshal(params, &e)
-			eventCh <- shared.PageLoadMsg{
+			emitEvent(shared.PageLoadMsg{
 				SessionID: sid,
 				FrameID:   e.FrameID,
 				Name:      e.Name,
-			}
+			})
 		})
 		client.Subscribe("Page.frameAttached", func(sid string, params json.RawMessage) {
 			var e struct {
@@ -271,11 +286,11 @@ func NewApp(k *kernel.Kernel, client *juggler.Client, orch *orchestrator.Orchest
 				ParentFrameID string `json:"parentFrameId"`
 			}
 			json.Unmarshal(params, &e)
-			eventCh <- shared.FrameAttachedMsg{
+			emitEvent(shared.FrameAttachedMsg{
 				SessionID:     sid,
 				FrameID:       e.FrameID,
 				ParentFrameID: e.ParentFrameID,
-			}
+			})
 		})
 		client.Subscribe("Runtime.executionContextCreated", func(sid string, params json.RawMessage) {
 			var e struct {
@@ -285,37 +300,55 @@ func NewApp(k *kernel.Kernel, client *juggler.Client, orch *orchestrator.Orchest
 				} `json:"auxData"`
 			}
 			json.Unmarshal(params, &e)
-			eventCh <- shared.ExecContextCreatedMsg{
+			emitEvent(shared.ExecContextCreatedMsg{
 				SessionID:          sid,
 				ExecutionContextID: e.ExecutionContextID,
 				FrameID:            e.AuxData.FrameID,
-			}
+			})
 		})
 	}
 
 	// Forward agent status updates from orchestrator to TUI
 	if orch != nil {
+		statusCh := orch.Agents.StatusChan()
 		go func() {
-			for status := range orch.Agents.StatusChan() {
-				eventCh <- shared.AgentStatusMsg{
-					AgentID:   status.AgentID,
-					ContextID: status.ContextID,
-					Status:    status.Status,
-					Objective: status.Objective,
-					Tokens:    status.Tokens,
+			for {
+				select {
+				case <-stopCh:
+					return
+				case status, ok := <-statusCh:
+					if !ok {
+						return
+					}
+					emitEvent(shared.AgentStatusMsg{
+						AgentID:   status.AgentID,
+						ContextID: status.ContextID,
+						Status:    status.Status,
+						Objective: status.Objective,
+						Tokens:    status.Tokens,
+					})
 				}
 			}
 		}()
 
 		// Forward conversation messages from orchestrator
+		conversationCh := orch.Agents.ConversationChan()
 		go func() {
-			for msg := range orch.Agents.ConversationChan() {
-				eventCh <- shared.ConversationEntryMsg{
-					AgentID:   msg.AgentID,
-					Role:      msg.Role,
-					Content:   msg.Content,
-					Tokens:    msg.Tokens,
-					Timestamp: time.Now(),
+			for {
+				select {
+				case <-stopCh:
+					return
+				case msg, ok := <-conversationCh:
+					if !ok {
+						return
+					}
+					emitEvent(shared.ConversationEntryMsg{
+						AgentID:   msg.AgentID,
+						Role:      msg.Role,
+						Content:   msg.Content,
+						Tokens:    msg.Tokens,
+						Timestamp: time.Now(),
+					})
 				}
 			}
 		}()
@@ -323,9 +356,18 @@ func NewApp(k *kernel.Kernel, client *juggler.Client, orch *orchestrator.Orchest
 
 	// Forward rate limit monitor alerts to TUI
 	go func() {
-		for alert := range mon.AlertChan() {
-			_ = sentinelcapture.RecordMonitorAlert(context.Background(), alert)
-			eventCh <- statusNotice{text: fmt.Sprintf("WARNING %s: %s on agent %s", alert.Type, alert.Details, alert.AgentID)}
+		alertCh := mon.AlertChan()
+		for {
+			select {
+			case <-stopCh:
+				return
+			case alert, ok := <-alertCh:
+				if !ok {
+					return
+				}
+				_ = sentinelcapture.RecordMonitorAlert(context.Background(), alert)
+				emitEvent(statusNotice{text: fmt.Sprintf("WARNING %s: %s on agent %s", alert.Type, alert.Details, alert.AgentID)})
+			}
 		}
 	}()
 
@@ -337,6 +379,45 @@ func (a App) Init() tea.Cmd {
 		a.waitForEvent(),
 		a.tick(),
 	)
+}
+
+func (a App) emitEvent(msg tea.Msg) {
+	if a.eventCh == nil {
+		return
+	}
+	if a.stopCh == nil {
+		select {
+		case a.eventCh <- msg:
+		default:
+		}
+		return
+	}
+	select {
+	case <-a.stopCh:
+	case a.eventCh <- msg:
+	default:
+	}
+}
+
+func (a App) stopForwarders() {
+	if a.stopOnce == nil || a.stopCh == nil {
+		if a.monitor != nil {
+			a.monitor.Dispose()
+		}
+		return
+	}
+	a.stopOnce.Do(func() {
+		close(a.stopCh)
+		if a.monitor != nil {
+			a.monitor.Dispose()
+		}
+	})
+}
+
+func (a *App) shutdown() tea.Cmd {
+	a.gracefulShutdown()
+	a.stopForwarders()
+	return tea.Quit
 }
 
 func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -388,8 +469,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "q", "ctrl+c":
 			// Graceful shutdown: pause all running agents so they save state
-			a.gracefulShutdown()
-			return a, tea.Quit
+			return a, a.shutdown()
 		case "p":
 			if a.selectedAgentID == "" {
 				a.notice = "No agent selected"
@@ -635,8 +715,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.noticeTTL = 4
 				return a, nil
 			}
-			a.gracefulShutdown()
-			return a, tea.Quit
+			return a, a.shutdown()
 		}
 
 	case tea.WindowSizeMsg:
@@ -1426,7 +1505,15 @@ func (a *App) selectCurrentAgent() tea.Cmd {
 
 func (a App) waitForEvent() tea.Cmd {
 	return func() tea.Msg {
-		return <-a.eventCh
+		if a.stopCh == nil {
+			return <-a.eventCh
+		}
+		select {
+		case msg := <-a.eventCh:
+			return msg
+		case <-a.stopCh:
+			return nil
+		}
 	}
 }
 
