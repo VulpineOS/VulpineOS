@@ -225,6 +225,38 @@ func TestExecuteWithResultsRedactsSensitiveErrors(t *testing.T) {
 	}
 }
 
+func TestExecuteWithResultsLimitsDisplayedValues(t *testing.T) {
+	transport := newMockTransport()
+	client := juggler.NewClient(transport)
+	defer client.Close()
+
+	engine := NewEngine(client)
+	longValue := strings.Repeat("a", maxScriptResultFieldBytes+32)
+	script := &Script{
+		Steps: []Step{
+			{Action: "set", Target: "public_value", Value: longValue},
+		},
+	}
+
+	results, err := engine.ExecuteWithResults(script)
+	if err != nil {
+		t.Fatalf("ExecuteWithResults error: %v", err)
+	}
+	if engine.GetVar("public_value") != longValue {
+		t.Fatal("raw script var should remain available for later expansion")
+	}
+	if len(results) != 1 {
+		t.Fatalf("results len = %d, want 1", len(results))
+	}
+	if !strings.Contains(results[0].Value, truncatedScriptValue) || !strings.Contains(results[0].Output, truncatedScriptValue) {
+		t.Fatalf("display values were not truncated: %#v", results[0])
+	}
+	vars := engine.RedactedVars()
+	if !strings.Contains(vars["public_value"], truncatedScriptValue) {
+		t.Fatalf("redacted vars should truncate large public values: %#v", vars)
+	}
+}
+
 func TestExecuteNavigate(t *testing.T) {
 	transport := newMockTransport()
 	client := juggler.NewClient(transport)

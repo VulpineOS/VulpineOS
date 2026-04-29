@@ -3,6 +3,7 @@ package remote
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 
@@ -115,6 +116,50 @@ func TestScriptsRunExecutesScriptAgainstRealSession(t *testing.T) {
 	}
 	if result.Vars["heading"] != "Welcome" || result.Vars["capture.png"] != "capture.png" {
 		t.Fatalf("unexpected script vars: %#v", result.Vars)
+	}
+}
+
+func TestScriptsRunRejectsOversizedScript(t *testing.T) {
+	transport := newRuntimePageTransport()
+	client := juggler.NewClient(transport)
+	defer client.Close()
+
+	api := &PanelAPI{Client: client}
+	params, err := json.Marshal(map[string]string{
+		"script": strings.Repeat("x", maxPanelScriptBytes+1),
+	})
+	if err != nil {
+		t.Fatalf("marshal params: %v", err)
+	}
+
+	_, err = api.HandleMessage("scripts.run", params)
+	if err == nil || !strings.Contains(err.Error(), "byte limit") {
+		t.Fatalf("expected byte limit error, got %v", err)
+	}
+}
+
+func TestScriptsRunRejectsTooManySteps(t *testing.T) {
+	transport := newRuntimePageTransport()
+	client := juggler.NewClient(transport)
+	defer client.Close()
+
+	steps := make([]map[string]string, maxPanelScriptSteps+1)
+	for i := range steps {
+		steps[i] = map[string]string{"action": "set", "target": "item", "value": "ok"}
+	}
+	script, err := json.Marshal(map[string]interface{}{"steps": steps})
+	if err != nil {
+		t.Fatalf("marshal script: %v", err)
+	}
+	params, err := json.Marshal(map[string]string{"script": string(script)})
+	if err != nil {
+		t.Fatalf("marshal params: %v", err)
+	}
+
+	api := &PanelAPI{Client: client}
+	_, err = api.HandleMessage("scripts.run", params)
+	if err == nil || !strings.Contains(err.Error(), "maximum") {
+		t.Fatalf("expected step limit error, got %v", err)
 	}
 }
 
