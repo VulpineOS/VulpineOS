@@ -61,9 +61,9 @@ VulpineOS builds on Camoufox's battle-tested stealth foundation (Firefox 146.0.1
 │  ├── Telemetry Service (memory, risk score, 2s interval)      │
 │  └── Trust Warming Service (idle-time profile warming)        │
 │                                                              │
-│  Go Runtime (37 packages, 475 tests)                          │
+│  Go Runtime (39 packages, 495+ tests)                         │
 │  ├── Bubbletea TUI (3-column agent workbench)                 │
-│  ├── Web Panel (React SPA, 12 pages, 46 control messages)     │
+│  ├── Web Panel (React SPA, 12 pages, 48 control messages)     │
 │  ├── Identity Vault (SQLite — citizens, templates, sessions)  │
 │  ├── Context Pool (pre-warm, recycle, memory limits)           │
 │  ├── Orchestrator (spawn citizens + nomads, auto-release)      │
@@ -235,7 +235,7 @@ New agents now start by working on the assigned task immediately instead of spen
 
 The live operator path is covered by env-gated soak tests in `internal/agent_soak_integration_test.go` and `internal/remote/panel_agent_soak_test.go`, including persisted-session resume plus panel-driven pause and kill flows.
 
-Live browser and OpenClaw integration tests in `internal/integration_test.go` are gated behind `VULPINEOS_RUN_LIVE=1` so the default `go test` and CI path stay hermetic even on machines that already have Camoufox installed.
+Live browser, OpenClaw, and MCP-browser integration tests in `internal/integration_test.go` and `internal/mcp/live_integration_test.go` are gated behind `VULPINEOS_RUN_LIVE=1` so the default `go test` and CI path stay hermetic even on machines that already have Camoufox installed.
 
 ---
 
@@ -247,7 +247,7 @@ A React SPA served from the Go binary — no separate frontend deployment needed
 
 **12 pages:** Dashboard, Agents, Agent Detail, Bus, Contexts, Proxies, Security, Webhooks, Scripts, Settings, Logs, Login
 
-**46 control messages** covering: agent CRUD plus bulk controls and session-log access; config get/set/providers; cost usage plus persisted per-agent/default budgets; webhooks; proxy management plus rotation get/set; agent bus pending/approve/reject/policies/add/remove; session recording export; fingerprint get/generate-and-apply; runtime-backed script execution; runtime-backed security status; status; Sentinel lab inspection plus raw session timelines; runtime audit history with retention/export controls; and context create/remove/list.
+**48 control messages** covering: agent CRUD plus bulk controls and session-log access; config get/set/providers; cost usage plus persisted per-agent/default budgets; webhooks; proxy management plus rotation get/set; agent bus pending/approve/reject/policies/add/remove; session recording export; fingerprint get/generate-and-apply; runtime-backed script execution; runtime-backed security status; status; Sentinel lab inspection plus raw session timelines; runtime audit history with retention/export controls; and context create/remove/list.
 
 Agent Detail includes separate conversation, action trace, raw session log, recording, and fingerprint views so operator-visible tool activity is inspectable without exposing hidden reasoning.
 
@@ -343,7 +343,7 @@ Access via `vulpineos panel`, `vulpineos serve`, or through the remote client.
 ### Prerequisites
 
 - Go 1.26+
-- Node.js 20+ (for OpenClaw)
+- Node.js 22.16+ (for OpenClaw)
 - Firefox/Camoufox binary (or build from source)
 
 ### Install
@@ -505,10 +505,10 @@ Planned commercial product names include Vulpine Sentinel, Vulpine Replay, Vulpi
 
 ## Testing
 
-**475 Go tests** across 37 packages, all passing with race detector enabled.
+**495+ Go tests** across 39 packages, all passing with race detector enabled.
 
 ```bash
-go test -race ./...
+go test -race ./cmd/... ./internal/...
 ```
 
 ---
