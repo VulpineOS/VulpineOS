@@ -1,64 +1,76 @@
-# Testing Firefox 146 Beta
+# Firefox 146 Build and Runtime Testing
 
-This guide explains how to test the experimental Firefox 146 build of Camoufox.
+VulpineOS is based on Firefox 146.0.1 with Camoufox patches. Use this guide to rebuild the browser, point the Go runtime at the rebuilt binary, and package the current launch artifact.
 
-> **Note:** The FF146 build is experimental and may contain bugs. For a stable production version, use branch `releases/135`.
+## Build From Source
 
-## Build from Source
+From the repository root:
 
-1. Clone the repository:
 ```bash
-git clone --depth 1 https://github.com/daijro/camoufox
-cd camoufox
-```
-
-2. Set up the build environment:
-```bash
+make fetch
+make setup
 make dir
-make bootstrap   # only needed once
+BUILD_TARGET=macos,arm64 make build
 ```
 
-3. Build for your target platform:
+Use the target that matches the machine doing the build:
+
+| Target | Example |
+|---|---|
+| macOS arm64 | `BUILD_TARGET=macos,arm64 make build` |
+| macOS x86_64 | `BUILD_TARGET=macos,x86_64 make build` |
+| Linux x86_64 | `BUILD_TARGET=linux,x86_64 make build` |
+
+Build artifacts are written under the extracted Firefox source tree, for example:
+
+```text
+camoufox-146.0.1-beta.25/obj-aarch64-apple-darwin/dist/Camoufox.app/Contents/MacOS/camoufox
+```
+
+## Runtime Smoke Test
+
+Build the VulpineOS runtime and pass the browser binary explicitly:
+
 ```bash
-python3 multibuild.py --target <os> --arch <arch>
+go build -o vulpineos ./cmd/vulpineos
+./vulpineos tui --binary /path/to/camoufox
 ```
 
-| Parameter | Options |
-|-----------|---------|
-| `--target` | `linux`, `windows`, `macos` |
-| `--arch` | `x86_64`, `arm64`, `i686` |
+Useful local commands:
 
-Build artifacts will appear in the `dist/` folder.
-
-### Default Install Directories
-
-When using the Python library (`camoufox fetch`), the default install directory is:
-
-| OS | Install Directory |
-|------|-------------------|
-| **Linux** | `~/.cache/camoufox/` |
-| **macOS** | `~/Library/Caches/camoufox/` |
-| **Windows** | `C:\Users\<user>\AppData\Local\camoufox\camoufox\Cache\` |
-
-## Replacing the Binary
-
-To test FF146 with an existing Camoufox installation:
-
-1. Build from source using the instructions above
-2. Extract the built zip from `dist/`
-3. Replace the binary at the corresponding path for your OS:
-
-**Linux:**
 ```bash
-cp /path/to/built/camoufox-bin ~/.cache/camoufox/camoufox-bin
+./vulpineos panel --binary /path/to/camoufox
+./vulpineos serve --no-tls --port 8443 --api-key devtest --binary /path/to/camoufox
+./vulpineos remote panel --url http://127.0.0.1:8443 --api-key devtest
+./vulpineos remote tui --url http://127.0.0.1:8443 --api-key devtest
 ```
 
-**macOS:**
+When no `--binary` flag is provided, VulpineOS prefers a repo-local `camoufox-*/obj-*/dist` build before falling back to configured or installed browser paths. Passing `--binary` is still recommended for launch validation because it removes ambiguity.
+
+## Packaging
+
+For a local macOS package:
+
 ```bash
-cp /path/to/built/Camoufox.app ~/Library/Caches/camoufox/Camoufox.app
+make package-macos arch=arm64
 ```
 
-**Windows:**
-```powershell
-copy C:\path\to\built\camoufox.exe C:\Users\<user>\AppData\Local\camoufox\camoufox\Cache\camoufox.exe
+The macOS package step uses native `hdiutil`/`ditto` on macOS and falls back to `7z` where appropriate for other targets.
+
+For Vulpine-Box Docker builds, provide a Linux browser artifact before building the container:
+
+```text
+dist/camoufox-linux/camoufox
 ```
+
+The stock container launches:
+
+```bash
+vulpineos serve --binary ./browser/camoufox --port 8443 --no-tls
+```
+
+Set `VULPINE_API_KEY` before using `docker compose up -d`.
+
+## Do Not Replace Python Cache Binaries
+
+Older Camoufox testing docs described replacing binaries inside the Python package cache. For VulpineOS validation, do not mutate the cache. Pass the exact browser path to `vulpineos --binary`, or place the Linux artifact in `dist/camoufox-linux/` for Docker packaging.
