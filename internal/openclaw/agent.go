@@ -7,10 +7,14 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
 )
+
+var traceBearerPattern = regexp.MustCompile(`(?i)(bearer\s+)[^\s,;"]+`)
+var traceQuerySecretPattern = regexp.MustCompile(`(?i)([?&](?:api[_-]?key|apikey|token|access[_-]?token|access[_-]?key|secret|password|credential|authorization)=)[^&#\s"]+`)
 
 // ConversationMsg represents a captured conversation message from an agent.
 type ConversationMsg struct {
@@ -532,7 +536,7 @@ func formatPostFailureWarning(toolName, status, errText string) string {
 		outcome = fmt.Sprintf("incomplete %s action", toolName)
 	}
 	if errText != "" {
-		return fmt.Sprintf("Warning: assistant replied after %s — %s", outcome, truncate(singleLine(errText), 180))
+		return fmt.Sprintf("Warning: assistant replied after %s — %s", outcome, truncate(singleLine(redactTraceText(errText)), 180))
 	}
 	return fmt.Sprintf("Warning: assistant replied after %s with no successful retry recorded", outcome)
 }
@@ -573,7 +577,7 @@ func summarizeToolResult(name string, call toolCallInfo, hasCall bool, content [
 			errText = toolResultSnippet(content, payload)
 		}
 		if errText != "" {
-			return fmt.Sprintf("Tool failed: %s — %s", label, truncate(singleLine(errText), 180))
+			return fmt.Sprintf("Tool failed: %s — %s", label, truncate(singleLine(redactTraceText(errText)), 180))
 		}
 		return fmt.Sprintf("Tool failed: %s", label)
 	case "timeout":
@@ -581,7 +585,7 @@ func summarizeToolResult(name string, call toolCallInfo, hasCall bool, content [
 			errText = toolResultSnippet(content, payload)
 		}
 		if errText != "" {
-			return fmt.Sprintf("Tool timed out: %s — %s", label, truncate(singleLine(errText), 180))
+			return fmt.Sprintf("Tool timed out: %s — %s", label, truncate(singleLine(redactTraceText(errText)), 180))
 		}
 		return fmt.Sprintf("Tool timed out: %s", label)
 	case "incomplete":
@@ -589,7 +593,7 @@ func summarizeToolResult(name string, call toolCallInfo, hasCall bool, content [
 			errText = toolResultSnippet(content, payload)
 		}
 		if errText != "" {
-			return fmt.Sprintf("Tool incomplete: %s — %s", label, truncate(singleLine(errText), 180))
+			return fmt.Sprintf("Tool incomplete: %s — %s", label, truncate(singleLine(redactTraceText(errText)), 180))
 		}
 		return fmt.Sprintf("Tool incomplete: %s", label)
 	case "":
@@ -599,7 +603,7 @@ func summarizeToolResult(name string, call toolCallInfo, hasCall bool, content [
 		return msg
 	}
 	if snippet := toolResultSnippet(content, payload); snippet != "" {
-		return fmt.Sprintf("Tool completed: %s — %s", label, truncate(singleLine(snippet), 180))
+		return fmt.Sprintf("Tool completed: %s — %s", label, truncate(singleLine(redactTraceText(snippet)), 180))
 	}
 	return fmt.Sprintf("Tool completed: %s", label)
 }
@@ -758,7 +762,7 @@ func summarizeBrowserCall(args map[string]interface{}) string {
 	switch action {
 	case "open":
 		if url, _ := args["url"].(string); url != "" {
-			return fmt.Sprintf("browser open %s", url)
+			return fmt.Sprintf("browser open %s", redactTraceText(url))
 		}
 	case "snapshot":
 		if targetID, _ := args["targetId"].(string); targetID != "" {
@@ -767,14 +771,14 @@ func summarizeBrowserCall(args map[string]interface{}) string {
 		return "browser snapshot"
 	case "click":
 		if text, _ := args["text"].(string); text != "" {
-			return fmt.Sprintf("browser click %s", truncate(text, 120))
+			return fmt.Sprintf("browser click %s", truncate(redactTraceText(text), 120))
 		}
 		if selector, _ := args["selector"].(string); selector != "" {
-			return fmt.Sprintf("browser click %s", truncate(selector, 120))
+			return fmt.Sprintf("browser click %s", truncate(redactTraceText(selector), 120))
 		}
 	case "type":
 		if text, _ := args["text"].(string); text != "" {
-			return fmt.Sprintf("browser type %s", truncate(singleLine(text), 120))
+			return fmt.Sprintf("browser type %s", truncate(singleLine(redactTraceTextForArgs(args, text)), 120))
 		}
 	case "scroll":
 		if direction, _ := args["direction"].(string); direction != "" {
@@ -799,11 +803,11 @@ func toolActionLabel(name string, args map[string]interface{}) string {
 		return summarizeBrowserCall(args)
 	case "web_fetch":
 		if url, _ := args["url"].(string); url != "" {
-			return fmt.Sprintf("web_fetch %s", url)
+			return fmt.Sprintf("web_fetch %s", redactTraceText(url))
 		}
 	case "web_search":
 		if query, _ := args["query"].(string); query != "" {
-			return fmt.Sprintf("web_search %s", truncate(singleLine(query), 180))
+			return fmt.Sprintf("web_search %s", truncate(singleLine(redactTraceText(query)), 180))
 		}
 	case "read", "write":
 		if path, _ := args["path"].(string); path != "" {
@@ -811,7 +815,7 @@ func toolActionLabel(name string, args map[string]interface{}) string {
 		}
 	case "exec":
 		if command, _ := args["command"].(string); command != "" {
-			return fmt.Sprintf("exec %s", truncate(singleLine(command), 180))
+			return fmt.Sprintf("exec %s", truncate(singleLine(redactTraceText(command)), 180))
 		}
 	}
 	argText := compactJSON(args)
@@ -828,8 +832,9 @@ func summarizeToolSuccess(name, label string, payload map[string]interface{}) st
 	switch name {
 	case "browser":
 		if url, _ := payload["url"].(string); url != "" {
+			safeURL := redactTraceText(url)
 			if label == "browser" {
-				return fmt.Sprintf("Tool completed: browser — opened %s", truncate(url, 160))
+				return fmt.Sprintf("Tool completed: browser — opened %s", truncate(safeURL, 160))
 			}
 			if strings.Contains(label, url) {
 				if title, _ := payload["title"].(string); title != "" {
@@ -837,7 +842,7 @@ func summarizeToolSuccess(name, label string, payload map[string]interface{}) st
 				}
 				return fmt.Sprintf("Tool completed: %s", label)
 			}
-			return fmt.Sprintf("Tool completed: %s — at %s", label, truncate(url, 160))
+			return fmt.Sprintf("Tool completed: %s — at %s", label, truncate(safeURL, 160))
 		}
 		if title, _ := payload["title"].(string); title != "" {
 			return fmt.Sprintf("Tool completed: %s — %s", label, truncate(title, 160))
@@ -848,17 +853,19 @@ func summarizeToolSuccess(name, label string, payload map[string]interface{}) st
 		return fmt.Sprintf("Tool completed: %s", label)
 	case "web_fetch":
 		if url, _ := payload["url"].(string); url != "" {
+			safeURL := redactTraceText(url)
 			if strings.Contains(label, url) {
 				return fmt.Sprintf("Tool completed: %s", label)
 			}
-			return fmt.Sprintf("Tool completed: %s — fetched %s", label, truncate(url, 160))
+			return fmt.Sprintf("Tool completed: %s — fetched %s", label, truncate(safeURL, 160))
 		}
 	case "web_search":
 		if query, _ := payload["query"].(string); query != "" {
+			safeQuery := redactTraceText(query)
 			if strings.Contains(label, query) {
 				return fmt.Sprintf("Tool completed: %s", label)
 			}
-			return fmt.Sprintf("Tool completed: %s — %s", label, truncate(query, 160))
+			return fmt.Sprintf("Tool completed: %s — %s", label, truncate(safeQuery, 160))
 		}
 	}
 	return ""
@@ -908,7 +915,7 @@ func toolResultSnippet(content []struct {
 	for _, key := range []string{"aggregated", "output", "stdout", "stderr", "message", "text"} {
 		if payload != nil {
 			if value, _ := payload[key].(string); strings.TrimSpace(value) != "" {
-				return value
+				return redactTraceText(value)
 			}
 		}
 	}
@@ -920,12 +927,12 @@ func toolResultSnippet(content []struct {
 		if json.Unmarshal([]byte(item.Text), &parsed) == nil {
 			for _, key := range []string{"aggregated", "output", "stdout", "stderr", "message", "text"} {
 				if value, _ := parsed[key].(string); strings.TrimSpace(value) != "" {
-					return value
+					return redactTraceText(value)
 				}
 			}
 			continue
 		}
-		return item.Text
+		return redactTraceText(item.Text)
 	}
 	return ""
 }
@@ -934,11 +941,111 @@ func compactJSON(v interface{}) string {
 	if v == nil {
 		return ""
 	}
-	data, err := json.Marshal(v)
+	data, err := json.Marshal(redactTraceValue(v, false))
 	if err != nil {
 		return ""
 	}
 	return string(data)
+}
+
+func redactTraceText(value string) string {
+	value = traceBearerPattern.ReplaceAllString(value, "${1}[redacted]")
+	return traceQuerySecretPattern.ReplaceAllString(value, "${1}[redacted]")
+}
+
+func redactTraceTextForArgs(args map[string]interface{}, value string) string {
+	if traceArgsSensitive(args) {
+		return "[redacted]"
+	}
+	redacted := redactTraceText(value)
+	if redacted != value {
+		return redacted
+	}
+	return value
+}
+
+func redactTraceValue(value interface{}, sensitiveContext bool) interface{} {
+	switch typed := value.(type) {
+	case map[string]interface{}:
+		localSensitive := sensitiveContext
+		for key, child := range typed {
+			if sensitiveTraceKey(key) || traceDescriptorIdentifiesSensitiveField(key, child) {
+				localSensitive = true
+				break
+			}
+		}
+		out := make(map[string]interface{}, len(typed))
+		for key, child := range typed {
+			switch {
+			case sensitiveTraceKey(key):
+				out[key] = "[redacted]"
+			case localSensitive && traceTypedValueKey(key):
+				out[key] = "[redacted]"
+			default:
+				out[key] = redactTraceValue(child, localSensitive)
+			}
+		}
+		return out
+	case []interface{}:
+		out := make([]interface{}, len(typed))
+		for i, child := range typed {
+			out[i] = redactTraceValue(child, sensitiveContext)
+		}
+		return out
+	case string:
+		return redactTraceText(typed)
+	default:
+		return value
+	}
+}
+
+func traceArgsSensitive(args map[string]interface{}) bool {
+	if len(args) == 0 {
+		return false
+	}
+	sanitized := redactTraceValue(args, false)
+	encodedOriginal, _ := json.Marshal(args)
+	encodedSanitized, _ := json.Marshal(sanitized)
+	return !bytes.Equal(encodedOriginal, encodedSanitized)
+}
+
+func sensitiveTraceKey(key string) bool {
+	normalized := normalizeTraceToken(key)
+	for _, marker := range []string{"api_key", "apikey", "token", "secret", "password", "credential", "authorization", "cookie", "session"} {
+		if strings.Contains(normalized, marker) {
+			return true
+		}
+	}
+	return normalized == "auth" || strings.HasSuffix(normalized, "_auth")
+}
+
+func traceDescriptorIdentifiesSensitiveField(key string, value interface{}) bool {
+	switch normalizeTraceToken(key) {
+	case "selector", "field", "field_name", "name", "label", "placeholder", "aria_label", "type", "input_type":
+	default:
+		return false
+	}
+	raw, ok := value.(string)
+	if !ok {
+		return false
+	}
+	return sensitiveTraceKey(raw)
+}
+
+func traceTypedValueKey(key string) bool {
+	switch normalizeTraceToken(key) {
+	case "text", "value", "input", "typed_text":
+		return true
+	default:
+		return false
+	}
+}
+
+func normalizeTraceToken(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	value = strings.ReplaceAll(value, "-", "_")
+	value = strings.ReplaceAll(value, " ", "_")
+	return value
 }
 
 func singleLine(s string) string {

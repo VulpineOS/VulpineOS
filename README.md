@@ -253,7 +253,7 @@ A React SPA served from the Go binary — no separate frontend deployment needed
 
 Credential, audio, mobile, and Sentinel-backed controls are stable public interfaces. The stock open-source build returns unavailable for extension-backed actions unless a provider is registered by an external extension package.
 
-Agent Detail includes separate conversation, action trace, raw session log, recording, and fingerprint views so operator-visible tool activity is inspectable without exposing hidden reasoning.
+Agent Detail includes separate conversation, action trace, raw session log, recording, and fingerprint views so operator-visible tool activity is inspectable without exposing hidden reasoning or sensitive action values.
 
 The panel now validates access keys through `/auth/check`, keeps the key only
 for the current browser session, and surfaces connecting, reconnecting, and

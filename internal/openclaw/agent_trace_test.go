@@ -23,12 +23,46 @@ func TestSummarizeToolCallExec(t *testing.T) {
 	}
 }
 
+func TestSummarizeToolCallRedactsSensitiveBrowserType(t *testing.T) {
+	got := summarizeToolCall("browser", map[string]interface{}{
+		"action":   "type",
+		"selector": "input[type=password]",
+		"text":     "correct-horse",
+	})
+	want := "Running browser type [redacted]"
+	if got != want {
+		t.Fatalf("summarizeToolCall = %q, want %q", got, want)
+	}
+}
+
+func TestSummarizeToolCallRedactsTokenizedURL(t *testing.T) {
+	got := summarizeToolCall("browser", map[string]interface{}{
+		"action": "open",
+		"url":    "https://example.com/login?token=panel-token&view=agents",
+	})
+	want := "Running browser open https://example.com/login?token=[redacted]&view=agents"
+	if got != want {
+		t.Fatalf("summarizeToolCall = %q, want %q", got, want)
+	}
+}
+
 func TestSummarizeToolResultError(t *testing.T) {
 	got := summarizeToolResult("browser", toolCallInfo{}, false, nil, map[string]interface{}{
 		"status": "error",
 		"error":  "gateway token mismatch",
 	})
 	want := "Tool failed: browser — gateway token mismatch"
+	if got != want {
+		t.Fatalf("summarizeToolResult = %q, want %q", got, want)
+	}
+}
+
+func TestSummarizeToolResultRedactsSensitiveError(t *testing.T) {
+	got := summarizeToolResult("browser", toolCallInfo{}, false, nil, map[string]interface{}{
+		"status": "error",
+		"error":  "request failed with Authorization: Bearer browser-token at https://example.com/?token=query-token",
+	})
+	want := "Tool failed: browser — request failed with Authorization: Bearer [redacted] at https://example.com/?token=[redacted]"
 	if got != want {
 		t.Fatalf("summarizeToolResult = %q, want %q", got, want)
 	}
