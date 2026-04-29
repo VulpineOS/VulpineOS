@@ -90,6 +90,27 @@ func TestConfigSaveLoad(t *testing.T) {
 	}
 }
 
+func TestConfigSaveRepairsExistingPermissions(t *testing.T) {
+	withTempHome(t)
+	if err := os.MkdirAll(Dir(), 0700); err != nil {
+		t.Fatalf("mkdir config dir: %v", err)
+	}
+	if err := os.WriteFile(Path(), []byte(`{"apiKey":"loose"}`), 0644); err != nil {
+		t.Fatalf("write loose config: %v", err)
+	}
+
+	cfg := &Config{
+		Provider:      "anthropic",
+		APIKey:        "sk-ant-test-key-12345",
+		Model:         "anthropic/claude-sonnet-4-6",
+		SetupComplete: true,
+	}
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	requireFileMode(t, Path(), 0600)
+}
+
 func TestConfigSkillManagement(t *testing.T) {
 	cfg := &Config{}
 
