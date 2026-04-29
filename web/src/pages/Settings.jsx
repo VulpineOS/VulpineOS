@@ -209,6 +209,7 @@ export default function Settings({ ws }) {
         model: cfg.model,
         apiKey: cfg.apiKey,
       });
+      setCfg((prev) => ({ ...prev, apiKey: "", hasKey: true }));
       flashSaved("Provider saved");
     } catch (e) {
       ws.notify?.(e.message);

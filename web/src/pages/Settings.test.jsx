@@ -879,6 +879,65 @@ describe("Settings page", () => {
     });
   }, 15000);
 
+  it("clears plaintext API keys after saving provider settings", async () => {
+    const ws = {
+      connected: true,
+      call: vi.fn(async (method) => {
+        if (method === "config.providers") {
+          return {
+            providers: [
+              {
+                id: "anthropic",
+                name: "Anthropic",
+                envVar: "ANTHROPIC_API_KEY",
+                defaultModel: "claude-sonnet",
+                models: ["claude-sonnet"],
+                needsKey: true,
+              },
+            ],
+          };
+        }
+        if (method === "config.get") {
+          return {
+            provider: "anthropic",
+            model: "claude-sonnet",
+            hasKey: false,
+          };
+        }
+        if (method === "status.get") {
+          return {
+            sentinel_available: false,
+            kernel_running: false,
+            gateway_running: false,
+          };
+        }
+        return {};
+      }),
+    };
+
+    render(<Settings ws={ws} />);
+
+    const keyInput = await screen.findByPlaceholderText("sk-...");
+    fireEvent.change(keyInput, { target: { value: "sk-secret" } });
+    fireEvent.click(screen.getByText("Save Provider"));
+
+    await waitFor(() => {
+      expect(ws.call).toHaveBeenCalledWith("config.set", {
+        provider: "anthropic",
+        model: "claude-sonnet",
+        apiKey: "sk-secret",
+      });
+    });
+    await waitFor(() => {
+      expect(keyInput).toHaveValue("");
+    });
+    expect(
+      screen.getByText(
+        "A key is already stored locally. Leave this blank to keep it.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("keeps Sentinel UI hidden when the extension is unavailable", async () => {
     const ws = {
       connected: true,
