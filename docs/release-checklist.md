@@ -110,10 +110,11 @@ Before publishing artifacts:
 
 1. rebuild `./vulpineos`
 2. verify the artifacts match the matrix above for the release scope
-3. compute checksums for shipped archives or binaries
-4. verify that release notes and docs do not describe private
+3. run `./scripts/check-vulpinebox.sh` before any Docker/Vulpine-Box release
+4. compute checksums for shipped archives or binaries
+5. verify that release notes and docs do not describe private
    implementation details
-5. verify no local/private files are included in the package contents
+6. verify no local/private files are included in the package contents
 
 ## Tagging
 

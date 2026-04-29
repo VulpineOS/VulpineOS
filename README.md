@@ -397,6 +397,7 @@ CDP setups, see
 
 ```bash
 export VULPINE_API_KEY=$(openssl rand -hex 32)
+./scripts/check-vulpinebox.sh
 docker compose up -d
 vulpineos remote panel --url http://your-vps:8443 --api-key $VULPINE_API_KEY
 # or
@@ -411,6 +412,8 @@ you want HTTPS/WSS.
 The compose file requires `VULPINE_API_KEY` and will not fall back to a public default.
 Use the same value with `vulpineos remote panel` or `vulpineos remote tui` when connecting
 from another machine.
+Run `./scripts/check-vulpinebox.sh` before `docker compose up -d` to verify Docker,
+the access key, and the required Linux browser artifact are ready.
 If you want the full deployment notes, including required browser artifacts under
 `dist/camoufox-linux/`, persistent volumes, and optional TLS, see
 [docs.vulpineos.com/docker](https://docs.vulpineos.com/docker).
