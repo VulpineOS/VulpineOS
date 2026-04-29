@@ -26,6 +26,7 @@ describe('Webhooks page', () => {
 
     render(<Webhooks ws={{ connected: true, call: calls }} />)
 
+    expect(screen.getByText(/agent\.interrupted/)).toBeInTheDocument()
     expect(await screen.findByText('No webhooks registered.')).toBeInTheDocument()
 
     fireEvent.change(screen.getByPlaceholderText('https://your-server.com/webhook'), { target: { value: 'https://example.com/hook' } })

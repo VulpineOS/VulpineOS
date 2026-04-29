@@ -38,7 +38,7 @@ export default function Webhooks({ ws }) {
           <input className="input" style={{ flex: 1, minWidth: 200 }} placeholder="Events (comma-separated, empty=all)" value={events} onChange={e => setEvents(e.target.value)} />
           <button className="btn btn-primary" onClick={addHook}>Add</button>
         </div>
-        <p style={{ fontSize: 11, color: '#555', marginTop: 8 }}>Events: agent.completed, agent.failed, agent.paused, rate_limit.detected, injection.detected, budget.alert, budget.exceeded</p>
+        <p style={{ fontSize: 11, color: '#555', marginTop: 8 }}>Events: agent.completed, agent.failed, agent.paused, agent.interrupted, rate_limit.detected, injection.detected, budget.alert, budget.exceeded</p>
       </div>
 
       <div className="card">

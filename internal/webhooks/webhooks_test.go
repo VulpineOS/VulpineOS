@@ -131,6 +131,37 @@ func TestSecretHeader(t *testing.T) {
 	mu.Unlock()
 }
 
+func TestEventHeaderMatchesPayloadEvent(t *testing.T) {
+	var gotEvent string
+	var received Payload
+	var mu sync.Mutex
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+		gotEvent = r.Header.Get("X-VulpineOS-Event")
+		if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
+			t.Errorf("decode payload: %v", err)
+		}
+		w.WriteHeader(200)
+	}))
+	defer srv.Close()
+
+	m := New()
+	m.Register(srv.URL, []EventType{AgentInterrupted}, "")
+	m.Fire(AgentInterrupted, map[string]interface{}{"agentId": "agent-1"})
+
+	time.Sleep(300 * time.Millisecond)
+	mu.Lock()
+	defer mu.Unlock()
+	if gotEvent != string(AgentInterrupted) {
+		t.Fatalf("event header = %q, want %q", gotEvent, AgentInterrupted)
+	}
+	if received.Event != AgentInterrupted {
+		t.Fatalf("payload event = %q, want %q", received.Event, AgentInterrupted)
+	}
+}
+
 func TestInactiveWebhook(t *testing.T) {
 	m := New()
 	id := m.Register("https://example.com/hook", nil, "")

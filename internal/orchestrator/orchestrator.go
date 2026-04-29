@@ -245,7 +245,7 @@ func (o *Orchestrator) KillAgent(agentID string) error {
 
 	// Fire webhook notification
 	if o.Webhooks != nil {
-		o.Webhooks.Fire(webhooks.AgentCompleted, map[string]interface{}{
+		o.Webhooks.Fire(webhooks.AgentInterrupted, map[string]interface{}{
 			"agentId": agentID,
 		})
 	}
