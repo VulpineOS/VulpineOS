@@ -41,8 +41,8 @@ func TestAgentsGetSessionLog(t *testing.T) {
 	if err := json.Unmarshal(payload, &result); err != nil {
 		t.Fatalf("unmarshal result: %v", err)
 	}
-	if result.Path != logPath {
-		t.Fatalf("path = %q, want %q", result.Path, logPath)
+	if result.Path != filepath.Base(logPath) {
+		t.Fatalf("path = %q, want %q", result.Path, filepath.Base(logPath))
 	}
 	if !strings.HasSuffix(result.Content, "\n") {
 		t.Fatalf("content should preserve trailing newline: %q", result.Content)
