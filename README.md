@@ -220,7 +220,7 @@ When OpenClaw writes provider thinking blocks into the session log, VulpineOS no
 Tool-result summaries now preserve the exact tool-call context when available, so trace output says what action actually ran instead of falling back to generic `Tool completed: browser`.
 Press `o` to open the selected agent's raw OpenClaw session log in the system viewer for full JSONL trace inspection, including provider-emitted thinking blocks when the provider writes them.
 The web panel's Raw tab now auto-refreshes while it is open, so long-running agent/tool sessions can be inspected without manually reloading every update.
-The web panel's Raw tab now redacts provider hidden-reasoning fields and signatures while preserving the surrounding session timeline, so operators can inspect execution history without dumping the model's private chain-of-thought payload.
+The web panel's Raw tab redacts provider hidden-reasoning fields, signatures, bearer fragments, secret key/value fields, cookies, and credential-bearing URLs while preserving the surrounding session timeline for execution inspection.
 Agent Detail now consumes only new websocket events for the selected agent, so live conversation and trace rows do not replay the same status or assistant line on every rerender.
 While the chat input is focused, `Ctrl+V`, `Ctrl+O`, and `Ctrl+T` trigger browser toggle, raw log open, and trace toggle without stealing ordinary typed letters. Plain `v`, `o`, and `t` also work from a focused chat box when the input is still empty.
 
@@ -251,7 +251,7 @@ A React SPA served from the Go binary — no separate frontend deployment needed
 
 **46 control messages** covering: agent CRUD plus bulk controls and session-log access; config get/set/providers; cost usage plus persisted per-agent/default budgets; webhooks; proxy management plus rotation get/set; agent bus pending/approve/reject/policies/add/remove; session recording export; fingerprint get/generate-and-apply; runtime-backed script execution; runtime-backed security status; status; optional extension availability and timelines; runtime audit history with retention/export controls; and context create/remove/list.
 
-Credential, audio, mobile, and Sentinel-backed controls are stable public interfaces. The stock open-source build returns unavailable for extension-backed actions unless a provider is registered by an external extension package.
+Credential, audio, mobile, and Sentinel-backed controls are stable public interfaces. The stock open-source build returns unavailable for extension-backed actions unless a provider is registered by an external extension package. When Sentinel data is available, panel/status responses redact sink URLs, probe URLs, proxy endpoints, timeline attributes, and opaque payloads before rendering.
 
 Agent Detail includes separate conversation, action trace, raw session log, recording, and fingerprint views so operator-visible tool activity is inspectable without exposing hidden reasoning or sensitive action values.
 
