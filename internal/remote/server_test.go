@@ -3,6 +3,7 @@ package remote
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -69,6 +70,56 @@ func TestBroadcastEventPreservesSessionID(t *testing.T) {
 	}
 	if string(msg.Params) != string(params) {
 		t.Fatalf("unexpected params %s", string(msg.Params))
+	}
+}
+
+func TestNewServerConfiguresHTTPTimeouts(t *testing.T) {
+	server := NewServer(":0", "secret", nil)
+
+	if server.server.ReadHeaderTimeout != 5*time.Second {
+		t.Fatalf("ReadHeaderTimeout = %s, want 5s", server.server.ReadHeaderTimeout)
+	}
+	if server.server.ReadTimeout != 15*time.Second {
+		t.Fatalf("ReadTimeout = %s, want 15s", server.server.ReadTimeout)
+	}
+	if server.server.WriteTimeout != 30*time.Second {
+		t.Fatalf("WriteTimeout = %s, want 30s", server.server.WriteTimeout)
+	}
+	if server.server.IdleTimeout != 60*time.Second {
+		t.Fatalf("IdleTimeout = %s, want 60s", server.server.IdleTimeout)
+	}
+}
+
+func TestJSONEndpointsSetSecurityHeaders(t *testing.T) {
+	server := NewServer(":0", "secret", nil)
+
+	for _, tc := range []struct {
+		name   string
+		path   string
+		status int
+	}{
+		{name: "health", path: "/health", status: http.StatusOK},
+		{name: "auth ok", path: "/auth/check?token=secret", status: http.StatusOK},
+		{name: "auth rejected", path: "/auth/check", status: http.StatusUnauthorized},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
+			server.Mux().ServeHTTP(resp, req)
+
+			if resp.Code != tc.status {
+				t.Fatalf("status = %d, want %d", resp.Code, tc.status)
+			}
+			for name, want := range map[string]string{
+				"Cache-Control":          "no-store",
+				"Referrer-Policy":        "no-referrer",
+				"X-Content-Type-Options": "nosniff",
+			} {
+				if got := resp.Header().Get(name); got != want {
+					t.Fatalf("%s = %q, want %q", name, got, want)
+				}
+			}
+		})
 	}
 }
 

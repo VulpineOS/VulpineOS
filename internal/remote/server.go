@@ -66,10 +66,12 @@ func NewServer(addr string, apiKey string, jugglerClient *juggler.Client) *Serve
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", s.handleWS)
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		setJSONSecurityHeaders(w)
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"status":"ok"}`))
 	})
 	mux.HandleFunc("/auth/check", func(w http.ResponseWriter, r *http.Request) {
+		setJSONSecurityHeaders(w)
 		if !s.auth.Validate(r) {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
@@ -80,11 +82,21 @@ func NewServer(addr string, apiKey string, jugglerClient *juggler.Client) *Serve
 
 	s.mux = mux
 	s.server = &http.Server{
-		Addr:    addr,
-		Handler: mux,
+		Addr:              addr,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	return s
+}
+
+func setJSONSecurityHeaders(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Referrer-Policy", "no-referrer")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 }
 
 // SetPanelAPI attaches the PanelAPI for handling control messages from the web panel.
