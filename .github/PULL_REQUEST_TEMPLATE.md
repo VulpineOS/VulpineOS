@@ -34,4 +34,4 @@ Please submit a report from both the service tester and build tester.
 - [ ] My changes are focused on a single logical change
 - [ ] I have added testing instructions which include the desired result
 - [ ] I have included a fingerprint report from https://camoufox-tester.vercel.app/
-- [ ] Service tests pass (`bash service_tests/run_tests.sh`)
+- [ ] Service tests pass (`bash service-tester/run_tests.sh`)
