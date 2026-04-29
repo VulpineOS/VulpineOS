@@ -144,6 +144,66 @@ func TestProxyRotationPersistsAcrossPanelAPIInstances(t *testing.T) {
 	}
 }
 
+func TestProxyPanelRedactsCredentialsAndUsesIDsForRotation(t *testing.T) {
+	api, db := newPanelAPITestFixture(t)
+	agent, err := db.CreateAgent("Agent Two", "task", "{}")
+	if err != nil {
+		t.Fatalf("CreateAgent: %v", err)
+	}
+
+	addPayload, err := api.HandleMessage("proxies.add", json.RawMessage(`{"url":"http://user:pass@example.com:8080"}`))
+	if err != nil {
+		t.Fatalf("HandleMessage proxies.add: %v", err)
+	}
+	var added vault.StoredProxy
+	if err := json.Unmarshal(addPayload, &added); err != nil {
+		t.Fatalf("Unmarshal added proxy: %v", err)
+	}
+
+	listPayload, err := api.HandleMessage("proxies.list", nil)
+	if err != nil {
+		t.Fatalf("HandleMessage proxies.list: %v", err)
+	}
+	var listed struct {
+		Proxies []struct {
+			ID  string `json:"id"`
+			URL string `json:"url"`
+		} `json:"proxies"`
+	}
+	if err := json.Unmarshal(listPayload, &listed); err != nil {
+		t.Fatalf("Unmarshal listed proxies: %v", err)
+	}
+	if len(listed.Proxies) != 1 {
+		t.Fatalf("listed proxies = %d, want 1", len(listed.Proxies))
+	}
+	if strings.Contains(listed.Proxies[0].URL, "user") || strings.Contains(listed.Proxies[0].URL, "pass") {
+		t.Fatalf("proxy list leaked credentials: %q", listed.Proxies[0].URL)
+	}
+
+	setPayload := json.RawMessage(`{"agentId":"` + agent.ID + `","config":{"enabled":true,"proxyPool":["` + added.ID + `"]}}`)
+	if _, err := api.HandleMessage("proxies.setRotation", setPayload); err != nil {
+		t.Fatalf("HandleMessage proxies.setRotation: %v", err)
+	}
+	cfg := api.Rotator.GetConfig(agent.ID)
+	if cfg == nil || len(cfg.ProxyPool) != 1 || cfg.ProxyPool[0] != "http://user:pass@example.com:8080" {
+		t.Fatalf("rotator proxy pool = %#v, want resolved proxy URL", cfg)
+	}
+
+	getPayload, err := api.HandleMessage("proxies.getRotation", json.RawMessage(`{"agentId":"`+agent.ID+`"}`))
+	if err != nil {
+		t.Fatalf("HandleMessage proxies.getRotation: %v", err)
+	}
+	var got struct {
+		Config rotationConfigPayload `json:"config"`
+	}
+	if err := json.Unmarshal(getPayload, &got); err != nil {
+		t.Fatalf("Unmarshal rotation: %v", err)
+	}
+	if len(got.Config.ProxyPool) != 1 || got.Config.ProxyPool[0] != added.ID {
+		t.Fatalf("panel proxy pool = %#v, want proxy id", got.Config.ProxyPool)
+	}
+}
+
 func TestBusRemovePolicyRemovesConfiguredRule(t *testing.T) {
 	api, _ := newPanelAPITestFixture(t)
 	api.AgentBus.AddPolicy("alpha", "beta", true)
