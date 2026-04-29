@@ -51,6 +51,6 @@ ENV DISPLAY=:99
 EXPOSE 8443
 
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-    CMD curl -sf http://localhost:8443/health || exit 1
+    CMD if [ -n "$VULPINE_TLS_CERT" ] && [ -n "$VULPINE_TLS_KEY" ]; then curl -skf https://localhost:8443/health; else curl -sf http://localhost:8443/health; fi || exit 1
 
 ENTRYPOINT ["./entrypoint.sh"]

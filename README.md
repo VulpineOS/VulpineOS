@@ -63,7 +63,7 @@ VulpineOS builds on Camoufox's battle-tested stealth foundation (Firefox 146.0.1
 │                                                              │
 │  Go Runtime (38 packages, 500+ tests)                         │
 │  ├── Bubbletea TUI (3-column agent workbench)                 │
-│  ├── Web Panel (React SPA, 12 pages, 48 control messages)     │
+│  ├── Web Panel (React SPA, 12 pages, 46 control messages)     │
 │  ├── Identity Vault (SQLite — citizens, templates, sessions)  │
 │  ├── Context Pool (pre-warm, recycle, memory limits)           │
 │  ├── Orchestrator (spawn citizens + nomads, auto-release)      │
@@ -247,7 +247,7 @@ A React SPA served from the Go binary — no separate frontend deployment needed
 
 **12 pages:** Dashboard, Agents, Agent Detail, Bus, Contexts, Proxies, Security, Webhooks, Scripts, Settings, Logs, Login
 
-**48 control messages** covering: agent CRUD plus bulk controls and session-log access; config get/set/providers; cost usage plus persisted per-agent/default budgets; webhooks; proxy management plus rotation get/set; agent bus pending/approve/reject/policies/add/remove; session recording export; fingerprint get/generate-and-apply; runtime-backed script execution; runtime-backed security status; status; optional extension availability and timelines; runtime audit history with retention/export controls; and context create/remove/list.
+**46 control messages** covering: agent CRUD plus bulk controls and session-log access; config get/set/providers; cost usage plus persisted per-agent/default budgets; webhooks; proxy management plus rotation get/set; agent bus pending/approve/reject/policies/add/remove; session recording export; fingerprint get/generate-and-apply; runtime-backed script execution; runtime-backed security status; status; optional extension availability and timelines; runtime audit history with retention/export controls; and context create/remove/list.
 
 Agent Detail includes separate conversation, action trace, raw session log, recording, and fingerprint views so operator-visible tool activity is inspectable without exposing hidden reasoning.
 
@@ -301,6 +301,10 @@ cd VulpineOS
 npm install          # installs OpenClaw
 go build -o vulpineos ./cmd/vulpineos
 ```
+
+You also need a Camoufox/Firefox-compatible browser binary. Either complete the
+source build above, place a packaged Camoufox next to `./vulpineos`, or pass one
+explicitly with `--binary /path/to/camoufox`.
 
 ### Run
 
@@ -389,7 +393,7 @@ vulpineos remote panel --url http://your-vps:8443 --api-key $VULPINE_API_KEY
 vulpineos remote tui --url http://your-vps:8443 --api-key $VULPINE_API_KEY
 ```
 
-`docker compose up -d` starts `vulpineos serve --binary ./browser/camoufox --port 8443`
+`docker compose up -d` starts `vulpineos serve --binary ./browser/camoufox --port 8443 --no-tls`
 inside the container. By default the bundled `docker-compose.yml` exposes plain HTTP on
 port `8443`; add `VULPINE_TLS_CERT` and `VULPINE_TLS_KEY` plus mounted certificate files if
 you want HTTPS/WSS.
