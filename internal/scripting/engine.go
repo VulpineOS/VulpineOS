@@ -3,10 +3,13 @@ package scripting
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"vulpineos/internal/juggler"
 )
+
+const redactedScriptValue = "[redacted]"
 
 // Step is a single instruction in a script.
 type Step struct {
@@ -91,11 +94,11 @@ func (e *Engine) ExecuteWithResults(script *Script) ([]StepResult, error) {
 		result := StepResult{
 			Index:      i,
 			Action:     step.Action,
-			Target:     step.Target,
-			Value:      step.Value,
+			Target:     safeScriptField(step.Target),
+			Value:      safeScriptStepValue(step),
 			Store:      step.Store,
 			Status:     "ok",
-			Output:     e.stepOutput(step),
+			Output:     e.safeStepOutput(step),
 			DurationMS: time.Since(start).Milliseconds(),
 		}
 		if err != nil {
@@ -113,6 +116,19 @@ func (e *Engine) ExecuteWithResults(script *Script) ([]StepResult, error) {
 func (e *Engine) Vars() map[string]string {
 	out := make(map[string]string, len(e.vars))
 	for key, value := range e.vars {
+		out[key] = value
+	}
+	return out
+}
+
+// RedactedVars returns script variables safe for operator-facing API responses.
+func (e *Engine) RedactedVars() map[string]string {
+	out := make(map[string]string, len(e.vars))
+	for key, value := range e.vars {
+		if sensitiveScriptToken(key) {
+			out[key] = redactedScriptValue
+			continue
+		}
 		out[key] = value
 	}
 	return out
@@ -251,6 +267,10 @@ func (e *Engine) doIf(step Step) error {
 	actual := e.vars[step.Target]
 	expected := e.expandVars(step.Value)
 	if actual != expected {
+		if sensitiveScriptToken(step.Target) {
+			actual = redactedScriptValue
+			expected = redactedScriptValue
+		}
 		return fmt.Errorf("condition failed: %s=%q, expected %q", step.Target, actual, expected)
 	}
 	return nil
@@ -272,6 +292,49 @@ func (e *Engine) stepOutput(step Step) string {
 		return "condition passed"
 	}
 	return "ok"
+}
+
+func (e *Engine) safeStepOutput(step Step) string {
+	if scriptStepSensitive(step) {
+		switch step.Action {
+		case "extract", "set":
+			return redactedScriptValue
+		}
+	}
+	return e.stepOutput(step)
+}
+
+func safeScriptStepValue(step Step) string {
+	if step.Value == "" {
+		return ""
+	}
+	if scriptStepSensitive(step) || sensitiveScriptToken(step.Value) {
+		return redactedScriptValue
+	}
+	return step.Value
+}
+
+func safeScriptField(value string) string {
+	if sensitiveScriptToken(value) {
+		return redactedScriptValue
+	}
+	return value
+}
+
+func scriptStepSensitive(step Step) bool {
+	return sensitiveScriptToken(step.Target) || sensitiveScriptToken(step.Store)
+}
+
+func sensitiveScriptToken(value string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	normalized = strings.ReplaceAll(normalized, "-", "_")
+	normalized = strings.ReplaceAll(normalized, " ", "_")
+	for _, marker := range []string{"api_key", "apikey", "token", "secret", "password", "credential", "authorization", "cookie", "session"} {
+		if strings.Contains(normalized, marker) {
+			return true
+		}
+	}
+	return normalized == "auth" || strings.HasSuffix(normalized, "_auth")
 }
 
 // expandVars replaces ${varName} references in a string with variable values.

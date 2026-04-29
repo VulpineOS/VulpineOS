@@ -3,6 +3,7 @@ package scripting
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 
@@ -11,13 +12,13 @@ import (
 
 // mockTransport records calls and returns canned responses.
 type mockTransport struct {
-	mu       sync.Mutex
-	calls    []mockCall
-	nextID   int
-	sendCh   chan *juggler.Message
-	recvCh   chan *juggler.Message
-	closed   bool
-	closeCh  chan struct{}
+	mu      sync.Mutex
+	calls   []mockCall
+	nextID  int
+	sendCh  chan *juggler.Message
+	recvCh  chan *juggler.Message
+	closed  bool
+	closeCh chan struct{}
 }
 
 type mockCall struct {
@@ -144,6 +145,47 @@ func TestSetActionStoresVariable(t *testing.T) {
 
 	if v := engine.GetVar("greeting"); v != "hello" {
 		t.Errorf("expected 'hello', got %q", v)
+	}
+}
+
+func TestExecuteWithResultsRedactsSensitiveValues(t *testing.T) {
+	transport := newMockTransport()
+	client := juggler.NewClient(transport)
+	defer client.Close()
+
+	engine := NewEngine(client)
+
+	script := &Script{
+		Steps: []Step{
+			{Action: "set", Target: "api_token", Value: "secret-token"},
+			{Action: "type", Target: "input[type=password]", Value: "${api_token}"},
+			{Action: "set", Target: "search", Value: "public query"},
+		},
+	}
+
+	results, err := engine.ExecuteWithResults(script)
+	if err != nil {
+		t.Fatalf("ExecuteWithResults error: %v", err)
+	}
+	encodedResults, _ := json.Marshal(results)
+	if string(encodedResults) == "" {
+		t.Fatal("expected encoded results")
+	}
+	if strings.Contains(string(encodedResults), "secret-token") || strings.Contains(string(encodedResults), "api_token") || strings.Contains(string(encodedResults), "input[type=password]") {
+		t.Fatalf("sensitive script data leaked in results: %s", encodedResults)
+	}
+	if results[2].Value != "public query" || results[2].Output != "public query" {
+		t.Fatalf("public script values should be preserved: %#v", results[2])
+	}
+	if engine.GetVar("api_token") != "secret-token" {
+		t.Fatalf("execution vars should keep raw values for script expansion")
+	}
+	vars := engine.RedactedVars()
+	if vars["api_token"] != redactedScriptValue {
+		t.Fatalf("redacted vars leaked sensitive value: %#v", vars)
+	}
+	if vars["search"] != "public query" {
+		t.Fatalf("public var should be preserved: %#v", vars)
 	}
 }
 

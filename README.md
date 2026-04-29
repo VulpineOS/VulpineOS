@@ -156,7 +156,7 @@ Beyond the four core phases, VulpineOS includes hardened runtime security:
 | **Session Recording** | Record browser actions as timestamped timelines with a bounded per-agent in-memory window and sensitive action-data redaction. Export to JSON. Terminal-based replay at real speed. |
 | **Proxy Rotation** | Auto-rotate proxies on rate limit, IP block, or time interval. Fingerprint re-synced on every rotation. 32-country locale map. |
 | **Webhook Notifications** | HTTP webhooks for agent.completed/failed/paused/interrupted, rate_limit.detected, injection.detected, budget.alert/exceeded. Async delivery with secret verification. |
-| **Scripting DSL** | JSON scripting language for repetitive tasks without LLM calls. 8 actions: navigate, click, type, wait, extract, screenshot, set, if. Variable expansion. |
+| **Scripting DSL** | JSON scripting language for repetitive tasks without LLM calls. 8 actions: navigate, click, type, wait, extract, screenshot, set, if. Variable expansion with redacted operator-facing results. |
 | **Kernel Watchdog** | Monitors Camoufox every 2s. On crash: fires callback, auto-restarts (up to 3 attempts), re-establishes Juggler connection. |
 | **Token Optimization** | Viewport-aware DOM pruning, persistent page cache, delta encoding between snapshots, batch operations. |
 | **Page Cache** | Saves and restores page state (URL, HTML, cookies, scroll, forms) across agent restarts. |
