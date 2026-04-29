@@ -812,7 +812,7 @@ func (api *PanelAPI) proxiesList() (json.RawMessage, error) {
 		summary := proxySummary{ID: stored.ID, Label: stored.Label}
 		var cfg proxy.ProxyConfig
 		if err := json.Unmarshal([]byte(stored.Config), &cfg); err == nil {
-			summary.URL = cfg.URL()
+			summary.URL = redactProxyURL(cfg.URL())
 		}
 		var geo proxy.GeoInfo
 		if err := json.Unmarshal([]byte(stored.Geo), &geo); err == nil {
@@ -934,14 +934,17 @@ func (api *PanelAPI) proxiesSetRotation(params json.RawMessage) (json.RawMessage
 	if err != nil {
 		return nil, fmt.Errorf("parse agent metadata: %w", err)
 	}
-	cfg := rotationConfigFromPayload(p.Config)
+	cfg, err := api.rotationConfigFromPanelPayload(p.Config)
+	if err != nil {
+		return nil, err
+	}
 	meta.ProxyRotation = rotationMetadataFromConfig(cfg)
 	metadata := vault.MarshalAgentMetadata(meta)
 	if err := api.Vault.UpdateAgentMetadata(p.AgentID, metadata); err != nil {
 		return nil, err
 	}
 	api.Rotator.SetConfig(p.AgentID, &cfg)
-	return json.Marshal(map[string]interface{}{"status": "ok", "config": rotationPayloadFromConfig(cfg)})
+	return json.Marshal(map[string]interface{}{"status": "ok", "config": api.rotationPayloadForPanel(cfg)})
 }
 
 func (api *PanelAPI) proxiesGetRotation(params json.RawMessage) (json.RawMessage, error) {
@@ -966,7 +969,94 @@ func (api *PanelAPI) proxiesGetRotation(params json.RawMessage) (json.RawMessage
 		return nil, fmt.Errorf("parse agent metadata: %w", err)
 	}
 	cfg, source := api.effectiveRotation(p.AgentID, meta)
-	return json.Marshal(map[string]interface{}{"config": rotationPayloadFromConfig(cfg), "source": source})
+	return json.Marshal(map[string]interface{}{"config": api.rotationPayloadForPanel(cfg), "source": source})
+}
+
+func (api *PanelAPI) rotationConfigFromPanelPayload(p rotationConfigPayload) (proxy.RotationConfig, error) {
+	cfg := rotationConfigFromPayload(p)
+	if len(cfg.ProxyPool) == 0 || api.Vault == nil {
+		return cfg, nil
+	}
+	resolved := make([]string, 0, len(cfg.ProxyPool))
+	for _, entry := range cfg.ProxyPool {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		proxyURL, err := api.proxyURLForPoolEntry(entry)
+		if err != nil {
+			return cfg, err
+		}
+		resolved = append(resolved, proxyURL)
+	}
+	cfg.ProxyPool = resolved
+	if len(cfg.ProxyPool) == 0 {
+		cfg.CurrentIndex = 0
+	} else if cfg.CurrentIndex >= len(cfg.ProxyPool) {
+		cfg.CurrentIndex = len(cfg.ProxyPool) - 1
+	}
+	return cfg, nil
+}
+
+func (api *PanelAPI) rotationPayloadForPanel(cfg proxy.RotationConfig) rotationConfigPayload {
+	payload := rotationPayloadFromConfig(cfg)
+	if len(payload.ProxyPool) == 0 || api.Vault == nil {
+		return payload
+	}
+	ids := make([]string, 0, len(payload.ProxyPool))
+	for _, entry := range payload.ProxyPool {
+		if id := api.proxyIDForURL(entry); id != "" {
+			ids = append(ids, id)
+			continue
+		}
+		ids = append(ids, redactProxyURL(entry))
+	}
+	payload.ProxyPool = ids
+	return payload
+}
+
+func (api *PanelAPI) proxyURLForPoolEntry(entry string) (string, error) {
+	stored, err := api.Vault.GetProxy(entry)
+	if err == nil {
+		var cfg proxy.ProxyConfig
+		if err := json.Unmarshal([]byte(stored.Config), &cfg); err != nil {
+			return "", fmt.Errorf("parse stored proxy config: %w", err)
+		}
+		return cfg.URL(), nil
+	}
+	if _, parseErr := proxy.ParseProxyURL(entry); parseErr != nil {
+		return "", fmt.Errorf("proxy pool entry %q is not a known proxy id or valid proxy URL", entry)
+	}
+	return entry, nil
+}
+
+func (api *PanelAPI) proxyIDForURL(proxyURL string) string {
+	if api.Vault == nil {
+		return ""
+	}
+	proxies, err := api.Vault.ListProxies()
+	if err != nil {
+		return ""
+	}
+	for _, stored := range proxies {
+		var cfg proxy.ProxyConfig
+		if err := json.Unmarshal([]byte(stored.Config), &cfg); err != nil {
+			continue
+		}
+		if cfg.URL() == proxyURL {
+			return stored.ID
+		}
+	}
+	return ""
+}
+
+func redactProxyURL(raw string) string {
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.User == nil {
+		return raw
+	}
+	parsed.User = url.UserPassword("redacted", "redacted")
+	return parsed.String()
 }
 
 // ---------------------------------------------------------------------------

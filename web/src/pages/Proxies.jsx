@@ -99,7 +99,7 @@ export default function Proxies({ ws }) {
       await ws.call('proxies.delete', { proxyId: id })
       refreshProxies()
       setRotation(current => {
-        const nextPool = current.proxyPool.filter(url => proxies.find(proxy => proxy.id === id)?.url !== url)
+        const nextPool = current.proxyPool.filter(proxyId => proxyId !== id)
         return {
           ...current,
           proxyPool: nextPool,
@@ -111,10 +111,10 @@ export default function Proxies({ ws }) {
     }
   }
 
-  const togglePoolMember = (url) => {
+  const togglePoolMember = (id) => {
     setRotation(current => {
-      const exists = current.proxyPool.includes(url)
-      const nextPool = exists ? current.proxyPool.filter(entry => entry !== url) : [...current.proxyPool, url]
+      const exists = current.proxyPool.includes(id)
+      const nextPool = exists ? current.proxyPool.filter(entry => entry !== id) : [...current.proxyPool, id]
       return {
         ...current,
         proxyPool: nextPool,
@@ -222,8 +222,8 @@ export default function Proxies({ ws }) {
                     <label key={proxy.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#aaa' }}>
                       <input
                         type="checkbox"
-                        checked={rotation.proxyPool.includes(proxy.url)}
-                        onChange={() => togglePoolMember(proxy.url)}
+                        checked={rotation.proxyPool.includes(proxy.id)}
+                        onChange={() => togglePoolMember(proxy.id)}
                       />
                       <span style={{ fontFamily: 'monospace' }}>{proxy.url}</span>
                     </label>

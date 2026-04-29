@@ -24,7 +24,7 @@ describe('Proxies page', () => {
               rotateOnBlock: false,
               rotateIntervalSeconds: 300,
               syncFingerprint: true,
-              proxyPool: ['http://a:80'],
+              proxyPool: ['proxy-1'],
               currentIndex: 0,
             },
           }
@@ -53,7 +53,7 @@ describe('Proxies page', () => {
           rotateOnBlock: false,
           rotateIntervalSeconds: 300,
           syncFingerprint: true,
-          proxyPool: ['http://a:80'],
+          proxyPool: ['proxy-1'],
           currentIndex: 0,
         },
       })
