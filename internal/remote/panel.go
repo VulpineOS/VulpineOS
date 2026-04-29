@@ -25,8 +25,11 @@ func ServePanel(mux *http.ServeMux, webFS fs.FS) {
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 
-		// Skip WebSocket and API paths
+		// Keep reserved control paths out of the SPA fallback. If a more
+		// specific handler owns the path, ServeMux routes there before this
+		// catch-all handler; otherwise the request should be a real 404.
 		if r.URL.Path == "/ws" || r.URL.Path == "/health" || strings.HasPrefix(r.URL.Path, "/api/") {
+			http.NotFound(w, r)
 			return
 		}
 
