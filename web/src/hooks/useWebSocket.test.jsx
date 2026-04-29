@@ -1,13 +1,14 @@
 import React from 'react'
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useWebSocket } from './useWebSocket'
+import { panelAccessSubprotocol, useWebSocket } from './useWebSocket'
 
 class FakeWebSocket {
   static instances = []
 
-  constructor(url) {
+  constructor(url, protocols) {
     this.url = url
+    this.protocols = protocols
     this.readyState = 0
     FakeWebSocket.instances.push(this)
   }
@@ -45,7 +46,9 @@ describe('useWebSocket', () => {
     const { result } = renderHook(() => useWebSocket('secret'))
 
     expect(FakeWebSocket.instances).toHaveLength(1)
-    expect(FakeWebSocket.instances[0].url).toContain('/ws?token=secret')
+    expect(FakeWebSocket.instances[0].url).toMatch(/\/ws$/)
+    expect(FakeWebSocket.instances[0].url).not.toContain('secret')
+    expect(FakeWebSocket.instances[0].protocols).toEqual([panelAccessSubprotocol('secret')])
 
     act(() => {
       FakeWebSocket.instances[0].triggerOpen()
