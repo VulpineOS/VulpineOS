@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -58,6 +59,31 @@ func TestParseProxyURL_InvalidScheme(t *testing.T) {
 	_, err := ParseProxyURL("ftp://host:80")
 	if err == nil {
 		t.Fatal("expected error for ftp scheme")
+	}
+}
+
+func TestParseProxyErrorsDoNotLeakCredentials(t *testing.T) {
+	inputs := []string{
+		"user:super-secret@example.com:8080",
+		"http://user:super-secret@%zz",
+		"http://user:super-secret@example.com:notaport",
+	}
+	for _, raw := range inputs {
+		_, err := ParseProxyURL(raw)
+		if err == nil {
+			t.Fatalf("ParseProxyURL(%q) succeeded unexpectedly", raw)
+		}
+		if strings.Contains(err.Error(), "super-secret") || strings.Contains(err.Error(), "user:") {
+			t.Fatalf("proxy parse error leaked credentials for %q: %v", raw, err)
+		}
+	}
+
+	_, err := ParseProxyList("http://user:super-secret@%zz\n")
+	if err == nil {
+		t.Fatal("ParseProxyList succeeded unexpectedly")
+	}
+	if strings.Contains(err.Error(), "super-secret") || strings.Contains(err.Error(), "user:") {
+		t.Fatalf("proxy list error leaked credentials: %v", err)
 	}
 }
 

@@ -254,6 +254,31 @@ func TestProxyPanelRedactsCredentialsAndUsesIDsForRotation(t *testing.T) {
 	}
 }
 
+func TestProxyPanelErrorsDoNotLeakCredentials(t *testing.T) {
+	api, db := newPanelAPITestFixture(t)
+	agent, err := db.CreateAgent("Agent Two", "task", "{}")
+	if err != nil {
+		t.Fatalf("CreateAgent: %v", err)
+	}
+
+	_, err = api.HandleMessage("proxies.add", json.RawMessage(`{"url":"http://user:add-secret@%zz"}`))
+	if err == nil {
+		t.Fatal("expected invalid proxy add error")
+	}
+	if strings.Contains(err.Error(), "add-secret") || strings.Contains(err.Error(), "user:") {
+		t.Fatalf("proxy add error leaked credentials: %v", err)
+	}
+
+	rotationPayload := json.RawMessage(`{"agentId":"` + agent.ID + `","config":{"enabled":true,"proxyPool":["http://user:pool-secret@%zz"]}}`)
+	_, err = api.HandleMessage("proxies.setRotation", rotationPayload)
+	if err == nil {
+		t.Fatal("expected invalid rotation proxy error")
+	}
+	if strings.Contains(err.Error(), "pool-secret") || strings.Contains(err.Error(), "user:") {
+		t.Fatalf("proxy rotation error leaked credentials: %v", err)
+	}
+}
+
 func TestProxiesDeleteRejectsBlankID(t *testing.T) {
 	api, db := newPanelAPITestFixture(t)
 	if _, err := db.AddProxy(`{"host":"example.com","port":8080}`, "", "example"); err != nil {

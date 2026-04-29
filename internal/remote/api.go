@@ -1078,7 +1078,7 @@ func (api *PanelAPI) proxyURLForPoolEntry(entry string) (string, error) {
 		return cfg.URL(), nil
 	}
 	if _, parseErr := proxy.ParseProxyURL(entry); parseErr != nil {
-		return "", fmt.Errorf("proxy pool entry %q is not a known proxy id or valid proxy URL", entry)
+		return "", fmt.Errorf("proxy pool entry is not a known proxy id or valid proxy URL")
 	}
 	return entry, nil
 }
