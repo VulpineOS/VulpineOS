@@ -1,7 +1,7 @@
 {
   "name": "vulpineos",
   "version": "0.1.0",
-  "description": "VulpineOS — Sovereign Agent Runtime. AI agent security built into the browser engine.",
+  "description": "VulpineOS: stealth-aware AI browser agent runtime with browser-engine security.",
   "private": true,
   "scripts": {
     "postinstall": "echo 'VulpineOS dependencies installed. OpenClaw is ready.'",

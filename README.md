@@ -3,11 +3,11 @@
 </p>
 
 <p align="center">
-  <b>Operate Stealth and Secure OpenClaw Agents at Scale</b>
+  <b>Operate Stealth-Aware OpenClaw Agents at Scale</b>
 </p>
 
 <p align="center">
-VulpineOS is the operating system for AI browser agents — a Firefox/Camoufox-based platform for managing hundreds of OpenClaw agents with unique identities, full security, and zero detection.
+VulpineOS is the operating system for AI browser agents: a Firefox/Camoufox-based platform for managing OpenClaw agents with unique identities, browser-engine security, and stealth-aware runtime controls.
 </p>
 
 <p align="center">
@@ -31,7 +31,7 @@ AI agents that browse the web face three unsolved problems:
 2. **Page mutation** — The page changes between when the agent reads it and when it acts
 3. **Token waste** — Raw HTML/accessibility trees consume 10x more tokens than necessary
 
-Every existing solution tries to fix these in JavaScript or in the agent framework. VulpineOS fixes them in the browser engine itself — in C++, where they can't be detected or circumvented.
+Most existing solutions try to fix these in JavaScript or in the agent framework. VulpineOS fixes them in the browser engine itself, below page-level JavaScript hooks, making the protections harder to observe or bypass from the page.
 
 ---
 
