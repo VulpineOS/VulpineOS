@@ -14,6 +14,7 @@ import (
 type Gateway struct {
 	cmd           *exec.Cmd
 	binary        string
+	logFile       *os.File
 	mu            sync.Mutex
 	exited        bool
 	exitCh        chan error
@@ -63,6 +64,9 @@ func (g *Gateway) Start() error {
 	if logFile, err := os.Create(logPath); err == nil {
 		cmd.Stdout = logFile
 		cmd.Stderr = logFile
+		g.mu.Lock()
+		g.logFile = logFile
+		g.mu.Unlock()
 	}
 
 	if err := cmd.Start(); err != nil {
@@ -105,6 +109,7 @@ func (g *Gateway) Stop() {
 	cmd := g.cmd
 	exitCh := g.exitCh
 	exited := g.exited
+	logFile := g.logFile
 	g.mu.Unlock()
 
 	if cmd != nil && cmd.Process != nil {
@@ -119,8 +124,12 @@ func (g *Gateway) Stop() {
 			g.cmd = nil
 			g.exitCh = nil
 			g.exited = true
+			g.logFile = nil
 		}
 		g.mu.Unlock()
+		if logFile != nil {
+			_ = logFile.Close()
+		}
 		log.Println("OpenClaw gateway stopped")
 	}
 }

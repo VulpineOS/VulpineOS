@@ -537,3 +537,40 @@ func TestSentinelTimelineReturnsSessions(t *testing.T) {
 		t.Fatalf("items = %+v", result.Sessions[0].Items)
 	}
 }
+
+func TestSentinelControlsReturnUnavailablePayloadWhenProviderMissing(t *testing.T) {
+	original := extensions.Registry.Sentinel()
+	t.Cleanup(func() { extensions.Registry.SetSentinel(original) })
+	extensions.Registry.SetSentinel(nil)
+
+	api := &PanelAPI{}
+	payload, err := api.HandleMessage("sentinel.get", nil)
+	if err != nil {
+		t.Fatalf("HandleMessage sentinel.get: %v", err)
+	}
+	var getResult map[string]interface{}
+	if err := json.Unmarshal(payload, &getResult); err != nil {
+		t.Fatalf("Unmarshal sentinel.get: %v", err)
+	}
+	if getResult["available"] != false {
+		t.Fatalf("sentinel.get result = %+v, want unavailable", getResult)
+	}
+	if len(getResult) != 1 {
+		t.Fatalf("sentinel.get exposed unavailable schema: %+v", getResult)
+	}
+
+	payload, err = api.HandleMessage("sentinel.timeline", json.RawMessage(`{"limit":2}`))
+	if err != nil {
+		t.Fatalf("HandleMessage sentinel.timeline: %v", err)
+	}
+	var timelineResult struct {
+		Available bool          `json:"available"`
+		Timelines []interface{} `json:"timelines"`
+	}
+	if err := json.Unmarshal(payload, &timelineResult); err != nil {
+		t.Fatalf("Unmarshal sentinel.timeline: %v", err)
+	}
+	if timelineResult.Available || len(timelineResult.Timelines) != 0 {
+		t.Fatalf("sentinel.timeline result = %+v, want unavailable empty timelines", timelineResult)
+	}
+}
