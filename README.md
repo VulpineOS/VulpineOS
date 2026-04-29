@@ -256,8 +256,10 @@ Credential, audio, mobile, and Sentinel-backed controls are stable public interf
 Agent Detail includes separate conversation, action trace, raw session log, recording, and fingerprint views so operator-visible tool activity is inspectable without exposing hidden reasoning or sensitive action values.
 
 The panel now validates access keys through `/auth/check`, keeps the key only
-for the current browser session, and surfaces connecting, reconnecting, and
-failed websocket states inline instead of relying on browser alerts.
+for the current browser session, authenticates browser websocket sessions with
+an access subprotocol instead of a tokenized websocket URL, and surfaces
+connecting, reconnecting, and failed states inline instead of relying on browser
+alerts.
 
 The panel now also includes:
 - a dedicated **Bus** page for pending approvals and communication policies

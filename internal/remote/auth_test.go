@@ -75,6 +75,34 @@ func TestValidateQueryTokenCorrectKey(t *testing.T) {
 	}
 }
 
+func TestValidateWebSocketSubprotocolCorrectKey(t *testing.T) {
+	a := NewAuthenticator("secret-key-123")
+	protocol := PanelAccessSubprotocol("secret-key-123")
+	req := &http.Request{
+		Header: http.Header{},
+		URL:    &url.URL{},
+	}
+	req.Header.Set("Sec-WebSocket-Protocol", "chat, "+protocol)
+	if !a.Validate(req) {
+		t.Error("correct websocket access subprotocol should be accepted")
+	}
+	if got := a.AcceptedWebSocketSubprotocol(req); got != protocol {
+		t.Fatalf("accepted subprotocol = %q, want %q", got, protocol)
+	}
+}
+
+func TestValidateWebSocketSubprotocolWrongKey(t *testing.T) {
+	a := NewAuthenticator("secret-key-123")
+	req := &http.Request{
+		Header: http.Header{},
+		URL:    &url.URL{},
+	}
+	req.Header.Set("Sec-WebSocket-Protocol", PanelAccessSubprotocol("wrong-key"))
+	if a.Validate(req) {
+		t.Error("wrong websocket access subprotocol should be rejected")
+	}
+}
+
 func TestValidateQueryTokenWrongKey(t *testing.T) {
 	a := NewAuthenticator("secret-key-123")
 	req := &http.Request{

@@ -5,6 +5,14 @@ const RECONNECT_BASE_DELAY_MS = 1000
 const RECONNECT_MAX_DELAY_MS = 10000
 const REQUEST_TIMEOUT_MS = 30000
 
+export function panelAccessSubprotocol(apiKey) {
+  if (!apiKey) return ''
+  const bytes = new TextEncoder().encode(apiKey)
+  let raw = ''
+  bytes.forEach((byte) => { raw += String.fromCharCode(byte) })
+  return `vulpine-key.${btoa(raw).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}`
+}
+
 function connectionErrorMessage(state, lastError) {
   if (lastError) return lastError
   switch (state) {
@@ -57,7 +65,10 @@ export function useWebSocket(apiKey) {
     clearReconnectTimer()
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const ws = new WebSocket(`${protocol}//${window.location.host}/ws?token=${encodeURIComponent(apiKey)}`)
+    const accessProtocol = panelAccessSubprotocol(apiKey)
+    const ws = accessProtocol
+      ? new WebSocket(`${protocol}//${window.location.host}/ws`, [accessProtocol])
+      : new WebSocket(`${protocol}//${window.location.host}/ws`)
     wsRef.current = ws
     setReconnectAttempt(attempt)
     setRetryDelayMs(0)

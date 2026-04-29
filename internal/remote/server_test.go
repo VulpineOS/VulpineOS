@@ -224,6 +224,29 @@ func TestHandleWSJugglerWithoutKernelReturnsError(t *testing.T) {
 	}
 }
 
+func TestHandleWSAcceptsAccessSubprotocol(t *testing.T) {
+	server := NewServer(":0", "secret", nil)
+	httpServer := httptest.NewServer(server.Mux())
+	defer httpServer.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(httpServer.URL, "http") + "/ws"
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	protocol := PanelAccessSubprotocol("secret")
+	conn, _, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{
+		Subprotocols: []string{protocol},
+	})
+	if err != nil {
+		t.Fatalf("dial websocket: %v", err)
+	}
+	defer conn.Close(websocket.StatusNormalClosure, "")
+
+	if got := conn.Subprotocol(); got != protocol {
+		t.Fatalf("subprotocol = %q, want %q", got, protocol)
+	}
+}
+
 func TestHandleWSRejectsOversizedMessage(t *testing.T) {
 	server := NewServer(":0", "secret", nil)
 	httpServer := httptest.NewServer(server.Mux())

@@ -189,15 +189,21 @@ func (s *Server) removeClients(dead []*wsClient) {
 
 func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	setJSONSecurityHeaders(w)
+	acceptedProtocol := s.auth.AcceptedWebSocketSubprotocol(r)
 	// Authenticate
 	if !s.auth.Validate(r) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+	options := &websocket.AcceptOptions{
 		InsecureSkipVerify: true, // Allow cross-origin for TUI clients
-	})
+	}
+	if acceptedProtocol != "" {
+		options.Subprotocols = []string{acceptedProtocol}
+	}
+
+	conn, err := websocket.Accept(w, r, options)
 	if err != nil {
 		log.Printf("websocket accept error: %v", err)
 		return
