@@ -2,6 +2,7 @@ package recording
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -48,6 +49,29 @@ func TestExportReturnsValidJSON(t *testing.T) {
 	}
 	if len(actions) != 2 {
 		t.Errorf("expected 2 actions in export, got %d", len(actions))
+	}
+}
+
+func TestRecorderTrimsOldestActionsAtLimit(t *testing.T) {
+	r := NewRecorderWithLimit(3)
+
+	for i := 0; i < 5; i++ {
+		r.Record("agent-1", ActionNavigate, json.RawMessage(fmt.Sprintf(`{"url":"https://example.com/%d"}`, i)))
+	}
+
+	timeline := r.GetTimeline("agent-1")
+	if len(timeline) != 3 {
+		t.Fatalf("expected 3 retained actions, got %d", len(timeline))
+	}
+	for i, action := range timeline {
+		var data map[string]string
+		if err := json.Unmarshal(action.Data, &data); err != nil {
+			t.Fatalf("unmarshal action %d: %v", i, err)
+		}
+		want := fmt.Sprintf("https://example.com/%d", i+2)
+		if data["url"] != want {
+			t.Fatalf("action %d url = %q, want %q", i, data["url"], want)
+		}
 	}
 }
 
