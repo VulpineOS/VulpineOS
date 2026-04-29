@@ -61,6 +61,20 @@ func TestWebhooksAddRejectsInvalidURL(t *testing.T) {
 	}
 }
 
+func TestWebhooksAddRejectsUnsupportedEvents(t *testing.T) {
+	api := &PanelAPI{Webhooks: webhooks.New()}
+
+	if _, err := api.HandleMessage("webhooks.add", json.RawMessage(`{
+		"url":"https://example.com/hook",
+		"events":["agent.completed","agent.unknown"]
+	}`)); err == nil {
+		t.Fatal("expected unsupported event error")
+	}
+	if len(api.Webhooks.List()) != 0 {
+		t.Fatal("invalid webhook should not be registered")
+	}
+}
+
 func TestWebhooksListDoesNotExposeSecrets(t *testing.T) {
 	api := &PanelAPI{Webhooks: webhooks.New()}
 	api.Webhooks.Register("https://example.com/hook", nil, "secret-token")

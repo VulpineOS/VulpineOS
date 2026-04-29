@@ -788,7 +788,11 @@ func (api *PanelAPI) webhooksAdd(params json.RawMessage) (json.RawMessage, error
 		if trimmed == "" {
 			continue
 		}
-		events = append(events, webhooks.EventType(trimmed))
+		eventType := webhooks.EventType(trimmed)
+		if !webhooks.SupportedEvent(eventType) {
+			return nil, fmt.Errorf("unsupported webhook event: %s", trimmed)
+		}
+		events = append(events, eventType)
 	}
 	id := api.Webhooks.Register(webhookURL, events, strings.TrimSpace(p.Secret))
 	return json.Marshal(map[string]string{"id": id})
