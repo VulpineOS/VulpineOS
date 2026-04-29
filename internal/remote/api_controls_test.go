@@ -166,8 +166,9 @@ func TestProxyPanelRedactsCredentialsAndUsesIDsForRotation(t *testing.T) {
 	}
 	var listed struct {
 		Proxies []struct {
-			ID  string `json:"id"`
-			URL string `json:"url"`
+			ID    string `json:"id"`
+			URL   string `json:"url"`
+			Label string `json:"label"`
 		} `json:"proxies"`
 	}
 	if err := json.Unmarshal(listPayload, &listed); err != nil {
@@ -178,6 +179,9 @@ func TestProxyPanelRedactsCredentialsAndUsesIDsForRotation(t *testing.T) {
 	}
 	if strings.Contains(listed.Proxies[0].URL, "user") || strings.Contains(listed.Proxies[0].URL, "pass") {
 		t.Fatalf("proxy list leaked credentials: %q", listed.Proxies[0].URL)
+	}
+	if strings.Contains(listed.Proxies[0].Label, "user") || strings.Contains(listed.Proxies[0].Label, "pass") {
+		t.Fatalf("proxy label leaked credentials: %q", listed.Proxies[0].Label)
 	}
 
 	setPayload := json.RawMessage(`{"agentId":"` + agent.ID + `","config":{"enabled":true,"proxyPool":["` + added.ID + `"]}}`)

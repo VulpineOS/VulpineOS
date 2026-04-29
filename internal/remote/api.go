@@ -809,7 +809,7 @@ func (api *PanelAPI) proxiesList() (json.RawMessage, error) {
 	}
 	out := make([]proxySummary, 0, len(proxies))
 	for _, stored := range proxies {
-		summary := proxySummary{ID: stored.ID, Label: stored.Label}
+		summary := proxySummary{ID: stored.ID, Label: redactProxyURL(stored.Label)}
 		var cfg proxy.ProxyConfig
 		if err := json.Unmarshal([]byte(stored.Config), &cfg); err == nil {
 			summary.URL = redactProxyURL(cfg.URL())
@@ -844,7 +844,7 @@ func (api *PanelAPI) proxiesAdd(params json.RawMessage) (json.RawMessage, error)
 		data, _ := json.Marshal(pc)
 		p.Config = string(data)
 		if p.Label == "" {
-			p.Label = p.URL
+			p.Label = redactProxyURL(p.URL)
 		}
 	}
 	stored, err := api.Vault.AddProxy(p.Config, p.Geo, p.Label)
