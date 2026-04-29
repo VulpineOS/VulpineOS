@@ -468,7 +468,7 @@ make fetch          # Download Firefox 146.0.1 source
 make setup          # Extract + init git repo
 make dir            # Apply patches + copy additions
 make build          # Compile (~5 min on M1 with artifact builds)
-make package-macos  # Create distributable
+make package-macos  # Package the macOS browser artifact
 ```
 
 ---
