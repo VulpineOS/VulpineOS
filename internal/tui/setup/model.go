@@ -77,9 +77,6 @@ func NewWithConfig(existing *config.Config) Model {
 			m.cfg.AgentSkills[agentID] = append([]config.SkillEntry(nil), skills...)
 		}
 	}
-	if strings.TrimSpace(existing.APIKey) != "" {
-		m.apiKeyInput.SetValue(existing.APIKey)
-	}
 	for i, p := range m.providers {
 		if p.ID != existing.Provider {
 			continue
@@ -132,15 +129,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			case "enter":
 				p := m.providers[m.providerIdx]
+				previousProvider := m.cfg.Provider
 				m.cfg.Provider = p.ID
 				m.cfg.Model = p.DefaultModel
 				m.modelIdx = 0
+				if previousProvider != "" && previousProvider != p.ID {
+					m.cfg.APIKey = ""
+				}
 				if !p.NeedsKey {
 					// Ollama — skip API key step
 					m.cfg.SetupComplete = true
 					m.step = stepDone
 				} else {
-					m.apiKeyInput.Placeholder = fmt.Sprintf("Enter your %s...", p.EnvVar)
+					if strings.TrimSpace(m.cfg.APIKey) != "" {
+						m.apiKeyInput.Placeholder = fmt.Sprintf("%s already stored; leave blank to keep it", p.EnvVar)
+					} else {
+						m.apiKeyInput.Placeholder = fmt.Sprintf("Enter your %s...", p.EnvVar)
+					}
+					m.apiKeyInput.SetValue("")
 					m.apiKeyInput.Focus()
 					m.step = stepAPIKey
 				}
@@ -161,9 +167,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "enter":
 				key := strings.TrimSpace(m.apiKeyInput.Value())
 				if key == "" {
-					break
+					if strings.TrimSpace(m.cfg.APIKey) == "" {
+						break
+					}
+				} else {
+					m.cfg.APIKey = key
 				}
-				m.cfg.APIKey = key
 				m.cfg.SetupComplete = true
 				m.step = stepDone
 			default:
