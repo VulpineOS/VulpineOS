@@ -3,11 +3,17 @@ package remote
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"vulpineos/internal/juggler"
 	"vulpineos/internal/scripting"
 	"vulpineos/internal/security"
+)
+
+const (
+	maxPanelScriptBytes = 64 * 1024
+	maxPanelScriptSteps = 100
 )
 
 type securityProtection struct {
@@ -29,13 +35,20 @@ func (api *PanelAPI) scriptsRun(params json.RawMessage) (json.RawMessage, error)
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
+	p.Script = strings.TrimSpace(p.Script)
 	if p.Script == "" {
 		return nil, fmt.Errorf("script is required")
+	}
+	if len(p.Script) > maxPanelScriptBytes {
+		return nil, fmt.Errorf("script exceeds %d byte limit", maxPanelScriptBytes)
 	}
 
 	script, err := scripting.ParseScript([]byte(p.Script))
 	if err != nil {
 		return nil, err
+	}
+	if len(script.Steps) > maxPanelScriptSteps {
+		return nil, fmt.Errorf("script has %d steps; maximum is %d", len(script.Steps), maxPanelScriptSteps)
 	}
 
 	contextID, sessionID, err := api.ensureScriptSession(p.ContextID)

@@ -5,11 +5,16 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"vulpineos/internal/juggler"
 )
 
-const redactedScriptValue = "[redacted]"
+const (
+	redactedScriptValue       = "[redacted]"
+	maxScriptResultFieldBytes = 4096
+	truncatedScriptValue      = "... [truncated]"
+)
 
 // Step is a single instruction in a script.
 type Step struct {
@@ -96,7 +101,7 @@ func (e *Engine) ExecuteWithResults(script *Script) ([]StepResult, error) {
 			Action:     step.Action,
 			Target:     safeScriptField(step.Target),
 			Value:      safeScriptStepValue(step),
-			Store:      step.Store,
+			Store:      safeScriptField(step.Store),
 			Status:     "ok",
 			Output:     e.safeStepOutput(step),
 			DurationMS: time.Since(start).Milliseconds(),
@@ -130,7 +135,7 @@ func (e *Engine) RedactedVars() map[string]string {
 			out[key] = redactedScriptValue
 			continue
 		}
-		out[key] = value
+		out[key] = limitScriptDisplayValue(value)
 	}
 	return out
 }
@@ -302,7 +307,7 @@ func (e *Engine) safeStepOutput(step Step) string {
 			return redactedScriptValue
 		}
 	}
-	return e.stepOutput(step)
+	return limitScriptDisplayValue(e.stepOutput(step))
 }
 
 func safeScriptStepValue(step Step) string {
@@ -312,14 +317,14 @@ func safeScriptStepValue(step Step) string {
 	if scriptStepSensitive(step) || sensitiveScriptToken(step.Value) {
 		return redactedScriptValue
 	}
-	return step.Value
+	return limitScriptDisplayValue(step.Value)
 }
 
 func safeScriptField(value string) string {
 	if sensitiveScriptToken(value) {
 		return redactedScriptValue
 	}
-	return value
+	return limitScriptDisplayValue(value)
 }
 
 func safeScriptStepError(step Step, err error) error {
@@ -329,7 +334,7 @@ func safeScriptStepError(step Step, err error) error {
 	if scriptStepSensitive(step) || sensitiveScriptToken(err.Error()) {
 		return fmt.Errorf("%s failed with redacted sensitive details", step.Action)
 	}
-	return err
+	return fmt.Errorf("%s", limitScriptDisplayValue(err.Error()))
 }
 
 func scriptStepSensitive(step Step) bool {
@@ -346,6 +351,20 @@ func sensitiveScriptToken(value string) bool {
 		}
 	}
 	return normalized == "auth" || strings.HasSuffix(normalized, "_auth")
+}
+
+func limitScriptDisplayValue(value string) string {
+	if len(value) <= maxScriptResultFieldBytes {
+		return value
+	}
+	cut := maxScriptResultFieldBytes
+	for cut > 0 && !utf8.RuneStart(value[cut]) {
+		cut--
+	}
+	if cut == 0 {
+		cut = maxScriptResultFieldBytes
+	}
+	return value[:cut] + truncatedScriptValue
 }
 
 // expandVars replaces ${varName} references in a string with variable values.
