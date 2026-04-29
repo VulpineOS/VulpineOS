@@ -6,7 +6,7 @@ services:
     ports:
       - "8443:8443"
     environment:
-      - VULPINE_API_KEY=${VULPINE_API_KEY:-changeme}
+      - VULPINE_API_KEY=${VULPINE_API_KEY:?set VULPINE_API_KEY to a random access key before running docker compose}
     volumes:
       - vulpineos-data:/root/.vulpineos
       - vulpine-profiles:/opt/vulpineos/profiles

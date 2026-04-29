@@ -1,6 +1,8 @@
 include upstream.sh
 export
 
+arch ?= $(shell uname -m | sed 's/aarch64/arm64/')
+
 cf_source_dir := camoufox-$(version)-$(release)
 ff_source_tarball := firefox-$(version).source.tar.xz
 

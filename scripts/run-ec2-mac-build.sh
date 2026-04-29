@@ -29,7 +29,7 @@ mkdir -p "${ARTIFACTS_DIR}" "${LOGS_DIR}"
 make build 2>&1 | tee "${BUILD_LOG}"
 
 if [[ "${RUN_PACKAGE}" == "1" ]]; then
-  make package-macos 2>&1 | tee "${PACKAGE_LOG}"
+  make package-macos arch="${VULPINE_PACKAGE_ARCH:-arm64}" 2>&1 | tee "${PACKAGE_LOG}"
 fi
 
 go build -o "${GO_BINARY}" ./cmd/vulpineos
