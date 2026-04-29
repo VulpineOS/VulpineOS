@@ -155,9 +155,26 @@ func TestProxyPanelRedactsCredentialsAndUsesIDsForRotation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("HandleMessage proxies.add: %v", err)
 	}
-	var added vault.StoredProxy
+	var added struct {
+		ID     string `json:"id"`
+		URL    string `json:"url"`
+		Config string `json:"config"`
+		Label  string `json:"label"`
+	}
 	if err := json.Unmarshal(addPayload, &added); err != nil {
 		t.Fatalf("Unmarshal added proxy: %v", err)
+	}
+	if added.ID == "" {
+		t.Fatal("expected added proxy id")
+	}
+	if added.Config != "" {
+		t.Fatalf("proxies.add leaked raw config: %q", added.Config)
+	}
+	if strings.Contains(added.URL, "user") || strings.Contains(added.URL, "pass") {
+		t.Fatalf("proxies.add leaked credentials in URL: %q", added.URL)
+	}
+	if strings.Contains(added.Label, "user") || strings.Contains(added.Label, "pass") {
+		t.Fatalf("proxies.add leaked credentials in label: %q", added.Label)
 	}
 
 	listPayload, err := api.HandleMessage("proxies.list", nil)

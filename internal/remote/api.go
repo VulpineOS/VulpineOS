@@ -823,6 +823,27 @@ func (api *PanelAPI) webhooksRemove(params json.RawMessage) (json.RawMessage, er
 // Proxies
 // ---------------------------------------------------------------------------
 
+type panelProxySummary struct {
+	ID        string `json:"id"`
+	URL       string `json:"url"`
+	Country   string `json:"country,omitempty"`
+	Label     string `json:"label"`
+	LatencyMS int64  `json:"latencyMs"`
+}
+
+func proxySummaryFromStored(stored vault.StoredProxy) panelProxySummary {
+	summary := panelProxySummary{ID: stored.ID, Label: redactProxyURL(stored.Label)}
+	var cfg proxy.ProxyConfig
+	if err := json.Unmarshal([]byte(stored.Config), &cfg); err == nil {
+		summary.URL = redactProxyURL(cfg.URL())
+	}
+	var geo proxy.GeoInfo
+	if err := json.Unmarshal([]byte(stored.Geo), &geo); err == nil {
+		summary.Country = geo.Country
+	}
+	return summary
+}
+
 func (api *PanelAPI) proxiesList() (json.RawMessage, error) {
 	if api.Vault == nil {
 		return nil, fmt.Errorf("vault not available")
@@ -831,25 +852,9 @@ func (api *PanelAPI) proxiesList() (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
-	type proxySummary struct {
-		ID        string `json:"id"`
-		URL       string `json:"url"`
-		Country   string `json:"country,omitempty"`
-		Label     string `json:"label"`
-		LatencyMS int64  `json:"latencyMs"`
-	}
-	out := make([]proxySummary, 0, len(proxies))
+	out := make([]panelProxySummary, 0, len(proxies))
 	for _, stored := range proxies {
-		summary := proxySummary{ID: stored.ID, Label: redactProxyURL(stored.Label)}
-		var cfg proxy.ProxyConfig
-		if err := json.Unmarshal([]byte(stored.Config), &cfg); err == nil {
-			summary.URL = redactProxyURL(cfg.URL())
-		}
-		var geo proxy.GeoInfo
-		if err := json.Unmarshal([]byte(stored.Geo), &geo); err == nil {
-			summary.Country = geo.Country
-		}
-		out = append(out, summary)
+		out = append(out, proxySummaryFromStored(stored))
 	}
 	return json.Marshal(map[string]interface{}{"proxies": out})
 }
@@ -882,7 +887,7 @@ func (api *PanelAPI) proxiesAdd(params json.RawMessage) (json.RawMessage, error)
 	if err != nil {
 		return nil, err
 	}
-	return json.Marshal(stored)
+	return json.Marshal(proxySummaryFromStored(*stored))
 }
 
 func (api *PanelAPI) proxiesDelete(params json.RawMessage) (json.RawMessage, error) {
