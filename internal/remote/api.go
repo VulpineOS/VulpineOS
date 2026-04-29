@@ -811,7 +811,11 @@ func (api *PanelAPI) webhooksRemove(params json.RawMessage) (json.RawMessage, er
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
-	api.Webhooks.Unregister(p.ID)
+	id := strings.TrimSpace(p.ID)
+	if id == "" {
+		return nil, fmt.Errorf("webhook id is required")
+	}
+	api.Webhooks.Unregister(id)
 	return json.Marshal(map[string]string{"status": "ok"})
 }
 
@@ -892,10 +896,14 @@ func (api *PanelAPI) proxiesDelete(params json.RawMessage) (json.RawMessage, err
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
-	if p.ID == "" {
-		p.ID = p.ProxyID
+	id := strings.TrimSpace(p.ID)
+	if id == "" {
+		id = strings.TrimSpace(p.ProxyID)
 	}
-	if err := api.Vault.DeleteProxy(p.ID); err != nil {
+	if id == "" {
+		return nil, fmt.Errorf("proxy id is required")
+	}
+	if err := api.Vault.DeleteProxy(id); err != nil {
 		return nil, err
 	}
 	return json.Marshal(map[string]string{"status": "ok"})

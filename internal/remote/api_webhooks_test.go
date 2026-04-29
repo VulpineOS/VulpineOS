@@ -104,3 +104,15 @@ func TestWebhooksListDoesNotExposeSecrets(t *testing.T) {
 		t.Fatal("hasSecret = false, want true")
 	}
 }
+
+func TestWebhooksRemoveRejectsBlankID(t *testing.T) {
+	api := &PanelAPI{Webhooks: webhooks.New()}
+	api.Webhooks.Register("https://example.com/hook", nil, "")
+
+	if _, err := api.HandleMessage("webhooks.remove", json.RawMessage(`{"id":"   "}`)); err == nil {
+		t.Fatal("expected blank webhook id error")
+	}
+	if len(api.Webhooks.List()) != 1 {
+		t.Fatal("blank remove should not unregister existing hooks")
+	}
+}
