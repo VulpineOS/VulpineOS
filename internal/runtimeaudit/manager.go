@@ -10,7 +10,9 @@ import (
 )
 
 var bearerTokenPattern = regexp.MustCompile(`(?i)(bearer\s+)[^\s,;]+`)
-var querySecretPattern = regexp.MustCompile(`(?i)([?&](?:api[_-]?key|apikey|token|access[_-]?token|access[_-]?key|secret|password|credential|authorization)=)[^&#\s"]+`)
+var querySecretPattern = regexp.MustCompile(`(?i)([?&](?:api[_-]?key|apikey|token|access[_-]?token|access[_-]?key|secret|password|credential|authorization|cookie|session)=)[^&#\s"]+`)
+var jsonSecretPattern = regexp.MustCompile(`(?i)("(?:apiKey|api_key|apikey|token|access_token|access_key|secret|password|credential|authorization|cookie|session)"\s*:\s*")[^"]+(")`)
+var keyValueSecretPattern = regexp.MustCompile(`(?i)(^|[^?&A-Za-z0-9_])((?:api[_-]?key|apikey|token|access[_-]?token|access[_-]?key|secret|password|credential|authorization|cookie|session)\s*=\s*)[^\s,;"]+`)
 
 // Manager persists and broadcasts recent runtime lifecycle events.
 type Manager struct {
@@ -127,6 +129,8 @@ func sensitiveRuntimeMetadataKey(key string) bool {
 func redactRuntimeValue(value string) string {
 	value = bearerTokenPattern.ReplaceAllString(value, "${1}[redacted]")
 	value = querySecretPattern.ReplaceAllString(value, "${1}[redacted]")
+	value = jsonSecretPattern.ReplaceAllString(value, "${1}[redacted]${2}")
+	value = keyValueSecretPattern.ReplaceAllString(value, "${1}${2}[redacted]")
 	parsed, err := url.Parse(value)
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
 		return value
