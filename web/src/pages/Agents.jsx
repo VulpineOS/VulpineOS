@@ -154,13 +154,13 @@ export default function Agents({ ws }) {
     <div>
       <div className="page-header">
         <h1>Agents</h1>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div className="page-actions">
           <button className="btn btn-ghost" disabled={selectedIDs.length === 0} onClick={() => runBulk('pause')}>Pause Selected</button>
           <button className="btn btn-ghost" disabled={selectedIDs.length === 0} onClick={() => runBulk('resume')}>Resume Selected</button>
           <button className="btn btn-danger" disabled={selectedIDs.length === 0} onClick={() => runBulk('kill')}>Kill Selected</button>
           <select
             className="input"
-            style={{ width: 220 }}
+            style={{ width: 220, maxWidth: '100%' }}
             value={selectedContext}
             onChange={e => {
               setSelectedContext(e.target.value)
@@ -175,7 +175,7 @@ export default function Agents({ ws }) {
               )
             })}
           </select>
-          <input className="input" style={{ width: 300 }} placeholder="Task description..." value={task}
+          <input className="input" style={{ width: 300, maxWidth: '100%' }} placeholder="Task description..." value={task}
             onChange={e => setTask(e.target.value)} onKeyDown={e => e.key === 'Enter' && spawn()} />
           <button className="btn btn-primary" onClick={spawn}>Spawn</button>
           <button className="btn btn-ghost" onClick={refresh}>Refresh</button>

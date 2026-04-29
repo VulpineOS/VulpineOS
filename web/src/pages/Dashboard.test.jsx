@@ -91,4 +91,43 @@ describe('Dashboard page', () => {
     expect(screen.getAllByText('Gateway profile repair failed').length).toBeGreaterThan(0)
     expect(screen.getByText('Review agents')).toBeInTheDocument()
   })
+
+  it('hides Sentinel labels when the extension is unavailable', async () => {
+    const ws = {
+      connected: true,
+      connectionState: 'connected',
+      telemetry: {},
+      events: [],
+      call: vi.fn(async (method) => {
+        if (method === 'status.get') {
+          return {
+            kernel_running: true,
+            browser_route: 'camoufox',
+            browser_window: 'visible',
+            gateway_running: true,
+            sentinel_available: false,
+            kernel_headless: false,
+            active_agents: 0,
+          }
+        }
+        if (method === 'runtime.list') return { events: [] }
+        if (method === 'costs.total') return { totalCostUsd: 0 }
+        if (method === 'costs.getAll') return { usage: [], defaults: {} }
+        if (method === 'agents.list') return { agents: [] }
+        return {}
+      }),
+    }
+
+    render(
+      <MemoryRouter>
+        <Dashboard ws={ws} />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText('CAMOUFOX')).toBeInTheDocument()
+    expect(screen.queryByText('Sentinel')).not.toBeInTheDocument()
+    expect(screen.queryByText('Trust recipes')).not.toBeInTheDocument()
+    expect(screen.queryByText('Maturity metrics')).not.toBeInTheDocument()
+    expect(screen.queryByText('Assignment rules')).not.toBeInTheDocument()
+  })
 })

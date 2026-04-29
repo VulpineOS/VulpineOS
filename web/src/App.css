@@ -200,6 +200,7 @@
   margin-left: 252px;
   padding: 24px;
   min-height: 100vh;
+  min-width: 0;
 }
 
 .panel-banner-stack {
@@ -274,6 +275,8 @@
   border-radius: 8px;
   padding: 20px;
   margin-bottom: 16px;
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 .card h3 {
@@ -344,6 +347,7 @@
 
 .table {
   width: 100%;
+  min-width: max-content;
   border-collapse: collapse;
 }
 
@@ -461,8 +465,20 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  flex-wrap: wrap;
   gap: 16px;
   margin-bottom: 24px;
+}
+
+.page-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.page-actions .input {
+  min-width: 0;
 }
 
 .page-header h1 {
@@ -631,6 +647,7 @@
 
   .content {
     margin-left: 72px;
+    padding: 16px;
   }
 
   .grid-2,
@@ -643,5 +660,16 @@
 
   .runtime-item {
     grid-template-columns: 1fr;
+  }
+
+  .panel-banner {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .page-actions,
+  .page-actions .input,
+  .page-actions .btn {
+    width: 100%;
   }
 }

@@ -15,6 +15,56 @@ import Scripts from './pages/Scripts'
 import Login from './pages/Login'
 import './App.css'
 
+class PanelErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props)
+    this.state = { error: null }
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error }
+  }
+
+  componentDidUpdate(prevProps) {
+    if (prevProps.resetKey !== this.props.resetKey && this.state.error) {
+      this.setState({ error: null })
+    }
+  }
+
+  componentDidCatch(error) {
+    console.error('Panel render error', error)
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children
+    return (
+      <div className="panel-banner panel-banner-red">
+        <div>
+          <strong>Panel error</strong>
+          <span>{this.state.error?.message || 'The current panel view failed to render.'}</span>
+        </div>
+        <div className="panel-banner-actions">
+          <button className="btn btn-ghost btn-sm" onClick={() => window.location.reload()}>Reload panel</button>
+        </div>
+      </div>
+    )
+  }
+}
+
+function NotFound() {
+  return (
+    <div className="panel-banner panel-banner-yellow">
+      <div>
+        <strong>Page not found</strong>
+        <span>Use the sidebar to return to an active panel view.</span>
+      </div>
+      <div className="panel-banner-actions">
+        <Link className="btn btn-ghost btn-sm" to="/">Open dashboard</Link>
+      </div>
+    </div>
+  )
+}
+
 function bootstrapPanelKey() {
   const params = new URLSearchParams(window.location.search)
   const token = params.get('token')
@@ -249,19 +299,22 @@ export default function App() {
             )}
           </div>
         )}
-        <Routes>
-          <Route path="/" element={<Dashboard ws={panelWS} />} />
-          <Route path="/agents" element={<Agents ws={panelWS} />} />
-          <Route path="/agents/:id" element={<AgentDetail ws={panelWS} />} />
-          <Route path="/bus" element={<Bus ws={panelWS} />} />
-          <Route path="/contexts" element={<Contexts ws={panelWS} />} />
-          <Route path="/proxies" element={<Proxies ws={panelWS} />} />
-          <Route path="/security" element={<Security ws={panelWS} />} />
-          <Route path="/webhooks" element={<Webhooks ws={panelWS} />} />
-          <Route path="/scripts" element={<Scripts ws={panelWS} />} />
-          <Route path="/logs" element={<Logs ws={panelWS} />} />
-          <Route path="/settings" element={<Settings ws={panelWS} />} />
-        </Routes>
+        <PanelErrorBoundary resetKey={location.pathname}>
+          <Routes>
+            <Route path="/" element={<Dashboard ws={panelWS} />} />
+            <Route path="/agents" element={<Agents ws={panelWS} />} />
+            <Route path="/agents/:id" element={<AgentDetail ws={panelWS} />} />
+            <Route path="/bus" element={<Bus ws={panelWS} />} />
+            <Route path="/contexts" element={<Contexts ws={panelWS} />} />
+            <Route path="/proxies" element={<Proxies ws={panelWS} />} />
+            <Route path="/security" element={<Security ws={panelWS} />} />
+            <Route path="/webhooks" element={<Webhooks ws={panelWS} />} />
+            <Route path="/scripts" element={<Scripts ws={panelWS} />} />
+            <Route path="/logs" element={<Logs ws={panelWS} />} />
+            <Route path="/settings" element={<Settings ws={panelWS} />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </PanelErrorBoundary>
       </main>
     </div>
   )

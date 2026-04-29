@@ -5,16 +5,56 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 
 class FakeWebSocket {
+  static instances = []
+  static controlResults = {}
+
   constructor(url) {
     this.url = url
+    this.readyState = 0
+    FakeWebSocket.instances.push(this)
+    setTimeout(() => this.triggerOpen(), 0)
   }
 
-  close = vi.fn()
+  send = vi.fn((raw) => {
+    const msg = JSON.parse(raw)
+    if (msg.type !== 'control') return
+    const payload = msg.payload || {}
+    const result = FakeWebSocket.controlResults[payload.command] || {}
+    queueMicrotask(() => {
+      this.onmessage?.({
+        data: JSON.stringify({ type: 'control', payload: { id: payload.id, result } }),
+      })
+    })
+  })
+
+  close = vi.fn(() => {
+    this.readyState = 3
+  })
+
+  triggerOpen() {
+    if (this.readyState === 3) return
+    this.readyState = 1
+    this.onopen?.()
+  }
+}
+
+function makeFetch(status = {}) {
+  return vi.fn(async (url) => {
+    if (url === '/auth/check') return { ok: true, status: 200 }
+    return {
+      ok: true,
+      json: async () => status,
+    }
+  })
 }
 
 describe('App shell', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
+    FakeWebSocket.instances = []
+    FakeWebSocket.controlResults = {}
+    sessionStorage.clear()
+    window.history.replaceState({}, '', '/')
   })
 
   it('revalidates a stored access key and returns to login when rejected', async () => {
@@ -35,5 +75,72 @@ describe('App shell', () => {
     })
     expect(await screen.findByPlaceholderText('Access Key')).toBeInTheDocument()
     expect(sessionStorage.getItem('vulpine_key')).toBeNull()
+  })
+
+  it('renders an inline not found state for unknown panel routes', async () => {
+    sessionStorage.setItem('vulpine_key', 'dev')
+    vi.stubGlobal('fetch', makeFetch())
+    vi.stubGlobal('WebSocket', FakeWebSocket)
+
+    render(
+      <MemoryRouter initialEntries={['/missing']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText('Page not found')).toBeInTheDocument()
+    expect(screen.getByText('Open dashboard')).toBeInTheDocument()
+  })
+
+  it('ingests token query params and strips them from browser history', async () => {
+    window.history.replaceState({}, '', '/?token=from-query')
+    vi.stubGlobal('fetch', makeFetch())
+    vi.stubGlobal('WebSocket', FakeWebSocket)
+    const replaceState = vi.fn()
+    const previousReplaceState = window.history.replaceState
+    window.history.replaceState = replaceState
+
+    try {
+      render(
+        <MemoryRouter initialEntries={['/?token=from-query']}>
+          <App />
+        </MemoryRouter>,
+      )
+    } finally {
+      window.history.replaceState = previousReplaceState
+    }
+
+    expect(sessionStorage.getItem('vulpine_key')).toBe('from-query')
+    expect(replaceState).toHaveBeenCalledWith({}, document.title, '/')
+    expect(await screen.findByText('VulpineOS')).toBeInTheDocument()
+  })
+
+  it('renders runtime state in the shell sidebar', async () => {
+    sessionStorage.setItem('vulpine_key', 'dev')
+    FakeWebSocket.controlResults = {
+      'status.get': {
+        browser_route: 'camoufox',
+        browser_window: 'visible',
+        gateway_running: true,
+        kernel_running: true,
+        kernel_headless: false,
+        active_agents: 3,
+      },
+    }
+    vi.stubGlobal('fetch', makeFetch())
+    vi.stubGlobal('WebSocket', FakeWebSocket)
+
+    render(
+      <MemoryRouter>
+        <App />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getAllByText('CAMOUFOX').length).toBeGreaterThan(0)
+    })
+    expect(screen.getAllByText('GUI').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('VISIBLE').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('RUNNING').length).toBeGreaterThan(0)
   })
 })

@@ -29,8 +29,8 @@ export default function Login({ onLogin }) {
   }
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
-      <div className="card" style={{ width: 400 }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: 16 }}>
+      <div className="card" style={{ width: 'min(400px, calc(100vw - 32px))' }}>
         <h2 style={{ color: '#a78bfa', marginBottom: 8 }}>VulpineOS</h2>
         <p style={{ color: '#666', fontSize: 14, marginBottom: 24 }}>
           Enter the server access key configured at startup. If the server was started with
