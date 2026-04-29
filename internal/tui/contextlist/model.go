@@ -2,6 +2,7 @@ package contextlist
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -134,6 +135,39 @@ func (m Model) SelectedURL() string {
 	return m.items[m.selected].URL
 }
 
+// SafeDisplayURL redacts credentials and common secret query params for UI output.
+func SafeDisplayURL(raw string) string {
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return raw
+	}
+	if parsed.User != nil {
+		parsed.User = url.UserPassword("redacted", "redacted")
+	}
+	query := parsed.Query()
+	redacted := false
+	for key := range query {
+		if sensitiveURLKey(key) {
+			query.Set(key, "[redacted]")
+			redacted = true
+		}
+	}
+	if redacted {
+		parsed.RawQuery = query.Encode()
+	}
+	return parsed.String()
+}
+
+func sensitiveURLKey(key string) bool {
+	normalized := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(key), "-", "_"))
+	for _, marker := range []string{"api_key", "apikey", "token", "secret", "password", "credential", "authorization", "cookie", "session"} {
+		if strings.Contains(normalized, marker) {
+			return true
+		}
+	}
+	return false
+}
+
 // truncateURL shortens a URL for display.
 func truncateURL(url string, maxLen int) string {
 	if maxLen < 4 {
@@ -177,6 +211,7 @@ func (m Model) View() string {
 		if url == "" {
 			url = "about:blank"
 		}
+		url = SafeDisplayURL(url)
 		url = truncateURL(url, maxURL)
 
 		line := fmt.Sprintf("%s %s %s", cursor, status, url)
