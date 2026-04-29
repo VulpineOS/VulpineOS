@@ -240,7 +240,10 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 			}
 			respData, _ := json.Marshal(resp)
 			respEnv, _ := NewJugglerEnvelope(respData)
-			conn.Write(ctx, websocket.MessageText, respEnv)
+			if err := s.writeClient(wsc, respEnv); err != nil {
+				log.Printf("remote response write error: %v", err)
+				return
+			}
 
 		case "control":
 			// Handle control commands (restart, spawn, etc.)
@@ -280,5 +283,17 @@ func (s *Server) handleControl(wsc *wsClient, payload json.RawMessage) {
 	}
 
 	env, _ := NewControlEnvelope("response", respPayload)
-	wsc.conn.Write(wsc.ctx, websocket.MessageText, env)
+	if err := s.writeClient(wsc, env); err != nil {
+		log.Printf("remote control write error: %v", err)
+	}
+}
+
+func (s *Server) writeClient(wsc *wsClient, data []byte) error {
+	baseCtx := wsc.ctx
+	if baseCtx == nil {
+		baseCtx = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(baseCtx, s.writeTimeout)
+	defer cancel()
+	return wsc.write(ctx, websocket.MessageText, data)
 }
