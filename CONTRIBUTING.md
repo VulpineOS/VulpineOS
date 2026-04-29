@@ -64,9 +64,9 @@ See [`service-tester/README.md`](service-tester/README.md) for full details.
 |---|---|---|
 | Entry point | Raw binary path | `pip install camoufox` |
 | Fingerprint injection | Manual | Via `AsyncNewContext` API |
-| Global mode (`CAMOU_CONFIG`) | ✓ | ✗ |
-| Match result validation | ✓ | ✗ |
-| Proxy required | ✗ | ✓ |
+| Global mode (`CAMOU_CONFIG`) | yes | no |
+| Match result validation | yes | no |
+| Proxy required | no | yes |
 | Profiles | 8 (6 per-context + 2 global) | 6 (per-context) |
 | Fix target on failure | Browser source | Python package |
 
