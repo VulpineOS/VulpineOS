@@ -18,11 +18,24 @@ See README.md
 2. Follow the pull request template
 3. Keep commits focused — one logical change per commit.
 4. Open a PR with a clear description of what you changed and why.
-5. All pull requests must pass both the **build-tester** and **service-tester** test suites before merging.
+5. All pull requests must pass the relevant checks for the files changed before merging.
 
 ## Testing Requirements
 
-**Both test suites are required for every PR.** They test different layers of the stack and catch different classes of bugs — passing one does not substitute for the other.
+For most VulpineOS runtime changes, run:
+
+```bash
+go test ./cmd/... ./internal/...
+```
+
+If you change the web panel, also run:
+
+```bash
+npm --prefix web test -- --run
+npm --prefix web run build
+```
+
+The browser-layer test suites below are required when you change Firefox/Camoufox patches, browser fingerprinting code, or Python package integration. They test different layers of the browser stack and catch different classes of bugs.
 
 ### build-tester
 
@@ -62,7 +75,7 @@ See [`service-tester/README.md`](service-tester/README.md) for full details.
 
 | | build-tester | service-tester |
 |---|---|---|
-| Entry point | Raw binary path | `pip install camoufox` |
+| Entry point | Raw browser binary path | local Python package install |
 | Fingerprint injection | Manual | Via `AsyncNewContext` API |
 | Global mode (`CAMOU_CONFIG`) | yes | no |
 | Match result validation | yes | no |
@@ -73,10 +86,11 @@ See [`service-tester/README.md`](service-tester/README.md) for full details.
 ## Reporting Issues
 
 Please search existing issues before opening a new one. Include:
-- Camoufox version
-- OS and Python version
-- A minimal reproducible example
+- VulpineOS commit or release version
+- Browser binary path/version, if the bug involves a live browser
+- OS, Go version, and Node.js version
+- Exact run command and a minimal reproducible example
 
 ## Questions
 
-For usage questions, check the [documentation](https://camoufox.com) first. For anything else, open an issue.
+For usage questions, check the [documentation](https://docs.vulpineos.com) first. For anything else, open an issue.

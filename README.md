@@ -63,7 +63,7 @@ VulpineOS builds on Camoufox's battle-tested stealth foundation (Firefox 146.0.1
 │                                                              │
 │  Go Runtime (38 packages, 500+ tests)                         │
 │  ├── Bubbletea TUI (3-column agent workbench)                 │
-│  ├── Web Panel (React SPA, 12 pages, 46 control messages)     │
+│  ├── Web Panel (React SPA, 12 pages, 48 control messages)     │
 │  ├── Identity Vault (SQLite — citizens, templates, sessions)  │
 │  ├── Context Pool (pre-warm, recycle, memory limits)           │
 │  ├── Orchestrator (spawn citizens + nomads, auto-release)      │
@@ -150,7 +150,7 @@ Beyond the four core phases, VulpineOS includes hardened runtime security:
 
 | Feature | Description |
 |---------|-------------|
-| **Web Panel** | React SPA (Vite) with 12 pages — Dashboard, Agents, Agent Detail, Bus, Contexts, Proxies, Security, Webhooks, Scripts, Settings, Logs, and Login. 46 WebSocket control messages, including persisted runtime audit history, reconnect/session auth, budget controls, bus approvals, proxy rotation, runtime-backed security status, real script execution, and a denser operator dashboard shell with runtime alerts and quick actions. |
+| **Web Panel** | React SPA (Vite) with 12 pages — Dashboard, Agents, Agent Detail, Bus, Contexts, Proxies, Security, Webhooks, Scripts, Settings, Logs, and Login. 48 WebSocket control messages, including persisted runtime audit history, reconnect/session auth, budget controls, bus approvals, proxy rotation, runtime-backed security status, real script execution, and a denser operator dashboard shell with runtime alerts and quick actions. |
 | **Agent Bus** | Inter-agent communication (ask, delegate, reply, notify) with user-controlled approval policies and full audit trail |
 | **Cost Tracking** | Per-agent token usage and API cost tracking with budget limits. Built-in pricing for Claude, GPT-4o, Gemini. Alerts at configurable thresholds. |
 | **Session Recording** | Record browser actions as timestamped timelines. Export to JSON. Terminal-based replay at real speed. |
@@ -249,7 +249,9 @@ A React SPA served from the Go binary — no separate frontend deployment needed
 
 **12 pages:** Dashboard, Agents, Agent Detail, Bus, Contexts, Proxies, Security, Webhooks, Scripts, Settings, Logs, Login
 
-**46 control messages** covering: agent CRUD plus bulk controls and session-log access; config get/set/providers; cost usage plus persisted per-agent/default budgets; webhooks; proxy management plus rotation get/set; agent bus pending/approve/reject/policies/add/remove; session recording export; fingerprint get/generate-and-apply; runtime-backed script execution; runtime-backed security status; status; optional extension availability and timelines; runtime audit history with retention/export controls; and context create/remove/list.
+**48 control messages** covering: agent CRUD plus bulk controls and session-log access; config get/set/providers; cost usage plus persisted per-agent/default budgets; webhooks; proxy management plus rotation get/set; agent bus pending/approve/reject/policies/add/remove; session recording export; fingerprint get/generate-and-apply; runtime-backed script execution; runtime-backed security status; status; optional extension availability and timelines; runtime audit history with retention/export controls; and context create/remove/list.
+
+Credential, audio, mobile, and Sentinel-backed controls are stable public interfaces. The stock open-source build returns unavailable for extension-backed actions unless a provider is registered by an external extension package.
 
 Agent Detail includes separate conversation, action trace, raw session log, recording, and fingerprint views so operator-visible tool activity is inspectable without exposing hidden reasoning.
 
@@ -405,7 +407,7 @@ Use the same value with `vulpineos remote panel` or `vulpineos remote tui` when 
 from another machine.
 If you want the full deployment notes, including required browser artifacts under
 `dist/camoufox-linux/`, persistent volumes, and optional TLS, see
-[vulpineos.com/docker](https://vulpineos.com/docker).
+[docs.vulpineos.com/docker](https://docs.vulpineos.com/docker).
 
 ## Release notes
 
@@ -429,8 +431,8 @@ VulpineOS exposes 36 tools via Model Context Protocol:
 | Reliability tools | Wait, find, verify, screenshot diff, page-settled checks, select options, fill forms, page info, key press, clear input, form errors |
 | Human-realism tools | Human-like click, scroll, and type timing |
 | Annotated interaction | Annotated screenshots and click-by-label with `@N` labels |
-| Extension surfaces | Credential metadata/autofill, audio capture, and mobile device bridge tools |
-| Mobile bridge | List Android devices, start a local CDP bridge, and disconnect bridge sessions |
+| Extension surfaces | Credential metadata/autofill, audio capture, Sentinel signals, and mobile bridge hooks. The stock public build returns unavailable unless an extension provider is attached. |
+| Mobile bridge | List Android devices, start a local CDP bridge, and disconnect bridge sessions when the public mobile bridge provider is installed |
 
 ---
 
