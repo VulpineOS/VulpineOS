@@ -3,7 +3,7 @@
 This example shows the two supported ways to run OpenClaw with
 VulpineOS:
 
-1. MCP-first: OpenClaw talks to `vulpineos --mcp-server`
+1. MCP-first: OpenClaw talks to `vulpineos mcp`
 2. Direct CDP: OpenClaw talks to foxbridge / embedded foxbridge through
    `browser.cdpUrl`
 
