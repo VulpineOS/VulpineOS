@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"testing"
+
+	"vulpineos/internal/juggler"
 )
 
 func TestToolSchemaProperties(t *testing.T) {
@@ -129,6 +132,98 @@ func TestTextResult(t *testing.T) {
 	}
 }
 
+type scriptedJugglerTransport struct {
+	incoming chan *juggler.Message
+	outgoing chan *juggler.Message
+	closed   chan struct{}
+	once     sync.Once
+}
+
+func newScriptedJugglerTransport() *scriptedJugglerTransport {
+	return &scriptedJugglerTransport{
+		incoming: make(chan *juggler.Message, 16),
+		outgoing: make(chan *juggler.Message, 16),
+		closed:   make(chan struct{}),
+	}
+}
+
+func (t *scriptedJugglerTransport) Send(msg *juggler.Message) error {
+	select {
+	case <-t.closed:
+		return fmt.Errorf("transport closed")
+	case t.outgoing <- msg:
+		return nil
+	}
+}
+
+func (t *scriptedJugglerTransport) Receive() (*juggler.Message, error) {
+	select {
+	case <-t.closed:
+		return nil, fmt.Errorf("transport closed")
+	case msg := <-t.incoming:
+		return msg, nil
+	}
+}
+
+func (t *scriptedJugglerTransport) Close() error {
+	t.once.Do(func() { close(t.closed) })
+	return nil
+}
+
+func TestHandleNewContextFiltersAttachEventsByBrowserContext(t *testing.T) {
+	transport := newScriptedJugglerTransport()
+	client := juggler.NewClient(transport)
+	defer client.Close()
+
+	go func() {
+		for {
+			select {
+			case <-transport.closed:
+				return
+			case req := <-transport.outgoing:
+				switch req.Method {
+				case "Browser.createBrowserContext":
+					transport.incoming <- &juggler.Message{ID: req.ID, Result: json.RawMessage(`{"browserContextId":"ctx-new"}`)}
+				case "Browser.newPage":
+					transport.incoming <- &juggler.Message{
+						Method: "Browser.attachedToTarget",
+						Params: json.RawMessage(`{"sessionId":"session-other","targetInfo":{"browserContextId":"ctx-other"}}`),
+					}
+					transport.incoming <- &juggler.Message{
+						Method: "Browser.attachedToTarget",
+						Params: json.RawMessage(`{"sessionId":"session-new","targetInfo":{"browserContextId":"ctx-new"}}`),
+					}
+					transport.incoming <- &juggler.Message{ID: req.ID, Result: json.RawMessage(`{"targetId":"target-new"}`)}
+				default:
+					transport.incoming <- &juggler.Message{ID: req.ID, Result: json.RawMessage(`{}`)}
+				}
+			}
+		}
+	}()
+
+	result, err := handleNewContext(client, nil)
+	if err != nil {
+		t.Fatalf("handleNewContext returned error: %v", err)
+	}
+	if result == nil || len(result.Content) != 1 {
+		t.Fatalf("unexpected result: %#v", result)
+	}
+
+	var payload struct {
+		ContextID string `json:"contextId"`
+		SessionID string `json:"sessionId"`
+	}
+	if err := json.Unmarshal([]byte(result.Content[0].Text), &payload); err != nil {
+		t.Fatalf("unmarshal result text: %v", err)
+	}
+	if payload.ContextID != "ctx-new" {
+		t.Fatalf("contextId = %q, want ctx-new", payload.ContextID)
+	}
+	if payload.SessionID != "session-new" {
+		t.Fatalf("sessionId = %q, want session-new", payload.SessionID)
+	}
+}
+
 func TestErrorResult(t *testing.T) {
 	err := fmt.Errorf("something went wrong")
 	r := errorResult(err)
@@ -147,7 +242,7 @@ func TestErrorResult(t *testing.T) {
 }
 
 func TestHandleToolCallUnknownTool(t *testing.T) {
-	_, err := handleToolCall(context.Background(), nil, nil,"vulpine_nonexistent", nil)
+	_, err := handleToolCall(context.Background(), nil, nil, "vulpine_nonexistent", nil)
 	if err == nil {
 		t.Fatal("expected error for unknown tool")
 	}
@@ -164,7 +259,7 @@ func TestHandleToolCallBadJSON(t *testing.T) {
 	}
 	for _, name := range toolNames {
 		t.Run(name, func(t *testing.T) {
-			result, err := handleToolCall(context.Background(), nil, nil,name, badJSON)
+			result, err := handleToolCall(context.Background(), nil, nil, name, badJSON)
 			// Should return a result (not a Go error) with IsError=true
 			if err != nil {
 				t.Fatalf("unexpected Go error: %v", err)
@@ -211,4 +306,3 @@ func TestToolCallResultWithErrorJSON(t *testing.T) {
 		t.Error("isError should be present when true")
 	}
 }
-

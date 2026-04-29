@@ -654,21 +654,6 @@ func handleScroll(client *juggler.Client, tracker *ContextTracker, args json.Raw
 }
 
 func handleNewContext(client *juggler.Client, args json.RawMessage) (*ToolCallResult, error) {
-	// Subscribe to get the sessionID from the attachedToTarget event
-	sessionCh := make(chan string, 4)
-	client.Subscribe("Browser.attachedToTarget", func(_ string, params json.RawMessage) {
-		var ev struct {
-			SessionID string `json:"sessionId"`
-		}
-		json.Unmarshal(params, &ev)
-		if ev.SessionID != "" {
-			select {
-			case sessionCh <- ev.SessionID:
-			default:
-			}
-		}
-	})
-
 	// Create context
 	ctxResult, err := client.Call("", "Browser.createBrowserContext", map[string]interface{}{
 		"removeOnDetach": true,
@@ -683,6 +668,28 @@ func handleNewContext(client *juggler.Client, args json.RawMessage) (*ToolCallRe
 	if err := json.Unmarshal(ctxResult, &ctx); err != nil {
 		return errorResult(err), nil
 	}
+	if ctx.BrowserContextID == "" {
+		return errorResult(fmt.Errorf("Browser.createBrowserContext returned empty browserContextId")), nil
+	}
+
+	// Subscribe to get the sessionID from the attachedToTarget event. Filter by
+	// browserContextId so concurrent target attaches cannot steal this result.
+	sessionCh := make(chan string, 4)
+	client.Subscribe("Browser.attachedToTarget", func(_ string, params json.RawMessage) {
+		var ev struct {
+			SessionID  string `json:"sessionId"`
+			TargetInfo struct {
+				BrowserContextID string `json:"browserContextId"`
+			} `json:"targetInfo"`
+		}
+		json.Unmarshal(params, &ev)
+		if ev.SessionID != "" && ev.TargetInfo.BrowserContextID == ctx.BrowserContextID {
+			select {
+			case sessionCh <- ev.SessionID:
+			default:
+			}
+		}
+	})
 
 	// Create page in context
 	_, err = client.Call("", "Browser.newPage", map[string]interface{}{
