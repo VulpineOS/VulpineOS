@@ -53,6 +53,7 @@ const (
 	maxPanelBulkAgentIDs         = 100
 	maxPanelSentinelTimelineRows = 100
 	maxPanelSentinelFilterBytes  = 256
+	maxPanelFingerprintSeedBytes = 256
 	maxPanelBusEndpointBytes     = 128
 	maxPanelBusMessageIDBytes    = 128
 	maxPanelBusContentBytes      = 8192
@@ -1419,7 +1420,11 @@ func (api *PanelAPI) fingerprintsGet(params json.RawMessage) (json.RawMessage, e
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
-	agent, err := api.Vault.GetAgent(p.AgentID)
+	agentID, err := safePanelAgentID(p.AgentID)
+	if err != nil {
+		return nil, err
+	}
+	agent, err := api.Vault.GetAgent(agentID)
 	if err != nil {
 		return nil, err
 	}
@@ -1445,19 +1450,27 @@ func (api *PanelAPI) fingerprintsGenerate(params json.RawMessage) (json.RawMessa
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
-	if p.Seed == "" {
-		p.Seed = "default"
+	seed, err := safePanelFingerprintSeed(p.Seed)
+	if err != nil {
+		return nil, err
 	}
-	fp, err := vault.GenerateFingerprint(p.Seed)
+	agentID := ""
+	if strings.TrimSpace(p.AgentID) != "" {
+		agentID, err = safePanelAgentID(p.AgentID)
+		if err != nil {
+			return nil, err
+		}
+	}
+	fp, err := vault.GenerateFingerprint(seed)
 	if err != nil {
 		return nil, err
 	}
 	applied := false
-	if strings.TrimSpace(p.AgentID) != "" {
+	if agentID != "" {
 		if api.Vault == nil {
 			return nil, fmt.Errorf("vault not available")
 		}
-		if err := api.Vault.UpdateAgentFingerprint(p.AgentID, fp); err != nil {
+		if err := api.Vault.UpdateAgentFingerprint(agentID, fp); err != nil {
 			return nil, err
 		}
 		applied = true
@@ -1467,6 +1480,22 @@ func (api *PanelAPI) fingerprintsGenerate(params json.RawMessage) (json.RawMessa
 		"summary":     vault.FingerprintSummary(fp),
 		"applied":     applied,
 	})
+}
+
+func safePanelFingerprintSeed(value string) (string, error) {
+	seed := strings.TrimSpace(value)
+	if seed == "" {
+		return "default", nil
+	}
+	if len(seed) > maxPanelFingerprintSeedBytes {
+		return "", fmt.Errorf("seed exceeds %d byte limit", maxPanelFingerprintSeedBytes)
+	}
+	for _, r := range seed {
+		if r < 32 || r == 127 {
+			return "", fmt.Errorf("invalid seed")
+		}
+	}
+	return seed, nil
 }
 
 // ---------------------------------------------------------------------------
