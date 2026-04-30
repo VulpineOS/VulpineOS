@@ -3,6 +3,7 @@ package remote
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 
 	"vulpineos/internal/config"
@@ -71,5 +72,33 @@ func TestConfigProvidersReturnsRegistry(t *testing.T) {
 	}
 	if result.Providers[0].ID == "" || result.Providers[0].Name == "" {
 		t.Fatalf("unexpected first provider: %#v", result.Providers[0])
+	}
+}
+
+func TestConfigSetRejectsUnsafeInputsWithoutEchoingSecrets(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	api := &PanelAPI{Config: &config.Config{}}
+	for _, tc := range []struct {
+		name    string
+		payload string
+		secret  string
+	}{
+		{name: "provider path", payload: `{"provider":"../provider-secret"}`, secret: "provider-secret"},
+		{name: "model whitespace", payload: `{"model":"openai/gpt secret"}`, secret: "gpt secret"},
+		{name: "api key control", payload: "{\"apiKey\":\"api-secret\\nnext\"}", secret: "api-secret"},
+		{name: "api key long", payload: `{"apiKey":"` + `api-secret-` + strings.Repeat("x", maxPanelAPIKeyBytes) + `"}`, secret: "api-secret"},
+		{name: "default cost negative", payload: `{"defaultBudgetMaxCostUsd":-1}`, secret: ""},
+		{name: "default tokens negative", payload: `{"defaultBudgetMaxTokens":-1}`, secret: ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := api.HandleMessage("config.set", json.RawMessage(tc.payload))
+			if err == nil {
+				t.Fatal("expected invalid config error")
+			}
+			if tc.secret != "" && strings.Contains(err.Error(), tc.secret) {
+				t.Fatalf("config error leaked input %q: %v", tc.secret, err)
+			}
+		})
 	}
 }
