@@ -55,6 +55,64 @@ func TestGetCredentialMissReturnsFoundFalse(t *testing.T) {
 	}
 }
 
+func TestCredentialToolDisplayRedactsSecretURLs(t *testing.T) {
+	withFakeCredentials(t, &extensionstest.FakeCredentialProvider{
+		AvailableFlag: true,
+		Cred: extensions.Credential{
+			ID:       "cred-1",
+			Site:     "https://user:pass@example.com/login?token=site-token&view=ok",
+			Username: "alice",
+		},
+	})
+
+	res := runExtTool(t, "vulpine_get_credential", map[string]interface{}{
+		"site_url": "https://example.com",
+	})
+	if res.IsError {
+		t.Fatalf("unexpected error: %+v", res)
+	}
+	body := res.Content[0].Text
+	for _, leaked := range []string{"user:pass", "site-token"} {
+		if strings.Contains(body, leaked) {
+			t.Fatalf("credential metadata leaked %q: %s", leaked, body)
+		}
+	}
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal([]byte(body), &parsed); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	site, _ := parsed["site"].(string)
+	if !strings.Contains(site, "redacted:redacted@example.com") || !strings.Contains(site, "token=%5Bredacted%5D") {
+		t.Fatalf("site was not redacted as expected: %q", site)
+	}
+}
+
+func TestAutofillMissRedactsLookupURL(t *testing.T) {
+	original := extensions.Registry.Credentials()
+	t.Cleanup(func() { extensions.Registry.SetCredentials(original) })
+	extensions.Registry.SetCredentials(missingCredProvider{})
+
+	res := runExtTool(t, "vulpine_autofill", map[string]interface{}{
+		"site_url":          "https://user:pass@example.com/login?token=lookup-token&view=ok",
+		"page_id":           "p1",
+		"username_selector": "#user",
+		"password_selector": "#pass",
+	})
+	if !res.IsError {
+		t.Fatalf("expected missing credential error: %+v", res)
+	}
+	text := res.Content[0].Text
+	for _, leaked := range []string{"user:pass", "lookup-token"} {
+		if strings.Contains(text, leaked) {
+			t.Fatalf("autofill error leaked %q: %s", leaked, text)
+		}
+	}
+	if !strings.Contains(text, "redacted:redacted@example.com") || !strings.Contains(text, "token=%5Bredacted%5D") {
+		t.Fatalf("autofill error was not redacted as expected: %s", text)
+	}
+}
+
 func TestHandleAutofillThreadsContext(t *testing.T) {
 	sentinel := &ctxKey{name: "autofill-ctx"}
 	var seen context.Context
