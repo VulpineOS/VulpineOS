@@ -309,6 +309,7 @@ type FakeSentinelProvider struct {
 	SurfaceEffectiveness      []extensions.SentinelSurfaceEffectivenessSummary
 	SurfaceStrategy           []extensions.SentinelSurfaceStrategySummary
 	ExperimentBoard           []extensions.SentinelExperimentSummary
+	LastTimelineFilter        extensions.SentinelTimelineFilter
 	Events                    []extensions.SentinelEvent
 	Outcomes                  []extensions.SentinelOutcome
 }
@@ -648,8 +649,9 @@ func (f *FakeSentinelProvider) ListAssignmentRules(ctx context.Context) ([]exten
 
 // ListSessionTimelines returns a copy of the canned session timelines.
 func (f *FakeSentinelProvider) ListSessionTimelines(ctx context.Context, filter extensions.SentinelTimelineFilter) ([]extensions.SentinelSessionTimeline, error) {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.LastTimelineFilter = filter
 	out := make([]extensions.SentinelSessionTimeline, len(f.SessionTimelines))
 	copy(out, f.SessionTimelines)
 	return out, nil
