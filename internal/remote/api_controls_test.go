@@ -97,6 +97,31 @@ func TestCostsSetBudgetPersistsOverrideAndCanRevertToDefault(t *testing.T) {
 	}
 }
 
+func TestCostsSetBudgetRejectsUnsafeAgentIDAndNegativeBudget(t *testing.T) {
+	api, db := newPanelAPITestFixture(t)
+	agent, err := db.CreateAgent("Budget Guard", "task", "{}")
+	if err != nil {
+		t.Fatalf("CreateAgent: %v", err)
+	}
+
+	for _, tc := range []struct {
+		name    string
+		payload string
+		want    string
+	}{
+		{name: "unsafe agent", payload: `{"agentId":"../escape","maxCostUsd":1}`, want: "invalid agentId"},
+		{name: "negative cost", payload: `{"agentId":"` + agent.ID + `","maxCostUsd":-1}`, want: "maxCostUsd must be non-negative"},
+		{name: "negative tokens", payload: `{"agentId":"` + agent.ID + `","maxTokens":-1}`, want: "maxTokens must be non-negative"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := api.HandleMessage("costs.setBudget", json.RawMessage(tc.payload))
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("error = %v, want %q", err, tc.want)
+			}
+		})
+	}
+}
+
 func TestAgentsGetMessagesCapsPanelLimit(t *testing.T) {
 	api, db := newPanelAPITestFixture(t)
 	agent, err := db.CreateAgent("Message Cap", "task", "{}")

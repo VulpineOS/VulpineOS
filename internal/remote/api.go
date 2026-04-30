@@ -54,6 +54,9 @@ const (
 	maxPanelSentinelTimelineRows = 100
 	maxPanelSentinelFilterBytes  = 256
 	maxPanelFingerprintSeedBytes = 256
+	maxPanelProviderIDBytes      = 64
+	maxPanelModelIDBytes         = 256
+	maxPanelAPIKeyBytes          = 4096
 	maxPanelBusEndpointBytes     = 128
 	maxPanelBusMessageIDBytes    = 128
 	maxPanelBusContentBytes      = 8192
@@ -683,18 +686,36 @@ func (api *PanelAPI) configSet(params json.RawMessage) (json.RawMessage, error) 
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
 	if provider := strings.TrimSpace(p.Provider); provider != "" {
+		provider, err := safePanelProviderID(provider)
+		if err != nil {
+			return nil, err
+		}
 		api.Config.Provider = provider
 	}
 	if model := strings.TrimSpace(p.Model); model != "" {
+		model, err := safePanelModelID(model)
+		if err != nil {
+			return nil, err
+		}
 		api.Config.Model = model
 	}
 	if apiKey := strings.TrimSpace(p.APIKey); apiKey != "" {
+		apiKey, err := safePanelAPIKey(apiKey)
+		if err != nil {
+			return nil, err
+		}
 		api.Config.APIKey = apiKey
 	}
 	if p.DefaultBudgetMaxCostUSD != nil {
+		if *p.DefaultBudgetMaxCostUSD < 0 {
+			return nil, fmt.Errorf("defaultBudgetMaxCostUsd must be non-negative")
+		}
 		api.Config.DefaultBudgetMaxCostUSD = *p.DefaultBudgetMaxCostUSD
 	}
 	if p.DefaultBudgetMaxTokens != nil {
+		if *p.DefaultBudgetMaxTokens < 0 {
+			return nil, fmt.Errorf("defaultBudgetMaxTokens must be non-negative")
+		}
 		api.Config.DefaultBudgetMaxTokens = *p.DefaultBudgetMaxTokens
 	}
 	api.Config.RefreshSetupComplete()
@@ -717,6 +738,50 @@ func (api *PanelAPI) configSet(params json.RawMessage) (json.RawMessage, error) 
 		return nil, fmt.Errorf("sync persistent state: %w", err)
 	}
 	return json.Marshal(map[string]string{"status": "ok"})
+}
+
+func safePanelProviderID(value string) (string, error) {
+	provider := strings.TrimSpace(value)
+	if provider == "" {
+		return "", fmt.Errorf("provider is required")
+	}
+	if len(provider) > maxPanelProviderIDBytes {
+		return "", fmt.Errorf("provider exceeds %d byte limit", maxPanelProviderIDBytes)
+	}
+	if strings.ContainsAny(provider, " \t\r\n/\\") || provider == "." || provider == ".." {
+		return "", fmt.Errorf("invalid provider")
+	}
+	return provider, nil
+}
+
+func safePanelModelID(value string) (string, error) {
+	model := strings.TrimSpace(value)
+	if model == "" {
+		return "", fmt.Errorf("model is required")
+	}
+	if len(model) > maxPanelModelIDBytes {
+		return "", fmt.Errorf("model exceeds %d byte limit", maxPanelModelIDBytes)
+	}
+	if strings.ContainsAny(model, " \t\r\n\\") || model == "." || model == ".." {
+		return "", fmt.Errorf("invalid model")
+	}
+	return model, nil
+}
+
+func safePanelAPIKey(value string) (string, error) {
+	key := strings.TrimSpace(value)
+	if key == "" {
+		return "", fmt.Errorf("apiKey is required")
+	}
+	if len(key) > maxPanelAPIKeyBytes {
+		return "", fmt.Errorf("apiKey exceeds %d byte limit", maxPanelAPIKeyBytes)
+	}
+	for _, r := range key {
+		if r < 32 || r == 127 {
+			return "", fmt.Errorf("invalid apiKey")
+		}
+	}
+	return key, nil
 }
 
 // ---------------------------------------------------------------------------
@@ -753,13 +818,14 @@ func (api *PanelAPI) costsSetBudget(params json.RawMessage) (json.RawMessage, er
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
-	if strings.TrimSpace(p.AgentID) == "" {
-		return nil, fmt.Errorf("agentId is required")
+	agentID, err := safePanelAgentID(p.AgentID)
+	if err != nil {
+		return nil, err
 	}
 	if api.Vault == nil {
 		return nil, fmt.Errorf("vault not available")
 	}
-	agent, err := api.Vault.GetAgent(p.AgentID)
+	agent, err := api.Vault.GetAgent(agentID)
 	if err != nil {
 		return nil, err
 	}
@@ -770,13 +836,19 @@ func (api *PanelAPI) costsSetBudget(params json.RawMessage) (json.RawMessage, er
 	if p.InheritDefault {
 		meta.Budget = nil
 	} else {
+		if p.MaxCost < 0 {
+			return nil, fmt.Errorf("maxCostUsd must be non-negative")
+		}
+		if p.MaxTokens < 0 {
+			return nil, fmt.Errorf("maxTokens must be non-negative")
+		}
 		meta.Budget = &vault.AgentBudgetMetadata{
 			Override:   true,
 			MaxCostUSD: p.MaxCost,
 			MaxTokens:  p.MaxTokens,
 		}
 	}
-	if err := api.Vault.UpdateAgentMetadata(p.AgentID, vault.MarshalAgentMetadata(meta)); err != nil {
+	if err := api.Vault.UpdateAgentMetadata(agentID, vault.MarshalAgentMetadata(meta)); err != nil {
 		return nil, err
 	}
 	if err := api.syncAgentState(vault.Agent{ID: agent.ID, Metadata: vault.MarshalAgentMetadata(meta)}); err != nil {
