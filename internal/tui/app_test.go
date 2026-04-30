@@ -702,7 +702,10 @@ func TestUnfocusedChatAllowsOpenLogShortcut(t *testing.T) {
 		t.Fatalf("create agent: %v", err)
 	}
 
-	logPath := agentSessionLogPath(agent.ID)
+	logPath, err := agentSessionLogPath(agent.ID)
+	if err != nil {
+		t.Fatalf("agentSessionLogPath: %v", err)
+	}
 	if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
 		t.Fatalf("mkdir log dir: %v", err)
 	}
@@ -753,7 +756,10 @@ func TestFocusedChatAllowsCtrlOpenLogShortcut(t *testing.T) {
 		t.Fatalf("create agent: %v", err)
 	}
 
-	logPath := agentSessionLogPath(agent.ID)
+	logPath, err := agentSessionLogPath(agent.ID)
+	if err != nil {
+		t.Fatalf("agentSessionLogPath: %v", err)
+	}
 	if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
 		t.Fatalf("mkdir log dir: %v", err)
 	}
@@ -801,7 +807,10 @@ func TestFocusedEmptyChatAllowsOpenLogShortcut(t *testing.T) {
 		t.Fatalf("create agent: %v", err)
 	}
 
-	logPath := agentSessionLogPath(agent.ID)
+	logPath, err := agentSessionLogPath(agent.ID)
+	if err != nil {
+		t.Fatalf("agentSessionLogPath: %v", err)
+	}
 	if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
 		t.Fatalf("mkdir log dir: %v", err)
 	}
@@ -835,6 +844,29 @@ func TestFocusedEmptyChatAllowsOpenLogShortcut(t *testing.T) {
 	}
 	if len(opened) != 2 || opened[0] != "open" || opened[1] != logPath {
 		t.Fatalf("unexpected open command: %#v", opened)
+	}
+}
+
+func TestOpenSessionLogRejectsUnsafeAgentID(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	original := startExternalCommand
+	defer func() { startExternalCommand = original }()
+	startExternalCommand = func(name string, args ...string) error {
+		t.Fatalf("open command should not run for unsafe agent id: %s %#v", name, args)
+		return nil
+	}
+
+	app := NewApp(nil, nil, nil, nil, &config.Config{}, nil)
+	app.selectedAgentID = "../escape"
+	app.conversation.SetSize(80, 20)
+	app.focus = FocusConversation
+	app.inputMode = "chat"
+
+	model, _ := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'o'}})
+	updated := model.(App)
+	if updated.notice != "Invalid agent id" {
+		t.Fatalf("notice = %q, want invalid agent id", updated.notice)
 	}
 }
 

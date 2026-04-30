@@ -1159,7 +1159,12 @@ func (a *App) handleOpenSessionLog() {
 		a.noticeTTL = 3
 		return
 	}
-	logPath := agentSessionLogPath(a.selectedAgentID)
+	logPath, err := agentSessionLogPath(a.selectedAgentID)
+	if err != nil {
+		a.notice = "Invalid agent id"
+		a.noticeTTL = 4
+		return
+	}
 	if _, err := os.Stat(logPath); err != nil {
 		a.notice = "No session log yet for selected agent"
 		a.noticeTTL = 4
@@ -1765,8 +1770,21 @@ func shortContextID(contextID string) string {
 	return contextID[:12]
 }
 
-func agentSessionLogPath(agentID string) string {
-	return filepath.Join(config.OpenClawProfileDir(), "agents", "main", "sessions", "vulpine-"+agentID+".jsonl")
+func agentSessionLogPath(agentID string) (string, error) {
+	id := strings.TrimSpace(agentID)
+	if id == "" {
+		return "", fmt.Errorf("agent id is required")
+	}
+	if strings.ContainsAny(id, `/\`) || id == "." || id == ".." {
+		return "", fmt.Errorf("invalid agent id")
+	}
+	sessionsDir := filepath.Join(config.OpenClawProfileDir(), "agents", "main", "sessions")
+	path := filepath.Join(sessionsDir, "vulpine-"+id+".jsonl")
+	rel, err := filepath.Rel(sessionsDir, path)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		return "", fmt.Errorf("invalid agent id")
+	}
+	return path, nil
 }
 
 func (a App) selectedAgentStatus() string {
