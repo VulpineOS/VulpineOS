@@ -1,13 +1,23 @@
 package webhooks
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"log"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
+	return f(r)
+}
 
 func TestRegisterAndList(t *testing.T) {
 	m := New()
@@ -66,6 +76,38 @@ func TestFireDelivers(t *testing.T) {
 	}
 	if received.Data["agentId"] != "agent-1" {
 		t.Error("missing agentId in data")
+	}
+}
+
+func TestDeliveryLogsDoNotExposeURLSecrets(t *testing.T) {
+	var logs bytes.Buffer
+	originalWriter := log.Writer()
+	originalFlags := log.Flags()
+	log.SetOutput(&logs)
+	log.SetFlags(0)
+	defer func() {
+		log.SetOutput(originalWriter)
+		log.SetFlags(originalFlags)
+	}()
+
+	m := New()
+	m.client = &http.Client{
+		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			return nil, fmt.Errorf(`Post "https://user:pass@example.com/hook?token=url-token": token=err-token`)
+		}),
+	}
+	m.Register("https://user:pass@example.com/hook?token=url-token&view=events", nil, "")
+	m.Fire(AgentCompleted, map[string]interface{}{"agentId": "agent-1"})
+
+	time.Sleep(100 * time.Millisecond)
+	out := logs.String()
+	for _, leaked := range []string{"user:pass", "url-token", "err-token"} {
+		if strings.Contains(out, leaked) {
+			t.Fatalf("webhook delivery logs leaked %q: %s", leaked, out)
+		}
+	}
+	if !strings.Contains(out, "redacted:redacted@example.com") || !strings.Contains(out, "token=[redacted]") {
+		t.Fatalf("webhook delivery log was not redacted as expected: %s", out)
 	}
 }
 

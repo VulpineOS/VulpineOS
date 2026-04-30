@@ -7,6 +7,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 )
@@ -35,6 +38,12 @@ var supportedEvents = map[EventType]struct{}{
 	BudgetAlert:       {},
 	BudgetExceeded:    {},
 }
+
+var (
+	webhookLogQuerySecretPattern = regexp.MustCompile(`(?i)([?&](?:api[_-]?key|apikey|token|access[_-]?token|access[_-]?key|secret|password|credential|authorization|cookie|session)=)[^&#\s"]+`)
+	webhookLogUserinfoPattern    = regexp.MustCompile(`(?i)([a-z][a-z0-9+.-]*://)[^/\s"@]+:[^/\s"@]+@`)
+	webhookLogKeyValuePattern    = regexp.MustCompile(`(?i)(^|[^?&A-Za-z0-9_])((?:api[_-]?key|apikey|token|access[_-]?token|access[_-]?key|secret|password|credential|authorization|cookie|session)\s*=\s*)[^\s,;"]+`)
+)
 
 // SupportedEvent reports whether event is a built-in webhook event type.
 func SupportedEvent(event EventType) bool {
@@ -146,9 +155,10 @@ func (m *Manager) Fire(event EventType, data map[string]interface{}) {
 }
 
 func (m *Manager) deliver(wh Webhook, event EventType, body []byte) {
+	safeURL := redactWebhookURLForLog(wh.URL)
 	req, err := http.NewRequest("POST", wh.URL, bytes.NewReader(body))
 	if err != nil {
-		log.Printf("webhooks: request error for %s: %v", wh.URL, err)
+		log.Printf("webhooks: request error for %s: %s", safeURL, redactWebhookLogText(err.Error()))
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -159,14 +169,53 @@ func (m *Manager) deliver(wh Webhook, event EventType, body []byte) {
 
 	resp, err := m.client.Do(req)
 	if err != nil {
-		log.Printf("webhooks: delivery failed to %s: %v", wh.URL, err)
+		log.Printf("webhooks: delivery failed to %s: %s", safeURL, redactWebhookLogText(err.Error()))
 		return
 	}
 	resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		log.Printf("webhooks: %s returned %d", wh.URL, resp.StatusCode)
+		log.Printf("webhooks: %s returned %d", safeURL, resp.StatusCode)
 	}
+}
+
+func redactWebhookURLForLog(raw string) string {
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return redactWebhookLogText(raw)
+	}
+	if parsed.User != nil {
+		parsed.User = url.UserPassword("redacted", "redacted")
+	}
+	query := parsed.Query()
+	redacted := false
+	for key := range query {
+		if sensitiveWebhookURLKey(key) {
+			query.Set(key, "[redacted]")
+			redacted = true
+		}
+	}
+	if redacted {
+		parsed.RawQuery = query.Encode()
+	}
+	return parsed.String()
+}
+
+func redactWebhookLogText(value string) string {
+	value = webhookLogUserinfoPattern.ReplaceAllString(value, "${1}redacted:redacted@")
+	value = webhookLogQuerySecretPattern.ReplaceAllString(value, "${1}[redacted]")
+	value = webhookLogKeyValuePattern.ReplaceAllString(value, "${1}${2}[redacted]")
+	return value
+}
+
+func sensitiveWebhookURLKey(key string) bool {
+	normalized := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(key), "-", "_"))
+	for _, marker := range []string{"api_key", "apikey", "token", "secret", "password", "credential", "authorization", "cookie", "session"} {
+		if strings.Contains(normalized, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func containsEvent(events []EventType, target EventType) bool {
