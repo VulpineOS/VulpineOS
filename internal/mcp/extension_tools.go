@@ -6,9 +6,19 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"regexp"
+	"strings"
 
 	"vulpineos/internal/extensions"
 	"vulpineos/internal/juggler"
+)
+
+var (
+	mcpDisplayBearerPattern   = regexp.MustCompile(`(?i)(bearer\s+)[^\s,;"]+`)
+	mcpDisplayQuerySecret     = regexp.MustCompile(`(?i)([?&](?:api[_-]?key|apikey|token|access[_-]?token|access[_-]?key|secret|password|credential|authorization|cookie|session)=)[^&#\s"]+`)
+	mcpDisplayUserinfoPattern = regexp.MustCompile(`(?i)([a-z][a-z0-9+.-]*://)[^/\s"@]+:[^/\s"@]+@`)
+	mcpDisplayKeyValuePattern = regexp.MustCompile(`(?i)(^|[^?&A-Za-z0-9_])((?:api[_-]?key|apikey|token|access[_-]?token|access[_-]?key|secret|password|credential|authorization|cookie|session)\s*=\s*)[^\s,;"]+`)
 )
 
 // normalizeArgs replaces nil / "null" raw JSON with an empty object so
@@ -281,7 +291,7 @@ func handleGetCredential(ctx context.Context, args json.RawMessage) *ToolCallRes
 	}
 	cred, err := provider.Lookup(ctx, p.SiteURL)
 	if err != nil {
-		return errorResult(err)
+		return errorResult(fmt.Errorf("%s", redactMCPDisplayText(err.Error())))
 	}
 	if cred == nil {
 		b, _ := json.Marshal(map[string]interface{}{"found": false})
@@ -290,7 +300,7 @@ func handleGetCredential(ctx context.Context, args json.RawMessage) *ToolCallRes
 	meta := map[string]interface{}{
 		"found":    true,
 		"id":       cred.ID,
-		"site":     cred.Site,
+		"site":     redactMCPURLForDisplay(cred.Site),
 		"username": cred.Username,
 		"hasTOTP":  cred.HasTOTP,
 		"notes":    cred.Notes,
@@ -317,10 +327,10 @@ func handleAutofill(ctx context.Context, client *juggler.Client, args json.RawMe
 	}
 	cred, err := provider.Lookup(ctx, p.SiteURL)
 	if err != nil {
-		return errorResult(err)
+		return errorResult(fmt.Errorf("%s", redactMCPDisplayText(err.Error())))
 	}
 	if cred == nil {
-		return errorResult(fmt.Errorf("no credential found for %s", p.SiteURL))
+		return errorResult(fmt.Errorf("no credential found for %s", redactMCPURLForDisplay(p.SiteURL)))
 	}
 	if err := provider.Fill(ctx, cred.ID, extensions.FillTarget{
 		PageID:   p.PageID,
@@ -328,7 +338,7 @@ func handleAutofill(ctx context.Context, client *juggler.Client, args json.RawMe
 		Selector: p.UsernameSelector,
 		Field:    "username",
 	}); err != nil {
-		return errorResult(fmt.Errorf("fill username: %w", err))
+		return errorResult(fmt.Errorf("fill username: %s", redactMCPDisplayText(err.Error())))
 	}
 	if err := provider.Fill(ctx, cred.ID, extensions.FillTarget{
 		PageID:   p.PageID,
@@ -336,9 +346,49 @@ func handleAutofill(ctx context.Context, client *juggler.Client, args json.RawMe
 		Selector: p.PasswordSelector,
 		Field:    "password",
 	}); err != nil {
-		return errorResult(fmt.Errorf("fill password: %w", err))
+		return errorResult(fmt.Errorf("fill password: %s", redactMCPDisplayText(err.Error())))
 	}
 	return textResult(fmt.Sprintf("autofilled credential %s", cred.ID))
+}
+
+func redactMCPURLForDisplay(raw string) string {
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return redactMCPDisplayText(raw)
+	}
+	if parsed.User != nil {
+		parsed.User = url.UserPassword("redacted", "redacted")
+	}
+	query := parsed.Query()
+	redacted := false
+	for key := range query {
+		if sensitiveMCPDisplayKey(key) {
+			query.Set(key, "[redacted]")
+			redacted = true
+		}
+	}
+	if redacted {
+		parsed.RawQuery = query.Encode()
+	}
+	return parsed.String()
+}
+
+func redactMCPDisplayText(value string) string {
+	value = mcpDisplayUserinfoPattern.ReplaceAllString(value, "${1}redacted:redacted@")
+	value = mcpDisplayBearerPattern.ReplaceAllString(value, "${1}[redacted]")
+	value = mcpDisplayQuerySecret.ReplaceAllString(value, "${1}[redacted]")
+	value = mcpDisplayKeyValuePattern.ReplaceAllString(value, "${1}${2}[redacted]")
+	return value
+}
+
+func sensitiveMCPDisplayKey(key string) bool {
+	normalized := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(key), "-", "_"))
+	for _, marker := range []string{"api_key", "apikey", "token", "secret", "password", "credential", "authorization", "cookie", "session"} {
+		if strings.Contains(normalized, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func handleStartAudioCapture(ctx context.Context, args json.RawMessage) *ToolCallResult {
