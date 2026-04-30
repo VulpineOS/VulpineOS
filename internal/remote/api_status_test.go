@@ -606,6 +606,21 @@ func TestSentinelTimelineReturnsSessions(t *testing.T) {
 	}
 }
 
+func TestSentinelTimelineClampsLimit(t *testing.T) {
+	original := extensions.Registry.Sentinel()
+	t.Cleanup(func() { extensions.Registry.SetSentinel(original) })
+	fake := &extensionstest.FakeSentinelProvider{AvailableFlag: true}
+	extensions.Registry.SetSentinel(fake)
+
+	api := &PanelAPI{}
+	if _, err := api.HandleMessage("sentinel.timeline", json.RawMessage(`{"limit":100000}`)); err != nil {
+		t.Fatalf("HandleMessage sentinel.timeline: %v", err)
+	}
+	if fake.LastTimelineFilter.Limit != maxPanelSentinelTimelineRows {
+		t.Fatalf("timeline limit = %d, want %d", fake.LastTimelineFilter.Limit, maxPanelSentinelTimelineRows)
+	}
+}
+
 func TestSentinelControlsReturnUnavailablePayloadWhenProviderMissing(t *testing.T) {
 	original := extensions.Registry.Sentinel()
 	t.Cleanup(func() { extensions.Registry.SetSentinel(original) })

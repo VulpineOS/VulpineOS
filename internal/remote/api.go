@@ -46,7 +46,10 @@ type PanelAPI struct {
 	RuntimeAudit *runtimeaudit.Manager
 }
 
-const maxPanelAgentMessages = 500
+const (
+	maxPanelAgentMessages        = 500
+	maxPanelSentinelTimelineRows = 100
+)
 
 // HandleMessage dispatches a control message to the appropriate handler.
 // Returns the JSON result or an error.
@@ -1658,6 +1661,8 @@ func (api *PanelAPI) sentinelTimeline(params json.RawMessage) (json.RawMessage, 
 	}
 	if filter.Limit <= 0 {
 		filter.Limit = 5
+	} else if filter.Limit > maxPanelSentinelTimelineRows {
+		filter.Limit = maxPanelSentinelTimelineRows
 	}
 	provider := extensions.Registry.Sentinel()
 	out := map[string]interface{}{
