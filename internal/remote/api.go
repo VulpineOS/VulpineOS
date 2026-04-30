@@ -52,6 +52,7 @@ const (
 	maxPanelAgentIDBytes         = 128
 	maxPanelBulkAgentIDs         = 100
 	maxPanelSentinelTimelineRows = 100
+	maxPanelSentinelFilterBytes  = 256
 	maxPanelBusEndpointBytes     = 128
 	maxPanelBusMessageIDBytes    = 128
 	maxPanelBusContentBytes      = 8192
@@ -1785,10 +1786,10 @@ func (api *PanelAPI) sentinelTimeline(params json.RawMessage) (json.RawMessage, 
 			return nil, fmt.Errorf("invalid params: %w", err)
 		}
 	}
-	if filter.Limit <= 0 {
-		filter.Limit = 5
-	} else if filter.Limit > maxPanelSentinelTimelineRows {
-		filter.Limit = maxPanelSentinelTimelineRows
+	var err error
+	filter, err = normalizePanelSentinelTimelineFilter(filter)
+	if err != nil {
+		return nil, err
 	}
 	provider := extensions.Registry.Sentinel()
 	out := map[string]interface{}{
@@ -1803,6 +1804,55 @@ func (api *PanelAPI) sentinelTimeline(params json.RawMessage) (json.RawMessage, 
 	}
 	out["sessions"] = sanitizeSentinelTimelines(timelines)
 	return json.Marshal(out)
+}
+
+func normalizePanelSentinelTimelineFilter(filter extensions.SentinelTimelineFilter) (extensions.SentinelTimelineFilter, error) {
+	var err error
+	if filter.SessionID, err = safePanelSentinelFilterID(filter.SessionID, "sessionId"); err != nil {
+		return filter, err
+	}
+	if filter.AgentID != "" {
+		if filter.AgentID, err = safePanelAgentID(filter.AgentID); err != nil {
+			return filter, err
+		}
+	}
+	if filter.Domain, err = safePanelSentinelDomain(filter.Domain); err != nil {
+		return filter, err
+	}
+	if filter.Limit <= 0 {
+		filter.Limit = 5
+	} else if filter.Limit > maxPanelSentinelTimelineRows {
+		filter.Limit = maxPanelSentinelTimelineRows
+	}
+	return filter, nil
+}
+
+func safePanelSentinelFilterID(value, field string) (string, error) {
+	id := strings.TrimSpace(value)
+	if id == "" {
+		return "", nil
+	}
+	if len(id) > maxPanelSentinelFilterBytes {
+		return "", fmt.Errorf("%s exceeds %d byte limit", field, maxPanelSentinelFilterBytes)
+	}
+	if strings.ContainsAny(id, " \t\r\n/\\") || id == "." || id == ".." {
+		return "", fmt.Errorf("invalid %s", field)
+	}
+	return id, nil
+}
+
+func safePanelSentinelDomain(value string) (string, error) {
+	domain := strings.ToLower(strings.TrimSpace(value))
+	if domain == "" {
+		return "", nil
+	}
+	if len(domain) > maxPanelSentinelFilterBytes {
+		return "", fmt.Errorf("domain exceeds %d byte limit", maxPanelSentinelFilterBytes)
+	}
+	if strings.ContainsAny(domain, " \t\r\n/?#@\\") || domain == "." || domain == ".." {
+		return "", fmt.Errorf("invalid domain")
+	}
+	return domain, nil
 }
 
 func (api *PanelAPI) browserRoute() (string, string) {

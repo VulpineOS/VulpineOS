@@ -621,6 +621,58 @@ func TestSentinelTimelineClampsLimit(t *testing.T) {
 	}
 }
 
+func TestSentinelTimelineNormalizesFilters(t *testing.T) {
+	original := extensions.Registry.Sentinel()
+	t.Cleanup(func() { extensions.Registry.SetSentinel(original) })
+	fake := &extensionstest.FakeSentinelProvider{AvailableFlag: true}
+	extensions.Registry.SetSentinel(fake)
+
+	api := &PanelAPI{}
+	if _, err := api.HandleMessage("sentinel.timeline", json.RawMessage(`{"sessionId":" session-1 ","agentId":" agent-1 ","domain":" EXAMPLE.COM ","limit":3}`)); err != nil {
+		t.Fatalf("HandleMessage sentinel.timeline: %v", err)
+	}
+	if fake.LastTimelineFilter.SessionID != "session-1" {
+		t.Fatalf("sessionId = %q, want session-1", fake.LastTimelineFilter.SessionID)
+	}
+	if fake.LastTimelineFilter.AgentID != "agent-1" {
+		t.Fatalf("agentId = %q, want agent-1", fake.LastTimelineFilter.AgentID)
+	}
+	if fake.LastTimelineFilter.Domain != "example.com" {
+		t.Fatalf("domain = %q, want example.com", fake.LastTimelineFilter.Domain)
+	}
+	if fake.LastTimelineFilter.Limit != 3 {
+		t.Fatalf("limit = %d, want 3", fake.LastTimelineFilter.Limit)
+	}
+}
+
+func TestSentinelTimelineRejectsUnsafeFiltersWithoutEchoingInput(t *testing.T) {
+	original := extensions.Registry.Sentinel()
+	t.Cleanup(func() { extensions.Registry.SetSentinel(original) })
+	extensions.Registry.SetSentinel(&extensionstest.FakeSentinelProvider{AvailableFlag: true})
+
+	api := &PanelAPI{}
+	for _, tc := range []struct {
+		name    string
+		payload string
+		secret  string
+	}{
+		{name: "session path", payload: `{"sessionId":"../timeline-secret"}`, secret: "timeline-secret"},
+		{name: "agent path", payload: `{"agentId":"../agent-secret"}`, secret: "agent-secret"},
+		{name: "domain url", payload: `{"domain":"https://example.com/path?token=domain-secret"}`, secret: "domain-secret"},
+		{name: "domain userinfo", payload: `{"domain":"user:domain-secret@example.com"}`, secret: "domain-secret"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := api.HandleMessage("sentinel.timeline", json.RawMessage(tc.payload))
+			if err == nil {
+				t.Fatal("expected invalid filter error")
+			}
+			if strings.Contains(err.Error(), tc.secret) {
+				t.Fatalf("filter error leaked input %q: %v", tc.secret, err)
+			}
+		})
+	}
+}
+
 func TestSentinelControlsReturnUnavailablePayloadWhenProviderMissing(t *testing.T) {
 	original := extensions.Registry.Sentinel()
 	t.Cleanup(func() { extensions.Registry.SetSentinel(original) })
