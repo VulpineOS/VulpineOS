@@ -143,6 +143,13 @@ func (api *PanelAPI) ensureScriptSession(contextID string) (string, string, erro
 	if api.Client == nil {
 		return "", "", fmt.Errorf("juggler client not available")
 	}
+	var err error
+	if strings.TrimSpace(contextID) != "" {
+		contextID, err = safePanelContextID(contextID)
+		if err != nil {
+			return "", "", err
+		}
+	}
 	if api.Contexts != nil {
 		if contextID == "" {
 			if contexts := api.Contexts.List(); len(contexts) > 0 {

@@ -285,7 +285,7 @@ func (api *PanelAPI) agentsSpawn(params json.RawMessage) (json.RawMessage, error
 	}
 	contextID := ""
 	if strings.TrimSpace(p.ContextID) != "" {
-		contextID, err = safePanelSpawnID(p.ContextID, "contextId", maxPanelContextIDBytes)
+		contextID, err = safePanelContextID(p.ContextID)
 		if err != nil {
 			return nil, err
 		}
@@ -368,6 +368,10 @@ func safePanelSpawnID(value, field string, maxBytes int) (string, error) {
 		return "", fmt.Errorf("invalid %s", field)
 	}
 	return id, nil
+}
+
+func safePanelContextID(value string) (string, error) {
+	return safePanelSpawnID(value, "contextId", maxPanelContextIDBytes)
 }
 
 func defaultPanelAgentName(task string) string {
@@ -2298,16 +2302,20 @@ func (api *PanelAPI) contextsRemove(params json.RawMessage) (json.RawMessage, er
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
-	if p.BrowserContextID == "" {
-		return nil, fmt.Errorf("browserContextId is required")
+	contextID, err := safePanelContextID(p.BrowserContextID)
+	if err != nil {
+		if strings.Contains(err.Error(), "contextId is required") {
+			return nil, fmt.Errorf("browserContextId is required")
+		}
+		return nil, err
 	}
 	if _, err := api.Client.Call("", "Browser.removeBrowserContext", map[string]interface{}{
-		"browserContextId": p.BrowserContextID,
+		"browserContextId": contextID,
 	}); err != nil {
 		return nil, err
 	}
 	if api.Contexts != nil {
-		api.Contexts.Removed(p.BrowserContextID)
+		api.Contexts.Removed(contextID)
 	}
 	return json.Marshal(map[string]string{"status": "ok"})
 }

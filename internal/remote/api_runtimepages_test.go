@@ -138,6 +138,37 @@ func TestScriptsRunRejectsOversizedScript(t *testing.T) {
 	}
 }
 
+func TestScriptsRunRejectsUnsafeContextID(t *testing.T) {
+	transport := newRuntimePageTransport()
+	client := juggler.NewClient(transport)
+	defer client.Close()
+
+	api := &PanelAPI{Client: client}
+	params := json.RawMessage(`{"contextId":"../ctx-secret","script":"{\"steps\":[{\"action\":\"wait\",\"ms\":1}]}"}`)
+	_, err := api.HandleMessage("scripts.run", params)
+	if err == nil || !strings.Contains(err.Error(), "invalid contextId") {
+		t.Fatalf("error = %v, want invalid contextId", err)
+	}
+	if strings.Contains(err.Error(), "ctx-secret") {
+		t.Fatalf("context error leaked input: %v", err)
+	}
+}
+
+func TestContextsRemoveRejectsUnsafeBrowserContextID(t *testing.T) {
+	transport := newRuntimePageTransport()
+	client := juggler.NewClient(transport)
+	defer client.Close()
+
+	api := &PanelAPI{Client: client}
+	_, err := api.HandleMessage("contexts.remove", json.RawMessage(`{"browserContextId":"../ctx-secret"}`))
+	if err == nil || !strings.Contains(err.Error(), "invalid contextId") {
+		t.Fatalf("error = %v, want invalid contextId", err)
+	}
+	if strings.Contains(err.Error(), "ctx-secret") {
+		t.Fatalf("context remove error leaked input: %v", err)
+	}
+}
+
 func TestScriptsRunRejectsTooManySteps(t *testing.T) {
 	transport := newRuntimePageTransport()
 	client := juggler.NewClient(transport)
