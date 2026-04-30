@@ -469,7 +469,7 @@ func TestFingerprintsGeneratePersistsAgentFingerprint(t *testing.T) {
 		t.Fatalf("CreateAgent: %v", err)
 	}
 
-	payload, err := api.HandleMessage("fingerprints.generate", json.RawMessage(`{"agentId":"`+agent.ID+`","seed":"alpha"}`))
+	payload, err := api.HandleMessage("fingerprints.generate", json.RawMessage(`{"agentId":" `+agent.ID+` ","seed":" alpha "}`))
 	if err != nil {
 		t.Fatalf("HandleMessage fingerprints.generate: %v", err)
 	}
@@ -489,5 +489,31 @@ func TestFingerprintsGeneratePersistsAgentFingerprint(t *testing.T) {
 	}
 	if stored.Fingerprint != result.Fingerprint {
 		t.Fatalf("stored fingerprint mismatch")
+	}
+}
+
+func TestFingerprintControlsRejectUnsafeAgentID(t *testing.T) {
+	api, _ := newPanelAPITestFixture(t)
+
+	for _, method := range []string{"fingerprints.get", "fingerprints.generate"} {
+		t.Run(method, func(t *testing.T) {
+			_, err := api.HandleMessage(method, json.RawMessage(`{"agentId":"../escape","seed":"alpha"}`))
+			if err == nil || !strings.Contains(err.Error(), "invalid agentId") {
+				t.Fatalf("error = %v, want invalid agentId", err)
+			}
+		})
+	}
+}
+
+func TestFingerprintsGenerateRejectsOversizedSeedWithoutEchoingInput(t *testing.T) {
+	api, _ := newPanelAPITestFixture(t)
+	secretSeed := "seed-secret-" + strings.Repeat("x", maxPanelFingerprintSeedBytes)
+
+	_, err := api.HandleMessage("fingerprints.generate", json.RawMessage(`{"seed":"`+secretSeed+`"}`))
+	if err == nil {
+		t.Fatal("expected oversized seed error")
+	}
+	if strings.Contains(err.Error(), "seed-secret") {
+		t.Fatalf("seed error leaked input: %v", err)
 	}
 }
