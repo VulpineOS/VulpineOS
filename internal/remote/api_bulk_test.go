@@ -162,3 +162,31 @@ func TestAgentsBulkControlsRejectUnsafeAgentIDs(t *testing.T) {
 		})
 	}
 }
+
+func TestAgentsSpawnRejectsUnsafeOrOversizedInputs(t *testing.T) {
+	api := newBulkAgentAPI(t)
+
+	for _, tc := range []struct {
+		name    string
+		payload string
+		want    string
+		secret  string
+	}{
+		{name: "blank task", payload: `{"task":"   "}`, want: "task is required"},
+		{name: "oversized task", payload: `{"task":"task-secret-` + strings.Repeat("x", maxPanelAgentTaskBytes) + `"}`, want: "task exceeds", secret: "task-secret"},
+		{name: "invalid name", payload: "{\"task\":\"ok\",\"name\":\"name-secret\\nnext\"}", want: "invalid name", secret: "name-secret"},
+		{name: "oversized name", payload: `{"task":"ok","name":"name-secret-` + strings.Repeat("x", maxPanelAgentNameBytes) + `"}`, want: "name exceeds", secret: "name-secret"},
+		{name: "unsafe template", payload: `{"templateId":"../template-secret"}`, want: "invalid templateId", secret: "template-secret"},
+		{name: "unsafe context", payload: `{"task":"ok","contextId":"../context-secret"}`, want: "invalid contextId", secret: "context-secret"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := api.HandleMessage("agents.spawn", json.RawMessage(tc.payload))
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("error = %v, want %q", err, tc.want)
+			}
+			if tc.secret != "" && strings.Contains(err.Error(), tc.secret) {
+				t.Fatalf("spawn error leaked input %q: %v", tc.secret, err)
+			}
+		})
+	}
+}

@@ -50,7 +50,11 @@ type PanelAPI struct {
 const (
 	maxPanelAgentMessages        = 500
 	maxPanelAgentIDBytes         = 128
+	maxPanelAgentNameBytes       = 128
+	maxPanelAgentTaskBytes       = 32 * 1024
 	maxPanelBulkAgentIDs         = 100
+	maxPanelContextIDBytes       = 128
+	maxPanelTemplateIDBytes      = 128
 	maxPanelSentinelTimelineRows = 100
 	maxPanelSentinelFilterBytes  = 256
 	maxPanelFingerprintSeedBytes = 256
@@ -254,8 +258,12 @@ func (api *PanelAPI) agentsSpawn(params json.RawMessage) (json.RawMessage, error
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
-	if p.TemplateID != "" {
-		agentID, err := api.Orchestrator.SpawnNomad(p.TemplateID)
+	if strings.TrimSpace(p.TemplateID) != "" {
+		templateID, err := safePanelSpawnID(p.TemplateID, "templateId", maxPanelTemplateIDBytes)
+		if err != nil {
+			return nil, err
+		}
+		agentID, err := api.Orchestrator.SpawnNomad(templateID)
 		if err != nil {
 			return nil, err
 		}
@@ -264,15 +272,22 @@ func (api *PanelAPI) agentsSpawn(params json.RawMessage) (json.RawMessage, error
 	if api.Vault == nil {
 		return nil, fmt.Errorf("vault not available")
 	}
-	task := strings.TrimSpace(p.Task)
-	if task == "" {
-		return nil, fmt.Errorf("task is required")
+	task, err := safePanelAgentTask(p.Task)
+	if err != nil {
+		return nil, err
 	}
-	name := strings.TrimSpace(p.Name)
+	name, err := safePanelAgentName(p.Name)
+	if err != nil {
+		return nil, err
+	}
 	if name == "" {
-		name = task
-		if len(name) > 48 {
-			name = name[:48]
+		name = defaultPanelAgentName(task)
+	}
+	contextID := ""
+	if strings.TrimSpace(p.ContextID) != "" {
+		contextID, err = safePanelSpawnID(p.ContextID, "contextId", maxPanelContextIDBytes)
+		if err != nil {
+			return nil, err
 		}
 	}
 	fp, err := vault.GenerateFingerprint(name)
@@ -283,8 +298,8 @@ func (api *PanelAPI) agentsSpawn(params json.RawMessage) (json.RawMessage, error
 	if err != nil {
 		return nil, err
 	}
-	if p.ContextID != "" {
-		metadata := vault.MarshalAgentMetadata(vault.AgentMetadata{ContextID: p.ContextID})
+	if contextID != "" {
+		metadata := vault.MarshalAgentMetadata(vault.AgentMetadata{ContextID: contextID})
 		if err := api.Vault.UpdateAgentMetadata(agent.ID, metadata); err == nil {
 			agent.Metadata = metadata
 		}
@@ -307,6 +322,70 @@ func (api *PanelAPI) agentsSpawn(params json.RawMessage) (json.RawMessage, error
 	_ = api.Vault.UpdateAgentStatus(agent.ID, "active")
 	_ = api.Vault.AppendMessage(agent.ID, "system", "Agent starting...", 0)
 	return json.Marshal(map[string]string{"agentId": agent.ID})
+}
+
+func safePanelAgentTask(value string) (string, error) {
+	task := strings.TrimSpace(value)
+	if task == "" {
+		return "", fmt.Errorf("task is required")
+	}
+	if len(task) > maxPanelAgentTaskBytes {
+		return "", fmt.Errorf("task exceeds %d byte limit", maxPanelAgentTaskBytes)
+	}
+	for _, r := range task {
+		if r < 32 && r != '\n' && r != '\r' && r != '\t' {
+			return "", fmt.Errorf("invalid task")
+		}
+	}
+	return task, nil
+}
+
+func safePanelAgentName(value string) (string, error) {
+	name := strings.TrimSpace(value)
+	if name == "" {
+		return "", nil
+	}
+	if len(name) > maxPanelAgentNameBytes {
+		return "", fmt.Errorf("name exceeds %d byte limit", maxPanelAgentNameBytes)
+	}
+	for _, r := range name {
+		if r < 32 || r == 127 {
+			return "", fmt.Errorf("invalid name")
+		}
+	}
+	return name, nil
+}
+
+func safePanelSpawnID(value, field string, maxBytes int) (string, error) {
+	id := strings.TrimSpace(value)
+	if id == "" {
+		return "", fmt.Errorf("%s is required", field)
+	}
+	if len(id) > maxBytes {
+		return "", fmt.Errorf("%s exceeds %d byte limit", field, maxBytes)
+	}
+	if strings.ContainsAny(id, " \t\r\n/\\") || id == "." || id == ".." {
+		return "", fmt.Errorf("invalid %s", field)
+	}
+	return id, nil
+}
+
+func defaultPanelAgentName(task string) string {
+	name := strings.Join(strings.Fields(task), " ")
+	if name == "" {
+		return "Agent"
+	}
+	if len(name) <= 48 {
+		return name
+	}
+	cut := 48
+	for cut > 0 && !utf8.RuneStart(name[cut]) {
+		cut--
+	}
+	if cut == 0 {
+		cut = 48
+	}
+	return strings.TrimSpace(name[:cut])
 }
 
 func (api *PanelAPI) agentsKill(params json.RawMessage) (json.RawMessage, error) {
