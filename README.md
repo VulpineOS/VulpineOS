@@ -155,8 +155,8 @@ Beyond the four core phases, VulpineOS includes hardened runtime security:
 | **Cost Tracking** | Per-agent token usage and API cost tracking with budget limits. Built-in pricing for Claude, GPT-4o, Gemini. Alerts at configurable thresholds. |
 | **Session Recording** | Record browser actions as timestamped timelines with a bounded per-agent in-memory window and sensitive action-data redaction. Export to JSON. Terminal-based replay at real speed. |
 | **Proxy Rotation** | Auto-rotate proxies on rate limit, IP block, or time interval. Fingerprint re-synced on every rotation. 32-country locale map. |
-| **Webhook Notifications** | HTTP webhooks for agent.completed/failed/paused/interrupted, rate_limit.detected, injection.detected, budget.alert/exceeded. Async delivery with secret verification. |
-| **Scripting DSL** | JSON scripting language for repetitive tasks without LLM calls. 8 actions: navigate, click, type, wait, extract, screenshot, set, if. Variable expansion with redacted operator-facing results. |
+| **Webhook Notifications** | HTTP webhooks for agent.completed/failed/paused/interrupted, rate_limit.detected, injection.detected, budget.alert/exceeded. Async delivery with secret verification and redacted delivery logs. |
+| **Scripting DSL** | JSON scripting language for repetitive tasks without LLM calls. 8 actions: navigate, click, type, wait, extract, screenshot, set, if. Variable expansion with bounded script payloads, capped waits, and redacted operator-facing results. |
 | **Kernel Watchdog** | Monitors Camoufox every 2s. On crash: fires callback, auto-restarts (up to 3 attempts), re-establishes Juggler connection. |
 | **Token Optimization** | Viewport-aware DOM pruning, persistent page cache, delta encoding between snapshots, batch operations. |
 | **Page Cache** | Saves and restores page state (URL, HTML, cookies, scroll, forms) across agent restarts. |
@@ -251,7 +251,7 @@ A React SPA served from the Go binary — no separate frontend deployment needed
 
 **46 control messages** covering: agent CRUD plus bulk controls and session-log access; config get/set/providers; cost usage plus persisted per-agent/default budgets; webhooks; proxy management plus rotation get/set; agent bus pending/approve/reject/policies/add/remove; session recording export; fingerprint get/generate-and-apply; runtime-backed script execution; runtime-backed security status; status; optional extension availability and timelines; runtime audit history with retention/export controls; and context create/remove/list.
 
-Credential, audio, mobile, and Sentinel-backed controls are stable public interfaces. The stock open-source build returns unavailable for extension-backed actions unless a provider is registered by an external extension package. When Sentinel data is available, panel/status responses redact sink URLs, probe URLs, proxy endpoints, timeline attributes, and opaque payloads before rendering.
+Credential, audio, mobile, and Sentinel-backed controls are stable public interfaces. The stock open-source build returns unavailable for extension-backed actions unless a provider is registered by an external extension package. When Sentinel data is available, panel/status responses redact sink URLs, probe URLs, proxy endpoints, timeline attributes, and opaque payloads before rendering; timeline requests are capped before calling the provider.
 
 Agent Detail includes separate conversation, action trace, raw session log, recording, and fingerprint views so operator-visible tool activity is inspectable without exposing hidden reasoning or sensitive action values.
 
@@ -271,6 +271,8 @@ The panel now also includes:
 - **Security** protection states sourced from runtime/config instead of fixed frontend flags
 - a richer **Dashboard** shell showing runtime route/mode/window, retained runtime alerts, spend, budget posture, active-work previews, and direct operator shortcuts
 - an **Agents** view that surfaces aggregate spend/tokens plus per-agent budget source and limit summaries without drilling into each detail page
+
+Panel script execution rejects payloads over 64 KiB, rejects scripts over 100 steps, and rejects `wait` durations longer than 30 seconds. Runtime filter echoes, proxy errors, webhook delivery logs, MCP credential metadata/errors, raw session logs, and Sentinel timeline payloads all redact common secret fields before reaching operator-facing surfaces.
 
 Access via `vulpineos panel`, `vulpineos serve`, or through the remote client.
 
@@ -442,7 +444,7 @@ VulpineOS exposes 36 tools via Model Context Protocol:
 | Reliability tools | Wait, find, verify, screenshot diff, page-settled checks, select options, fill forms, page info, key press, clear input, form errors |
 | Human-realism tools | Human-like click, scroll, and type timing |
 | Annotated interaction | Annotated screenshots and click-by-label with `@N` labels |
-| Extension surfaces | Credential metadata/autofill, audio capture, Sentinel signals, and mobile bridge hooks. The stock public build returns unavailable unless an extension provider is attached. |
+| Extension surfaces | Credential metadata/autofill, audio capture, Sentinel signals, and mobile bridge hooks. The stock public build returns unavailable unless an extension provider is attached; credential URL metadata/errors are redacted at the MCP boundary. |
 | Mobile bridge | List Android devices, start a local CDP bridge, and disconnect bridge sessions when the public mobile bridge provider is installed |
 
 ---
