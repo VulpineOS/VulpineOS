@@ -1816,7 +1816,7 @@ func (api *PanelAPI) runtimeAuditSnapshot(filter vault.RuntimeEventFilter) (vaul
 		"component": filter.Component,
 		"level":     filter.Level,
 		"event":     filter.Event,
-		"query":     filter.Query,
+		"query":     redactSessionLogString(filter.Query),
 	}, nil
 }
 
@@ -1836,11 +1836,11 @@ func decodeRuntimeAuditParams(params json.RawMessage) (vault.RuntimeEventFilter,
 	}
 	return vault.RuntimeEventFilter{
 		Limit:     p.Limit,
-		Component: p.Component,
-		Level:     p.Level,
-		Event:     p.Event,
-		Query:     p.Query,
-	}, p.Format, nil
+		Component: strings.TrimSpace(p.Component),
+		Level:     strings.TrimSpace(p.Level),
+		Event:     strings.TrimSpace(p.Event),
+		Query:     strings.TrimSpace(p.Query),
+	}, strings.ToLower(strings.TrimSpace(p.Format)), nil
 }
 
 func (api *PanelAPI) runtimeSetRetention(params json.RawMessage) (json.RawMessage, error) {
