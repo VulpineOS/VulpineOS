@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"vulpineos/internal/agentbus"
 	"vulpineos/internal/config"
@@ -49,6 +50,9 @@ type PanelAPI struct {
 const (
 	maxPanelAgentMessages        = 500
 	maxPanelSentinelTimelineRows = 100
+	maxPanelBusEndpointBytes     = 128
+	maxPanelBusMessageIDBytes    = 128
+	maxPanelBusContentBytes      = 8192
 )
 
 // HandleMessage dispatches a control message to the appropriate handler.
@@ -1155,7 +1159,7 @@ func (api *PanelAPI) busPending() (json.RawMessage, error) {
 	if api.AgentBus == nil {
 		return nil, fmt.Errorf("agent bus not available")
 	}
-	return json.Marshal(api.AgentBus.PendingMessages())
+	return json.Marshal(sanitizePanelBusMessages(api.AgentBus.PendingMessages()))
 }
 
 func (api *PanelAPI) busApprove(params json.RawMessage) (json.RawMessage, error) {
@@ -1168,8 +1172,12 @@ func (api *PanelAPI) busApprove(params json.RawMessage) (json.RawMessage, error)
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
-	if err := api.AgentBus.Approve(p.MessageID); err != nil {
+	messageID, err := safePanelBusMessageID(p.MessageID)
+	if err != nil {
 		return nil, err
+	}
+	if err := api.AgentBus.Approve(messageID); err != nil {
+		return nil, fmt.Errorf("message not found or not pending")
 	}
 	return json.Marshal(map[string]string{"status": "ok"})
 }
@@ -1184,8 +1192,12 @@ func (api *PanelAPI) busReject(params json.RawMessage) (json.RawMessage, error) 
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
-	if err := api.AgentBus.Reject(p.MessageID); err != nil {
+	messageID, err := safePanelBusMessageID(p.MessageID)
+	if err != nil {
 		return nil, err
+	}
+	if err := api.AgentBus.Reject(messageID); err != nil {
+		return nil, fmt.Errorf("message not found or not pending")
 	}
 	return json.Marshal(map[string]string{"status": "ok"})
 }
@@ -1209,7 +1221,15 @@ func (api *PanelAPI) busAddPolicy(params json.RawMessage) (json.RawMessage, erro
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
-	api.AgentBus.AddPolicy(p.FromAgent, p.ToAgent, p.AutoApprove)
+	fromAgent, err := safePanelBusEndpoint(p.FromAgent, "fromAgent")
+	if err != nil {
+		return nil, err
+	}
+	toAgent, err := safePanelBusEndpoint(p.ToAgent, "toAgent")
+	if err != nil {
+		return nil, err
+	}
+	api.AgentBus.AddPolicy(fromAgent, toAgent, p.AutoApprove)
 	return json.Marshal(map[string]string{"status": "ok"})
 }
 
@@ -1224,8 +1244,73 @@ func (api *PanelAPI) busRemovePolicy(params json.RawMessage) (json.RawMessage, e
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
-	api.AgentBus.RemovePolicy(p.FromAgent, p.ToAgent)
+	fromAgent, err := safePanelBusEndpoint(p.FromAgent, "fromAgent")
+	if err != nil {
+		return nil, err
+	}
+	toAgent, err := safePanelBusEndpoint(p.ToAgent, "toAgent")
+	if err != nil {
+		return nil, err
+	}
+	api.AgentBus.RemovePolicy(fromAgent, toAgent)
 	return json.Marshal(map[string]string{"status": "ok"})
+}
+
+func safePanelBusEndpoint(value, field string) (string, error) {
+	endpoint := strings.TrimSpace(value)
+	if endpoint == "" {
+		return "", fmt.Errorf("%s is required", field)
+	}
+	if endpoint == "*" {
+		return endpoint, nil
+	}
+	if len(endpoint) > maxPanelBusEndpointBytes {
+		return "", fmt.Errorf("%s exceeds %d byte limit", field, maxPanelBusEndpointBytes)
+	}
+	if strings.ContainsAny(endpoint, " \t\r\n") {
+		return "", fmt.Errorf("invalid %s", field)
+	}
+	if _, err := safePanelAgentID(endpoint); err != nil {
+		return "", fmt.Errorf("invalid %s", field)
+	}
+	return endpoint, nil
+}
+
+func safePanelBusMessageID(value string) (string, error) {
+	messageID := strings.TrimSpace(value)
+	if messageID == "" {
+		return "", fmt.Errorf("messageId is required")
+	}
+	if len(messageID) > maxPanelBusMessageIDBytes {
+		return "", fmt.Errorf("messageId exceeds %d byte limit", maxPanelBusMessageIDBytes)
+	}
+	if strings.ContainsAny(messageID, " \t\r\n/\\") {
+		return "", fmt.Errorf("invalid messageId")
+	}
+	return messageID, nil
+}
+
+func sanitizePanelBusMessages(messages []agentbus.Message) []agentbus.Message {
+	out := make([]agentbus.Message, len(messages))
+	copy(out, messages)
+	for i := range out {
+		out[i].Content = limitPanelBusContent(redactSessionLogString(out[i].Content))
+	}
+	return out
+}
+
+func limitPanelBusContent(value string) string {
+	if len(value) <= maxPanelBusContentBytes {
+		return value
+	}
+	cut := maxPanelBusContentBytes
+	for cut > 0 && !utf8.RuneStart(value[cut]) {
+		cut--
+	}
+	if cut == 0 {
+		cut = maxPanelBusContentBytes
+	}
+	return value[:cut] + "\n[truncated]"
 }
 
 // ---------------------------------------------------------------------------

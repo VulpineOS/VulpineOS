@@ -309,6 +309,121 @@ func TestBusRemovePolicyRemovesConfiguredRule(t *testing.T) {
 	}
 }
 
+func TestBusPolicyControlsNormalizeAndRejectUnsafeIDs(t *testing.T) {
+	api, _ := newPanelAPITestFixture(t)
+
+	addParams, err := json.Marshal(map[string]interface{}{
+		"fromAgent":   " alpha ",
+		"toAgent":     " * ",
+		"autoApprove": true,
+	})
+	if err != nil {
+		t.Fatalf("Marshal add policy: %v", err)
+	}
+	if _, err := api.HandleMessage("bus.addPolicy", addParams); err != nil {
+		t.Fatalf("HandleMessage bus.addPolicy: %v", err)
+	}
+	policies := api.AgentBus.Policies()
+	if len(policies) != 1 || policies[0].FromAgent != "alpha" || policies[0].ToAgent != "*" {
+		t.Fatalf("policies = %#v, want normalized alpha -> *", policies)
+	}
+
+	for _, tc := range []struct {
+		name string
+		from string
+		to   string
+	}{
+		{name: "blank from", from: " ", to: "*"},
+		{name: "path from", from: "../escape", to: "*"},
+		{name: "space from", from: "agent one", to: "*"},
+		{name: "long to", from: "*", to: strings.Repeat("a", maxPanelBusEndpointBytes+1)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			params, err := json.Marshal(map[string]interface{}{
+				"fromAgent":   tc.from,
+				"toAgent":     tc.to,
+				"autoApprove": true,
+			})
+			if err != nil {
+				t.Fatalf("Marshal policy: %v", err)
+			}
+			if _, err := api.HandleMessage("bus.addPolicy", params); err == nil {
+				t.Fatal("expected invalid policy error")
+			}
+		})
+	}
+}
+
+func TestBusApproveRejectValidatesMessageIDWithoutEchoingInput(t *testing.T) {
+	api, _ := newPanelAPITestFixture(t)
+	if _, err := api.AgentBus.Send(agentbus.Notify, "agent-a", "agent-b", "hello", ""); err != nil {
+		t.Fatalf("AgentBus.Send: %v", err)
+	}
+
+	if _, err := api.HandleMessage("bus.approve", json.RawMessage(`{"messageId":"   "}`)); err == nil {
+		t.Fatal("expected blank message id error")
+	}
+
+	params, err := json.Marshal(map[string]string{"messageId": "secret-token-value"})
+	if err != nil {
+		t.Fatalf("Marshal missing message id: %v", err)
+	}
+	_, err = api.HandleMessage("bus.reject", params)
+	if err == nil {
+		t.Fatal("expected missing message id error")
+	}
+	if strings.Contains(err.Error(), "secret-token-value") {
+		t.Fatalf("message id echoed in error: %v", err)
+	}
+
+	pending := api.AgentBus.PendingMessages()
+	if len(pending) != 1 {
+		t.Fatalf("pending messages = %d, want 1", len(pending))
+	}
+	params, err = json.Marshal(map[string]string{"messageId": " " + pending[0].ID + " "})
+	if err != nil {
+		t.Fatalf("Marshal approve message id: %v", err)
+	}
+	if _, err := api.HandleMessage("bus.approve", params); err != nil {
+		t.Fatalf("HandleMessage bus.approve: %v", err)
+	}
+	if pending := api.AgentBus.PendingMessages(); len(pending) != 0 {
+		t.Fatalf("pending messages = %d, want 0", len(pending))
+	}
+}
+
+func TestBusPendingRedactsAndLimitsContent(t *testing.T) {
+	api, _ := newPanelAPITestFixture(t)
+	content := "token=secret-value " + strings.Repeat("a", maxPanelBusContentBytes+128)
+	if _, err := api.AgentBus.Send(agentbus.Notify, "agent-a", "agent-b", content, ""); err != nil {
+		t.Fatalf("AgentBus.Send: %v", err)
+	}
+
+	payload, err := api.HandleMessage("bus.pending", nil)
+	if err != nil {
+		t.Fatalf("HandleMessage bus.pending: %v", err)
+	}
+	var pending []agentbus.Message
+	if err := json.Unmarshal(payload, &pending); err != nil {
+		t.Fatalf("Unmarshal pending messages: %v", err)
+	}
+	if len(pending) != 1 {
+		t.Fatalf("pending messages = %d, want 1", len(pending))
+	}
+	if strings.Contains(pending[0].Content, "secret-value") {
+		t.Fatalf("panel pending content leaked secret: %q", pending[0].Content)
+	}
+	if !strings.Contains(pending[0].Content, "[truncated]") {
+		t.Fatalf("panel pending content was not marked truncated")
+	}
+	if len(pending[0].Content) > maxPanelBusContentBytes+len("\n[truncated]") {
+		t.Fatalf("panel pending content length = %d, want <= cap", len(pending[0].Content))
+	}
+	if raw := api.AgentBus.PendingMessages()[0].Content; !strings.Contains(raw, "secret-value") {
+		t.Fatalf("raw bus message was unexpectedly altered: %q", raw)
+	}
+}
+
 func TestRecordingExportWrapsDownloadPayload(t *testing.T) {
 	api, _ := newPanelAPITestFixture(t)
 	api.Recorder.Record("agent-1", recording.ActionNavigate, json.RawMessage(`{"url":"https://example.com"}`))
