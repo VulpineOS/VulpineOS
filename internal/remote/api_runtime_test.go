@@ -61,7 +61,7 @@ func TestRuntimeExportJSON(t *testing.T) {
 func TestRuntimeExportNDJSON(t *testing.T) {
 	api := newRuntimeAuditAPI(t)
 
-	payload, err := api.HandleMessage("runtime.export", json.RawMessage(`{"format":"ndjson"}`))
+	payload, err := api.HandleMessage("runtime.export", json.RawMessage(`{"format":" NDJSON "}`))
 	if err != nil {
 		t.Fatalf("HandleMessage: %v", err)
 	}
@@ -84,5 +84,28 @@ func TestRuntimeExportNDJSON(t *testing.T) {
 	}
 	if !strings.Contains(lines[0], "\"runtime_audit_export\"") {
 		t.Fatalf("header = %s", lines[0])
+	}
+}
+
+func TestRuntimeListRedactsAppliedQuery(t *testing.T) {
+	api := newRuntimeAuditAPI(t)
+
+	payload, err := api.HandleMessage("runtime.list", json.RawMessage(`{"query":"Authorization: Bearer query-token token=query-secret","limit":5}`))
+	if err != nil {
+		t.Fatalf("HandleMessage: %v", err)
+	}
+
+	var result struct {
+		Applied map[string]interface{} `json:"applied"`
+	}
+	if err := json.Unmarshal(payload, &result); err != nil {
+		t.Fatalf("Unmarshal result: %v", err)
+	}
+	query, _ := result.Applied["query"].(string)
+	if strings.Contains(query, "query-token") || strings.Contains(query, "query-secret") {
+		t.Fatalf("applied query leaked secret: %q", query)
+	}
+	if !strings.Contains(query, "Authorization: [redacted]") || !strings.Contains(query, "token=[redacted]") {
+		t.Fatalf("applied query was not redacted as expected: %q", query)
 	}
 }
