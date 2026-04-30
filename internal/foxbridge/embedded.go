@@ -171,6 +171,12 @@ func (es *EmbeddedServer) Stop() {
 	case <-es.done:
 	case <-time.After(2 * time.Second):
 		log.Printf("embedded foxbridge shutdown timed out")
+		_ = es.server.Close()
+		select {
+		case <-es.done:
+		case <-time.After(500 * time.Millisecond):
+			log.Printf("embedded foxbridge forced shutdown timed out")
+		}
 	}
 	log.Println("embedded foxbridge stopped")
 }
