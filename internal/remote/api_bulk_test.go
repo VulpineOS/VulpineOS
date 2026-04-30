@@ -2,6 +2,7 @@ package remote
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"vulpineos/internal/openclaw"
@@ -93,7 +94,7 @@ func TestAgentsResumeManyReportsPerAgentFailure(t *testing.T) {
 func TestAgentsKillManyReportsFailures(t *testing.T) {
 	api := newBulkAgentAPI(t)
 
-	payload, err := api.HandleMessage("agents.killMany", json.RawMessage(`{"agentIds":["missing-kill"]}`))
+	payload, err := api.HandleMessage("agents.killMany", json.RawMessage(`{"agentIds":[" missing-kill "]}`))
 	if err != nil {
 		t.Fatalf("HandleMessage: %v", err)
 	}
@@ -111,5 +112,53 @@ func TestAgentsKillManyReportsFailures(t *testing.T) {
 	}
 	if result.Failures["missing-kill"] == "" {
 		t.Fatalf("expected failure for missing agent: %#v", result.Failures)
+	}
+}
+
+func TestAgentControlsRejectUnsafeAgentID(t *testing.T) {
+	api := newBulkAgentAPI(t)
+
+	for _, method := range []string{"agents.kill", "agents.pause", "agents.resume"} {
+		t.Run(method, func(t *testing.T) {
+			_, err := api.HandleMessage(method, json.RawMessage(`{"agentId":"../escape"}`))
+			if err == nil || !strings.Contains(err.Error(), "invalid agentId") {
+				t.Fatalf("error = %v, want invalid agentId", err)
+			}
+		})
+	}
+}
+
+func TestAgentsBulkControlsRejectUnsafeAgentIDs(t *testing.T) {
+	api := newBulkAgentAPI(t)
+
+	for _, method := range []string{"agents.pauseMany", "agents.resumeMany", "agents.killMany"} {
+		t.Run(method+" path", func(t *testing.T) {
+			_, err := api.HandleMessage(method, json.RawMessage(`{"agentIds":["valid-agent","../escape"]}`))
+			if err == nil || !strings.Contains(err.Error(), "invalid agentId") {
+				t.Fatalf("error = %v, want invalid agentId", err)
+			}
+		})
+
+		t.Run(method+" blank", func(t *testing.T) {
+			_, err := api.HandleMessage(method, json.RawMessage(`{"agentIds":["valid-agent"," "]}`))
+			if err == nil || !strings.Contains(err.Error(), "agentId is required") {
+				t.Fatalf("error = %v, want required agentId", err)
+			}
+		})
+
+		t.Run(method+" limit", func(t *testing.T) {
+			ids := make([]string, maxPanelBulkAgentIDs+1)
+			for i := range ids {
+				ids[i] = "agent-" + strings.Repeat("a", 8) + "-" + string(rune('a'+(i%26)))
+			}
+			params, err := json.Marshal(map[string]interface{}{"agentIds": ids})
+			if err != nil {
+				t.Fatalf("Marshal params: %v", err)
+			}
+			_, err = api.HandleMessage(method, params)
+			if err == nil || !strings.Contains(err.Error(), "agentIds exceeds") {
+				t.Fatalf("error = %v, want bulk limit error", err)
+			}
+		})
 	}
 }

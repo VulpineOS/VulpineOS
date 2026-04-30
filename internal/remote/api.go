@@ -49,6 +49,8 @@ type PanelAPI struct {
 
 const (
 	maxPanelAgentMessages        = 500
+	maxPanelAgentIDBytes         = 128
+	maxPanelBulkAgentIDs         = 100
 	maxPanelSentinelTimelineRows = 100
 	maxPanelBusEndpointBytes     = 128
 	maxPanelBusMessageIDBytes    = 128
@@ -312,7 +314,11 @@ func (api *PanelAPI) agentsKill(params json.RawMessage) (json.RawMessage, error)
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
-	if err := api.Orchestrator.KillAgent(p.AgentID); err != nil {
+	agentID, err := safePanelAgentID(p.AgentID)
+	if err != nil {
+		return nil, err
+	}
+	if err := api.Orchestrator.KillAgent(agentID); err != nil {
 		return nil, err
 	}
 	return json.Marshal(map[string]string{"status": "ok"})
@@ -328,11 +334,15 @@ func (api *PanelAPI) agentsPause(params json.RawMessage) (json.RawMessage, error
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
-	if err := api.Orchestrator.Agents.PauseAgent(p.AgentID); err != nil {
+	agentID, err := safePanelAgentID(p.AgentID)
+	if err != nil {
+		return nil, err
+	}
+	if err := api.Orchestrator.Agents.PauseAgent(agentID); err != nil {
 		return nil, err
 	}
 	if api.Vault != nil {
-		_ = api.Vault.UpdateAgentStatus(p.AgentID, "paused")
+		_ = api.Vault.UpdateAgentStatus(agentID, "paused")
 	}
 	return json.Marshal(map[string]string{"status": "ok"})
 }
@@ -347,12 +357,13 @@ func (api *PanelAPI) agentsPauseMany(params json.RawMessage) (json.RawMessage, e
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
+	agentIDs, err := safePanelAgentIDList(p.AgentIDs)
+	if err != nil {
+		return nil, err
+	}
 	paused := 0
 	failures := map[string]string{}
-	for _, agentID := range p.AgentIDs {
-		if strings.TrimSpace(agentID) == "" {
-			continue
-		}
+	for _, agentID := range agentIDs {
 		if err := api.Orchestrator.Agents.PauseAgent(agentID); err != nil {
 			failures[agentID] = err.Error()
 			continue
@@ -379,33 +390,37 @@ func (api *PanelAPI) agentsResume(params json.RawMessage) (json.RawMessage, erro
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
+	agentID, err := safePanelAgentID(p.AgentID)
+	if err != nil {
+		return nil, err
+	}
 	if p.SessionName == "" {
-		p.SessionName = "vulpine-" + p.AgentID
+		p.SessionName = "vulpine-" + agentID
 	}
 	if strings.TrimSpace(p.Message) != "" {
 		if api.Vault == nil {
 			return nil, fmt.Errorf("vault not available")
 		}
-		agent, err := api.Vault.GetAgent(p.AgentID)
+		agent, err := api.Vault.GetAgent(agentID)
 		if err != nil {
 			return nil, err
 		}
-		_ = api.Vault.AppendMessage(p.AgentID, "user", p.Message, 0)
+		_ = api.Vault.AppendMessage(agentID, "user", p.Message, 0)
 		configPath, cleanup, err := api.agentRuntimeConfig(agent)
 		if err != nil {
 			return nil, err
 		}
-		id, err := api.Orchestrator.Agents.SpawnWithSessionIsolated(p.AgentID, p.Message, p.SessionName, configPath, cleanup)
+		id, err := api.Orchestrator.Agents.SpawnWithSessionIsolated(agentID, p.Message, p.SessionName, configPath, cleanup)
 		if err != nil {
 			return nil, err
 		}
-		_ = api.Vault.UpdateAgentStatus(p.AgentID, "active")
+		_ = api.Vault.UpdateAgentStatus(agentID, "active")
 		return json.Marshal(map[string]string{"agentId": id})
 	}
 	if api.Vault == nil {
 		return nil, fmt.Errorf("vault not available")
 	}
-	agent, err := api.Vault.GetAgent(p.AgentID)
+	agent, err := api.Vault.GetAgent(agentID)
 	if err != nil {
 		return nil, err
 	}
@@ -413,11 +428,11 @@ func (api *PanelAPI) agentsResume(params json.RawMessage) (json.RawMessage, erro
 	if err != nil {
 		return nil, err
 	}
-	id, err := api.Orchestrator.Agents.ResumeWithSessionIsolated(p.AgentID, p.SessionName, configPath, cleanup)
+	id, err := api.Orchestrator.Agents.ResumeWithSessionIsolated(agentID, p.SessionName, configPath, cleanup)
 	if err != nil {
 		return nil, err
 	}
-	_ = api.Vault.UpdateAgentStatus(p.AgentID, "active")
+	_ = api.Vault.UpdateAgentStatus(agentID, "active")
 	return json.Marshal(map[string]string{"agentId": id})
 }
 
@@ -431,12 +446,13 @@ func (api *PanelAPI) agentsResumeMany(params json.RawMessage) (json.RawMessage, 
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
+	agentIDs, err := safePanelAgentIDList(p.AgentIDs)
+	if err != nil {
+		return nil, err
+	}
 	resumed := 0
 	failures := map[string]string{}
-	for _, agentID := range p.AgentIDs {
-		if strings.TrimSpace(agentID) == "" {
-			continue
-		}
+	for _, agentID := range agentIDs {
 		agent, err := api.Vault.GetAgent(agentID)
 		if err != nil {
 			failures[agentID] = err.Error()
@@ -472,12 +488,13 @@ func (api *PanelAPI) agentsKillMany(params json.RawMessage) (json.RawMessage, er
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
+	agentIDs, err := safePanelAgentIDList(p.AgentIDs)
+	if err != nil {
+		return nil, err
+	}
 	killed := 0
 	failures := map[string]string{}
-	for _, agentID := range p.AgentIDs {
-		if strings.TrimSpace(agentID) == "" {
-			continue
-		}
+	for _, agentID := range agentIDs {
 		if err := api.Orchestrator.KillAgent(agentID); err != nil {
 			failures[agentID] = err.Error()
 			continue
@@ -567,10 +584,34 @@ func safePanelAgentID(agentID string) (string, error) {
 	if id == "" {
 		return "", fmt.Errorf("agentId is required")
 	}
+	if len(id) > maxPanelAgentIDBytes {
+		return "", fmt.Errorf("agentId exceeds %d byte limit", maxPanelAgentIDBytes)
+	}
+	if strings.ContainsAny(id, " \t\r\n") {
+		return "", fmt.Errorf("invalid agentId")
+	}
 	if strings.ContainsAny(id, `/\`) || id == "." || id == ".." {
 		return "", fmt.Errorf("invalid agentId")
 	}
 	return id, nil
+}
+
+func safePanelAgentIDList(agentIDs []string) ([]string, error) {
+	if len(agentIDs) == 0 {
+		return nil, fmt.Errorf("agentIds is required")
+	}
+	if len(agentIDs) > maxPanelBulkAgentIDs {
+		return nil, fmt.Errorf("agentIds exceeds %d item limit", maxPanelBulkAgentIDs)
+	}
+	out := make([]string, 0, len(agentIDs))
+	for _, value := range agentIDs {
+		agentID, err := safePanelAgentID(value)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, agentID)
+	}
+	return out, nil
 }
 
 // ---------------------------------------------------------------------------
