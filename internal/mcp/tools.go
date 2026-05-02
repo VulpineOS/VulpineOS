@@ -52,8 +52,8 @@ func baseTools() []ToolDefinition {
 				Properties: map[string]Property{
 					"sessionId":     {Type: "string", Description: "Target page session ID"},
 					"maxDepth":      {Type: "number", Description: "Max tree depth (default 10)"},
-					"maxNodes":      {Type: "number", Description: "Max nodes to return (default 250)"},
-					"maxTextLength": {Type: "number", Description: "Max text per node (default 120)"},
+					"maxNodes":      {Type: "number", Description: "Max nodes to return (default 180)"},
+					"maxTextLength": {Type: "number", Description: "Max text per node (default 90)"},
 					"viewportOnly":  {Type: "boolean", Description: "Only return elements visible in the viewport (default false)"},
 				},
 				Required: []string{"sessionId"},

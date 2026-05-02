@@ -108,7 +108,7 @@ Freezes the page completely while the agent is thinking. No JavaScript, no timer
 
 ### Phase 3: Token-Optimized DOM Export
 
-Compressed semantic JSON snapshot. The public fixture benchmark currently measures 3,709 average tokens for VulpineOS optimized DOM versus 42,832 for compact Chrome AX, a 91.3% reduction.
+Compressed semantic JSON snapshot. The public fixture benchmark currently measures 2,942 average tokens for VulpineOS optimized DOM versus 42,832 for compact Chrome AX, a 93.1% reduction, while passing fixture-level semantic and action-coverage checks.
 
 ```json
 {"v":1,"title":"Example","url":"https://example.com","nodes":[

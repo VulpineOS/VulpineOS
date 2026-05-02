@@ -12,15 +12,53 @@ const DEFAULT_FIXTURES = [
   'fixtures/retail-category.html',
   'fixtures/docs-reference.html',
 ]
+const QUALITY_EXPECTATIONS = {
+  'fixtures/retail-product.html': [
+    'FoxForge RTX 5060 Ti',
+    'Search products',
+    'In stock',
+    'Buying options',
+    'Retailer offer 1',
+    '$730.99',
+    'Add retailer 1 to cart',
+    'Specifications',
+    'Customer reviews',
+    'Contact support',
+  ],
+  'fixtures/retail-category.html': [
+    'Graphics cards and creator GPUs',
+    'Brand',
+    'Weekend upgrade event',
+    'View all bundles',
+    'GPU result 1',
+    'Compare result 1',
+    'Open product 1',
+    'Subscribe to stock alerts',
+  ],
+  'fixtures/docs-reference.html': [
+    'Browser automation API reference',
+    'API reference',
+    'vulpine.method.1',
+    'parameter_1',
+    'Try method 1',
+    'Copy API example',
+  ],
+}
+const QUALITY_MINIMUMS = {
+  'fixtures/retail-product.html': { minRefs: 85, minHeadings: 10 },
+  'fixtures/retail-category.html': { minRefs: 50, minHeadings: 13 },
+  'fixtures/docs-reference.html': { minRefs: 70, minHeadings: 100 },
+}
 
 function parseArgs(argv) {
   const args = {
     output: path.join(__dirname, 'results', 'latest.json'),
     chromePath: process.env.CHROME_PATH || '',
     fixtures: DEFAULT_FIXTURES,
-    maxNodes: 250,
+    maxNodes: 180,
     maxDepth: 10,
-    maxTextLength: 120,
+    maxTextLength: 90,
+    failOnQuality: true,
   }
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
@@ -30,6 +68,7 @@ function parseArgs(argv) {
     else if (arg === '--max-nodes') args.maxNodes = Number(argv[++i])
     else if (arg === '--max-depth') args.maxDepth = Number(argv[++i])
     else if (arg === '--max-text-length') args.maxTextLength = Number(argv[++i])
+    else if (arg === '--no-fail-on-quality') args.failOnQuality = false
     else if (arg === '--help') {
       console.log(`Usage: node benchmarks/token-optimization/benchmark.mjs [options]
 
@@ -37,9 +76,10 @@ Options:
   --output <path>           JSON result path
   --chrome-path <path>      Chrome/Chromium executable path
   --fixture <path>          Add an extra fixture path or URL
-  --max-nodes <n>           Optimized DOM node cap (default: 250)
+  --max-nodes <n>           Optimized DOM node cap (default: 180)
   --max-depth <n>           Optimized DOM depth cap (default: 10)
-  --max-text-length <n>     Optimized DOM text cap per node (default: 120)
+  --max-text-length <n>     Optimized DOM text cap per node (default: 90)
+  --no-fail-on-quality      Report missing expected strings without exiting non-zero
 `)
       process.exit(0)
     }
@@ -101,6 +141,29 @@ function reduction(base, optimized) {
   return Number((((base - optimized) / base) * 100).toFixed(1))
 }
 
+function qualityForFixture(fixture, snapshot) {
+  const expected = QUALITY_EXPECTATIONS[fixture] || []
+  const minimums = QUALITY_MINIMUMS[fixture] || {}
+  const haystack = JSON.stringify(snapshot).toLowerCase()
+  const missing = expected.filter((value) => !haystack.includes(value.toLowerCase()))
+  const refCount = snapshot.nodes.filter((node) => typeof node[node.length - 1] === 'string' && node[node.length - 1].startsWith('@')).length
+  const headingCount = snapshot.nodes.filter((node) => /^h[1-6]$/.test(node[1])).length
+  const coverageFailures = []
+  if (minimums.minRefs && refCount < minimums.minRefs)
+    coverageFailures.push(`refs ${refCount}/${minimums.minRefs}`)
+  if (minimums.minHeadings && headingCount < minimums.minHeadings)
+    coverageFailures.push(`headings ${headingCount}/${minimums.minHeadings}`)
+  return {
+    expected: expected.length,
+    matched: expected.length - missing.length,
+    missing,
+    refCount,
+    headingCount,
+    coverageFailures,
+    pass: missing.length === 0 && coverageFailures.length === 0,
+  }
+}
+
 async function measureFixture(browser, fixture, options) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1200 } })
   const url = fixtureURL(fixture)
@@ -150,6 +213,7 @@ async function measureFixture(browser, fixture, options) {
     },
     optimizedNodes: vulpine.snapshot.nodes.length,
     truncated: vulpine.truncated,
+    quality: qualityForFixture(fixture, vulpine.snapshot),
   }
 }
 
@@ -210,7 +274,23 @@ async function main() {
       'VulpineOS optimized DOM': aggregate.vulpineOptimized,
     })
     console.table(payload.aggregate.reductions)
+    console.table(Object.fromEntries(results.map((result) => [
+      result.fixture,
+      `${result.quality.matched}/${result.quality.expected} strings, ${result.quality.refCount} refs, ${result.quality.headingCount} headings`,
+    ])))
     console.log(`Wrote ${path.resolve(args.output)}`)
+
+    const failedQuality = results.filter((result) => !result.quality.pass)
+    if (args.failOnQuality && failedQuality.length) {
+      for (const result of failedQuality) {
+        const failures = []
+        if (result.quality.missing.length)
+          failures.push(`missing strings: ${result.quality.missing.join(', ')}`)
+        failures.push(...result.quality.coverageFailures)
+        console.error(`${result.fixture} quality check failed: ${failures.join('; ')}`)
+      }
+      process.exitCode = 1
+    }
   } finally {
     await browser.close()
   }
