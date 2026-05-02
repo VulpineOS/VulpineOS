@@ -113,6 +113,25 @@ func TestSpawnFlow_ApplyFingerprint(t *testing.T) {
 	}
 }
 
+func TestSpawnFlow_TemplateNotFound(t *testing.T) {
+	env := newTestEnv(t)
+
+	_, err := env.Vault.GetTemplateByName("non-existent-template")
+	if err == nil {
+		t.Fatal("expected error when template not found")
+	}
+}
+
+func TestSpawnFlow_JugglerError(t *testing.T) {
+	env := newTestEnv(t)
+	env.FakeJuggler.RespondError("Browser.createBrowserContext", "context limit reached")
+
+	_, err := env.Pool.Acquire()
+	if err == nil {
+		t.Fatal("expected error from juggler")
+	}
+}
+
 func TestSpawnFlow_TrackOwnership(t *testing.T) {
 	env := newTestEnv(t)
 
