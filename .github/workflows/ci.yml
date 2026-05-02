@@ -61,6 +61,7 @@ jobs:
             ./internal/scripting \
             ./internal/security \
             ./internal/slog \
+            ./internal/testutil \
             ./internal/tokenopt \
             ./internal/vault \
             ./internal/webhooks \
@@ -70,8 +71,8 @@ jobs:
         run: |
           count=$(grep -c "^--- PASS" test-output.txt || echo "0")
           echo "Unit tests passing: $count"
-          if [ "$count" -lt 200 ]; then
-            echo "ERROR: Unit test count dropped below 200 (expected 258+)"
+          if [ "$count" -lt 210 ]; then
+            echo "ERROR: Unit test count dropped below 210 (expected 265+)"
             exit 1
           fi
 
