@@ -38,9 +38,27 @@ const NAME_FROM_CONTENT = new Set([
   'img',
 ])
 const INTERACTIVE_CODES = new Set(['btn', 'a', 'inp', 'chk', 'rad', 'sel', 'opt'])
+const LANDMARK_CODES = new Set(['doc', 'main', 'nav', 'hdr', 'ftr', 'aside', 'form', 'search'])
+const STRUCTURAL_CODES = new Set(['sec', 'art', 'ul', 'li', 'tbl', 'row', 'cell'])
+const HEADING_RE = /^h[1-6]$/
+const HIGH_VALUE_TEXT_RE = /[$£€¥₹]|\b(price|total|stock|available|error|required|warning|sale|deal|shipping|delivery|warranty)\b/i
 
 function textOf(node) {
   return (node.textContent || '').replace(/\s+/g, ' ').trim()
+}
+
+function normalizePattern(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[$£€¥₹]\s*\d+(?:[.,]\d+)?/g, '$#')
+    .replace(/\b\d+(?:[.,]\d+)?\b/g, '#')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80)
+}
+
+function patternFor(candidate) {
+  return `${candidate.code}:${normalizePattern(candidate.name)}`
 }
 
 function accessibleName(el, role) {
@@ -139,20 +157,98 @@ function propsFor(el, role) {
   return Object.keys(props).length ? props : null
 }
 
+function priorityFor(candidate) {
+  const { code, depth, name, props, interactive } = candidate
+  let score = 0
+  if (code === 'doc') score += 1000
+  else if (LANDMARK_CODES.has(code)) score += 850
+  else if (code === 'h1') score += 840
+  else if (code === 'h2') score += 800
+  else if (HEADING_RE.test(code)) score += 620
+  else if (interactive) score += 780
+  else if (HIGH_VALUE_TEXT_RE.test(name)) score += 790
+  else if (code === 't' && name) score += 360
+  else if (STRUCTURAL_CODES.has(code)) score += 260
+  else score += 180
+
+  if (props) score += 40
+  if (name.length > 0 && name.length <= 80) score += 18
+  if (name.length > 120) score -= 20
+  if (candidate.patternIndex === 0) score += interactive || HEADING_RE.test(code) ? 170 : 120
+  else if (candidate.patternIndex < 3) score += 70
+  if (candidate.serial < 240) score += 120 - candidate.serial * 0.35
+  return score - depth * 8 - candidate.serial * 0.0001
+}
+
+function patternLimit(candidate) {
+  if (candidate.code === 'doc') return Infinity
+  if (LANDMARK_CODES.has(candidate.code)) return 24
+  if (HEADING_RE.test(candidate.code)) return 80
+  if (candidate.interactive) return 32
+  if (HIGH_VALUE_TEXT_RE.test(candidate.name)) return 40
+  if (candidate.code === 't') return 18
+  return 24
+}
+
+function selectCandidates(candidates, maxNodes) {
+  if (candidates.length <= maxNodes) return candidates
+
+  const selected = []
+  const selectedSet = new Set()
+  const patternCounts = new Map()
+  const sorted = [...candidates].sort((a, b) => b.score - a.score)
+
+  for (const candidate of sorted) {
+    if (selected.length >= maxNodes) break
+    const pattern = candidate.pattern
+    const count = patternCounts.get(pattern) || 0
+    if (count >= patternLimit(candidate)) continue
+    selected.push(candidate)
+    selectedSet.add(candidate)
+    patternCounts.set(pattern, count + 1)
+  }
+
+  if (selected.length < maxNodes) {
+    for (const candidate of candidates) {
+      if (selected.length >= maxNodes) break
+      if (selectedSet.has(candidate)) continue
+      selected.push(candidate)
+      selectedSet.add(candidate)
+    }
+  }
+
+  return selected.sort((a, b) => a.serial - b.serial)
+}
+
+function annotateCandidates(candidates) {
+  const patternCounts = new Map()
+  for (const candidate of candidates) {
+    const pattern = patternFor(candidate)
+    const count = patternCounts.get(pattern) || 0
+    candidate.pattern = pattern
+    candidate.patternIndex = count
+    patternCounts.set(pattern, count + 1)
+  }
+  for (const candidate of candidates)
+    candidate.score = priorityFor(candidate)
+}
+
 export function getVulpineOptimizedDOM({
   maxDepth = 10,
-  maxNodes = 250,
-  maxTextLength = 120,
+  maxNodes = 180,
+  maxTextLength = 90,
   viewportOnly = false,
 } = {}) {
-  const nodes = []
+  const candidates = []
   let truncated = false
+  let serial = 0
   let refCounter = 0
   const vpWidth = window.innerWidth
   const vpHeight = window.innerHeight
+  const scanLimit = Math.max(maxNodes * 10, maxNodes + 500)
 
   function walkElement(el, depth) {
-    if (nodes.length >= maxNodes) {
+    if (candidates.length >= scanLimit) {
       truncated = true
       return
     }
@@ -179,12 +275,16 @@ export function getVulpineOptimizedDOM({
     const name = accessibleName(el, role)
     const ownText = name.length > maxTextLength ? name.slice(0, maxTextLength) + '...' : name
     const props = propsFor(el, role)
-    const ref = INTERACTIVE_CODES.has(code) ? '@' + refCounter++ : null
-
-    if (ref) nodes.push([depth, code, ownText, props || null, ref])
-    else if (props) nodes.push([depth, code, ownText, props])
-    else if (ownText) nodes.push([depth, code, ownText])
-    else nodes.push([depth, code])
+    const interactive = INTERACTIVE_CODES.has(code)
+    const candidate = {
+      depth,
+      code,
+      name: ownText,
+      props,
+      interactive,
+      serial: serial++,
+    }
+    candidates.push(candidate)
 
     if (NAME_FROM_CONTENT.has(role)) return
 
@@ -192,19 +292,42 @@ export function getVulpineOptimizedDOM({
   }
 
   function walkNode(node, depth) {
-    if (nodes.length >= maxNodes) {
+    if (candidates.length >= scanLimit) {
       truncated = true
       return
     }
     if (node.nodeType === Node.TEXT_NODE) {
       const value = (node.nodeValue || '').replace(/\s+/g, ' ').trim()
-      if (value) nodes.push([depth, 't', value.length > maxTextLength ? value.slice(0, maxTextLength) + '...' : value])
+      if (value) {
+        const name = value.length > maxTextLength ? value.slice(0, maxTextLength) + '...' : value
+        const candidate = {
+          depth,
+          code: 't',
+          name,
+          props: null,
+          interactive: false,
+          serial: serial++,
+        }
+        candidates.push(candidate)
+      }
       return
     }
     walkElement(node, depth)
   }
 
   walkNode(document.documentElement, 0)
+
+  annotateCandidates(candidates)
+  const selected = selectCandidates(candidates, maxNodes)
+  truncated = truncated || selected.length < candidates.length
+
+  const nodes = selected.map((candidate) => {
+    const tuple = [candidate.depth, candidate.code]
+    if (candidate.name || candidate.props || candidate.interactive) tuple.push(candidate.name)
+    if (candidate.props || candidate.interactive) tuple.push(candidate.props || null)
+    if (candidate.interactive) tuple.push('@' + refCounter++)
+    return tuple
+  })
 
   const merged = []
   for (const node of nodes) {

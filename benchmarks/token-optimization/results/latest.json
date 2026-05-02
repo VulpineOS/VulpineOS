@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-02T00:57:48.433Z",
+  "generatedAt": "2026-05-02T02:25:58.756Z",
   "system": {
     "platform": "Darwin 25.3.0 arm64",
     "node": "v25.8.0",
@@ -7,22 +7,22 @@
   },
   "options": {
     "maxDepth": 10,
-    "maxNodes": 250,
-    "maxTextLength": 120
+    "maxNodes": 180,
+    "maxTextLength": 90
   },
   "aggregate": {
     "tokens": {
       "rawHTML": 12761,
-      "chromeAXVerbose": 245349,
+      "chromeAXVerbose": 245352,
       "chromeAXCompact": 42832,
       "playwrightAria": 11577,
-      "vulpineOptimized": 3709
+      "vulpineOptimized": 2942
     },
     "reductions": {
-      "vsRawHTML": 70.9,
-      "vsChromeAXVerbose": 98.5,
-      "vsChromeAXCompact": 91.3,
-      "vsPlaywrightAria": 68
+      "vsRawHTML": 76.9,
+      "vsChromeAXVerbose": 98.8,
+      "vsChromeAXCompact": 93.1,
+      "vsPlaywrightAria": 74.6
     }
   },
   "fixtures": [
@@ -31,57 +31,84 @@
       "url": "file:///Users/apple/Code/Personal/VulpineOS/benchmarks/token-optimization/fixtures/retail-product.html",
       "tokens": {
         "rawHTML": 9704,
-        "chromeAXVerbose": 167992,
+        "chromeAXVerbose": 167996,
         "chromeAXCompact": 29501,
         "playwrightAria": 8702,
-        "vulpineOptimized": 3750
+        "vulpineOptimized": 3095
       },
       "reductions": {
-        "vsRawHTML": 61.4,
-        "vsChromeAXVerbose": 97.8,
-        "vsChromeAXCompact": 87.3,
-        "vsPlaywrightAria": 56.9
+        "vsRawHTML": 68.1,
+        "vsChromeAXVerbose": 98.2,
+        "vsChromeAXCompact": 89.5,
+        "vsPlaywrightAria": 64.4
       },
-      "optimizedNodes": 211,
-      "truncated": true
+      "optimizedNodes": 137,
+      "truncated": true,
+      "quality": {
+        "expected": 10,
+        "matched": 10,
+        "missing": [],
+        "refCount": 86,
+        "headingCount": 10,
+        "coverageFailures": [],
+        "pass": true
+      }
     },
     {
       "fixture": "fixtures/retail-category.html",
       "url": "file:///Users/apple/Code/Personal/VulpineOS/benchmarks/token-optimization/fixtures/retail-category.html",
       "tokens": {
         "rawHTML": 11486,
-        "chromeAXVerbose": 261480,
+        "chromeAXVerbose": 261481,
         "chromeAXCompact": 41623,
         "playwrightAria": 10451,
-        "vulpineOptimized": 3259
+        "vulpineOptimized": 3190
       },
       "reductions": {
-        "vsRawHTML": 71.6,
+        "vsRawHTML": 72.2,
         "vsChromeAXVerbose": 98.8,
-        "vsChromeAXCompact": 92.2,
-        "vsPlaywrightAria": 68.8
+        "vsChromeAXCompact": 92.3,
+        "vsPlaywrightAria": 69.5
       },
-      "optimizedNodes": 237,
-      "truncated": true
+      "optimizedNodes": 81,
+      "truncated": true,
+      "quality": {
+        "expected": 8,
+        "matched": 8,
+        "missing": [],
+        "refCount": 53,
+        "headingCount": 13,
+        "coverageFailures": [],
+        "pass": true
+      }
     },
     {
       "fixture": "fixtures/docs-reference.html",
       "url": "file:///Users/apple/Code/Personal/VulpineOS/benchmarks/token-optimization/fixtures/docs-reference.html",
       "tokens": {
         "rawHTML": 17093,
-        "chromeAXVerbose": 306575,
+        "chromeAXVerbose": 306578,
         "chromeAXCompact": 57371,
         "playwrightAria": 15577,
-        "vulpineOptimized": 4118
+        "vulpineOptimized": 2542
       },
       "reductions": {
-        "vsRawHTML": 75.9,
-        "vsChromeAXVerbose": 98.7,
-        "vsChromeAXCompact": 92.8,
-        "vsPlaywrightAria": 73.6
+        "vsRawHTML": 85.1,
+        "vsChromeAXVerbose": 99.2,
+        "vsChromeAXCompact": 95.6,
+        "vsPlaywrightAria": 83.7
       },
-      "optimizedNodes": 200,
-      "truncated": true
+      "optimizedNodes": 180,
+      "truncated": true,
+      "quality": {
+        "expected": 6,
+        "matched": 6,
+        "missing": [],
+        "refCount": 71,
+        "headingCount": 104,
+        "coverageFailures": [],
+        "pass": true
+      }
     }
   ]
 }

@@ -900,7 +900,7 @@ export class PageAgent {
     return result;
   }
 
-  async _getOptimizedDOM({ maxDepth = 10, maxNodes = 250, maxTextLength = 120, viewportOnly = false }) {
+  async _getOptimizedDOM({ maxDepth = 10, maxNodes = 180, maxTextLength = 90, viewportOnly = false }) {
     const enabled = Services.prefs.getBoolPref('vulpineos.dom_export.enabled', true);
     if (!enabled)
       throw new Error('Optimized DOM export is disabled');
@@ -920,9 +920,10 @@ export class PageAgent {
       await new Promise(x => domWindow.requestAnimationFrame(x));
     await waitForAXQuiet(docAcc);
 
-    const nodes = [];
+    const candidates = [];
     let truncated = false;
-    let nodeCount = 0;
+    let serial = 0;
+    const scanLimit = Math.max(maxNodes * 10, maxNodes + 500);
 
     // Viewport dimensions for viewportOnly mode
     const vpWidth = viewportOnly ? domWindow.innerWidth : 0;
@@ -937,6 +938,10 @@ export class PageAgent {
       'check box', 'radiobutton', 'radio button', 'combobox', 'combobox list',
       'listbox', 'menuitem', 'pagetab', 'page tab', 'switch', 'slider', 'spinbutton',
     ]);
+    const LANDMARK_CODES = new Set(['doc', 'main', 'nav', 'banner', 'footer', 'form', 'region', 'dlg', 'alert']);
+    const STRUCTURAL_CODES = new Set(['ul', 'li', 'tbl', 'tr', 'td', 'th', 'menu', 'tabs', 'tabp']);
+    const HEADING_RE = /^h[1-6]$/;
+    const HIGH_VALUE_TEXT_RE = /[$£€¥₹]|\b(price|total|stock|available|error|required|warning|sale|deal|shipping|delivery|warranty)\b/i;
 
     function compressRole(role, attributes) {
       if (role === 'heading') {
@@ -976,8 +981,102 @@ export class PageAgent {
       return hasProps ? props : null;
     }
 
+    function normalizePattern(value) {
+      return String(value || '')
+        .toLowerCase()
+        .replace(/[$£€¥₹]\s*\d+(?:[.,]\d+)?/g, '$#')
+        .replace(/\b\d+(?:[.,]\d+)?\b/g, '#')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 80);
+    }
+
+    function patternFor(candidate) {
+      return candidate.code + ':' + normalizePattern(candidate.name);
+    }
+
+    function priorityFor(candidate) {
+      const { code, depth, name, props, interactive } = candidate;
+      let score = 0;
+      if (code === 'doc') score += 1000;
+      else if (LANDMARK_CODES.has(code)) score += 850;
+      else if (code === 'h1') score += 840;
+      else if (code === 'h2') score += 800;
+      else if (HEADING_RE.test(code)) score += 620;
+      else if (interactive) score += 780;
+      else if (HIGH_VALUE_TEXT_RE.test(name)) score += 790;
+      else if (code === 't' && name) score += 360;
+      else if (STRUCTURAL_CODES.has(code)) score += 260;
+      else score += 180;
+
+      if (props) score += 40;
+      if (name.length > 0 && name.length <= 80) score += 18;
+      if (name.length > 120) score -= 20;
+      if (candidate.patternIndex === 0) score += interactive || HEADING_RE.test(code) ? 170 : 120;
+      else if (candidate.patternIndex < 3) score += 70;
+      if (candidate.serial < 240) score += 120 - candidate.serial * 0.35;
+      return score - depth * 8 - candidate.serial * 0.0001;
+    }
+
+    function patternLimit(candidate) {
+      if (candidate.code === 'doc') return Infinity;
+      if (LANDMARK_CODES.has(candidate.code)) return 24;
+      if (HEADING_RE.test(candidate.code)) return 80;
+      if (candidate.interactive) return 32;
+      if (HIGH_VALUE_TEXT_RE.test(candidate.name)) return 40;
+      if (candidate.code === 't') return 18;
+      return 24;
+    }
+
+    function annotateCandidates() {
+      const patternCounts = new Map();
+      for (const candidate of candidates) {
+        const pattern = patternFor(candidate);
+        const count = patternCounts.get(pattern) || 0;
+        candidate.pattern = pattern;
+        candidate.patternIndex = count;
+        patternCounts.set(pattern, count + 1);
+      }
+      for (const candidate of candidates)
+        candidate.score = priorityFor(candidate);
+    }
+
+    function selectCandidates() {
+      if (candidates.length <= maxNodes)
+        return candidates;
+
+      const selected = [];
+      const selectedSet = new Set();
+      const patternCounts = new Map();
+      const sorted = [...candidates].sort((a, b) => b.score - a.score);
+
+      for (const candidate of sorted) {
+        if (selected.length >= maxNodes)
+          break;
+        const count = patternCounts.get(candidate.pattern) || 0;
+        if (count >= patternLimit(candidate))
+          continue;
+        selected.push(candidate);
+        selectedSet.add(candidate);
+        patternCounts.set(candidate.pattern, count + 1);
+      }
+
+      if (selected.length < maxNodes) {
+        for (const candidate of candidates) {
+          if (selected.length >= maxNodes)
+            break;
+          if (selectedSet.has(candidate))
+            continue;
+          selected.push(candidate);
+          selectedSet.add(candidate);
+        }
+      }
+
+      return selected.sort((a, b) => a.serial - b.serial);
+    }
+
     function walk(accElement, depth) {
-      if (nodeCount >= maxNodes) {
+      if (candidates.length >= scanLimit) {
         truncated = true;
         return;
       }
@@ -1055,24 +1154,15 @@ export class PageAgent {
 
       const props = extractProps(accElement, stateNames, attributes, role);
 
-      // VulpineOS: Assign ref to interactive/actionable nodes
-      let ref = null;
-      if (INTERACTIVE_ROLES.has(role) && accElement.DOMNode) {
-        ref = '@' + refCounter++;
-        refMap.set(ref, accElement.DOMNode);
-      }
-
-      // Emit node — omit empty trailing fields
-      if (ref) {
-        nodes.push([depth, code, truncatedName, props || null, ref]);
-      } else if (props) {
-        nodes.push([depth, code, truncatedName, props]);
-      } else if (truncatedName) {
-        nodes.push([depth, code, truncatedName]);
-      } else {
-        nodes.push([depth, code]);
-      }
-      nodeCount++;
+      candidates.push({
+        depth,
+        code,
+        name: truncatedName,
+        props,
+        interactive: INTERACTIVE_ROLES.has(role) && !!accElement.DOMNode,
+        domNode: accElement.DOMNode || null,
+        serial: serial++,
+      });
 
       // Recurse
       for (const child of children)
@@ -1080,6 +1170,28 @@ export class PageAgent {
     }
 
     walk(docAcc, 0);
+    annotateCandidates();
+    const selected = selectCandidates();
+    truncated = truncated || selected.length < candidates.length;
+
+    const nodes = [];
+    for (const candidate of selected) {
+      let ref = null;
+      if (candidate.interactive && candidate.domNode) {
+        ref = '@' + refCounter++;
+        refMap.set(ref, candidate.domNode);
+      }
+
+      if (ref) {
+        nodes.push([candidate.depth, candidate.code, candidate.name, candidate.props || null, ref]);
+      } else if (candidate.props) {
+        nodes.push([candidate.depth, candidate.code, candidate.name, candidate.props]);
+      } else if (candidate.name) {
+        nodes.push([candidate.depth, candidate.code, candidate.name]);
+      } else {
+        nodes.push([candidate.depth, candidate.code]);
+      }
+    }
 
     // Post-process: merge adjacent text nodes at the same depth
     const merged = [];
