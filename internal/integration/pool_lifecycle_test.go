@@ -106,3 +106,31 @@ func TestPoolLifecycle_RemoveOnLimitHit(t *testing.T) {
 		t.Fatalf("createBrowserContext calls = %d, want 2", len(createCalls))
 	}
 }
+
+func TestPoolLifecycle_PoolClosedFails(t *testing.T) {
+	fake := testutil.NewFakeJugglerTransport(t)
+	fake.RespondJSON("Browser.createBrowserContext", map[string]string{"browserContextId": "ctx-test"})
+	fake.RespondJSON("Browser.removeBrowserContext", map[string]any{})
+
+	client := juggler.NewClient(fake)
+	t.Cleanup(func() { client.Close() })
+
+	p := pool.New(client, pool.Config{PreWarm: 0, MaxActive: 1, MaxUsesPerSlot: 2})
+	if err := p.Start(); err != nil {
+		t.Fatalf("pool start: %v", err)
+	}
+	t.Cleanup(func() { p.Close() })
+
+	slot, err := p.Acquire()
+	if err != nil {
+		t.Fatalf("acquire: %v", err)
+	}
+	_ = slot
+
+	p.Close()
+
+	_, err = p.Acquire()
+	if err == nil {
+		t.Fatal("expected error when pool is closed")
+	}
+}
