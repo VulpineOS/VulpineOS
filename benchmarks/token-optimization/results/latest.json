@@ -1,0 +1,87 @@
+{
+  "generatedAt": "2026-05-02T00:57:48.433Z",
+  "system": {
+    "platform": "Darwin 25.3.0 arm64",
+    "node": "v25.8.0",
+    "chromePath": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+  },
+  "options": {
+    "maxDepth": 10,
+    "maxNodes": 250,
+    "maxTextLength": 120
+  },
+  "aggregate": {
+    "tokens": {
+      "rawHTML": 12761,
+      "chromeAXVerbose": 245349,
+      "chromeAXCompact": 42832,
+      "playwrightAria": 11577,
+      "vulpineOptimized": 3709
+    },
+    "reductions": {
+      "vsRawHTML": 70.9,
+      "vsChromeAXVerbose": 98.5,
+      "vsChromeAXCompact": 91.3,
+      "vsPlaywrightAria": 68
+    }
+  },
+  "fixtures": [
+    {
+      "fixture": "fixtures/retail-product.html",
+      "url": "file:///Users/apple/Code/Personal/VulpineOS/benchmarks/token-optimization/fixtures/retail-product.html",
+      "tokens": {
+        "rawHTML": 9704,
+        "chromeAXVerbose": 167992,
+        "chromeAXCompact": 29501,
+        "playwrightAria": 8702,
+        "vulpineOptimized": 3750
+      },
+      "reductions": {
+        "vsRawHTML": 61.4,
+        "vsChromeAXVerbose": 97.8,
+        "vsChromeAXCompact": 87.3,
+        "vsPlaywrightAria": 56.9
+      },
+      "optimizedNodes": 211,
+      "truncated": true
+    },
+    {
+      "fixture": "fixtures/retail-category.html",
+      "url": "file:///Users/apple/Code/Personal/VulpineOS/benchmarks/token-optimization/fixtures/retail-category.html",
+      "tokens": {
+        "rawHTML": 11486,
+        "chromeAXVerbose": 261480,
+        "chromeAXCompact": 41623,
+        "playwrightAria": 10451,
+        "vulpineOptimized": 3259
+      },
+      "reductions": {
+        "vsRawHTML": 71.6,
+        "vsChromeAXVerbose": 98.8,
+        "vsChromeAXCompact": 92.2,
+        "vsPlaywrightAria": 68.8
+      },
+      "optimizedNodes": 237,
+      "truncated": true
+    },
+    {
+      "fixture": "fixtures/docs-reference.html",
+      "url": "file:///Users/apple/Code/Personal/VulpineOS/benchmarks/token-optimization/fixtures/docs-reference.html",
+      "tokens": {
+        "rawHTML": 17093,
+        "chromeAXVerbose": 306575,
+        "chromeAXCompact": 57371,
+        "playwrightAria": 15577,
+        "vulpineOptimized": 4118
+      },
+      "reductions": {
+        "vsRawHTML": 75.9,
+        "vsChromeAXVerbose": 98.7,
+        "vsChromeAXCompact": 92.8,
+        "vsPlaywrightAria": 73.6
+      },
+      "optimizedNodes": 200,
+      "truncated": true
+    }
+  ]
+}

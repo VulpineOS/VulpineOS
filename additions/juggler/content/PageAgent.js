@@ -900,7 +900,7 @@ export class PageAgent {
     return result;
   }
 
-  async _getOptimizedDOM({ maxDepth = 10, maxNodes = 500, maxTextLength = 200, viewportOnly = false }) {
+  async _getOptimizedDOM({ maxDepth = 10, maxNodes = 250, maxTextLength = 120, viewportOnly = false }) {
     const enabled = Services.prefs.getBoolPref('vulpineos.dom_export.enabled', true);
     if (!enabled)
       throw new Error('Optimized DOM export is disabled');
