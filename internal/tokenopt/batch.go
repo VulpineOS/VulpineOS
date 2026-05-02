@@ -156,6 +156,12 @@ func (b *BatchExecutor) execSnapshot(sessionID string, params map[string]interfa
 	if v, ok := params["maxNodes"]; ok {
 		callParams["maxNodes"] = v
 	}
+	if v, ok := params["maxTextLength"]; ok {
+		callParams["maxTextLength"] = v
+	}
+	if v, ok := params["profile"]; ok {
+		callParams["profile"] = v
+	}
 
 	result, err := b.client.Call(sessionID, "Page.getOptimizedDOM", callParams)
 	if err != nil {

@@ -1206,6 +1206,7 @@ const Page = {
     },
     'getOptimizedDOM': {
       params: {
+        profile: t.Optional(t.String),
         maxDepth: t.Optional(t.Number),
         maxNodes: t.Optional(t.Number),
         maxTextLength: t.Optional(t.Number),
@@ -1213,6 +1214,8 @@ const Page = {
       },
       returns: {
         snapshot: t.Any,
+        profile: t.Optional(t.String),
+        limits: t.Optional(t.Any),
         truncated: t.Boolean,
       },
     },
