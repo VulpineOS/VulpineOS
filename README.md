@@ -108,7 +108,7 @@ Freezes the page completely while the agent is thinking. No JavaScript, no timer
 
 ### Phase 3: Token-Optimized DOM Export
 
-Compressed semantic JSON snapshot. The public fixture benchmark currently measures 2,942 average tokens for VulpineOS optimized DOM versus 42,832 for compact Chrome AX, a 93.1% reduction, while passing fixture-level semantic and action-coverage checks.
+Compressed semantic JSON snapshot. The public fixture benchmark currently measures 2,942 average tokens for VulpineOS optimized DOM versus 42,832 for compact Chrome AX, a 93.1% reduction, while passing fixture-level semantic and action-coverage checks. Agents can request larger `expanded` or `full` snapshot profiles, or retry a truncated compact snapshot with the next larger profile when a target may have been pruned.
 
 ```json
 {"v":1,"title":"Example","url":"https://example.com","nodes":[
@@ -441,7 +441,7 @@ VulpineOS exposes 36 tools via Model Context Protocol:
 | Tool | Description |
 |------|-------------|
 | Core browser controls | Navigate, snapshot, click, type, screenshot, scroll, context lifecycle, and accessibility-tree access |
-| Ref-based interactions | Click, type, and hover by `@ref` from optimized DOM snapshots |
+| Ref-based interactions | Click, type, and hover by `@ref` from optimized DOM snapshots. Snapshot profiles are `compact` (180 nodes/90 chars), `expanded` (360/160), and `full` (800/240); `retry:true` steps up after truncation. |
 | Reliability tools | Wait, find, verify, screenshot diff, page-settled checks, select options, fill forms, page info, key press, clear input, form errors |
 | Human-realism tools | Human-like click, scroll, and type timing |
 | Annotated interaction | Annotated screenshots and click-by-label with `@N` labels |

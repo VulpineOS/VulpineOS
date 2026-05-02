@@ -725,6 +725,7 @@ Use the configured browser path first. If a tool or browser path fails, say exac
 - On a fresh browser session, use ` + "`browser open <url>`" + ` for the first page load.
 - ` + "`browser navigate`" + ` without a target only works when a page already exists.
 - ` + "`browser start`" + ` starts the browser service but does not create a page by itself.
+- VulpineOS snapshots default to compact limits (180 nodes, 90 chars). If a required target is missing from a truncated snapshot, retry once with expanded limits before concluding it is absent.
 `,
 	}
 	for name, content := range bootstrap {
@@ -763,6 +764,7 @@ Rules:
 6. On a fresh browser session, use ` + "`browser open <url>`" + ` for the first page load.
 7. ` + "`browser navigate`" + ` without a target assumes a page already exists.
 8. ` + "`browser start`" + ` starts the service but does not create a page.
+9. VulpineOS snapshots default to compact limits (180 nodes, 90 chars). If a required target is missing from a truncated snapshot, retry with expanded limits before concluding it is absent.
 `
 	return os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(skill), 0600)
 }

@@ -900,10 +900,26 @@ export class PageAgent {
     return result;
   }
 
-  async _getOptimizedDOM({ maxDepth = 10, maxNodes = 180, maxTextLength = 90, viewportOnly = false }) {
+  async _getOptimizedDOM({ profile = 'compact', maxDepth, maxNodes, maxTextLength, viewportOnly = false } = {}) {
     const enabled = Services.prefs.getBoolPref('vulpineos.dom_export.enabled', true);
     if (!enabled)
       throw new Error('Optimized DOM export is disabled');
+
+    const profiles = {
+      compact: { maxDepth: 10, maxNodes: 180, maxTextLength: 90 },
+      expanded: { maxDepth: 12, maxNodes: 360, maxTextLength: 160 },
+      full: { maxDepth: 14, maxNodes: 800, maxTextLength: 240 },
+    };
+    const profileName = String(profile || 'compact').toLowerCase();
+    const selectedProfile = profiles[profileName];
+    if (!selectedProfile)
+      throw new Error(`Unknown optimized DOM profile "${profileName}". Use compact, expanded, or full.`);
+    const hasCustomLimits = (Number.isFinite(maxDepth) && maxDepth > 0)
+      || (Number.isFinite(maxNodes) && maxNodes > 0)
+      || (Number.isFinite(maxTextLength) && maxTextLength > 0);
+    maxDepth = Number.isFinite(maxDepth) && maxDepth > 0 ? maxDepth : selectedProfile.maxDepth;
+    maxNodes = Number.isFinite(maxNodes) && maxNodes > 0 ? maxNodes : selectedProfile.maxNodes;
+    maxTextLength = Number.isFinite(maxTextLength) && maxTextLength > 0 ? maxTextLength : selectedProfile.maxTextLength;
 
     const injectionFilterEnabled = Services.prefs.getBoolPref(
       'vulpineos.injection_filter.enabled', true
@@ -1214,6 +1230,8 @@ export class PageAgent {
         url: domWindow.location.href || '',
         nodes: merged,
       },
+      profile: hasCustomLimits ? 'custom' : profileName,
+      limits: { maxDepth, maxNodes, maxTextLength },
       truncated,
     };
   }

@@ -46,3 +46,11 @@ Measured reduction:
 The benchmark fails by default if the optimized export drops required semantic strings or falls below minimum reference/heading coverage for the fixture set. Use `--no-fail-on-quality` only when exploring lower-quality profiles.
 
 Use the generated JSON result as the source for marketing claims. Do not publish competitor-specific optimized numbers unless they are produced by this benchmark or by a linked public benchmark script.
+
+Runtime defaults use the same compact profile as the benchmark: 180 nodes, 90 chars, depth 10. Agents and MCP callers can opt into larger profiles when needed:
+
+- `compact`: 180 nodes, 90 chars, depth 10
+- `expanded`: 360 nodes, 160 chars, depth 12
+- `full`: 800 nodes, 240 chars, depth 14
+
+If a compact snapshot is truncated and a target may have been pruned, callers should retry with `retry:true` or `profile:"expanded"` before concluding the target is absent.

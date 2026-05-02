@@ -28,7 +28,7 @@ func TestToolSchemaProperties(t *testing.T) {
 
 	// vulpine_snapshot should have optional params
 	snap := toolMap["vulpine_snapshot"]
-	optionalParams := []string{"maxDepth", "maxNodes", "maxTextLength", "viewportOnly"}
+	optionalParams := []string{"profile", "retry", "maxDepth", "maxNodes", "maxTextLength", "viewportOnly"}
 	for _, p := range optionalParams {
 		if _, ok := snap.InputSchema.Properties[p]; !ok {
 			t.Errorf("vulpine_snapshot missing %q property", p)
@@ -37,6 +37,9 @@ func TestToolSchemaProperties(t *testing.T) {
 	// viewportOnly should be boolean
 	if snap.InputSchema.Properties["viewportOnly"].Type != "boolean" {
 		t.Errorf("viewportOnly type = %q, want 'boolean'", snap.InputSchema.Properties["viewportOnly"].Type)
+	}
+	if snap.InputSchema.Properties["retry"].Type != "boolean" {
+		t.Errorf("retry type = %q, want 'boolean'", snap.InputSchema.Properties["retry"].Type)
 	}
 
 	// vulpine_click should have x, y as number type
@@ -72,6 +75,76 @@ func TestToolSchemaProperties(t *testing.T) {
 	closeCtx := toolMap["vulpine_close_context"]
 	if _, ok := closeCtx.InputSchema.Properties["contextId"]; !ok {
 		t.Error("vulpine_close_context missing 'contextId' property")
+	}
+}
+
+func TestHandleSnapshotProfilesAndRetry(t *testing.T) {
+	resetSnapshotProfile("session-snapshot")
+
+	transport := newScriptedJugglerTransport()
+	client := juggler.NewClient(transport)
+	defer client.Close()
+
+	requests := make(chan map[string]interface{}, 2)
+	go func() {
+		for {
+			select {
+			case <-transport.closed:
+				return
+			case req := <-transport.outgoing:
+				var params map[string]interface{}
+				if err := json.Unmarshal(req.Params, &params); err == nil {
+					requests <- params
+				}
+				transport.incoming <- &juggler.Message{
+					ID:     req.ID,
+					Result: json.RawMessage(`{"snapshot":{"v":1,"title":"Test","url":"https://example.test","nodes":[]},"truncated":true}`),
+				}
+			}
+		}
+	}()
+
+	first, err := handleSnapshot(client, json.RawMessage(`{"sessionId":"session-snapshot"}`))
+	if err != nil {
+		t.Fatalf("first snapshot returned error: %v", err)
+	}
+	firstParams := <-requests
+	if firstParams["profile"] != "compact" {
+		t.Fatalf("first profile = %v, want compact", firstParams["profile"])
+	}
+	if firstParams["maxNodes"] != float64(180) {
+		t.Fatalf("first maxNodes = %v, want 180", firstParams["maxNodes"])
+	}
+
+	var firstPayload map[string]interface{}
+	if err := json.Unmarshal([]byte(first.Content[0].Text), &firstPayload); err != nil {
+		t.Fatalf("unmarshal first payload: %v", err)
+	}
+	if firstPayload["profile"] != "compact" {
+		t.Fatalf("annotated first profile = %v, want compact", firstPayload["profile"])
+	}
+	if _, ok := firstPayload["retryHint"].(string); !ok {
+		t.Fatalf("expected retryHint in truncated compact payload: %#v", firstPayload)
+	}
+
+	second, err := handleSnapshot(client, json.RawMessage(`{"sessionId":"session-snapshot","retry":true}`))
+	if err != nil {
+		t.Fatalf("retry snapshot returned error: %v", err)
+	}
+	secondParams := <-requests
+	if secondParams["profile"] != "expanded" {
+		t.Fatalf("retry profile = %v, want expanded", secondParams["profile"])
+	}
+	if secondParams["maxNodes"] != float64(360) {
+		t.Fatalf("retry maxNodes = %v, want 360", secondParams["maxNodes"])
+	}
+
+	var secondPayload map[string]interface{}
+	if err := json.Unmarshal([]byte(second.Content[0].Text), &secondPayload); err != nil {
+		t.Fatalf("unmarshal second payload: %v", err)
+	}
+	if secondPayload["profile"] != "expanded" {
+		t.Fatalf("annotated retry profile = %v, want expanded", secondPayload["profile"])
 	}
 }
 

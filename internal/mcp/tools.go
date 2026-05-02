@@ -46,14 +46,16 @@ func baseTools() []ToolDefinition {
 		},
 		{
 			Name:        "vulpine_snapshot",
-			Description: "Get a token-optimized semantic snapshot of the page content for LLM processing. Returns compressed DOM with >50% fewer tokens than raw HTML.",
+			Description: "Get a token-optimized semantic snapshot of the page content for LLM processing. Default profile is compact (180 nodes, 90 chars). If a target is missing from a truncated snapshot, retry with retry:true or profile:\"expanded\"/\"full\" before giving up.",
 			InputSchema: InputSchema{
 				Type: "object",
 				Properties: map[string]Property{
 					"sessionId":     {Type: "string", Description: "Target page session ID"},
-					"maxDepth":      {Type: "number", Description: "Max tree depth (default 10)"},
-					"maxNodes":      {Type: "number", Description: "Max nodes to return (default 180)"},
-					"maxTextLength": {Type: "number", Description: "Max text per node (default 90)"},
+					"profile":       {Type: "string", Description: "Snapshot profile: compact=180 nodes/90 chars, expanded=360/160, full=800/240. Explicit max* values override this."},
+					"retry":         {Type: "boolean", Description: "Use the next larger profile after a truncated snapshot for this session (compact -> expanded -> full)."},
+					"maxDepth":      {Type: "number", Description: "Max tree depth (default compact: 10)"},
+					"maxNodes":      {Type: "number", Description: "Max nodes to return (default compact: 180)"},
+					"maxTextLength": {Type: "number", Description: "Max text per node (default compact: 90)"},
 					"viewportOnly":  {Type: "boolean", Description: "Only return elements visible in the viewport (default false)"},
 				},
 				Required: []string{"sessionId"},
@@ -498,6 +500,7 @@ func handleNavigate(client *juggler.Client, tracker *ContextTracker, args json.R
 	// session so vulpine_click_label fails fast instead of clicking a
 	// stale handle that now points nowhere.
 	globalLabels.Clear(p.SessionID)
+	resetSnapshotProfile(p.SessionID)
 
 	return textResult(fmt.Sprintf("Navigated to %s", p.URL)), nil
 }
@@ -505,6 +508,8 @@ func handleNavigate(client *juggler.Client, tracker *ContextTracker, args json.R
 func handleSnapshot(client *juggler.Client, args json.RawMessage) (*ToolCallResult, error) {
 	var p struct {
 		SessionID     string `json:"sessionId"`
+		Profile       string `json:"profile"`
+		Retry         bool   `json:"retry"`
 		MaxDepth      int    `json:"maxDepth"`
 		MaxNodes      int    `json:"maxNodes"`
 		MaxTextLength int    `json:"maxTextLength"`
@@ -514,16 +519,34 @@ func handleSnapshot(client *juggler.Client, args json.RawMessage) (*ToolCallResu
 		return errorResult(err), nil
 	}
 
-	params := map[string]interface{}{}
+	profile, err := snapshotProfileByName(p.Profile)
+	if err != nil {
+		return errorResult(err), nil
+	}
+	if p.Profile == "" && p.Retry {
+		profile = retrySnapshotProfile(p.SessionID)
+	}
+	explicitLimits := p.MaxDepth > 0 || p.MaxNodes > 0 || p.MaxTextLength > 0
+	reportedProfile := profile
 	if p.MaxDepth > 0 {
-		params["maxDepth"] = p.MaxDepth
+		profile.MaxDepth = p.MaxDepth
 	}
 	if p.MaxNodes > 0 {
-		params["maxNodes"] = p.MaxNodes
+		profile.MaxNodes = p.MaxNodes
 	}
 	if p.MaxTextLength > 0 {
-		params["maxTextLength"] = p.MaxTextLength
+		profile.MaxTextLength = p.MaxTextLength
 	}
+	if explicitLimits {
+		reportedProfile = profile
+		reportedProfile.Name = "custom"
+	}
+
+	params := map[string]interface{}{}
+	params["profile"] = profile.Name
+	params["maxDepth"] = profile.MaxDepth
+	params["maxNodes"] = profile.MaxNodes
+	params["maxTextLength"] = profile.MaxTextLength
 	if p.ViewportOnly {
 		params["viewportOnly"] = true
 	}
@@ -533,14 +556,26 @@ func handleSnapshot(client *juggler.Client, args json.RawMessage) (*ToolCallResu
 		return errorResult(err), nil
 	}
 
+	annotated, truncated, err := annotateSnapshotPayload(result, reportedProfile)
+	if err == nil {
+		result = annotated
+		if !explicitLimits {
+			recordSnapshotProfile(p.SessionID, profile, truncated)
+		}
+	}
+
 	// Apply viewport pruning to reduce token count when requested
 	if p.ViewportOnly {
-		var snapshot map[string]interface{}
-		if err := json.Unmarshal(result, &snapshot); err == nil {
-			if nodes, ok := snapshot["nodes"].([]interface{}); ok {
+		var payload map[string]interface{}
+		if err := json.Unmarshal(result, &payload); err == nil {
+			if snapshot, ok := payload["snapshot"].(map[string]interface{}); ok {
+				nodes, ok := snapshot["nodes"].([]interface{})
+				if !ok {
+					return textResult(string(result)), nil
+				}
 				pruner := tokenopt.NewViewportPruner(1280, 720)
 				snapshot["nodes"] = pruner.Prune(nodes)
-				if pruned, err := json.Marshal(snapshot); err == nil {
+				if pruned, err := json.Marshal(payload); err == nil {
 					return textResult(string(pruned)), nil
 				}
 			}
