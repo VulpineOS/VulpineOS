@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Vulpine Bench Documentation Reference</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; color: #17202a; }
+    header, main, footer { padding: 24px; }
+    .shell { display: grid; grid-template-columns: 260px 1fr; gap: 28px; }
+    .toc, .method, .param { border: 1px solid #ddd; padding: 12px; margin: 10px 0; }
+    code { background: #f4f4f4; padding: 2px 4px; }
+  </style>
+</head>
+<body>
+  <header>
+    <nav aria-label="Docs navigation">
+      <a href="/getting-started">Getting started</a>
+      <a href="/api-reference">API reference</a>
+      <a href="/mcp-tools">MCP tools</a>
+      <a href="/security">Security</a>
+    </nav>
+    <h1>Browser automation API reference</h1>
+    <p>Endpoint and tool documentation for browser sessions, contexts, snapshots, actions, and audits.</p>
+  </header>
+  <main class="shell">
+    <aside class="toc" id="toc" aria-label="Table of contents"></aside>
+    <article id="methods"></article>
+  </main>
+  <footer>
+    <a href="/contributing">Contributing</a>
+    <a href="/changelog">Changelog</a>
+    <button>Copy API example</button>
+  </footer>
+  <script>
+    const toc = document.getElementById('toc')
+    const methods = document.getElementById('methods')
+    for (let i = 1; i <= 48; i++) {
+      toc.insertAdjacentHTML('beforeend', `<a href="#method-${i}">Method ${i}</a><br>`)
+      const method = document.createElement('section')
+      method.className = 'method'
+      method.id = `method-${i}`
+      method.innerHTML = `<h2>vulpine.method.${i}</h2><p>Runs browser workflow method ${i}, returning structured status, timing, and redacted audit data.</p><button>Try method ${i}</button>`
+      for (let j = 1; j <= 5; j++) {
+        method.insertAdjacentHTML('beforeend', `<div class="param"><h3>parameter_${j}</h3><p>String or object parameter ${j} for method ${i}. Includes validation rules, default value, and example payload.</p><code>{"parameter_${j}":"value"}</code></div>`)
+      }
+      methods.appendChild(method)
+    }
+  </script>
+</body>
+</html>

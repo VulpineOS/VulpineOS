@@ -6,10 +6,14 @@
   "scripts": {
     "postinstall": "echo 'VulpineOS dependencies installed. OpenClaw is ready.'",
     "build-go": "go build -o vulpineos ./cmd/vulpineos/",
-    "setup": "go build -o vulpineos ./cmd/vulpineos/ && ./vulpineos --no-browser"
+    "setup": "go build -o vulpineos ./cmd/vulpineos/ && ./vulpineos --no-browser",
+    "benchmark:tokens": "node benchmarks/token-optimization/benchmark.mjs"
   },
   "dependencies": {
     "openclaw": "latest"
+  },
+  "devDependencies": {
+    "gpt-tokenizer": "^3.4.0"
   },
   "engines": {
     "node": ">=22.16.0"

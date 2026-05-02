@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Vulpine Bench Retail Category</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; color: #18212c; }
+    header, main, footer { padding: 24px; }
+    .layout { display: grid; grid-template-columns: 260px 1fr; gap: 24px; }
+    .facet, .result, .promo { border: 1px solid #ddd; padding: 12px; margin: 8px 0; }
+    .results { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  </style>
+</head>
+<body>
+  <header>
+    <nav aria-label="Store navigation">
+      <a href="/laptops">Laptops</a>
+      <a href="/components">Components</a>
+      <a href="/peripherals">Peripherals</a>
+      <a href="/business">Business</a>
+      <a href="/account">Account</a>
+    </nav>
+    <h1>Graphics cards and creator GPUs</h1>
+    <p>Compare stock, delivery, memory size, power draw, and retailer warranty across current cards.</p>
+  </header>
+  <main class="layout">
+    <aside aria-label="Category filters" id="facets"></aside>
+    <section>
+      <div class="promo">
+        <h2>Weekend upgrade event</h2>
+        <p>Bundles include GPU supports, power adapters, and game codes while stock lasts.</p>
+        <button>View all bundles</button>
+      </div>
+      <section class="results" id="results" aria-label="Search results"></section>
+    </section>
+  </main>
+  <footer>
+    <button>Subscribe to stock alerts</button>
+    <a href="/shipping">Shipping policy</a>
+    <a href="/finance">Finance options</a>
+  </footer>
+  <script>
+    const facets = document.getElementById('facets')
+    const names = ['Brand', 'Memory', 'Price', 'Availability', 'Length', 'Power connector', 'Display outputs', 'Store pickup']
+    for (const name of names) {
+      const section = document.createElement('section')
+      section.className = 'facet'
+      section.innerHTML = `<h2>${name}</h2>`
+      for (let i = 1; i <= 8; i++) {
+        section.insertAdjacentHTML('beforeend', `<label><input type="checkbox"> ${name} option ${i}</label><br>`)
+      }
+      facets.appendChild(section)
+    }
+    const results = document.getElementById('results')
+    for (let i = 1; i <= 96; i++) {
+      const card = document.createElement('article')
+      card.className = 'result'
+      card.innerHTML = `
+        <h2>GPU result ${i}</h2>
+        <p>${8 + (i % 4) * 4}GB memory, ${2 + (i % 3)} fans, ${180 + i}W board power, available from warehouse ${i % 7}.</p>
+        <p><strong>$${399 + i * 7}</strong></p>
+        <button>Compare result ${i}</button>
+        <button>Add result ${i} to cart</button>
+        <a href="/gpu/${i}">Open product ${i}</a>
+      `
+      results.appendChild(card)
+    }
+  </script>
+</body>
+</html>

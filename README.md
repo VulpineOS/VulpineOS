@@ -108,7 +108,7 @@ Freezes the page completely while the agent is thinking. No JavaScript, no timer
 
 ### Phase 3: Token-Optimized DOM Export
 
-Compressed semantic JSON snapshot achieving >50% token reduction vs standard accessibility trees.
+Compressed semantic JSON snapshot. The public fixture benchmark currently measures 3,709 average tokens for VulpineOS optimized DOM versus 42,832 for compact Chrome AX, a 91.3% reduction.
 
 ```json
 {"v":1,"title":"Example","url":"https://example.com","nodes":[
@@ -126,6 +126,7 @@ Compressed semantic JSON snapshot achieving >50% token reduction vs standard acc
 - Element references (`@0`, `@1`) on interactive elements for click/type by ref
 - Viewport-only mode — only return elements visible on screen
 - Structural wrapper skipping, single-child flattening, text merging
+- Reproducible benchmark: `npm run benchmark:tokens`
 
 ### Phase 4: Autonomous Trust-Warming
 
