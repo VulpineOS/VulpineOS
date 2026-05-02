@@ -507,3 +507,85 @@ func TestFingerprintSummary(t *testing.T) {
 		t.Errorf("expected 'unknown' for bad JSON, got '%s'", bad)
 	}
 }
+
+func TestAgentMetadataContextRoundTrip(t *testing.T) {
+	db := openTestDB(t)
+
+	agent, err := db.CreateAgent("TestBot", "test-task", "{}")
+	if err != nil {
+		t.Fatalf("create agent: %v", err)
+	}
+
+	original := AgentMetadata{
+		ContextID: "browser-context-abc123",
+	}
+	metadataJSON, err := json.Marshal(original)
+	if err != nil {
+		t.Fatalf("marshal metadata: %v", err)
+	}
+
+	err = db.UpdateAgentMetadata(agent.ID, string(metadataJSON))
+	if err != nil {
+		t.Fatalf("update metadata: %v", err)
+	}
+
+	got, err := db.GetAgent(agent.ID)
+	if err != nil {
+		t.Fatalf("get agent: %v", err)
+	}
+
+	var parsed AgentMetadata
+	if err := json.Unmarshal([]byte(got.Metadata), &parsed); err != nil {
+		t.Fatalf("unmarshal metadata: %v", err)
+	}
+
+	if parsed.ContextID != "browser-context-abc123" {
+		t.Errorf("ContextID = %q, want %q", parsed.ContextID, "browser-context-abc123")
+	}
+}
+
+func TestReconcileNonTerminalAgentsPreservesTerminalStatuses(t *testing.T) {
+	db := openTestDB(t)
+
+	statuses := []string{"created", "active", "paused", "completed", "error", "failed", "interrupted"}
+	agentIDs := make(map[string]string)
+
+	for _, status := range statuses {
+		agent, err := db.CreateAgent("Agent-"+status, "task", "{}")
+		if err != nil {
+			t.Fatalf("create agent %s: %v", status, err)
+		}
+		if status != "created" {
+			if err := db.UpdateAgentStatus(agent.ID, status); err != nil {
+				t.Fatalf("update status %s: %v", status, err)
+			}
+		}
+		agentIDs[status] = agent.ID
+	}
+
+	if err := db.ReconcileNonTerminalAgents("interrupted"); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	terminalStatuses := []string{"completed", "error", "failed", "interrupted"}
+	for _, status := range terminalStatuses {
+		agent, err := db.GetAgent(agentIDs[status])
+		if err != nil {
+			t.Fatalf("get agent %s: %v", status, err)
+		}
+		if agent.Status != status {
+			t.Errorf("status %s changed to %q, want unchanged", status, agent.Status)
+		}
+	}
+
+	nonTerminalStatuses := []string{"created", "active", "paused"}
+	for _, status := range nonTerminalStatuses {
+		agent, err := db.GetAgent(agentIDs[status])
+		if err != nil {
+			t.Fatalf("get agent %s: %v", status, err)
+		}
+		if agent.Status != "interrupted" {
+			t.Errorf("status %s = %q, want %q", status, agent.Status, "interrupted")
+		}
+	}
+}
