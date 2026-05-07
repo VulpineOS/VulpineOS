@@ -292,6 +292,28 @@ Access via `vulpineos panel`, `vulpineos serve`, or through the remote client.
 - VulpineOS repairs the shared OpenClaw profile after gateway startup and runs agents against per-run cloned configs, preventing gateway token drift and stale workspace/skill leakage
 - On macOS and Linux, VulpineOS launches OpenClaw in its own process group so pause and kill also tear down descendant agent processes cleanly
 
+### Playwright CDP clients
+
+Playwright can connect through the embedded foxbridge CDP endpoint when given
+the browser WebSocket URL directly:
+
+```js
+const { chromium } = require('playwright')
+const browser = await chromium.connectOverCDP('ws://127.0.0.1:9222/devtools/browser/foxbridge')
+```
+
+When `vulpineos serve` is running, validate the path with:
+
+```bash
+VULPINE_FOXBRIDGE_WS=ws://127.0.0.1:9222/devtools/browser/foxbridge \
+  node scripts/playwright/smoke-foxbridge-playwright.mjs
+```
+
+Passing `http://127.0.0.1:9222` to `connectOverCDP` is not equivalent in
+current foxbridge builds because Playwright probes `/json/version/` with a
+trailing slash. Use the explicit WebSocket URL until foxbridge's discovery
+route accepts both forms.
+
 ---
 
 ## Getting Started

@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"time"
 
+	"vulpineos/internal/humaninput"
 	"vulpineos/internal/juggler"
 )
 
@@ -222,30 +223,16 @@ func handleHumanType(client *juggler.Client, tracker *ContextTracker, args json.
 		p.WPM = 60
 	}
 
-	keystrokes := humanTypeDelays(p.Text, p.WPM)
+	keystrokes := humaninput.GenerateKeystrokes(p.Text, p.WPM)
 	typed := 0
 
 	for _, ks := range keystrokes {
-		// Pre-key delay
-		time.Sleep(time.Duration(ks.DelayMs) * time.Millisecond)
+		time.Sleep(ks.Delay)
 
 		key := string(ks.Char)
 
 		if ks.IsCorrection {
-			// Remove the previous character from the active editable field.
-			result, err := evalJS(client, tracker, p.SessionID, `(() => {
-				const el = document.activeElement;
-				if (!el || !('value' in el)) return "not_input";
-				const start = typeof el.selectionStart === 'number' ? el.selectionStart : el.value.length;
-				const end = typeof el.selectionEnd === 'number' ? el.selectionEnd : el.value.length;
-				if (start === 0 && end === 0) return "ok";
-				const from = start === end ? Math.max(0, start - 1) : start;
-				el.value = el.value.slice(0, from) + el.value.slice(end);
-				if (typeof el.setSelectionRange === 'function') el.setSelectionRange(from, from);
-				el.dispatchEvent(new Event('input', {bubbles: true}));
-				el.dispatchEvent(new Event('change', {bubbles: true}));
-				return "ok";
-			})()`)
+			result, err := evalJS(client, tracker, p.SessionID, humaninput.BackspaceExpression())
 			if err != nil {
 				return errorResult(err), nil
 			}
@@ -258,19 +245,7 @@ func handleHumanType(client *juggler.Client, tracker *ContextTracker, args json.
 			continue
 		}
 
-		result, err := evalJS(client, tracker, p.SessionID, fmt.Sprintf(`(() => {
-			const el = document.activeElement;
-			if (!el || !('value' in el)) return "not_input";
-			const start = typeof el.selectionStart === 'number' ? el.selectionStart : el.value.length;
-			const end = typeof el.selectionEnd === 'number' ? el.selectionEnd : el.value.length;
-			const text = %q;
-			el.value = el.value.slice(0, start) + text + el.value.slice(end);
-			const pos = start + text.length;
-			if (typeof el.setSelectionRange === 'function') el.setSelectionRange(pos, pos);
-			el.dispatchEvent(new Event('input', {bubbles: true}));
-			el.dispatchEvent(new Event('change', {bubbles: true}));
-			return "ok";
-		})()`, key))
+		result, err := evalJS(client, tracker, p.SessionID, humaninput.InsertTextExpression(key))
 		if err != nil {
 			return errorResult(err), nil
 		}
@@ -282,92 +257,6 @@ func handleHumanType(client *juggler.Client, tracker *ContextTracker, args json.
 	}
 
 	return textResult(fmt.Sprintf("Human-typed %d characters at ~%d WPM", len(p.Text), p.WPM)), nil
-}
-
-// keystroke represents a single key event in a human typing sequence.
-type keystroke struct {
-	Char         rune
-	DelayMs      int
-	IsCorrection bool // true = this is a Backspace to fix a typo
-}
-
-// humanTypeDelays generates realistic inter-key delays with occasional pauses
-// and typo corrections for the given text and typing speed.
-func humanTypeDelays(text string, wpm int) []keystroke {
-	// Average 5 characters per word
-	baseDelay := 60000 / (wpm * 5) // ms per character
-
-	var result []keystroke
-	pauseCounter := 5 + rand.Intn(8) // chars until next pause
-	charsSincePause := 0
-
-	for _, ch := range text {
-		delay := baseDelay + int(rand.NormFloat64()*float64(baseDelay)*0.3)
-		if delay < 30 {
-			delay = 30
-		}
-
-		// Occasional longer pause (simulates thinking or re-reading)
-		charsSincePause++
-		if charsSincePause >= pauseCounter {
-			delay *= 2
-			charsSincePause = 0
-			pauseCounter = 5 + rand.Intn(8)
-		}
-
-		// 5% chance of typo + correction (skip for spaces and special chars)
-		if ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' {
-			if rand.Float64() < 0.05 {
-				// Type a wrong character first
-				wrongChar := typoNeighbor(ch)
-				result = append(result, keystroke{
-					Char:    wrongChar,
-					DelayMs: delay,
-				})
-				// Then backspace to correct
-				result = append(result, keystroke{
-					IsCorrection: true,
-					DelayMs:      150 + rand.Intn(100),
-				})
-				// The correct character follows with a slightly longer delay
-				delay = baseDelay + rand.Intn(baseDelay/2)
-			}
-		}
-
-		result = append(result, keystroke{
-			Char:    ch,
-			DelayMs: delay,
-		})
-	}
-
-	return result
-}
-
-// typoNeighbor returns a plausible typo character (adjacent key on QWERTY layout).
-func typoNeighbor(ch rune) rune {
-	neighbors := map[rune]string{
-		'a': "sqwz", 'b': "vngh", 'c': "xvdf", 'd': "sfce", 'e': "wrd",
-		'f': "dgcv", 'g': "fhtb", 'h': "gjyn", 'i': "uok", 'j': "hkum",
-		'k': "jlio", 'l': "kop", 'm': "njk", 'n': "bmhj", 'o': "iplk",
-		'p': "ol", 'q': "wa", 'r': "etf", 's': "adwx", 't': "rgy",
-		'u': "yij", 'v': "cfgb", 'w': "qeas", 'x': "zscd", 'y': "tuh",
-		'z': "xas",
-	}
-
-	lower := ch
-	isUpper := ch >= 'A' && ch <= 'Z'
-	if isUpper {
-		lower = ch + 32
-	}
-
-	if adj, ok := neighbors[lower]; ok && len(adj) > 0 {
-		picked := rune(adj[rand.Intn(len(adj))])
-		if isUpper {
-			picked -= 32
-		}
-		return picked
-	}
-	return ch
 }
 
 // handleHumanScroll scrolls the page with realistic inertial decay: an initial
