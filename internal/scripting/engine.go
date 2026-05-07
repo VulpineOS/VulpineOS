@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
+	"vulpineos/internal/humaninput"
 	"vulpineos/internal/juggler"
 )
 
@@ -23,6 +25,7 @@ type Step struct {
 	Target string `json:"target"` // CSS selector or URL
 	Value  string `json:"value"`  // text to type, variable name, etc.
 	Store  string `json:"store"`  // variable name to store result
+	WPM    int    `json:"wpm"`    // optional typing speed for type actions
 }
 
 // Script is a sequence of steps to execute.
@@ -44,22 +47,105 @@ type StepResult struct {
 
 // Engine executes scripts against a Juggler client.
 type Engine struct {
-	client    *juggler.Client
-	sessionID string
-	vars      map[string]string
+	client             *juggler.Client
+	sessionID          string
+	frameID            string
+	executionContextID string
+	mu                 sync.RWMutex
+	unsubscribes       []func()
+	vars               map[string]string
 }
 
 // NewEngine creates a scripting engine backed by the given Juggler client.
 func NewEngine(client *juggler.Client) *Engine {
-	return &Engine{
+	e := &Engine{
 		client: client,
 		vars:   make(map[string]string),
+	}
+	e.unsubscribes = append(e.unsubscribes, client.SubscribeWithCancel("Runtime.executionContextCreated", func(sessionID string, params json.RawMessage) {
+		var ev struct {
+			Context struct {
+				ID       interface{} `json:"id"`
+				UniqueID string      `json:"uniqueId"`
+				AuxData  struct {
+					FrameID string `json:"frameId"`
+				} `json:"auxData"`
+			} `json:"context"`
+			ExecutionContextID interface{} `json:"executionContextId"`
+			AuxData            struct {
+				FrameID string `json:"frameId"`
+			} `json:"auxData"`
+		}
+		if err := json.Unmarshal(params, &ev); err != nil {
+			return
+		}
+		id := ev.Context.UniqueID
+		if id == "" {
+			id = fmt.Sprint(ev.Context.ID)
+		}
+		if id == "<nil>" || id == "" {
+			id = fmt.Sprint(ev.ExecutionContextID)
+		}
+		frameID := ev.Context.AuxData.FrameID
+		if frameID == "" {
+			frameID = ev.AuxData.FrameID
+		}
+		if id == "<nil>" || id == "" {
+			return
+		}
+		e.mu.Lock()
+		defer e.mu.Unlock()
+		if e.sessionID == "" || sessionID == e.sessionID || (frameID != "" && frameID == e.frameID) {
+			e.executionContextID = id
+			if frameID != "" {
+				e.frameID = frameID
+			}
+		}
+	}))
+	e.unsubscribes = append(e.unsubscribes, client.SubscribeWithCancel("Runtime.executionContextDestroyed", func(sessionID string, params json.RawMessage) {
+		var ev struct {
+			ExecutionContextID       interface{} `json:"executionContextId"`
+			ExecutionContextUniqueID string      `json:"executionContextUniqueId"`
+		}
+		if err := json.Unmarshal(params, &ev); err != nil {
+			return
+		}
+		id := ev.ExecutionContextUniqueID
+		if id == "" {
+			id = fmt.Sprint(ev.ExecutionContextID)
+		}
+		e.mu.Lock()
+		defer e.mu.Unlock()
+		if sessionID == e.sessionID && id == e.executionContextID {
+			e.executionContextID = ""
+		}
+	}))
+	return e
+}
+
+// Close releases event subscriptions held by the engine.
+func (e *Engine) Close() {
+	e.mu.Lock()
+	unsubscribes := e.unsubscribes
+	e.unsubscribes = nil
+	e.mu.Unlock()
+	for _, unsubscribe := range unsubscribes {
+		unsubscribe()
 	}
 }
 
 // SetSession sets the Juggler session ID used for protocol calls.
 func (e *Engine) SetSession(sessionID string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	e.sessionID = sessionID
+}
+
+// SetFrame sets the main frame ID used for navigation calls.
+func (e *Engine) SetFrame(frameID string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.frameID = frameID
 }
 
 // GetVar returns the value of a variable, or empty string if unset.
@@ -166,9 +252,18 @@ func (e *Engine) executeStep(step Step) error {
 
 func (e *Engine) doNavigate(step Step) error {
 	target := e.expandVars(step.Target)
-	_, err := e.client.Call(e.sessionID, "Page.navigate", map[string]interface{}{
+	e.mu.Lock()
+	frameID := e.frameID
+	e.executionContextID = ""
+	e.mu.Unlock()
+
+	params := map[string]interface{}{
 		"url": target,
-	})
+	}
+	if frameID != "" {
+		params["frameId"] = frameID
+	}
+	_, err := e.client.Call(e.sessionID, "Page.navigate", params)
 	return err
 }
 
@@ -190,18 +285,31 @@ func (e *Engine) doClick(step Step) error {
 func (e *Engine) doType(step Step) error {
 	target := e.expandVars(step.Target)
 	value := e.expandVars(step.Value)
-	expr := fmt.Sprintf(`(() => {
-		const el = document.querySelector(%q);
-		if (!el) throw new Error("element not found: %s");
-		el.focus();
-		el.value = %q;
-		el.dispatchEvent(new Event('input', {bubbles: true}));
-		return "typed";
-	})()`, target, target, value)
-	_, err := e.client.Call(e.sessionID, "Runtime.evaluate", map[string]interface{}{
-		"expression": expr,
-	})
-	return err
+	result, err := e.evaluateString(humaninput.FocusEditableExpression(target))
+	if err != nil {
+		return err
+	}
+	if result == "not_input" {
+		return fmt.Errorf("type target is not editable: %s", target)
+	}
+
+	for _, ks := range humaninput.GenerateKeystrokes(value, step.WPM) {
+		time.Sleep(ks.Delay)
+
+		expr := humaninput.InsertTextIntoSelectorExpression(target, string(ks.Char))
+		if ks.IsCorrection {
+			expr = humaninput.BackspaceExpression()
+		}
+
+		result, err := e.evaluateString(expr)
+		if err != nil {
+			return err
+		}
+		if result == "not_input" {
+			return fmt.Errorf("active element is not editable while typing: %s", target)
+		}
+	}
+	return nil
 }
 
 func (e *Engine) doWait(step Step) error {
@@ -234,10 +342,12 @@ func (e *Engine) doWait(step Step) error {
 
 func (e *Engine) doExtract(step Step) error {
 	target := e.expandVars(step.Target)
-	expr := fmt.Sprintf(`document.querySelector(%q).textContent`, target)
-	result, err := e.client.Call(e.sessionID, "Runtime.evaluate", map[string]interface{}{
-		"expression": expr,
-	})
+	expr := fmt.Sprintf(`(() => {
+		const el = document.querySelector(%q);
+		if (!el) throw new Error("element not found: %s");
+		return 'value' in el ? el.value : el.textContent;
+	})()`, target, target)
+	result, err := e.evaluateRaw(expr)
 	if err != nil {
 		return err
 	}
@@ -273,6 +383,58 @@ func (e *Engine) doSet(step Step) error {
 	value := e.expandVars(step.Value)
 	e.vars[name] = value
 	return nil
+}
+
+func (e *Engine) evaluateString(expression string) (string, error) {
+	result, err := e.evaluateRaw(expression)
+	if err != nil {
+		return "", err
+	}
+
+	var evalResult struct {
+		Result struct {
+			Value interface{} `json:"value"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(result, &evalResult); err != nil {
+		return "", fmt.Errorf("parse evaluate result: %w", err)
+	}
+	if evalResult.Result.Value == nil {
+		return "", nil
+	}
+	return fmt.Sprint(evalResult.Result.Value), nil
+}
+
+func (e *Engine) evaluateRaw(expression string) (json.RawMessage, error) {
+	params := map[string]interface{}{
+		"expression": expression,
+	}
+	e.mu.RLock()
+	needsExecutionContext := e.frameID != ""
+	e.mu.RUnlock()
+	if needsExecutionContext {
+		executionContextID := e.waitForExecutionContext(2 * time.Second)
+		if executionContextID != "" {
+			params["executionContextId"] = executionContextID
+		}
+	}
+	return e.client.Call(e.sessionID, "Runtime.evaluate", params)
+}
+
+func (e *Engine) waitForExecutionContext(timeout time.Duration) string {
+	deadline := time.Now().Add(timeout)
+	for {
+		e.mu.RLock()
+		id := e.executionContextID
+		e.mu.RUnlock()
+		if id != "" {
+			return id
+		}
+		if time.Now().After(deadline) {
+			return ""
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 }
 
 func (e *Engine) doIf(step Step) error {

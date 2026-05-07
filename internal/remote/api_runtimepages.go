@@ -51,13 +51,15 @@ func (api *PanelAPI) scriptsRun(params json.RawMessage) (json.RawMessage, error)
 		return nil, fmt.Errorf("script has %d steps; maximum is %d", len(script.Steps), maxPanelScriptSteps)
 	}
 
-	contextID, sessionID, err := api.ensureScriptSession(p.ContextID)
+	contextID, sessionID, frameID, err := api.ensureScriptSession(p.ContextID)
 	if err != nil {
 		return nil, err
 	}
 
 	engine := scripting.NewEngine(api.Client)
+	defer engine.Close()
 	engine.SetSession(sessionID)
+	engine.SetFrame(frameID)
 	results, runErr := engine.ExecuteWithResults(script)
 	payload := map[string]interface{}{
 		"ok":        runErr == nil,
@@ -139,15 +141,15 @@ func (api *PanelAPI) securityStatus() (json.RawMessage, error) {
 	})
 }
 
-func (api *PanelAPI) ensureScriptSession(contextID string) (string, string, error) {
+func (api *PanelAPI) ensureScriptSession(contextID string) (string, string, string, error) {
 	if api.Client == nil {
-		return "", "", fmt.Errorf("juggler client not available")
+		return "", "", "", fmt.Errorf("juggler client not available")
 	}
 	var err error
 	if strings.TrimSpace(contextID) != "" {
 		contextID, err = safePanelContextID(contextID)
 		if err != nil {
-			return "", "", err
+			return "", "", "", err
 		}
 	}
 	if api.Contexts != nil {
@@ -158,7 +160,7 @@ func (api *PanelAPI) ensureScriptSession(contextID string) (string, string, erro
 		}
 		if contextID != "" {
 			if sessionID := api.Contexts.SessionForContext(contextID); sessionID != "" {
-				return contextID, sessionID, nil
+				return contextID, sessionID, "", nil
 			}
 		}
 	}
@@ -166,11 +168,11 @@ func (api *PanelAPI) ensureScriptSession(contextID string) (string, string, erro
 	if contextID == "" {
 		result, err := api.Client.Call("", "Browser.createBrowserContext", map[string]interface{}{"removeOnDetach": false})
 		if err != nil {
-			return "", "", err
+			return "", "", "", err
 		}
 		var created juggler.CreateBrowserContextResult
 		if err := json.Unmarshal(result, &created); err != nil {
-			return "", "", fmt.Errorf("parse createBrowserContext result: %w", err)
+			return "", "", "", fmt.Errorf("parse createBrowserContext result: %w", err)
 		}
 		contextID = created.BrowserContextID
 		if api.Contexts != nil {
@@ -179,6 +181,7 @@ func (api *PanelAPI) ensureScriptSession(contextID string) (string, string, erro
 	}
 
 	sessionCh := make(chan string, 4)
+	frameCh := make(chan string, 4)
 	if api.Client != nil {
 		unsubscribe := api.Client.SubscribeWithCancel("Browser.attachedToTarget", func(_ string, params json.RawMessage) {
 			var ev juggler.AttachedToTarget
@@ -190,17 +193,34 @@ func (api *PanelAPI) ensureScriptSession(contextID string) (string, string, erro
 			}
 		})
 		defer unsubscribe()
+		unsubscribeFrame := api.Client.SubscribeWithCancel("Page.frameAttached", func(sessionID string, params json.RawMessage) {
+			var ev struct {
+				FrameID       string `json:"frameId"`
+				ParentFrameID string `json:"parentFrameId"`
+			}
+			if err := json.Unmarshal(params, &ev); err == nil && ev.FrameID != "" && ev.ParentFrameID == "" {
+				select {
+				case frameCh <- ev.FrameID:
+				default:
+				}
+			}
+		})
+		defer unsubscribeFrame()
 	}
 
 	if _, err := api.Client.Call("", "Browser.newPage", map[string]interface{}{"browserContextId": contextID}); err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 
 	sessionID, err := api.waitForContextSession(contextID, sessionCh, 10*time.Second)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
-	return contextID, sessionID, nil
+	frameID, err := api.waitForSessionFrame(sessionID, frameCh, 10*time.Second)
+	if err != nil {
+		return "", "", "", err
+	}
+	return contextID, sessionID, frameID, nil
 }
 
 func (api *PanelAPI) waitForContextSession(contextID string, sessionCh <-chan string, timeout time.Duration) (string, error) {
@@ -227,6 +247,22 @@ func (api *PanelAPI) waitForContextSession(contextID string, sessionCh <-chan st
 		case <-ticker.C:
 		case <-deadline.C:
 			return "", fmt.Errorf("timed out waiting for page session")
+		}
+	}
+}
+
+func (api *PanelAPI) waitForSessionFrame(sessionID string, frameCh <-chan string, timeout time.Duration) (string, error) {
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
+
+	for {
+		select {
+		case frameID := <-frameCh:
+			if frameID != "" {
+				return frameID, nil
+			}
+		case <-deadline.C:
+			return "", fmt.Errorf("timed out waiting for page frame")
 		}
 	}
 }

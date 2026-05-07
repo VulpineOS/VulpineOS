@@ -14,9 +14,15 @@ import (
 
 type runtimePageTransport struct {
 	mu      sync.Mutex
+	calls   []runtimeCall
 	recvCh  chan *juggler.Message
 	closeCh chan struct{}
 	closed  bool
+}
+
+type runtimeCall struct {
+	Method string
+	Params json.RawMessage
 }
 
 func newRuntimePageTransport() *runtimePageTransport {
@@ -32,6 +38,8 @@ func (t *runtimePageTransport) Send(msg *juggler.Message) error {
 	if t.closed {
 		return fmt.Errorf("transport closed")
 	}
+	params := append(json.RawMessage(nil), msg.Params...)
+	t.calls = append(t.calls, runtimeCall{Method: msg.Method, Params: params})
 
 	switch msg.Method {
 	case "Browser.createBrowserContext":
@@ -42,15 +50,30 @@ func (t *runtimePageTransport) Send(msg *juggler.Message) error {
 			Method: "Browser.attachedToTarget",
 			Params: json.RawMessage(`{"sessionId":"sess-1","targetInfo":{"targetId":"target-1","type":"page","browserContextId":"ctx-1","url":"about:blank"}}`),
 		}
+		t.recvCh <- &juggler.Message{
+			Method:    "Page.frameAttached",
+			SessionID: "sess-1",
+			Params:    json.RawMessage(`{"frameId":"frame-1","parentFrameId":""}`),
+		}
+		t.recvCh <- &juggler.Message{
+			Method:    "Runtime.executionContextCreated",
+			SessionID: "sess-1",
+			Params:    json.RawMessage(`{"context":{"id":"ctx-eval-1","auxData":{"frameId":"frame-1"}}}`),
+		}
 	case "Page.navigate":
 		t.recvCh <- &juggler.Message{ID: msg.ID, Result: json.RawMessage(`{}`)}
+		t.recvCh <- &juggler.Message{
+			Method:    "Runtime.executionContextCreated",
+			SessionID: "sess-1",
+			Params:    json.RawMessage(`{"context":{"id":"ctx-eval-1","auxData":{"frameId":"frame-1"}}}`),
+		}
 	case "Runtime.evaluate":
 		var params struct {
 			Expression string `json:"expression"`
 		}
 		_ = json.Unmarshal(msg.Params, &params)
 		value := `"ok"`
-		if params.Expression == `document.querySelector("h1").textContent` {
+		if strings.Contains(params.Expression, `document.querySelector("h1")`) {
 			value = `"Welcome"`
 		}
 		t.recvCh <- &juggler.Message{ID: msg.ID, Result: json.RawMessage(`{"result":{"value":` + value + `}}`)}
@@ -60,6 +83,14 @@ func (t *runtimePageTransport) Send(msg *juggler.Message) error {
 		t.recvCh <- &juggler.Message{ID: msg.ID, Result: json.RawMessage(`{}`)}
 	}
 	return nil
+}
+
+func (t *runtimePageTransport) getCalls() []runtimeCall {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	result := make([]runtimeCall, len(t.calls))
+	copy(result, t.calls)
+	return result
 }
 
 func (t *runtimePageTransport) Receive() (*juggler.Message, error) {
@@ -116,6 +147,63 @@ func TestScriptsRunExecutesScriptAgainstRealSession(t *testing.T) {
 	}
 	if result.Vars["heading"] != "Welcome" || result.Vars["capture.png"] != "capture.png" {
 		t.Fatalf("unexpected script vars: %#v", result.Vars)
+	}
+}
+
+func TestScriptsRunTypeUsesHumanTypingThroughPanelAPI(t *testing.T) {
+	transport := newRuntimePageTransport()
+	client := juggler.NewClient(transport)
+	defer client.Close()
+
+	api := &PanelAPI{
+		Client:   client,
+		Contexts: NewContextRegistry(),
+		Config:   &config.Config{},
+	}
+
+	params := json.RawMessage(`{"script":"{\"steps\":[{\"action\":\"type\",\"target\":\"#code\",\"value\":\"123\",\"wpm\":1000}]}"}`)
+	payload, err := api.HandleMessage("scripts.run", params)
+	if err != nil {
+		t.Fatalf("HandleMessage scripts.run: %v", err)
+	}
+
+	var result struct {
+		OK      bool                     `json:"ok"`
+		Results []map[string]interface{} `json:"results"`
+	}
+	if err := json.Unmarshal(payload, &result); err != nil {
+		t.Fatalf("Unmarshal script result: %v", err)
+	}
+	if !result.OK || len(result.Results) != 1 || result.Results[0]["status"] != "ok" {
+		t.Fatalf("unexpected script result: %#v", result)
+	}
+
+	var evalExpressions []string
+	for _, call := range transport.getCalls() {
+		if call.Method != "Runtime.evaluate" {
+			continue
+		}
+		var params struct {
+			Expression string `json:"expression"`
+		}
+		if err := json.Unmarshal(call.Params, &params); err != nil {
+			t.Fatalf("unmarshal Runtime.evaluate params: %v", err)
+		}
+		evalExpressions = append(evalExpressions, params.Expression)
+	}
+	if len(evalExpressions) != 4 {
+		t.Fatalf("expected focus + 3 human typing evaluations, got %d", len(evalExpressions))
+	}
+	if !strings.Contains(evalExpressions[0], "const selector = \"#code\"") {
+		t.Fatalf("first evaluation should focus the target selector: %s", evalExpressions[0])
+	}
+	for i, expr := range evalExpressions[1:] {
+		if !strings.Contains(expr, `document.querySelector("#code")`) {
+			t.Fatalf("character evaluation %d should resolve the target selector: %s", i, expr)
+		}
+		if !strings.Contains(expr, "selectionStart") || !strings.Contains(expr, "dispatchEvent(new Event('input'") {
+			t.Fatalf("character evaluation %d should dispatch editable input events: %s", i, expr)
+		}
 	}
 }
 
