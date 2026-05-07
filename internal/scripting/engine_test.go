@@ -293,6 +293,55 @@ func TestExecuteNavigate(t *testing.T) {
 	}
 }
 
+func TestExecuteTypeUsesHumanTypingPath(t *testing.T) {
+	transport := newMockTransport()
+	client := juggler.NewClient(transport)
+	defer client.Close()
+
+	engine := NewEngine(client)
+	engine.SetSession("sess-1")
+
+	script := &Script{
+		Steps: []Step{
+			{Action: "type", Target: "#code", Value: "123", WPM: 1000},
+		},
+	}
+
+	if err := engine.Execute(script); err != nil {
+		t.Fatalf("Execute error: %v", err)
+	}
+
+	calls := transport.getCalls()
+	if len(calls) != 4 {
+		t.Fatalf("expected focus + 3 character calls, got %d", len(calls))
+	}
+	for i, call := range calls {
+		if call.Method != "Runtime.evaluate" {
+			t.Fatalf("call %d method = %s, want Runtime.evaluate", i, call.Method)
+		}
+		var params map[string]string
+		if err := json.Unmarshal(call.Params, &params); err != nil {
+			t.Fatalf("unmarshal params for call %d: %v", i, err)
+		}
+		expr := params["expression"]
+		if strings.Contains(expr, "Page.insertText") {
+			t.Fatalf("script type should not use direct insertText path: %s", expr)
+		}
+		if i == 0 {
+			if !strings.Contains(expr, "const selector = \"#code\"") || !strings.Contains(expr, "document.querySelector(selector)") {
+				t.Fatalf("first call should focus the target selector: %s", expr)
+			}
+			continue
+		}
+		if !strings.Contains(expr, `document.querySelector("#code")`) {
+			t.Fatalf("character call %d should resolve the target selector: %s", i, expr)
+		}
+		if !strings.Contains(expr, "selectionStart") || !strings.Contains(expr, "dispatchEvent(new Event('input'") {
+			t.Fatalf("character call %d should emulate editable-field input events: %s", i, expr)
+		}
+	}
+}
+
 func TestExecuteEmptyScript(t *testing.T) {
 	transport := newMockTransport()
 	client := juggler.NewClient(transport)
