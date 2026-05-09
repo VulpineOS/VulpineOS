@@ -162,6 +162,9 @@ func NewAppWithControl(k *kernel.Kernel, client *juggler.Client, orch *orchestra
 		stopCh:       stopCh,
 		stopOnce:     &sync.Once{},
 	}
+	if control != nil {
+		app.agentDetail.SetRemote(true)
+	}
 	emitEvent := app.emitEvent
 	if cfg != nil {
 		app.resizeMode = cfg.ResizePanelsWithArrows
@@ -685,7 +688,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.contextList.MoveUp()
 			}
 		case "n":
-			if a.orch != nil {
+			if a.orch != nil || a.control != nil {
 				a.newAgentContext = ""
 				if a.focus == FocusContextList {
 					a.newAgentContext = a.contextList.SelectedContextID()
@@ -953,7 +956,11 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.conversation.SetAwake(true)
 				cmds = append(cmds, a.conversation.Focus())
 			}
-			a.refreshAgentDetail(msg.AgentID)
+			if a.control != nil && a.vault == nil {
+				a.updateRemoteAgentDetailFromList(msg.AgentID)
+			} else {
+				a.refreshAgentDetail(msg.AgentID)
+			}
 			if a.focus == FocusConversation && a.inputMode == "chat" && !a.conversation.Focused() {
 				cmds = append(cmds, a.conversation.Focus())
 			}
@@ -1348,6 +1355,11 @@ func (a *App) handleOpenSessionLog() {
 		a.noticeTTL = 3
 		return
 	}
+	if a.control != nil {
+		a.notice = "Remote session logs are available in the web panel"
+		a.noticeTTL = 4
+		return
+	}
 	logPath, err := agentSessionLogPath(a.selectedAgentID)
 	if err != nil {
 		a.notice = "Invalid agent id"
@@ -1574,10 +1586,14 @@ func (a App) renderStatusBar() string {
 		arrowMode = shared.WarmingStyle.Render("mode:resize")
 	}
 
+	controls := "  n:new  p/r:agent  P/R:all  X:kill-all  x:del  v:view  o:log  m:mode  S:settings  Enter:chat  Tab:focus  "
+	if a.control != nil {
+		controls = "  n:new  p/r:agent  P/R:all  X:kill-all  x:kill  v:view  m:mode  S:settings  Enter:chat  Tab:focus  "
+	}
 	bar := shared.TitleStyle.Render("VULPINE") +
 		shared.MutedStyle.Render(" | ") +
 		shared.RunningStyle.Render("* "+mode) +
-		shared.MutedStyle.Render("  n:new  p/r:agent  P/R:all  X:kill-all  x:del  v:view  o:log  m:mode  S:settings  Enter:chat  Tab:focus  ") +
+		shared.MutedStyle.Render(controls) +
 		shared.MutedStyle.Render("t:trace  ") +
 		arrowMode +
 		shared.MutedStyle.Render("  q:quit") +
@@ -1749,6 +1765,20 @@ func (a *App) refreshAgentDetail(agentID string) {
 		return
 	}
 	a.updateAgentDetail(agent)
+}
+
+func (a *App) updateRemoteAgentDetailFromList(agentID string) {
+	item, ok := a.agentList.Agent(agentID)
+	if !ok {
+		return
+	}
+	agent := remoteSummaryToAgent(remoteAgentSummary{
+		ID:          item.ID,
+		Name:        item.Name,
+		Status:      item.Status,
+		TotalTokens: item.Tokens,
+	})
+	a.updateAgentDetail(&agent)
 }
 
 // selectCurrentAgent loads the currently highlighted agent's data.
@@ -1989,7 +2019,7 @@ func (a App) remoteAgentStatusCommand(method, agentID, status, noticePrefix stri
 // deleteAgent removes an agent.
 func (a *App) deleteAgent(agentID string) tea.Cmd {
 	if a.control != nil {
-		return statusNoticeCmd("Remote delete is unavailable; use kill instead")
+		return a.remoteAgentStatusCommand("agents.kill", agentID, "interrupted", "Remote agent killed: ")
 	}
 	return func() tea.Msg {
 		// Kill if running
@@ -2141,7 +2171,13 @@ func agentSessionLogPath(agentID string) (string, error) {
 }
 
 func (a App) selectedAgentStatus() string {
-	if a.selectedAgentID == "" || a.vault == nil {
+	if a.selectedAgentID == "" {
+		return ""
+	}
+	if a.control != nil && a.vault == nil {
+		return a.agentList.Status(a.selectedAgentID)
+	}
+	if a.vault == nil {
 		return ""
 	}
 	agent, err := a.vault.GetAgent(a.selectedAgentID)
@@ -2294,14 +2330,30 @@ func (a App) remoteBulkAgentStatusCommand(method string, agentIDs []string, stat
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		var result map[string]any
+		var result struct {
+			Failures map[string]string `json:"failures"`
+		}
 		if err := a.control.ControlCall(ctx, method, map[string]any{"agentIds": agentIDs}, &result); err != nil {
 			return statusNotice{text: "Remote command failed: " + err.Error()}
 		}
+		successful := make([]string, 0, len(agentIDs))
+		for _, agentID := range agentIDs {
+			if _, failed := result.Failures[agentID]; failed {
+				continue
+			}
+			successful = append(successful, agentID)
+		}
+		if len(successful) == 0 {
+			return statusNotice{text: fmt.Sprintf("Remote command failed for %d agents", len(agentIDs))}
+		}
+		notice := fmt.Sprintf(noticeFormat, len(successful))
+		if len(result.Failures) > 0 {
+			notice = fmt.Sprintf("%s (%d failed)", notice, len(result.Failures))
+		}
 		return shared.BulkAgentStatusMsg{
-			AgentIDs: agentIDs,
+			AgentIDs: successful,
 			Status:   status,
-			Notice:   fmt.Sprintf(noticeFormat, len(agentIDs)),
+			Notice:   notice,
 		}
 	}
 }

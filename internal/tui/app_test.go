@@ -474,6 +474,94 @@ func TestRemoteControlCreateAgentUsesControlPath(t *testing.T) {
 	}
 }
 
+func TestRemoteControlNewAgentShortcutStartsCreation(t *testing.T) {
+	app := NewAppWithControl(nil, nil, nil, nil, nil, nil, &fakeControlClient{})
+
+	model, cmd := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	app = model.(App)
+
+	if app.inputMode != "new-agent-name" {
+		t.Fatalf("inputMode = %q, want new-agent-name", app.inputMode)
+	}
+	if cmd == nil {
+		t.Fatal("new-agent shortcut should focus the name input")
+	}
+}
+
+func TestRemoteControlPauseSelectedUsesAgentListStatus(t *testing.T) {
+	control := &fakeControlClient{responses: map[string]any{
+		"agents.pause": map[string]any{"status": "ok"},
+	}}
+	app := NewAppWithControl(nil, nil, nil, nil, nil, nil, control)
+	app.agentList.SetAgents([]vault.Agent{{ID: "agent-1", Name: "Remote", Status: "active"}})
+	app.agentList.SelectAgentID("agent-1")
+	app.selectedAgentID = "agent-1"
+
+	msg := app.pauseSelectedAgent()()
+	bulk, ok := msg.(shared.BulkAgentStatusMsg)
+	if !ok {
+		t.Fatalf("pauseSelectedAgent returned %#v, want BulkAgentStatusMsg", msg)
+	}
+	if len(bulk.AgentIDs) != 1 || bulk.AgentIDs[0] != "agent-1" || bulk.Status != "paused" {
+		t.Fatalf("bulk status = %+v", bulk)
+	}
+}
+
+func TestRemoteControlStatusEventRefreshesSelectedDetail(t *testing.T) {
+	app := NewAppWithControl(nil, nil, nil, nil, nil, nil, &fakeControlClient{})
+	app.agentList.SetAgents([]vault.Agent{{ID: "agent-1", Name: "Remote", Status: "paused", TotalTokens: 1}})
+	app.agentList.SelectAgentID("agent-1")
+	app.selectedAgentID = "agent-1"
+	agent := vault.Agent{ID: "agent-1", Name: "Remote", Status: "paused", TotalTokens: 1}
+	app.updateAgentDetail(&agent)
+
+	model, _ := app.Update(shared.AgentStatusMsg{AgentID: "agent-1", Status: "active", Tokens: 99})
+	app = model.(App)
+
+	view := app.agentDetail.View()
+	if !strings.Contains(view, "Tokens: 99") || !strings.Contains(view, "working") {
+		t.Fatalf("detail did not refresh from remote status:\n%s", view)
+	}
+}
+
+func TestRemoteControlBulkStatusExcludesFailures(t *testing.T) {
+	control := &fakeControlClient{responses: map[string]any{
+		"agents.pauseMany": map[string]any{
+			"status":   "ok",
+			"paused":   1,
+			"failures": map[string]string{"agent-2": "not running"},
+		},
+	}}
+	app := NewAppWithControl(nil, nil, nil, nil, nil, nil, control)
+
+	msg := app.remoteBulkAgentStatusCommand("agents.pauseMany", []string{"agent-1", "agent-2"}, "paused", "Paused %d remote agents")()
+	bulk, ok := msg.(shared.BulkAgentStatusMsg)
+	if !ok {
+		t.Fatalf("remoteBulkAgentStatusCommand returned %#v", msg)
+	}
+	if len(bulk.AgentIDs) != 1 || bulk.AgentIDs[0] != "agent-1" {
+		t.Fatalf("bulk AgentIDs = %#v, want only successful agent", bulk.AgentIDs)
+	}
+	if !strings.Contains(bulk.Notice, "1 failed") {
+		t.Fatalf("notice = %q, want failure count", bulk.Notice)
+	}
+}
+
+func TestRemoteControlLabelsHideLocalOnlyLogAndDelete(t *testing.T) {
+	app := NewAppWithControl(nil, nil, nil, nil, nil, nil, &fakeControlClient{})
+	app.width = 160
+	app.agentDetail.SetAgent("agent-1", "Remote", "task", "active", 0, "", "", time.Now())
+
+	status := app.renderStatusBar()
+	detail := app.agentDetail.View()
+	if strings.Contains(status, "o:log") || strings.Contains(status, "x:del") {
+		t.Fatalf("remote status bar advertises local-only controls: %s", status)
+	}
+	if strings.Contains(detail, "[o] log") || strings.Contains(detail, "[x] delete") {
+		t.Fatalf("remote detail advertises local-only controls: %s", detail)
+	}
+}
+
 func TestViewKeepsRenderedLinesWithinTerminalWidthAfterShrink(t *testing.T) {
 	db := openTestVault(t)
 	app := NewApp(nil, nil, nil, db, nil, nil)

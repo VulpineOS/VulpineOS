@@ -113,6 +113,16 @@ func (m Model) SelectedAgent() (AgentListItem, bool) {
 	return m.agents[m.selected], true
 }
 
+// Agent returns an item by ID.
+func (m Model) Agent(id string) (AgentListItem, bool) {
+	for _, agent := range m.agents {
+		if agent.ID == id {
+			return agent, true
+		}
+	}
+	return AgentListItem{}, false
+}
+
 // SelectAgentID selects an agent by ID.
 func (m *Model) SelectAgentID(id string) bool {
 	for i := range m.agents {

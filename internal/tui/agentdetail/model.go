@@ -21,6 +21,7 @@ type Model struct {
 	createdAt      time.Time
 	width          int
 	height         int
+	remote         bool
 }
 
 // New creates a new agent detail panel.
@@ -64,6 +65,11 @@ func (m *Model) Clear() {
 func (m *Model) SetSize(w, h int) {
 	m.width = w
 	m.height = h
+}
+
+// SetRemote switches the control hints to remote-safe actions.
+func (m *Model) SetRemote(remote bool) {
+	m.remote = remote
 }
 
 // HasAgent returns whether an agent is loaded.
@@ -194,7 +200,11 @@ func (m Model) View() string {
 
 	// Controls
 	b.WriteString("\n")
-	b.WriteString(shared.MutedStyle.Render("[Enter] chat  [p/r] agent  [o] log  [P/R] all  [x] delete"))
+	controls := "[Enter] chat  [p/r] agent  [o] log  [P/R] all  [x] delete"
+	if m.remote {
+		controls = "[Enter] chat  [p/r] agent  [P/R] all  [x] kill"
+	}
+	b.WriteString(shared.MutedStyle.Render(controls))
 
 	// Truncate to allocated height so the panel never overflows
 	result := b.String()
