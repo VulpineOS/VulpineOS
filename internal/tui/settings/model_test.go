@@ -2,10 +2,12 @@ package settings
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"vulpineos/internal/tui/shared"
 )
@@ -165,5 +167,50 @@ func TestSkillListKeepsSelectionVisibleWhenCropped(t *testing.T) {
 	view := m.View()
 	if !strings.Contains(view, "skill-18") {
 		t.Fatalf("selected skill not visible:\n%s", view)
+	}
+}
+
+func TestSelectedRowsClipWithoutBrokenANSI(t *testing.T) {
+	m := New()
+	m.SetActive(true)
+	m.SetSize(12, 8)
+	m.SetProxies([]ProxyItem{{
+		ID:      "proxy-1",
+		Label:   "very-long-proxy-label",
+		Type:    "socks5",
+		Host:    "127.0.0.1",
+		Port:    1080,
+		Country: "United Kingdom",
+		Latency: "untested",
+	}})
+
+	var cmd tea.Cmd
+	m, cmd = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	if cmd != nil {
+		t.Fatalf("unexpected command after tab: %#v", cmd())
+	}
+
+	view := m.View()
+	assertNoBrokenANSI(t, view)
+}
+
+func TestClipTextDoesNotSplitANSISequences(t *testing.T) {
+	clipped := clipText("\x1b[32m[+] enabled\x1b[0m", 2)
+	assertNoBrokenANSI(t, clipped)
+	if !strings.Contains(clipped, "\x1b[0m") {
+		t.Fatalf("clipped styled text missing reset: %q", clipped)
+	}
+	if width := lipgloss.Width(clipped); width > 2 {
+		t.Fatalf("clipped width = %d, want <= 2: %q", width, clipped)
+	}
+}
+
+var ansiSequencePattern = regexp.MustCompile(`\x1b\[[0-9;:]*m`)
+
+func assertNoBrokenANSI(t *testing.T, view string) {
+	t.Helper()
+	withoutComplete := ansiSequencePattern.ReplaceAllString(view, "")
+	if strings.Contains(withoutComplete, "\x1b") {
+		t.Fatalf("view contains a partial ANSI sequence:\n%q", view)
 	}
 }

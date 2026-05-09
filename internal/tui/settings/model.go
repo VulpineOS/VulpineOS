@@ -3,6 +3,7 @@ package settings
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -550,13 +551,53 @@ func clipText(text string, maxWidth int) string {
 		return "…"
 	}
 	suffix := "…"
+	limit := maxWidth - lipgloss.Width(suffix)
+	if limit < 1 {
+		return suffix
+	}
 	var b strings.Builder
-	for _, r := range text {
-		next := b.String() + string(r) + suffix
-		if lipgloss.Width(next) > maxWidth {
+	visibleWidth := 0
+	styleOpen := false
+	for i := 0; i < len(text) && visibleWidth < limit; {
+		if text[i] == '\x1b' && i+1 < len(text) && text[i+1] == '[' {
+			end := i + 2
+			for end < len(text) && !isANSITerminator(text[end]) {
+				end++
+			}
+			if end < len(text) {
+				end++
+				seq := text[i:end]
+				b.WriteString(seq)
+				if strings.HasSuffix(seq, "m") {
+					styleOpen = !isANSIReset(seq)
+				}
+				i = end
+				continue
+			}
+		}
+
+		r, size := utf8.DecodeRuneInString(text[i:])
+		if r == utf8.RuneError && size == 0 {
+			break
+		}
+		rWidth := lipgloss.Width(string(r))
+		if visibleWidth+rWidth > limit {
 			break
 		}
 		b.WriteRune(r)
+		visibleWidth += rWidth
+		i += size
+	}
+	if styleOpen {
+		b.WriteString("\x1b[0m")
 	}
 	return b.String() + suffix
+}
+
+func isANSITerminator(b byte) bool {
+	return b >= 0x40 && b <= 0x7e
+}
+
+func isANSIReset(seq string) bool {
+	return seq == "\x1b[0m" || seq == "\x1b[m" || strings.Contains(seq, "[0;")
 }
