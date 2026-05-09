@@ -240,6 +240,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		for i := range m.proxies {
 			if m.proxies[i].ID == msg.ProxyID {
 				m.proxies[i].Latency = msg.Latency
+				if msg.Country != "" {
+					m.proxies[i].Country = msg.Country
+				}
 				break
 			}
 		}

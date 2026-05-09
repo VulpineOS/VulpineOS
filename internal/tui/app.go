@@ -2454,6 +2454,7 @@ func (a App) testProxy(proxyID, configJSON string) tea.Cmd {
 		geo, err := proxy.ResolveGeo(pc)
 		if err == nil {
 			result.ExitIP = geo.IP
+			result.Country = geo.Country
 			// Update vault with geo info
 			if a.vault != nil {
 				geoJSON, _ := json.Marshal(geo)

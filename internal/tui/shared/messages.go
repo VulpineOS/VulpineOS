@@ -165,6 +165,7 @@ type ProxyTestedMsg struct {
 	ProxyID string
 	Latency string // "45ms" or "error: ..."
 	ExitIP  string
+	Country string
 }
 
 // ProxyImportedMsg fires after proxies are imported.
