@@ -78,17 +78,20 @@ func (p *Process) Start(cfg Config) error {
 		args = append(args, "--profile", cfg.ProfileDir)
 	}
 
-	p.cmd = exec.Command(bin, args...)
+	cmd := exec.Command(bin, args...)
 
 	// Log foxbridge output
 	logPath := filepath.Join(os.TempDir(), "vulpineos-foxbridge.log")
+	var logFile *os.File
 	if logFile, err := os.Create(logPath); err == nil {
-		p.cmd.Stdout = logFile
-		p.cmd.Stderr = logFile
-		p.logFile = logFile
+		cmd.Stdout = logFile
+		cmd.Stderr = logFile
 	}
 
-	if err := p.cmd.Start(); err != nil {
+	if err := cmd.Start(); err != nil {
+		if logFile != nil {
+			_ = logFile.Close()
+		}
 		p.logRuntimeEvent("error", "start_failed", "foxbridge failed to start", map[string]string{
 			"error": err.Error(),
 			"mode":  "external",
@@ -96,10 +99,13 @@ func (p *Process) Start(cfg Config) error {
 		return fmt.Errorf("start foxbridge: %w", err)
 	}
 
-	log.Printf("foxbridge started (PID %d, port %d), log: %s", p.cmd.Process.Pid, port, logPath)
+	p.cmd = cmd
+	p.logFile = logFile
+
+	log.Printf("foxbridge started (PID %d, port %d), log: %s", cmd.Process.Pid, port, logPath)
 
 	// Wait for the CDP port to become available
-	if err := waitForPort(port, 15*time.Second); err != nil {
+	if err := waitForProcessPort(port, 15*time.Second); err != nil {
 		p.Stop()
 		p.logRuntimeEvent("error", "start_failed", "foxbridge port did not become ready", map[string]string{
 			"error": err.Error(),
