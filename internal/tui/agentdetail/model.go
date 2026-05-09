@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
+
 	"vulpineos/internal/tui/shared"
 )
 
@@ -208,6 +210,13 @@ func (m Model) View() string {
 
 	// Truncate to allocated height so the panel never overflows
 	result := b.String()
+	if m.width > 0 {
+		lines := strings.Split(result, "\n")
+		for i, line := range lines {
+			lines[i] = fitLine(line, m.width)
+		}
+		result = strings.Join(lines, "\n")
+	}
 	if m.height > 0 {
 		lines := strings.Split(result, "\n")
 		if len(lines) > m.height {
@@ -216,4 +225,19 @@ func (m Model) View() string {
 		}
 	}
 	return result
+}
+
+func fitLine(line string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	if lipgloss.Width(line) <= width {
+		return line
+	}
+	fitted := lipgloss.NewStyle().MaxWidth(width).Render(line)
+	lines := strings.Split(fitted, "\n")
+	if len(lines) == 0 {
+		return ""
+	}
+	return lines[0]
 }

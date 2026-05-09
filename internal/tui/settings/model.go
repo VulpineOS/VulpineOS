@@ -284,6 +284,20 @@ func (m Model) View() string {
 	b.WriteString(shared.TitleStyle.Render("SETTINGS"))
 	b.WriteString("\n\n")
 
+	if m.height > 0 && m.height < 14 {
+		switch m.section {
+		case SectionGeneral:
+			b.WriteString(m.viewGeneral())
+		case SectionProxies:
+			b.WriteString(m.viewProxies())
+		case SectionSkills:
+			b.WriteString(m.viewSkills())
+		}
+		b.WriteString("\n\n")
+		b.WriteString(shared.MutedStyle.Render(clipText("[Esc] close settings  [Tab] next section", contentWidth)))
+		return m.fitContent(b.String())
+	}
+
 	// --- General section ---
 	b.WriteString(m.viewGeneral())
 	b.WriteString("\n")

@@ -621,6 +621,39 @@ func TestSettingsViewKeepsRenderedLinesWithinTerminalAfterShrink(t *testing.T) {
 	}
 }
 
+func TestViewHandlesTinyTerminalWithoutPanic(t *testing.T) {
+	app := NewApp(nil, nil, nil, nil, nil, nil)
+	app.width = 20
+	app.height = 2
+	app.updatePanelSizes()
+
+	view := app.View()
+	lines := strings.Split(view, "\n")
+	if len(lines) > app.height {
+		t.Fatalf("tiny view height = %d, want <= %d:\n%s", len(lines), app.height, view)
+	}
+	for i, line := range lines {
+		if width := lipgloss.Width(line); width > app.width {
+			t.Fatalf("tiny line %d width = %d, want <= %d:\n%s", i+1, width, app.width, view)
+		}
+	}
+}
+
+func TestNoticeStatusLineIsWidthConstrained(t *testing.T) {
+	app := NewApp(nil, nil, nil, nil, nil, nil)
+	app.width = 40
+	app.height = 12
+	app.notice = strings.Repeat("notice-", 20)
+	app.updatePanelSizes()
+
+	view := app.View()
+	for i, line := range strings.Split(view, "\n") {
+		if width := lipgloss.Width(line); width > app.width {
+			t.Fatalf("notice line %d width = %d, want <= %d:\n%s", i+1, width, app.width, view)
+		}
+	}
+}
+
 func TestModeHotkeyTogglesResizeMode(t *testing.T) {
 	db := openTestVault(t)
 	cfg := &config.Config{ResizePanelsWithArrows: false}

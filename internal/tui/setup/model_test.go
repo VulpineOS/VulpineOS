@@ -73,3 +73,30 @@ func TestSetupViewFitsNarrowTerminal(t *testing.T) {
 		}
 	}
 }
+
+func TestSetupViewFitsVeryNarrowAPIKeyAndDoneSteps(t *testing.T) {
+	cfg := &config.Config{
+		Provider: "anthropic",
+		APIKey:   "sk-test",
+		Model:    "anthropic/claude-sonnet-4-6-with-a-long-name",
+	}
+	m := NewWithConfig(cfg)
+	model, _ := m.Update(tea.WindowSizeMsg{Width: 20, Height: 10})
+	m = model.(Model)
+
+	m.step = stepAPIKey
+	assertSetupViewFits(t, m)
+
+	m.step = stepDone
+	assertSetupViewFits(t, m)
+}
+
+func assertSetupViewFits(t *testing.T, m Model) {
+	t.Helper()
+	view := m.View()
+	for i, line := range strings.Split(view, "\n") {
+		if width := lipgloss.Width(line); width > m.width {
+			t.Fatalf("line %d width = %d, want <= %d:\n%s", i+1, width, m.width, view)
+		}
+	}
+}

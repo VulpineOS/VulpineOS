@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/lipgloss"
+
 	"vulpineos/internal/tui/shared"
 )
 
@@ -58,5 +60,23 @@ func TestContextListReplayedTargetAttachedUpsertsExistingTarget(t *testing.T) {
 	}
 	if m.items[0].URL != "https://second.example" {
 		t.Fatalf("url = %q, want replayed URL", m.items[0].URL)
+	}
+}
+
+func TestViewConstrainsRowsAtVeryNarrowWidth(t *testing.T) {
+	m := New()
+	m.SetWidth(5)
+	m, _ = m.Update(shared.TargetAttachedMsg{
+		SessionID: "session-1",
+		TargetID:  "target-1",
+		ContextID: "context-1",
+		URL:       "https://example.com/very/long/path",
+	})
+
+	view := m.View()
+	for i, line := range strings.Split(view, "\n") {
+		if width := lipgloss.Width(line); width > m.width {
+			t.Fatalf("line %d width = %d, want <= %d:\n%s", i+1, width, m.width, view)
+		}
 	}
 }

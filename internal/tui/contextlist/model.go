@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"vulpineos/internal/tui/shared"
 )
@@ -192,7 +193,7 @@ func truncateURL(url string, maxLen int) string {
 func (m Model) View() string {
 	var b strings.Builder
 
-	b.WriteString(shared.TitleStyle.Render("CONTEXTS"))
+	b.WriteString(fitLine(shared.TitleStyle.Render("CONTEXTS"), m.width))
 	b.WriteString("\n")
 
 	if len(m.items) == 0 {
@@ -200,7 +201,7 @@ func (m Model) View() string {
 		return b.String()
 	}
 
-	maxURL := m.width - 6
+	maxURL := m.width - 4
 	for i, item := range m.items {
 		cursor := " "
 		if i == m.selected {
@@ -227,6 +228,7 @@ func (m Model) View() string {
 		if i == m.selected {
 			line = shared.SelectedStyle.Render(line)
 		}
+		line = fitLine(line, m.width)
 		b.WriteString(line)
 		if i < len(m.items)-1 {
 			b.WriteString("\n")
@@ -243,4 +245,19 @@ func (m Model) View() string {
 		}
 	}
 	return result
+}
+
+func fitLine(line string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	if lipgloss.Width(line) <= width {
+		return line
+	}
+	fitted := lipgloss.NewStyle().MaxWidth(width).Render(line)
+	lines := strings.Split(fitted, "\n")
+	if len(lines) == 0 {
+		return ""
+	}
+	return lines[0]
 }

@@ -1433,6 +1433,15 @@ func (a App) View() string {
 	if a.width == 0 {
 		return "Loading..."
 	}
+	if a.height <= 0 {
+		return ""
+	}
+	if a.height < 4 {
+		if a.notice != "" {
+			return fitTerminalLine(shared.WarmingStyle.Render("  "+a.notice), a.width)
+		}
+		return fitTerminalLine(a.renderStatusBar(), a.width)
+	}
 
 	widths := resolveWorkbenchWidths(a.width, a.leftWidth, a.rightWidth)
 	leftWidth := widths.left
@@ -1531,9 +1540,9 @@ func (a App) View() string {
 	// Status bar (notice replaces status bar content when present)
 	var statusBar string
 	if a.notice != "" {
-		statusBar = shared.WarmingStyle.Render("  " + a.notice)
+		statusBar = fitTerminalLine(shared.WarmingStyle.Render("  "+a.notice), a.width)
 	} else {
-		statusBar = a.renderStatusBar()
+		statusBar = fitTerminalLine(a.renderStatusBar(), a.width)
 	}
 
 	output := lipgloss.JoinVertical(lipgloss.Left, body, statusBar)
@@ -1548,6 +1557,21 @@ func (a App) View() string {
 		output = strings.Join(outputLines, "\n")
 	}
 	return output
+}
+
+func fitTerminalLine(line string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	if lipgloss.Width(line) <= width {
+		return line
+	}
+	fitted := lipgloss.NewStyle().MaxWidth(width).Render(line)
+	lines := strings.Split(fitted, "\n")
+	if len(lines) == 0 {
+		return ""
+	}
+	return lines[0]
 }
 
 // renderPanel renders content in a panel box without focus highlight.
