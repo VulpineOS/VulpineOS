@@ -836,8 +836,33 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 		// Show loading spinner while kernel starts
 		loader := loading.New("Launching VulpineOS")
 		loaderProg := tea.NewProgram(loader, tea.WithAltScreen())
+		startupDone := make(chan struct{})
+		cleanupStartup := func() {
+			if wd != nil {
+				wd.Stop()
+			}
+			if gw != nil {
+				gw.Stop()
+			}
+			if fb != nil {
+				fb.Stop()
+			}
+			if orch != nil {
+				orch.Close()
+			}
+			if k != nil {
+				_ = k.Stop()
+			}
+			if v != nil {
+				_ = v.Close()
+			}
+			if audit != nil {
+				audit.Close()
+			}
+		}
 
 		go func() {
+			defer close(startupDone)
 			// Open vault
 			v, _ = vault.Open()
 			if v != nil {
@@ -949,41 +974,18 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 		}()
 
 		result, err := loaderProg.Run()
+		<-startupDone
 		if err != nil {
+			cleanupStartup()
 			return fmt.Errorf("loading screen: %w", err)
 		}
 		if !result.(loading.Model).Done() {
 			// User quit during loading
-			if k != nil {
-				k.Stop()
-			}
-			if fb != nil {
-				fb.Stop()
-			}
+			cleanupStartup()
 			return nil
 		}
 		if startErr != nil {
-			if wd != nil {
-				wd.Stop()
-			}
-			if gw != nil {
-				gw.Stop()
-			}
-			if fb != nil {
-				fb.Stop()
-			}
-			if orch != nil {
-				orch.Close()
-			}
-			if k != nil {
-				_ = k.Stop()
-			}
-			if v != nil {
-				_ = v.Close()
-			}
-			if audit != nil {
-				audit.Close()
-			}
+			cleanupStartup()
 			return startErr
 		}
 		if warning := kernel.DetectStaleBinary(resolvedBinaryPath); warning != nil {
