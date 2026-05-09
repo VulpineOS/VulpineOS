@@ -337,6 +337,39 @@ func TestAgentCreatedKeepsChatLockedUntilAgentResponds(t *testing.T) {
 	}
 }
 
+func TestStartupLockedChatDoesNotAcceptInput(t *testing.T) {
+	db := openTestVault(t)
+	cfg := &config.Config{}
+	app := NewApp(nil, nil, nil, db, cfg, nil)
+	app.conversation.SetSize(80, 20)
+
+	agent, err := db.CreateAgent("Scraper", "Scrape prices", "{}")
+	if err != nil {
+		t.Fatalf("create agent: %v", err)
+	}
+	agent.Status = "active"
+
+	model, _ := app.Update(shared.AgentCreatedMsg{Agent: *agent})
+	app = model.(App)
+	model, cmd := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
+	app = model.(App)
+	if cmd != nil {
+		t.Fatalf("locked startup input returned command: %#v", cmd())
+	}
+	if got := app.conversation.TextInput().Value(); got != "" {
+		t.Fatalf("locked startup input value = %q, want empty", got)
+	}
+
+	model, cmd = app.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	app = model.(App)
+	if cmd != nil {
+		t.Fatalf("locked startup enter returned command: %#v", cmd())
+	}
+	if app.conversation.IsAwake() {
+		t.Fatal("conversation should remain locked before first reply")
+	}
+}
+
 func TestAgentCreatedSelectsNewAgentListRow(t *testing.T) {
 	db := openTestVault(t)
 	oldAgent, err := db.CreateAgent("Old", "old task", "{}")

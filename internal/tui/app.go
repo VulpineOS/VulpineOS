@@ -1392,6 +1392,22 @@ func (a App) updateDescInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // updateChatInput handles keystrokes in "chat" mode.
 func (a App) updateChatInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if !a.conversation.IsAwake() && a.conversation.IsThinking() {
+		switch msg.String() {
+		case "ctrl+v":
+			a.handleBrowserToggle()
+		case "ctrl+o":
+			a.handleOpenSessionLog()
+		case "ctrl+t":
+			a.handleTraceToggle()
+		case "esc":
+			a.conversation.Blur()
+			a.inputMode = ""
+			a.focus = FocusAgentList
+		}
+		return a, nil
+	}
+
 	switch msg.String() {
 	case "ctrl+v":
 		a.handleBrowserToggle()
