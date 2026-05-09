@@ -43,6 +43,7 @@ func NewServer(client *juggler.Client) *Server {
 // Run starts the MCP server loop, reading from stdin and writing to stdout.
 func (s *Server) Run() error {
 	log.SetOutput(os.Stderr) // Keep logs on stderr, MCP uses stdout
+	defer s.tracker.Close()
 
 	for {
 		line, err := s.reader.ReadBytes('\n')

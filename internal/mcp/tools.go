@@ -378,6 +378,7 @@ func HandleToolCallDirect(client *juggler.Client, name string, args json.RawMess
 // per-call deadline or sentinel value into extension handlers.
 func HandleToolCallDirectCtx(ctx context.Context, client *juggler.Client, name string, args json.RawMessage) (*ToolCallResult, error) {
 	tracker := NewContextTracker(client)
+	defer tracker.Close()
 	return handleToolCall(ctx, client, tracker, name, args)
 }
 

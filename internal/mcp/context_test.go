@@ -14,6 +14,7 @@ func TestContextTrackerRemovesSessionOnDetach(t *testing.T) {
 	t.Cleanup(func() { _ = client.Close() })
 
 	tracker := NewContextTracker(client)
+	t.Cleanup(tracker.Close)
 	transport.InjectEvent("", "Browser.attachedToTarget", map[string]any{
 		"sessionId": "session-1",
 	})
@@ -24,6 +25,23 @@ func TestContextTrackerRemovesSessionOnDetach(t *testing.T) {
 		"targetId":  "target-1",
 	})
 	waitForContext(t, tracker, "session-1", false)
+}
+
+func TestContextTrackerCloseUnsubscribesEvents(t *testing.T) {
+	transport := testutil.NewFakeJugglerTransport(t)
+	client := juggler.NewClient(transport)
+	t.Cleanup(func() { _ = client.Close() })
+
+	tracker := NewContextTracker(client)
+	tracker.Close()
+	transport.InjectEvent("", "Browser.attachedToTarget", map[string]any{
+		"sessionId": "session-closed",
+	})
+	time.Sleep(50 * time.Millisecond)
+
+	if got := tracker.Get("session-closed"); got != nil {
+		t.Fatalf("closed tracker recorded context: %+v", got)
+	}
 }
 
 func waitForContext(t *testing.T, tracker *ContextTracker, sessionID string, wantPresent bool) {
