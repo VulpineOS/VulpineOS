@@ -86,10 +86,14 @@ func statusIndicator(status string) string {
 		return shared.WarmingStyle.Render("● working...")
 	case "thinking":
 		return shared.WarmingStyle.Render("◌ thinking...")
+	case "paused":
+		return shared.MutedStyle.Render("Ⅱ paused")
 	case "completed", "ready", "":
 		return shared.RunningStyle.Render("● ready")
 	case "failed", "error":
 		return shared.StoppedStyle.Render("● error")
+	case "interrupted":
+		return shared.StoppedStyle.Render("× interrupted")
 	case "starting", "created":
 		return shared.WarmingStyle.Render("○ starting...")
 	default:

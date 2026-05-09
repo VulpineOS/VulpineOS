@@ -225,10 +225,12 @@ func statusIcon(status string) string {
 		return lipgloss.NewStyle().Foreground(shared.ColorWarning).Render("●")
 	case "thinking":
 		return lipgloss.NewStyle().Foreground(shared.ColorWarning).Render("◌")
+	case "paused":
+		return lipgloss.NewStyle().Foreground(shared.ColorMuted).Render("Ⅱ")
 	case "completed", "ready", "":
 		return lipgloss.NewStyle().Foreground(shared.ColorSuccess).Render("●")
-	case "failed", "error":
-		return lipgloss.NewStyle().Foreground(shared.ColorDanger).Render("●")
+	case "failed", "error", "interrupted":
+		return lipgloss.NewStyle().Foreground(shared.ColorDanger).Render("×")
 	case "starting", "created":
 		return lipgloss.NewStyle().Foreground(shared.ColorWarning).Render("○")
 	default:

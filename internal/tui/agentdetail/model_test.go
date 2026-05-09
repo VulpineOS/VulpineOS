@@ -30,3 +30,19 @@ func TestViewConstrainsLongRowsToWidth(t *testing.T) {
 		}
 	}
 }
+
+func TestStatusIndicatorNamesPausedAndInterrupted(t *testing.T) {
+	for _, tc := range []struct {
+		status string
+		want   string
+	}{
+		{status: "paused", want: "paused"},
+		{status: "interrupted", want: "interrupted"},
+	} {
+		t.Run(tc.status, func(t *testing.T) {
+			if got := statusIndicator(tc.status); !strings.Contains(got, tc.want) {
+				t.Fatalf("statusIndicator(%q) = %q, want %q", tc.status, got, tc.want)
+			}
+		})
+	}
+}

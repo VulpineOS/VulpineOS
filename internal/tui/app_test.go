@@ -877,6 +877,32 @@ func TestPendingStartupTerminalStatusRefocusesChatInput(t *testing.T) {
 	}
 }
 
+func TestPausedStatusClearsSelectedConversationThinking(t *testing.T) {
+	db := openTestVault(t)
+	cfg := &config.Config{}
+	app := NewApp(nil, nil, nil, db, cfg, nil)
+	app.conversation.SetSize(80, 20)
+
+	agent, err := db.CreateAgent("Scraper", "Scrape prices", "{}")
+	if err != nil {
+		t.Fatalf("create agent: %v", err)
+	}
+	app.selectedAgentID = agent.ID
+	app.conversation.SetAgentID(agent.ID)
+	app.conversation.SetAgentName(agent.Name)
+	app.conversation.SetThinking(true)
+
+	model, _ := app.Update(shared.AgentStatusMsg{
+		AgentID: agent.ID,
+		Status:  "paused",
+	})
+	app = model.(App)
+
+	if app.conversation.IsThinking() {
+		t.Fatal("conversation should stop thinking on paused status")
+	}
+}
+
 func TestChatInputKeystrokeRefocusesAndCapturesFirstRune(t *testing.T) {
 	db := openTestVault(t)
 	cfg := &config.Config{}
