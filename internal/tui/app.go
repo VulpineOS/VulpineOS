@@ -30,7 +30,6 @@ import (
 	"vulpineos/internal/tui/agentlist"
 	"vulpineos/internal/tui/contextlist"
 	"vulpineos/internal/tui/conversation"
-	"vulpineos/internal/tui/poolstats"
 	"vulpineos/internal/tui/settings"
 	"vulpineos/internal/tui/shared"
 	"vulpineos/internal/tui/systeminfo"
@@ -94,7 +93,6 @@ type App struct {
 	agentDetail  agentdetail.Model
 	conversation conversation.Model
 	contextList  contextlist.Model
-	poolStats    poolstats.Model
 	settings     settings.Model
 
 	// State
@@ -159,7 +157,6 @@ func NewAppWithControl(k *kernel.Kernel, client *juggler.Client, orch *orchestra
 		agentDetail:  agentdetail.New(),
 		conversation: conversation.New(),
 		contextList:  contextlist.New(),
-		poolStats:    poolstats.New(),
 		settings:     settings.New(),
 		eventCh:      eventCh,
 		stopCh:       stopCh,
@@ -902,7 +899,6 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if a.orch != nil {
 			avail, active, total := a.orch.Pool.Stats()
-			a.poolStats.SetStats(avail, active, total)
 			a.systemInfo.SetPoolStats(avail, active, total)
 		}
 		cmds = append(cmds, a.tick())
@@ -1028,7 +1024,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case shared.PoolStatsMsg:
-		a.poolStats, _ = a.poolStats.Update(msg)
+		a.systemInfo, _ = a.systemInfo.Update(msg)
 		cmds = append(cmds, a.waitForEvent())
 
 	case shared.AgentCreatedMsg:
@@ -1635,7 +1631,6 @@ func (a *App) updatePanelSizes() {
 	a.settings.SetSize(centerWidth, bodyHeight)
 	a.contextList.SetWidth(rightWidth)
 	a.contextList.SetHeight(rightBottom)
-	a.poolStats.SetWidth(rightWidth)
 
 	// Update text input widths to fit center panel
 	inputWidth := centerWidth - 6
