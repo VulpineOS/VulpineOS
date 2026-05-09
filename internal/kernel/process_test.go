@@ -195,12 +195,40 @@ func TestBinaryLocatorDetectDriftWarnsOnOlderExplicitBinary(t *testing.T) {
 
 func mustWriteExecutable(t *testing.T, path string) {
 	t.Helper()
+	mustWriteExecutableContent(t, path, "#!/bin/sh\nexit 0\n")
+}
+
+func mustWriteExecutableContent(t *testing.T, path, content string) {
+	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("MkdirAll(%q): %v", path, err)
 	}
-	if err := os.WriteFile(path, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o755); err != nil {
 		t.Fatalf("WriteFile(%q): %v", path, err)
 	}
+}
+
+func TestKernelRunningReflectsExitedProcess(t *testing.T) {
+	bin := filepath.Join(t.TempDir(), "camoufox")
+	mustWriteExecutableContent(t, bin, "#!/bin/sh\nexit 0\n")
+
+	k := New()
+	if err := k.Start(Config{BinaryPath: bin, Headless: true}); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer k.Stop()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if !k.Running() {
+			if err := k.Start(Config{BinaryPath: bin, Headless: true}); err != nil {
+				t.Fatalf("Start after exited process: %v", err)
+			}
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("kernel still reported running after child process exited")
 }
 
 func TestKernelStartStop(t *testing.T) {

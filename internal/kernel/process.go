@@ -24,6 +24,8 @@ type Kernel struct {
 	profileDir string
 	startedAt  time.Time
 	waited     bool // true after cmd.Wait() has been called
+	waitDone   chan struct{}
+	exitErr    error
 	window     *WindowController
 	headless   bool
 	mu         sync.Mutex
@@ -193,7 +195,11 @@ func (k *Kernel) Start(cfg Config) error {
 	k.client = client
 	k.transport = transport
 	k.startedAt = time.Now()
+	k.waited = false
+	k.exitErr = nil
+	k.waitDone = make(chan struct{})
 	k.headless = cfg.Headless
+	go k.waitForExit(cmd, k.waitDone)
 
 	// Create window controller for non-headless mode
 	if !cfg.Headless {
@@ -203,6 +209,40 @@ func (k *Kernel) Start(cfg Config) error {
 	}
 
 	return nil
+}
+
+func (k *Kernel) waitForExit(cmd *exec.Cmd, done chan struct{}) {
+	err := cmd.Wait()
+
+	var client *juggler.Client
+	var logFile *os.File
+	var profileDir string
+	k.mu.Lock()
+	if k.cmd == cmd {
+		client = k.client
+		logFile = k.logFile
+		profileDir = k.profileDir
+
+		k.cmd = nil
+		k.client = nil
+		k.transport = nil
+		k.logFile = nil
+		k.profileDir = ""
+		k.waited = true
+		k.exitErr = err
+	}
+	k.mu.Unlock()
+
+	if client != nil {
+		_ = client.Close()
+	}
+	if logFile != nil {
+		_ = logFile.Close()
+	}
+	if profileDir != "" {
+		_ = os.RemoveAll(profileDir)
+	}
+	close(done)
 }
 
 func newBinaryLocator() (binaryLocator, error) {
@@ -532,44 +572,48 @@ func (k *Kernel) Uptime() time.Duration {
 func (k *Kernel) Running() bool {
 	k.mu.Lock()
 	defer k.mu.Unlock()
-	return k.cmd != nil && k.cmd.ProcessState == nil
+	if k.cmd == nil || k.waited {
+		return false
+	}
+	if k.waitDone == nil {
+		return true
+	}
+	select {
+	case <-k.waitDone:
+		return false
+	default:
+		return true
+	}
 }
 
 // Stop gracefully shuts down the Firefox process.
 func (k *Kernel) Stop() error {
 	k.mu.Lock()
-	defer k.mu.Unlock()
+	client := k.client
+	cmd := k.cmd
+	waitDone := k.waitDone
+	k.mu.Unlock()
 
-	if k.client != nil {
+	if client != nil {
 		// Try graceful shutdown via protocol
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		_, _ = k.client.CallWithContext(ctx, "", "Browser.close", nil)
+		_, _ = client.CallWithContext(ctx, "", "Browser.close", nil)
 		cancel()
-		k.client.Close()
-		k.client = nil
+		_ = client.Close()
 	}
 
-	if k.cmd != nil && k.cmd.Process != nil && !k.waited {
+	if cmd != nil && cmd.Process != nil {
 		// Wait briefly for graceful exit, then kill
-		done := make(chan error, 1)
-		go func() { done <- k.cmd.Wait() }()
-		select {
-		case <-done:
-		case <-time.After(5 * time.Second):
-			k.cmd.Process.Kill()
-			<-done
+		if waitDone != nil {
+			select {
+			case <-waitDone:
+			case <-time.After(5 * time.Second):
+				_ = cmd.Process.Kill()
+				<-waitDone
+			}
+		} else {
+			_ = cmd.Process.Kill()
 		}
-		k.waited = true
-		k.cmd = nil
-	}
-
-	if k.logFile != nil {
-		k.logFile.Close()
-		k.logFile = nil
-	}
-	if k.profileDir != "" {
-		_ = os.RemoveAll(k.profileDir)
-		k.profileDir = ""
 	}
 
 	return nil
@@ -583,17 +627,18 @@ func (k *Kernel) LogPath() string {
 // Wait blocks until the Firefox process exits.
 func (k *Kernel) Wait() error {
 	k.mu.Lock()
-	cmd := k.cmd
-	if cmd == nil || k.waited {
+	waitDone := k.waitDone
+	if waitDone == nil || k.waited {
+		err := k.exitErr
 		k.mu.Unlock()
-		return nil
+		return err
 	}
 	k.mu.Unlock()
 
-	err := cmd.Wait()
+	<-waitDone
 
 	k.mu.Lock()
-	k.waited = true
+	err := k.exitErr
 	k.mu.Unlock()
 
 	return err
