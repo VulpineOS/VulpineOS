@@ -49,7 +49,9 @@ export default function AgentDetail({ ws }) {
   const [inheritDefaultBudget, setInheritDefaultBudget] = useState(true)
   const [fingerprintSeed, setFingerprintSeed] = useState('')
   const [confirmKill, setConfirmKill] = useState(false)
-  const lastEventRef = useRef(0)
+  const eventStreamInitializedRef = useRef(false)
+  const lastEventSeqRef = useRef(0)
+  const lastEventIndexRef = useRef(0)
 
   const conversationMessages = messages.filter(m => m.role !== 'system')
   const traceMessages = messages.filter(m => m.role === 'system')
@@ -114,7 +116,9 @@ export default function AgentDetail({ ws }) {
   }, [agent?.id, agent?.budgetMaxCostUsd, agent?.budgetMaxTokens, agent?.budgetSource])
 
   useEffect(() => {
-    lastEventRef.current = 0
+    eventStreamInitializedRef.current = false
+    lastEventSeqRef.current = 0
+    lastEventIndexRef.current = 0
   }, [id])
 
   useEffect(() => {
@@ -128,19 +132,28 @@ export default function AgentDetail({ ws }) {
 
   useEffect(() => {
     if (!id) return
-    const sequencedEvents = ws.events.filter(event => Number.isFinite(event.seq))
+    const events = ws.events || []
+    const sequencedEvents = events.filter(event => Number.isFinite(event.seq))
     let nextEvents
+    if (!eventStreamInitializedRef.current) {
+      eventStreamInitializedRef.current = true
+      lastEventIndexRef.current = events.length
+      lastEventSeqRef.current = sequencedEvents.length > 0
+        ? Math.max(...sequencedEvents.map(event => event.seq))
+        : 0
+      return
+    }
     if (sequencedEvents.length > 0) {
-      nextEvents = sequencedEvents.filter(event => event.seq > lastEventRef.current)
+      nextEvents = sequencedEvents.filter(event => event.seq > lastEventSeqRef.current)
       if (nextEvents.length > 0) {
-        lastEventRef.current = Math.max(...nextEvents.map(event => event.seq))
+        lastEventSeqRef.current = Math.max(...nextEvents.map(event => event.seq))
       }
     } else {
-      if (ws.events.length < lastEventRef.current) {
-        lastEventRef.current = 0
+      if (events.length < lastEventIndexRef.current) {
+        lastEventIndexRef.current = 0
       }
-      nextEvents = ws.events.slice(lastEventRef.current)
-      lastEventRef.current = ws.events.length
+      nextEvents = events.slice(lastEventIndexRef.current)
+      lastEventIndexRef.current = events.length
     }
     for (const event of nextEvents) {
       if (event.method === 'Vulpine.agentStatus' && event.params?.agentId === id) {
@@ -151,7 +164,9 @@ export default function AgentDetail({ ws }) {
           status: event.params.status || prev?.status,
           contextId: event.params.contextId || prev?.contextId,
           task: event.params.objective || prev?.task,
-          totalTokens: event.params.tokens > 0 ? event.params.tokens : prev?.totalTokens ?? 0,
+          totalTokens: Number(event.params.tokens || 0) > 0
+            ? Math.max(Number(prev?.totalTokens || 0), Number(event.params.tokens || 0))
+            : prev?.totalTokens ?? 0,
         }))
       }
       if (event.method === 'Vulpine.conversation' && event.params?.agentId === id) {

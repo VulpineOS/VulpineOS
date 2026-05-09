@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 
 const TERMINAL_AGENT_STATUSES = new Set(['completed', 'error', 'failed', 'interrupted'])
@@ -22,6 +22,9 @@ export default function Agents({ ws }) {
   const [selectedContext, setSelectedContext] = useState(localStorage.getItem('vulpine_context_id') || '')
   const [notice, setNotice] = useState('')
   const [pendingKill, setPendingKill] = useState(null)
+  const eventStreamInitializedRef = useRef(false)
+  const lastEventSeqRef = useRef(0)
+  const lastEventIndexRef = useRef(0)
 
   const refresh = () => {
     ws.call('agents.list').then(r => setAgents(r?.agents || [])).catch(() => {})
@@ -35,17 +38,41 @@ export default function Agents({ ws }) {
 
   useEffect(() => { if (ws.connected) refresh() }, [ws.connected])
   useEffect(() => {
-    const recent = ws.events.slice(-50)
-    for (const event of recent) {
+    const events = ws.events || []
+    const sequencedEvents = events.filter(event => Number.isFinite(event.seq))
+    let nextEvents
+    if (!eventStreamInitializedRef.current) {
+      eventStreamInitializedRef.current = true
+      lastEventIndexRef.current = events.length
+      lastEventSeqRef.current = sequencedEvents.length > 0
+        ? Math.max(...sequencedEvents.map(event => event.seq))
+        : 0
+      return
+    }
+    if (sequencedEvents.length > 0) {
+      nextEvents = sequencedEvents.filter(event => event.seq > lastEventSeqRef.current)
+      if (nextEvents.length > 0) {
+        lastEventSeqRef.current = Math.max(...nextEvents.map(event => event.seq))
+      }
+    } else {
+      if (events.length < lastEventIndexRef.current) {
+        lastEventIndexRef.current = 0
+      }
+      nextEvents = events.slice(lastEventIndexRef.current)
+      lastEventIndexRef.current = events.length
+    }
+    for (const event of nextEvents) {
       if (event.method === 'Vulpine.agentStatus' && event.params?.agentId) {
         setAgents(prev => prev.map(agent => {
           if (agent.id !== event.params.agentId) return agent
+          const previousTokens = Number(agent.totalTokens || 0)
+          const eventTokens = Number(event.params.tokens || 0)
           return {
             ...agent,
             status: event.params.status || agent.status,
             contextId: event.params.contextId || agent.contextId,
             task: event.params.objective || agent.task,
-            totalTokens: event.params.tokens > 0 ? event.params.tokens : agent.totalTokens,
+            totalTokens: eventTokens > 0 ? Math.max(previousTokens, eventTokens) : agent.totalTokens,
           }
         }))
       }

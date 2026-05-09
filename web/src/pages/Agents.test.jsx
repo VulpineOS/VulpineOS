@@ -197,6 +197,58 @@ describe('Agents page', () => {
     expect(screen.getByText('42')).toBeInTheDocument()
   })
 
+  it('ignores repeated websocket status events that would roll state backwards', async () => {
+    const calls = vi.fn(async (method) => {
+      if (method === 'agents.list') {
+        return {
+          agents: [
+            { id: 'agent-1', name: 'Agent One', status: 'active', contextId: '', fingerprintSummary: '', totalTokens: 90 },
+          ],
+        }
+      }
+      if (method === 'costs.getAll') return { usage: [], defaults: {} }
+      if (method === 'costs.total') return { totalCostUsd: 0 }
+      if (method === 'contexts.list') return { contexts: [] }
+      return { status: 'ok' }
+    })
+    const ws = { connected: true, events: [], call: calls }
+    const { rerender } = renderPage(ws)
+
+    expect(await screen.findByText('Agent One')).toBeInTheDocument()
+    rerender(
+      <MemoryRouter>
+        <Agents
+          ws={{
+            ...ws,
+            events: [
+              { seq: 1, method: 'Vulpine.agentStatus', params: { agentId: 'agent-1', status: 'running', tokens: 120 } },
+            ],
+          }}
+        />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => expect(screen.getByText('running')).toBeInTheDocument())
+    expect(screen.getByText('120')).toBeInTheDocument()
+
+    rerender(
+      <MemoryRouter>
+        <Agents
+          ws={{
+            ...ws,
+            events: [
+              { seq: 1, method: 'Vulpine.agentStatus', params: { agentId: 'agent-1', status: 'paused', tokens: 10 } },
+            ],
+          }}
+        />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => expect(screen.getByText('running')).toBeInTheDocument())
+    expect(screen.queryByText('paused')).not.toBeInTheDocument()
+    expect(screen.getByText('120')).toBeInTheDocument()
+  })
+
   it('does not offer kill actions for terminal agents', async () => {
     const calls = vi.fn(async (method) => {
       if (method === 'agents.list') {

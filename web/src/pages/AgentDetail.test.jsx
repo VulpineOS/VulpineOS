@@ -188,6 +188,58 @@ describe('AgentDetail page', () => {
     await waitFor(() => expect(screen.getByText('after cap')).toBeInTheDocument())
   })
 
+  it('ignores retained websocket events on mount and only consumes newer detail events', async () => {
+    const call = vi.fn(async (method) => {
+      if (method === 'agents.list') {
+        return { agents: [{ id: 'agent-1', name: 'Agent One', status: 'paused', contextId: '', totalTokens: 0 }] }
+      }
+      if (method === 'agents.getMessages') return { messages: [] }
+      if (method === 'recording.getTimeline') return { actions: [] }
+      if (method === 'fingerprints.get') return {}
+      return { status: 'ok' }
+    })
+    const retainedEvents = [
+      {
+        seq: 1,
+        method: 'Vulpine.conversation',
+        params: { agentId: 'agent-1', role: 'assistant', content: 'stale retained reply', tokens: 1 },
+      },
+    ]
+    const ws = { connected: true, events: retainedEvents, call }
+    const { rerender } = renderDetail(ws)
+
+    expect(await screen.findByText('Agent agent-1')).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByText('stale retained reply')).not.toBeInTheDocument())
+
+    rerender(
+      <MemoryRouter initialEntries={['/agents/agent-1']}>
+        <Routes>
+          <Route
+            path="/agents/:id"
+            element={
+              <AgentDetail
+                ws={{
+                  ...ws,
+                  events: [
+                    ...retainedEvents,
+                    {
+                      seq: 2,
+                      method: 'Vulpine.conversation',
+                      params: { agentId: 'agent-1', role: 'assistant', content: 'fresh reply', tokens: 2 },
+                    },
+                  ],
+                }}
+              />
+            }
+          />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => expect(screen.getByText('fresh reply')).toBeInTheDocument())
+    expect(screen.queryByText('stale retained reply')).not.toBeInTheDocument()
+  })
+
   it('preserves token totals when status events omit usage', async () => {
     const call = vi.fn(async (method) => {
       if (method === 'agents.list') {
