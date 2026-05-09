@@ -406,10 +406,39 @@ func (api *PanelAPI) agentsKill(params json.RawMessage) (json.RawMessage, error)
 	if err != nil {
 		return nil, err
 	}
-	if err := api.Orchestrator.KillAgent(agentID); err != nil {
+	if err := api.killAgent(agentID); err != nil {
 		return nil, err
 	}
 	return json.Marshal(map[string]string{"status": "ok"})
+}
+
+func (api *PanelAPI) killAgent(agentID string) error {
+	if api.Orchestrator == nil {
+		return fmt.Errorf("orchestrator not available")
+	}
+	err := api.Orchestrator.KillAgent(agentID)
+	if err != nil {
+		if !strings.Contains(err.Error(), "not found") || api.Vault == nil {
+			return err
+		}
+		agent, vaultErr := api.Vault.GetAgent(agentID)
+		if vaultErr != nil || isTerminalPanelAgentStatus(agent.Status) {
+			return err
+		}
+	}
+	if api.Vault != nil {
+		_ = api.Vault.UpdateAgentStatus(agentID, "interrupted")
+	}
+	return nil
+}
+
+func isTerminalPanelAgentStatus(status string) bool {
+	switch status {
+	case "completed", "error", "failed", "interrupted":
+		return true
+	default:
+		return false
+	}
 }
 
 func (api *PanelAPI) agentsPause(params json.RawMessage) (json.RawMessage, error) {
@@ -583,7 +612,7 @@ func (api *PanelAPI) agentsKillMany(params json.RawMessage) (json.RawMessage, er
 	killed := 0
 	failures := map[string]string{}
 	for _, agentID := range agentIDs {
-		if err := api.Orchestrator.KillAgent(agentID); err != nil {
+		if err := api.killAgent(agentID); err != nil {
 			failures[agentID] = err.Error()
 			continue
 		}

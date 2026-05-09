@@ -115,6 +115,72 @@ func TestAgentsKillManyReportsFailures(t *testing.T) {
 	}
 }
 
+func TestAgentsKillMarksPersistedActiveAgentInterrupted(t *testing.T) {
+	api := newBulkAgentAPI(t)
+	agent, err := api.Vault.CreateAgent("Kill Me", "task", "{}")
+	if err != nil {
+		t.Fatalf("CreateAgent: %v", err)
+	}
+	if err := api.Vault.UpdateAgentStatus(agent.ID, "active"); err != nil {
+		t.Fatalf("UpdateAgentStatus: %v", err)
+	}
+
+	params, err := json.Marshal(map[string]interface{}{"agentId": agent.ID})
+	if err != nil {
+		t.Fatalf("Marshal params: %v", err)
+	}
+	if _, err := api.HandleMessage("agents.kill", params); err != nil {
+		t.Fatalf("HandleMessage: %v", err)
+	}
+
+	updated, err := api.Vault.GetAgent(agent.ID)
+	if err != nil {
+		t.Fatalf("GetAgent: %v", err)
+	}
+	if updated.Status != "interrupted" {
+		t.Fatalf("status = %q, want interrupted", updated.Status)
+	}
+}
+
+func TestAgentsKillManyMarksPersistedActiveAgentsInterrupted(t *testing.T) {
+	api := newBulkAgentAPI(t)
+	agent, err := api.Vault.CreateAgent("Kill Many", "task", "{}")
+	if err != nil {
+		t.Fatalf("CreateAgent: %v", err)
+	}
+	if err := api.Vault.UpdateAgentStatus(agent.ID, "active"); err != nil {
+		t.Fatalf("UpdateAgentStatus: %v", err)
+	}
+
+	params, err := json.Marshal(map[string]interface{}{"agentIds": []string{agent.ID}})
+	if err != nil {
+		t.Fatalf("Marshal params: %v", err)
+	}
+	payload, err := api.HandleMessage("agents.killMany", params)
+	if err != nil {
+		t.Fatalf("HandleMessage: %v", err)
+	}
+
+	var result struct {
+		Status   string            `json:"status"`
+		Killed   int               `json:"killed"`
+		Failures map[string]string `json:"failures"`
+	}
+	if err := json.Unmarshal(payload, &result); err != nil {
+		t.Fatalf("Unmarshal result: %v", err)
+	}
+	if result.Killed != 1 || len(result.Failures) != 0 {
+		t.Fatalf("unexpected result: %#v", result)
+	}
+	updated, err := api.Vault.GetAgent(agent.ID)
+	if err != nil {
+		t.Fatalf("GetAgent: %v", err)
+	}
+	if updated.Status != "interrupted" {
+		t.Fatalf("status = %q, want interrupted", updated.Status)
+	}
+}
+
 func TestAgentControlsRejectUnsafeAgentID(t *testing.T) {
 	api := newBulkAgentAPI(t)
 
