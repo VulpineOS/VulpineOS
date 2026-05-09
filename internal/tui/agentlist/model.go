@@ -64,7 +64,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		// Update tokens if provided.
 		for i := range m.agents {
 			if m.agents[i].ID == msg.AgentID {
-				m.agents[i].Tokens = msg.Tokens
+				if msg.Tokens > 0 {
+					m.agents[i].Tokens = msg.Tokens
+				}
 			}
 		}
 	case shared.AgentCreatedMsg:

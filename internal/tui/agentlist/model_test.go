@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"vulpineos/internal/tui/shared"
 	"vulpineos/internal/vault"
 )
 
@@ -41,5 +42,21 @@ func TestViewBudgetsUnreadBadgeWidth(t *testing.T) {
 	}
 	if got := lipgloss.Width(lines[1]); got > m.width {
 		t.Fatalf("agent row width = %d, want <= %d: %q", got, m.width, lines[1])
+	}
+}
+
+func TestStatusEventWithoutTokensPreservesExistingCount(t *testing.T) {
+	m := New()
+	m.SetAgents([]vault.Agent{{
+		ID:          "agent-1",
+		Name:        "Agent",
+		Status:      "active",
+		TotalTokens: 42,
+	}})
+
+	updated, _ := m.Update(shared.AgentStatusMsg{AgentID: "agent-1", Status: "paused", Tokens: 0})
+
+	if got := updated.agents[0].Tokens; got != 42 {
+		t.Fatalf("tokens = %d, want preserved 42", got)
 	}
 }
