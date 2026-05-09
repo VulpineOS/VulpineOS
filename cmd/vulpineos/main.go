@@ -1124,6 +1124,16 @@ func wireServerBrowserEvents(client *juggler.Client, contexts *remote.ContextReg
 						contexts.Detached(payload.SessionID)
 					}
 				}
+			case "Page.frameAttached":
+				var payload struct {
+					FrameID       string `json:"frameId"`
+					ParentFrameID string `json:"parentFrameId"`
+				}
+				if contexts != nil {
+					if err := json.Unmarshal(params, &payload); err == nil {
+						contexts.FrameAttached(sessionID, payload.FrameID, payload.ParentFrameID)
+					}
+				}
 			case "Page.browserProbeDetected":
 				var payload juggler.BrowserProbe
 				if err := json.Unmarshal(params, &payload); err == nil {

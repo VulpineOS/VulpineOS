@@ -18,6 +18,7 @@ type ContextRegistry struct {
 	mu               sync.RWMutex
 	contexts         map[string]*ContextInfo
 	sessionToContext map[string]string
+	sessionMainFrame map[string]string
 }
 
 // NewContextRegistry creates an empty context registry.
@@ -25,6 +26,7 @@ func NewContextRegistry() *ContextRegistry {
 	return &ContextRegistry{
 		contexts:         make(map[string]*ContextInfo),
 		sessionToContext: make(map[string]string),
+		sessionMainFrame: make(map[string]string),
 	}
 }
 
@@ -51,6 +53,7 @@ func (r *ContextRegistry) Removed(contextID string) {
 	for sessionID, mapped := range r.sessionToContext {
 		if mapped == contextID {
 			delete(r.sessionToContext, sessionID)
+			delete(r.sessionMainFrame, sessionID)
 		}
 	}
 }
@@ -86,6 +89,19 @@ func (r *ContextRegistry) Attached(sessionID, contextID, url string) {
 	r.sessionToContext[sessionID] = contextID
 }
 
+// FrameAttached records a page's main frame for a tracked session.
+func (r *ContextRegistry) FrameAttached(sessionID, frameID, parentFrameID string) {
+	if sessionID == "" || frameID == "" || parentFrameID != "" {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.sessionToContext[sessionID]; !ok {
+		return
+	}
+	r.sessionMainFrame[sessionID] = frameID
+}
+
 // Detached removes an attached session from its context page count.
 func (r *ContextRegistry) Detached(sessionID string) {
 	if sessionID == "" {
@@ -102,6 +118,7 @@ func (r *ContextRegistry) Detached(sessionID string) {
 		ctx.Pages--
 	}
 	delete(r.sessionToContext, sessionID)
+	delete(r.sessionMainFrame, sessionID)
 }
 
 // List returns a stable snapshot of tracked contexts.
@@ -137,4 +154,20 @@ func (r *ContextRegistry) SessionForContext(contextID string) string {
 		}
 	}
 	return ""
+}
+
+// SessionFrameForContext returns an attached session and known main frame for a context.
+func (r *ContextRegistry) SessionFrameForContext(contextID string) (string, string) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	for sessionID, mapped := range r.sessionToContext {
+		if mapped != contextID {
+			continue
+		}
+		if frameID := r.sessionMainFrame[sessionID]; frameID != "" {
+			return sessionID, frameID
+		}
+	}
+	return "", ""
 }

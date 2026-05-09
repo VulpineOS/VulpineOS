@@ -159,8 +159,8 @@ func (api *PanelAPI) ensureScriptSession(contextID string) (string, string, stri
 			}
 		}
 		if contextID != "" {
-			if sessionID := api.Contexts.SessionForContext(contextID); sessionID != "" {
-				return contextID, sessionID, "", nil
+			if sessionID, frameID := api.Contexts.SessionFrameForContext(contextID); sessionID != "" && frameID != "" {
+				return contextID, sessionID, frameID, nil
 			}
 		}
 	}
@@ -199,6 +199,9 @@ func (api *PanelAPI) ensureScriptSession(contextID string) (string, string, stri
 				ParentFrameID string `json:"parentFrameId"`
 			}
 			if err := json.Unmarshal(params, &ev); err == nil && ev.FrameID != "" && ev.ParentFrameID == "" {
+				if api.Contexts != nil {
+					api.Contexts.FrameAttached(sessionID, ev.FrameID, ev.ParentFrameID)
+				}
 				select {
 				case frameCh <- sessionFrame{SessionID: sessionID, FrameID: ev.FrameID}:
 				default:
@@ -223,28 +226,16 @@ func (api *PanelAPI) ensureScriptSession(contextID string) (string, string, stri
 	return contextID, sessionID, frameID, nil
 }
 
-func (api *PanelAPI) waitForContextSession(contextID string, sessionCh <-chan string, timeout time.Duration) (string, error) {
-	if api.Contexts != nil {
-		if sessionID := api.Contexts.SessionForContext(contextID); sessionID != "" {
-			return sessionID, nil
-		}
-	}
-
+func (api *PanelAPI) waitForContextSession(_ string, sessionCh <-chan string, timeout time.Duration) (string, error) {
 	deadline := time.NewTimer(timeout)
 	defer deadline.Stop()
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
 
 	for {
-		if api.Contexts != nil {
-			if sessionID := api.Contexts.SessionForContext(contextID); sessionID != "" {
-				return sessionID, nil
-			}
-		}
 		select {
 		case sessionID := <-sessionCh:
-			return sessionID, nil
-		case <-ticker.C:
+			if sessionID != "" {
+				return sessionID, nil
+			}
 		case <-deadline.C:
 			return "", fmt.Errorf("timed out waiting for page session")
 		}

@@ -58,3 +58,21 @@ func TestContextRegistryCountsSessionRemapToNewContext(t *testing.T) {
 		t.Fatalf("ctx-2 pages = %d, want 1", counts["ctx-2"])
 	}
 }
+
+func TestContextRegistryTracksMainFrameForSession(t *testing.T) {
+	reg := NewContextRegistry()
+	reg.Attached("sess-1", "ctx-1", "https://example.com")
+	reg.FrameAttached("sess-1", "child-frame", "parent-frame")
+	reg.FrameAttached("sess-1", "main-frame", "")
+
+	sessionID, frameID := reg.SessionFrameForContext("ctx-1")
+	if sessionID != "sess-1" || frameID != "main-frame" {
+		t.Fatalf("session/frame = %q/%q, want sess-1/main-frame", sessionID, frameID)
+	}
+
+	reg.Detached("sess-1")
+	sessionID, frameID = reg.SessionFrameForContext("ctx-1")
+	if sessionID != "" || frameID != "" {
+		t.Fatalf("detached session/frame = %q/%q, want empty", sessionID, frameID)
+	}
+}

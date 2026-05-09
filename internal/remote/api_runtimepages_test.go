@@ -151,6 +151,50 @@ func TestScriptsRunExecutesScriptAgainstRealSession(t *testing.T) {
 	}
 }
 
+func TestScriptsRunCreatesPageWhenContextSessionHasNoFrame(t *testing.T) {
+	transport := newRuntimePageTransport()
+	client := juggler.NewClient(transport)
+	defer client.Close()
+
+	registry := NewContextRegistry()
+	registry.Created("ctx-1")
+	registry.Attached("sess-existing", "ctx-1", "https://example.com/existing")
+	api := &PanelAPI{
+		Client:   client,
+		Contexts: registry,
+		Config:   &config.Config{},
+	}
+
+	params := json.RawMessage(`{"contextId":"ctx-1","script":"{\"steps\":[{\"action\":\"navigate\",\"target\":\"https://example.com\"}]}"}`)
+	if _, err := api.HandleMessage("scripts.run", params); err != nil {
+		t.Fatalf("HandleMessage scripts.run: %v", err)
+	}
+
+	calls := transport.getCalls()
+	var sawNewPage bool
+	var navigateFrameID string
+	for _, call := range calls {
+		switch call.Method {
+		case "Browser.newPage":
+			sawNewPage = true
+		case "Page.navigate":
+			var payload struct {
+				FrameID string `json:"frameId"`
+			}
+			if err := json.Unmarshal(call.Params, &payload); err != nil {
+				t.Fatalf("unmarshal navigate params: %v", err)
+			}
+			navigateFrameID = payload.FrameID
+		}
+	}
+	if !sawNewPage {
+		t.Fatalf("expected new page when existing session has no frame, calls: %+v", calls)
+	}
+	if navigateFrameID != "frame-1" {
+		t.Fatalf("navigate frameId = %q, want frame-1; calls: %+v", navigateFrameID, calls)
+	}
+}
+
 func TestWaitForSessionFrameIgnoresOtherSessions(t *testing.T) {
 	api := &PanelAPI{}
 	frameCh := make(chan sessionFrame, 2)
