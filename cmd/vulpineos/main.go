@@ -1078,6 +1078,80 @@ func runRemote(addr string, apiKey string) error {
 	return err
 }
 
+type serverEventBroadcaster func(method, sessionID string, params json.RawMessage)
+
+var serverForwardedBrowserEvents = []string{
+	"Browser.telemetryUpdate",
+	"Browser.injectionAttemptDetected",
+	"Browser.trustWarmingStateChanged",
+	"Browser.attachedToTarget",
+	"Browser.detachedFromTarget",
+	"Page.browserProbeDetected",
+	"Page.navigationCommitted",
+	"Page.eventFired",
+	"Page.frameAttached",
+	"Runtime.executionContextCreated",
+	"Runtime.executionContextDestroyed",
+}
+
+func wireServerBrowserEvents(client *juggler.Client, contexts *remote.ContextRegistry, broadcast serverEventBroadcaster) {
+	if client == nil {
+		return
+	}
+	for _, event := range serverForwardedBrowserEvents {
+		evt := event
+		client.Subscribe(evt, func(sessionID string, params json.RawMessage) {
+			switch evt {
+			case "Browser.attachedToTarget":
+				var payload struct {
+					SessionID  string `json:"sessionId"`
+					TargetInfo struct {
+						BrowserContextID string `json:"browserContextId"`
+						URL              string `json:"url"`
+					} `json:"targetInfo"`
+				}
+				if contexts != nil {
+					if err := json.Unmarshal(params, &payload); err == nil {
+						contexts.Attached(payload.SessionID, payload.TargetInfo.BrowserContextID, payload.TargetInfo.URL)
+					}
+				}
+			case "Browser.detachedFromTarget":
+				var payload struct {
+					SessionID string `json:"sessionId"`
+				}
+				if contexts != nil {
+					if err := json.Unmarshal(params, &payload); err == nil {
+						contexts.Detached(payload.SessionID)
+					}
+				}
+			case "Page.browserProbeDetected":
+				var payload juggler.BrowserProbe
+				if err := json.Unmarshal(params, &payload); err == nil {
+					_ = sentinelcapture.RecordBrowserProbe(context.Background(), sessionID, payload)
+				}
+			case "Browser.trustWarmingStateChanged":
+				var payload juggler.TrustWarmingState
+				if err := json.Unmarshal(params, &payload); err == nil {
+					_ = sentinelcapture.RecordTrustActivity(context.Background(), payload)
+				}
+			}
+			if broadcast != nil {
+				broadcast(evt, sessionID, params)
+			}
+		})
+	}
+}
+
+func replayServerBrowserTargets(client *juggler.Client) error {
+	if client == nil {
+		return nil
+	}
+	_, err := client.Call("", "Browser.enable", map[string]interface{}{
+		"attachToDefaultContext": true,
+	})
+	return err
+}
+
 // runServe starts the kernel and exposes it via WebSocket server.
 func runServe(binaryPath string, headless bool, profileDir string, host string, port int, apiKey string, tlsCert, tlsKey string, noTLS bool, noBrowser bool, openPanel bool) error {
 	apiKey, generatedKey, err := ensureAccessKey(apiKey)
@@ -1272,55 +1346,12 @@ func runServe(binaryPath string, headless bool, profileDir string, host string, 
 	}
 	server.SetPanelAPI(panelAPI)
 
-	// Forward telemetry events to connected clients
+	// Forward telemetry events to connected clients and seed the server-side
+	// context registry after subscriptions are live.
 	if client != nil {
-		for _, event := range []string{
-			"Browser.telemetryUpdate",
-			"Browser.injectionAttemptDetected",
-			"Browser.trustWarmingStateChanged",
-			"Browser.attachedToTarget",
-			"Browser.detachedFromTarget",
-			"Page.browserProbeDetected",
-			"Page.navigationCommitted",
-			"Page.eventFired",
-			"Page.frameAttached",
-			"Runtime.executionContextCreated",
-			"Runtime.executionContextDestroyed",
-		} {
-			evt := event
-			client.Subscribe(evt, func(sessionID string, params json.RawMessage) {
-				switch evt {
-				case "Browser.attachedToTarget":
-					var payload struct {
-						SessionID  string `json:"sessionId"`
-						TargetInfo struct {
-							BrowserContextID string `json:"browserContextId"`
-							URL              string `json:"url"`
-						} `json:"targetInfo"`
-					}
-					if err := json.Unmarshal(params, &payload); err == nil {
-						contexts.Attached(payload.SessionID, payload.TargetInfo.BrowserContextID, payload.TargetInfo.URL)
-					}
-				case "Browser.detachedFromTarget":
-					var payload struct {
-						SessionID string `json:"sessionId"`
-					}
-					if err := json.Unmarshal(params, &payload); err == nil {
-						contexts.Detached(payload.SessionID)
-					}
-				case "Page.browserProbeDetected":
-					var payload juggler.BrowserProbe
-					if err := json.Unmarshal(params, &payload); err == nil {
-						_ = sentinelcapture.RecordBrowserProbe(context.Background(), sessionID, payload)
-					}
-				case "Browser.trustWarmingStateChanged":
-					var payload juggler.TrustWarmingState
-					if err := json.Unmarshal(params, &payload); err == nil {
-						_ = sentinelcapture.RecordTrustActivity(context.Background(), payload)
-					}
-				}
-				server.BroadcastEvent(evt, sessionID, params)
-			})
+		wireServerBrowserEvents(client, contexts, server.BroadcastEvent)
+		if err := replayServerBrowserTargets(client); err != nil {
+			log.Printf("Warning: replay browser targets: %v", err)
 		}
 	}
 

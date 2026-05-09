@@ -2,12 +2,18 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"vulpineos/internal/juggler"
+	"vulpineos/internal/remote"
+	"vulpineos/internal/testutil"
 )
 
 var errStopAfterFlagParse = errors.New("stop after flag parse")
@@ -157,6 +163,45 @@ func TestStartLocalSessionLoggingWritesToFile(t *testing.T) {
 	}
 	if !strings.Contains(string(data), "startup log redirected") {
 		t.Fatalf("log file %q missing redirected message: %q", path, string(data))
+	}
+}
+
+func TestServerContextRegistryReplaysExistingTargetsAfterWiring(t *testing.T) {
+	transport := testutil.NewFakeJugglerTransport(t)
+	transport.RespondFunc("Browser.enable", func(msg *juggler.Message) (json.RawMessage, *juggler.Error) {
+		params := testutil.ParamsAs[struct {
+			AttachToDefaultContext bool `json:"attachToDefaultContext"`
+		}](t, msg.Params)
+		if params.AttachToDefaultContext {
+			transport.InjectEvent("", "Browser.attachedToTarget", map[string]any{
+				"sessionId": "session-1",
+				"targetInfo": map[string]any{
+					"browserContextId": "context-1",
+					"url":              "https://example.com",
+				},
+			})
+		}
+		return json.RawMessage(`{}`), nil
+	})
+	client := juggler.NewClient(transport)
+	t.Cleanup(func() { _ = client.Close() })
+
+	registry := remote.NewContextRegistry()
+	wireServerBrowserEvents(client, registry, func(method string, sessionID string, params json.RawMessage) {})
+	if err := replayServerBrowserTargets(client); err != nil {
+		t.Fatalf("replayServerBrowserTargets: %v", err)
+	}
+
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for {
+		contexts := registry.List()
+		if len(contexts) == 1 && contexts[0].ID == "context-1" && contexts[0].Pages == 1 && contexts[0].LastURL == "https://example.com" {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("registry contexts = %+v, want replayed context-1", contexts)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
 
