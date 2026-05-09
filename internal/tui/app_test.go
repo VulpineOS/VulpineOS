@@ -482,6 +482,32 @@ func TestResizeModeKeepsVerticalSplitsUsableAfterTerminalShrink(t *testing.T) {
 	}
 }
 
+func TestUpdatePanelSizesUsesInnerPanelWidthForConversation(t *testing.T) {
+	app := NewApp(nil, nil, nil, nil, nil, nil)
+	app.width = 120
+	app.height = 24
+	app.updatePanelSizes()
+
+	widths := resolveWorkbenchWidths(app.width, app.leftWidth, app.rightWidth)
+	wantInputWidth := widths.center - 6
+	if got := app.conversation.TextInput().Width; got != wantInputWidth {
+		t.Fatalf("conversation input width = %d, want %d from inner panel width", got, wantInputWidth)
+	}
+}
+
+func TestCompactWorkbenchPersistsInnerPanelWidthForConversation(t *testing.T) {
+	app := NewApp(nil, nil, nil, nil, nil, nil)
+	app.width = 40
+	app.height = 10
+	app.focus = FocusConversation
+	app.updatePanelSizes()
+
+	wantInputWidth := app.width - 10
+	if got := app.conversation.TextInput().Width; got != wantInputWidth {
+		t.Fatalf("compact conversation input width = %d, want %d from compact inner width", got, wantInputWidth)
+	}
+}
+
 func TestReplayBrowserTargetsRequestsEnableAfterTUISubscriptions(t *testing.T) {
 	transport := testutil.NewFakeJugglerTransport(t)
 	transport.RespondJSON("Browser.enable", map[string]any{})

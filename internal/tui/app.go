@@ -1582,6 +1582,34 @@ func clampVerticalSplit(split, bodyHeight int) int {
 	return split
 }
 
+func panelContentWidth(panelWidth int) int {
+	width := panelWidth - 2
+	if width < 1 {
+		return 1
+	}
+	return width
+}
+
+func compactPanelWidth(terminalWidth int) int {
+	width := terminalWidth - 4
+	if width < 1 {
+		return max(1, terminalWidth)
+	}
+	return width
+}
+
+func compactContentHeight(terminalHeight int) int {
+	bodyHeight := terminalHeight - 1
+	if bodyHeight < 1 {
+		return 1
+	}
+	contentHeight := bodyHeight - 2
+	if contentHeight < 1 {
+		return 1
+	}
+	return contentHeight
+}
+
 type workbenchWidths struct {
 	left   int
 	center int
@@ -1725,14 +1753,9 @@ func (a App) renderCompactWorkbench() string {
 	if bodyHeight < 1 {
 		return fitTerminalLine(a.renderStatusBar(), a.width)
 	}
-	contentWidth := a.width - 4
-	if contentWidth < 1 {
-		contentWidth = max(1, a.width)
-	}
-	contentHeight := bodyHeight - 2
-	if contentHeight < 1 {
-		contentHeight = 1
-	}
+	panelWidth := compactPanelWidth(a.width)
+	contentWidth := panelContentWidth(panelWidth)
+	contentHeight := compactContentHeight(a.height)
 
 	var content string
 	panel := a.focus
@@ -1763,7 +1786,7 @@ func (a App) renderCompactWorkbench() string {
 	if len(contentLines) > contentHeight {
 		content = strings.Join(contentLines[:contentHeight], "\n")
 	}
-	body := a.renderFocusPanel(panel, content, contentWidth, contentHeight)
+	body := a.renderFocusPanel(panel, content, panelWidth, contentHeight)
 	statusBar := fitTerminalLine(a.renderStatusBar(), a.width)
 	if a.notice != "" {
 		statusBar = fitTerminalLine(shared.WarmingStyle.Render("  "+a.notice), a.width)
@@ -1886,6 +1909,21 @@ func (a *App) updatePanelSizes() {
 	rightWidth := widths.right
 	bodyHeight := a.height - 2
 
+	if a.useCompactWorkbench(widths, bodyHeight) {
+		contentWidth := panelContentWidth(compactPanelWidth(a.width))
+		contentHeight := compactContentHeight(a.height)
+		a.agentList.SetWidth(contentWidth)
+		a.agentList.SetHeight(contentHeight)
+		a.agentDetail.SetSize(contentWidth, contentHeight)
+		a.conversation.SetSize(contentWidth, contentHeight)
+		a.settings.SetSize(contentWidth, contentHeight)
+		a.contextList.SetWidth(contentWidth)
+		a.contextList.SetHeight(contentHeight)
+		a.nameInput.Width = max(10, contentWidth-4)
+		a.taskInput.Width = max(10, contentWidth-4)
+		return
+	}
+
 	// Center is full-height conversation (minus panel border)
 	convHeight := bodyHeight - 2
 	if convHeight < minSplit {
@@ -1916,18 +1954,22 @@ func (a *App) updatePanelSizes() {
 		rightTop = 3
 	}
 
-	a.systemInfo.SetWidth(leftWidth)
+	leftContentWidth := panelContentWidth(leftWidth)
+	centerContentWidth := panelContentWidth(centerWidth)
+	rightContentWidth := panelContentWidth(rightWidth)
+
+	a.systemInfo.SetWidth(leftContentWidth)
 	a.systemInfo.SetHeight(leftTop)
-	a.agentList.SetWidth(leftWidth)
+	a.agentList.SetWidth(leftContentWidth)
 	a.agentList.SetHeight(leftBottom)
-	a.agentDetail.SetSize(rightWidth, rightTop)
-	a.conversation.SetSize(centerWidth, convHeight)
-	a.settings.SetSize(centerWidth, bodyHeight)
-	a.contextList.SetWidth(rightWidth)
+	a.agentDetail.SetSize(rightContentWidth, rightTop)
+	a.conversation.SetSize(centerContentWidth, convHeight)
+	a.settings.SetSize(centerContentWidth, bodyHeight)
+	a.contextList.SetWidth(rightContentWidth)
 	a.contextList.SetHeight(rightBottom)
 
 	// Update text input widths to fit center panel
-	inputWidth := centerWidth - 6
+	inputWidth := centerContentWidth - 6
 	if inputWidth < 10 {
 		inputWidth = 10
 	}
