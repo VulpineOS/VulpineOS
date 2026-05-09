@@ -456,6 +456,32 @@ func TestStatusBarShowsResizeModeWhenEnabled(t *testing.T) {
 	}
 }
 
+func TestResizeModeKeepsVerticalSplitsUsableAfterTerminalShrink(t *testing.T) {
+	cfg := &config.Config{ResizePanelsWithArrows: true}
+	app := NewApp(nil, nil, nil, nil, cfg, nil)
+	app.width = 80
+	app.height = 16
+	app.focus = FocusAgentList
+	app.leftSplit = 30
+	app.rightSplit = 30
+
+	app.updatePanelSizes()
+
+	if app.leftSplit >= 30 {
+		t.Fatalf("left split was not clamped after shrink: %d", app.leftSplit)
+	}
+	if app.rightSplit >= 30 {
+		t.Fatalf("right split was not clamped after shrink: %d", app.rightSplit)
+	}
+	clampedLeft := app.leftSplit
+	model, _ := app.Update(tea.KeyMsg{Type: tea.KeyUp})
+	app = model.(App)
+
+	if app.leftSplit != clampedLeft-1 {
+		t.Fatalf("up arrow leftSplit = %d, want %d after clamp", app.leftSplit, clampedLeft-1)
+	}
+}
+
 func TestReplayBrowserTargetsRequestsEnableAfterTUISubscriptions(t *testing.T) {
 	transport := testutil.NewFakeJugglerTransport(t)
 	transport.RespondJSON("Browser.enable", map[string]any{})

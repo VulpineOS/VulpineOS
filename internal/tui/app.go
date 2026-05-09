@@ -1567,6 +1567,21 @@ const (
 	workbenchPanelCount   = 3
 )
 
+func clampVerticalSplit(split, bodyHeight int) int {
+	const minPanelHeight = 3
+	maxTop := bodyHeight - minPanelHeight - 4
+	if maxTop < minPanelHeight {
+		return minPanelHeight
+	}
+	if split < minPanelHeight {
+		return minPanelHeight
+	}
+	if split > maxTop {
+		return maxTop
+	}
+	return split
+}
+
 type workbenchWidths struct {
 	left   int
 	center int
@@ -1878,6 +1893,7 @@ func (a *App) updatePanelSizes() {
 	}
 
 	// Left column splits
+	a.leftSplit = clampVerticalSplit(a.leftSplit, bodyHeight)
 	leftTop := a.leftSplit
 	leftBottom := bodyHeight - leftTop - 4
 	if leftBottom < 3 {
@@ -1889,6 +1905,7 @@ func (a *App) updatePanelSizes() {
 	}
 
 	// Right column splits
+	a.rightSplit = clampVerticalSplit(a.rightSplit, bodyHeight)
 	rightTop := a.rightSplit
 	rightBottom := bodyHeight - rightTop - 4
 	if rightBottom < 3 {
