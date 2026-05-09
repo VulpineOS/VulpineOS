@@ -293,7 +293,7 @@ func (m Model) View() string {
 	b.WriteString(shared.TitleStyle.Render("SETTINGS"))
 	b.WriteString("\n\n")
 
-	if m.height > 0 && m.height <= 14 {
+	if m.height > 0 && m.height <= 18 {
 		switch m.section {
 		case SectionGeneral:
 			b.WriteString(m.viewGeneral())

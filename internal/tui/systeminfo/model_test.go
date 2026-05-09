@@ -54,3 +54,27 @@ func TestViewFitsRuntimeEventsToWidth(t *testing.T) {
 		}
 	}
 }
+
+func TestDefaultHeightShowsPoolAndContextStats(t *testing.T) {
+	model := New()
+	model.SetHeight(13)
+
+	updated, _ := model.Update(shared.KernelStatusMsg{
+		Running:       true,
+		PID:           1234,
+		Uptime:        2 * time.Minute,
+		Headless:      false,
+		BrowserRoute:  "CAMOUFOX",
+		BrowserWindow: "VISIBLE",
+	})
+	updated, _ = updated.Update(shared.PoolStatsMsg{Available: 3, Active: 2, Total: 5})
+	updated, _ = updated.Update(shared.TelemetryMsg{ActiveContexts: 4, ActivePages: 7})
+
+	view := updated.View()
+	if !strings.Contains(view, "Pool: 3/2/5") {
+		t.Fatalf("default-height system panel missing pool stats:\n%s", view)
+	}
+	if !strings.Contains(view, "Ctx: 4 Pg: 7") {
+		t.Fatalf("default-height system panel missing context stats:\n%s", view)
+	}
+}

@@ -40,10 +40,10 @@ func TestConstrainedHeightShowsFocusedSection(t *testing.T) {
 	}
 }
 
-func TestFourteenLineHeightShowsFocusedSection(t *testing.T) {
+func TestMidHeightShowsFocusedSection(t *testing.T) {
 	m := New()
 	m.SetActive(true)
-	m.SetSize(36, 14)
+	m.SetSize(36, 16)
 
 	var cmd tea.Cmd
 	m, cmd = m.Update(tea.KeyMsg{Type: tea.KeyTab})
@@ -61,13 +61,13 @@ func TestFourteenLineHeightShowsFocusedSection(t *testing.T) {
 
 	view := m.View()
 	if !strings.Contains(view, "Skills") {
-		t.Fatalf("14-line settings view did not show focused section:\n%s", view)
+		t.Fatalf("mid-height settings view did not show focused section:\n%s", view)
 	}
 	if strings.Contains(view, "General") && strings.Index(view, "General") < strings.Index(view, "Skills") {
-		t.Fatalf("14-line settings view kept earlier sections above focused section:\n%s", view)
+		t.Fatalf("mid-height settings view kept earlier sections above focused section:\n%s", view)
 	}
-	if lines := strings.Split(view, "\n"); len(lines) > 14 {
-		t.Fatalf("14-line settings view height = %d, want <= 14:\n%s", len(lines), view)
+	if lines := strings.Split(view, "\n"); len(lines) > 16 {
+		t.Fatalf("mid-height settings view height = %d, want <= 16:\n%s", len(lines), view)
 	}
 }
 
