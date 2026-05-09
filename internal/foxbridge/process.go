@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"time"
 
 	"vulpineos/internal/juggler"
@@ -17,8 +18,10 @@ import (
 // Process manages the foxbridge CDP-to-Juggler proxy process.
 // Supports two modes: external subprocess (Start) or embedded in-process (StartEmbeddedMode).
 type Process struct {
+	mu       sync.Mutex
 	cmd      *exec.Cmd
 	logFile  *os.File
+	waitDone chan struct{}
 	port     int
 	binary   string
 	embedded *EmbeddedServer // non-nil when running in embedded mode
@@ -47,9 +50,12 @@ func (p *Process) SetRuntimeAudit(audit *runtimeaudit.Manager) {
 
 // Start launches foxbridge, which in turn launches Camoufox with Juggler pipe.
 func (p *Process) Start(cfg Config) error {
-	if p.cmd != nil {
+	p.mu.Lock()
+	if p.cmd != nil || p.embedded != nil {
+		p.mu.Unlock()
 		return nil // already running
 	}
+	p.mu.Unlock()
 
 	bin := findFoxbridge()
 	if bin == "" {
@@ -57,13 +63,17 @@ func (p *Process) Start(cfg Config) error {
 		p.logRuntimeEvent("error", "start_failed", "foxbridge binary not found", nil)
 		return err
 	}
+	p.mu.Lock()
 	p.binary = bin
+	p.mu.Unlock()
 
 	port := cfg.Port
 	if port == 0 {
 		port = 9222
 	}
+	p.mu.Lock()
 	p.port = port
+	p.mu.Unlock()
 
 	args := []string{
 		"--port", fmt.Sprintf("%d", port),
@@ -99,8 +109,13 @@ func (p *Process) Start(cfg Config) error {
 		return fmt.Errorf("start foxbridge: %w", err)
 	}
 
+	waitDone := make(chan struct{})
+	p.mu.Lock()
 	p.cmd = cmd
 	p.logFile = logFile
+	p.waitDone = waitDone
+	p.mu.Unlock()
+	go p.waitExternal(cmd, logFile, waitDone)
 
 	log.Printf("foxbridge started (PID %d, port %d), log: %s", cmd.Process.Pid, port, logPath)
 
@@ -123,12 +138,42 @@ func (p *Process) Start(cfg Config) error {
 	return nil
 }
 
+func (p *Process) waitExternal(cmd *exec.Cmd, logFile *os.File, done chan struct{}) {
+	err := cmd.Wait()
+
+	p.mu.Lock()
+	current := p.cmd == cmd
+	if current {
+		p.cmd = nil
+		p.logFile = nil
+		p.waitDone = nil
+	}
+	port := p.port
+	p.mu.Unlock()
+
+	if logFile != nil {
+		_ = logFile.Close()
+	}
+	close(done)
+
+	if current && err != nil {
+		p.logRuntimeEvent("warn", "exited", "foxbridge external proxy exited", map[string]string{
+			"error": err.Error(),
+			"mode":  "external",
+			"port":  fmt.Sprintf("%d", port),
+		})
+	}
+}
+
 // StartEmbeddedMode starts foxbridge as an in-process CDP server wrapping an existing Juggler client.
 // This avoids launching a second Firefox process — the CDP server shares the kernel's connection.
 func (p *Process) StartEmbeddedMode(client *juggler.Client, port int) error {
+	p.mu.Lock()
 	if p.cmd != nil || p.embedded != nil {
+		p.mu.Unlock()
 		return nil // already running
 	}
+	p.mu.Unlock()
 	if port == 0 {
 		port = 9222
 	}
@@ -140,7 +185,9 @@ func (p *Process) StartEmbeddedMode(client *juggler.Client, port int) error {
 		})
 		return fmt.Errorf("embedded foxbridge port unavailable: %w", err)
 	}
+	p.mu.Lock()
 	p.port = port
+	p.mu.Unlock()
 
 	es, err := StartEmbedded(client, port)
 	if err != nil {
@@ -150,12 +197,16 @@ func (p *Process) StartEmbeddedMode(client *juggler.Client, port int) error {
 		})
 		return fmt.Errorf("start embedded foxbridge: %w", err)
 	}
+	p.mu.Lock()
 	p.embedded = es
+	p.mu.Unlock()
 
 	// Wait briefly for the HTTP server to bind.
 	if err := waitForProcessPort(port, 5*time.Second); err != nil {
 		es.Stop()
+		p.mu.Lock()
 		p.embedded = nil
+		p.mu.Unlock()
 		p.logRuntimeEvent("error", "start_failed", "embedded foxbridge port not ready", map[string]string{
 			"error": err.Error(),
 			"mode":  "embedded",
@@ -174,51 +225,67 @@ func (p *Process) StartEmbeddedMode(client *juggler.Client, port int) error {
 
 // Stop kills the foxbridge process or stops the embedded server.
 func (p *Process) Stop() {
-	if p.embedded != nil {
-		p.embedded.Stop()
-		p.embedded = nil
+	p.mu.Lock()
+	embedded := p.embedded
+	cmd := p.cmd
+	waitDone := p.waitDone
+	port := p.port
+	p.mu.Unlock()
+
+	if embedded != nil {
+		embedded.Stop()
+		p.mu.Lock()
+		if p.embedded == embedded {
+			p.embedded = nil
+		}
+		p.mu.Unlock()
 		p.logRuntimeEvent("info", "stopped", "foxbridge embedded proxy stopped", map[string]string{
 			"mode": "embedded",
-			"port": fmt.Sprintf("%d", p.port),
+			"port": fmt.Sprintf("%d", port),
 		})
 		return
 	}
-	if p.cmd != nil && p.cmd.Process != nil {
-		p.cmd.Process.Kill()
-		p.cmd.Wait()
-		p.cmd = nil
-		if p.logFile != nil {
-			_ = p.logFile.Close()
-			p.logFile = nil
+	if cmd != nil && cmd.Process != nil {
+		_ = cmd.Process.Kill()
+		if waitDone != nil {
+			<-waitDone
 		}
 		log.Println("foxbridge stopped")
 		p.logRuntimeEvent("info", "stopped", "foxbridge external proxy stopped", map[string]string{
 			"mode": "external",
-			"port": fmt.Sprintf("%d", p.port),
+			"port": fmt.Sprintf("%d", port),
 		})
 	}
 }
 
 // Running returns true if foxbridge is alive.
 func (p *Process) Running() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	if p.embedded != nil {
 		return true
 	}
-	return p.cmd != nil && p.cmd.ProcessState == nil
+	return p.cmd != nil
 }
 
 // CDPURL returns the CDP WebSocket URL for connecting clients.
 func (p *Process) CDPURL() string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	return fmt.Sprintf("ws://127.0.0.1:%d", p.port)
 }
 
 // Port returns the CDP port.
 func (p *Process) Port() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	return p.port
 }
 
 // PID returns the process ID.
 func (p *Process) PID() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	if p.cmd != nil && p.cmd.Process != nil {
 		return p.cmd.Process.Pid
 	}

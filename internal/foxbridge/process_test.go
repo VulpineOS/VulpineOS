@@ -63,6 +63,53 @@ func TestStartExternalFailureDoesNotBlockRetry(t *testing.T) {
 	}
 }
 
+func TestStartExternalReapsExitedProcess(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell-script test binary is unix-specific")
+	}
+
+	dir := t.TempDir()
+	t.Chdir(dir)
+	foxbridgePath := filepath.Join(dir, "foxbridge")
+	if err := os.WriteFile(foxbridgePath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatalf("write foxbridge: %v", err)
+	}
+	if err := os.Chmod(foxbridgePath, 0o755); err != nil {
+		t.Fatalf("chmod foxbridge: %v", err)
+	}
+
+	originalWait := waitForProcessPort
+	waitForProcessPort = func(int, time.Duration) error {
+		return nil
+	}
+	t.Cleanup(func() { waitForProcessPort = originalWait })
+
+	process := New()
+	if err := process.Start(Config{}); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if !process.Running() {
+			process.mu.Lock()
+			cmd := process.cmd
+			logFile := process.logFile
+			process.mu.Unlock()
+			if cmd != nil {
+				t.Fatal("exited foxbridge command was not cleared")
+			}
+			if logFile != nil {
+				t.Fatal("exited foxbridge log file was not cleared")
+			}
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	process.Stop()
+	t.Fatal("foxbridge still reported running after subprocess exited")
+}
+
 func TestStartEmbeddedModeStopsServerWhenReadinessFails(t *testing.T) {
 	port, err := reservePort()
 	if err != nil {
