@@ -47,3 +47,23 @@ func TestTraceOnlyShowsPlaceholderWhenEmpty(t *testing.T) {
 		t.Fatalf("expected empty trace placeholder, got:\n%s", view)
 	}
 }
+
+func TestSetSizeRewrapsRenderedEntries(t *testing.T) {
+	m := New()
+	m.SetSize(80, 20)
+	m.SetAgentID("agent-1")
+	m.AddEntry("assistant", strings.Repeat("wrapped words ", 12))
+
+	wideLineCount := len(m.entries[0].renderedLines)
+	m.SetSize(24, 20)
+
+	narrowLineCount := len(m.entries[0].renderedLines)
+	if narrowLineCount <= wideLineCount {
+		t.Fatalf("narrow line count = %d, want more than wide count %d", narrowLineCount, wideLineCount)
+	}
+	for _, line := range m.entries[0].renderedLines {
+		if got := ansiVisualWidth(line); got > 16 {
+			t.Fatalf("line width = %d, want <= 16 after resize: %q", got, line)
+		}
+	}
+}

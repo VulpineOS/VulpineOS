@@ -141,11 +141,19 @@ func New() Model {
 
 // SetSize sets the render dimensions.
 func (m *Model) SetSize(w, h int) {
+	oldContentWidth := m.contentWidth()
 	m.width = w
 	m.height = h
 	m.textInput.Width = w - 4
 	if m.textInput.Width < 10 {
 		m.textInput.Width = 10
+	}
+	if newContentWidth := m.contentWidth(); newContentWidth != oldContentWidth {
+		m.rewrapEntries(newContentWidth)
+	}
+	m.clampScroll()
+	if m.autoScroll {
+		m.scrollToBottom()
 	}
 }
 
@@ -256,10 +264,7 @@ func (m Model) AgentID() string {
 
 // LoadMessages loads conversation history from vault messages.
 func (m *Model) LoadMessages(msgs []vault.AgentMessage) {
-	maxWidth := m.width - 8
-	if maxWidth < 10 {
-		maxWidth = 10
-	}
+	maxWidth := m.contentWidth()
 	m.entries = make([]Entry, 0, len(msgs))
 	m.awake = false
 	for _, msg := range msgs {
@@ -277,10 +282,7 @@ func (m *Model) LoadMessages(msgs []vault.AgentMessage) {
 
 // AddEntry adds a new conversation entry.
 func (m *Model) AddEntry(role, content string) {
-	maxWidth := m.width - 8
-	if maxWidth < 10 {
-		maxWidth = 10
-	}
+	maxWidth := m.contentWidth()
 	m.entries = append(m.entries, Entry{
 		Role:          role,
 		Content:       content,
@@ -290,6 +292,20 @@ func (m *Model) AddEntry(role, content string) {
 		m.awake = true
 	}
 	m.scrollToBottom()
+}
+
+func (m Model) contentWidth() int {
+	maxWidth := m.width - 8
+	if maxWidth < 10 {
+		return 10
+	}
+	return maxWidth
+}
+
+func (m *Model) rewrapEntries(maxWidth int) {
+	for i := range m.entries {
+		m.entries[i].renderedLines = renderMarkdown(m.entries[i].Content, maxWidth)
+	}
 }
 
 // TextInput returns a pointer to the text input for external update.
@@ -431,6 +447,21 @@ func (m *Model) scrollToBottom() {
 	if total > visible {
 		m.scroll = total - visible
 	} else {
+		m.scroll = 0
+	}
+}
+
+func (m *Model) clampScroll() {
+	total := len(m.renderLines())
+	visible := m.visibleLines()
+	maxScroll := total - visible
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	if m.scroll > maxScroll {
+		m.scroll = maxScroll
+	}
+	if m.scroll < 0 {
 		m.scroll = 0
 	}
 }
