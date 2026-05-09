@@ -11,6 +11,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"vulpineos/internal/config"
+	"vulpineos/internal/juggler"
+	"vulpineos/internal/testutil"
 	"vulpineos/internal/tui/settings"
 	"vulpineos/internal/tui/shared"
 	"vulpineos/internal/vault"
@@ -338,6 +340,33 @@ func TestStatusBarShowsResizeModeWhenEnabled(t *testing.T) {
 
 	if !strings.Contains(app.renderStatusBar(), "mode:resize") {
 		t.Fatalf("status bar missing resize mode: %s", app.renderStatusBar())
+	}
+}
+
+func TestReplayBrowserTargetsRequestsEnableAfterTUISubscriptions(t *testing.T) {
+	transport := testutil.NewFakeJugglerTransport(t)
+	transport.RespondJSON("Browser.enable", map[string]any{})
+	client := juggler.NewClient(transport)
+	t.Cleanup(func() { _ = client.Close() })
+
+	app := NewApp(nil, client, nil, nil, nil, nil)
+	cmd := app.replayBrowserTargets()
+	if cmd == nil {
+		t.Fatal("replayBrowserTargets returned nil command")
+	}
+	if msg := cmd(); msg != nil {
+		t.Fatalf("replayBrowserTargets returned unexpected message: %#v", msg)
+	}
+
+	calls := transport.CallsByMethod("Browser.enable")
+	if len(calls) != 1 {
+		t.Fatalf("Browser.enable calls = %d, want 1", len(calls))
+	}
+	params := testutil.ParamsAs[struct {
+		AttachToDefaultContext bool `json:"attachToDefaultContext"`
+	}](t, calls[0].Params)
+	if !params.AttachToDefaultContext {
+		t.Fatalf("attachToDefaultContext = false, want true")
 	}
 }
 

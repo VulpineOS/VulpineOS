@@ -55,6 +55,15 @@ func (m Model) Init() tea.Cmd {
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case shared.TargetAttachedMsg:
+		for i := range m.items {
+			if m.items[i].SessionID == msg.SessionID || (msg.TargetID != "" && m.items[i].TargetID == msg.TargetID) {
+				m.items[i].SessionID = msg.SessionID
+				m.items[i].TargetID = msg.TargetID
+				m.items[i].ContextID = msg.ContextID
+				m.items[i].URL = msg.URL
+				return m, nil
+			}
+		}
 		m.items = append(m.items, ContextItem{
 			SessionID: msg.SessionID,
 			TargetID:  msg.TargetID,

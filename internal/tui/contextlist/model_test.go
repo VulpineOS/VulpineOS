@@ -39,3 +39,24 @@ func TestViewRedactsContextURL(t *testing.T) {
 		t.Fatalf("context view missing redacted URL: %q", view)
 	}
 }
+
+func TestContextListReplayedTargetAttachedUpsertsExistingTarget(t *testing.T) {
+	m := New()
+
+	msg := shared.TargetAttachedMsg{
+		SessionID: "session-1",
+		TargetID:  "target-1",
+		ContextID: "context-1",
+		URL:       "https://first.example",
+	}
+	m, _ = m.Update(msg)
+	msg.URL = "https://second.example"
+	m, _ = m.Update(msg)
+
+	if len(m.items) != 1 {
+		t.Fatalf("items = %d, want replayed target to update existing row", len(m.items))
+	}
+	if m.items[0].URL != "https://second.example" {
+		t.Fatalf("url = %q, want replayed URL", m.items[0].URL)
+	}
+}

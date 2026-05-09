@@ -378,7 +378,20 @@ func (a App) Init() tea.Cmd {
 	return tea.Batch(
 		a.waitForEvent(),
 		a.tick(),
+		a.replayBrowserTargets(),
 	)
+}
+
+func (a App) replayBrowserTargets() tea.Cmd {
+	if a.client == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		_, _ = a.client.Call("", "Browser.enable", map[string]interface{}{
+			"attachToDefaultContext": true,
+		})
+		return nil
+	}
 }
 
 func (a App) emitEvent(msg tea.Msg) {

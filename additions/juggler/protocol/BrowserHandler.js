@@ -32,8 +32,11 @@ export class BrowserHandler {
   }
 
   async ['Browser.enable']({attachToDefaultContext, userPrefs = []}) {
-    if (this._enabled)
+    if (this._enabled) {
+      for (const [target, session] of this._attachedSessions)
+        this._emitAttachedToTarget(target, session);
       return;
+    }
     await this._startCompletePromise;
     this._enabled = true;
     this._attachToDefaultContext = attachToDefaultContext;
@@ -118,13 +121,14 @@ export class BrowserHandler {
   _onTargetCreated(target) {
     if (!this._shouldAttachToTarget(target))
       return;
+    if (this._attachedSessions.has(target)) {
+      this._emitAttachedToTarget(target, this._attachedSessions.get(target));
+      return;
+    }
     const channel = target.channel();
     const session = this._dispatcher.createSession();
     this._attachedSessions.set(target, session);
-    this._session.emitEvent('Browser.attachedToTarget', {
-      sessionId: session.sessionId(),
-      targetInfo: target.info()
-    });
+    this._emitAttachedToTarget(target, session);
     session.setHandler(new PageHandler(target, session, channel));
 
     // Subscribe to browser-level request interception events for this target.
@@ -139,6 +143,13 @@ export class BrowserHandler {
       });
       this._targetInterceptionListeners.set(target, listener);
     }
+  }
+
+  _emitAttachedToTarget(target, session) {
+    this._session.emitEvent('Browser.attachedToTarget', {
+      sessionId: session.sessionId(),
+      targetInfo: target.info()
+    });
   }
 
   _onTargetDestroyed(target) {
