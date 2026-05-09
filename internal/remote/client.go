@@ -163,6 +163,8 @@ func (c *Client) Close() error {
 }
 
 func (c *Client) readLoop() {
+	defer c.cancel()
+	defer c.failPendingControlCalls(errors.New("remote websocket closed"))
 	defer close(c.recvCh)
 
 	for {
@@ -193,6 +195,16 @@ func (c *Client) readLoop() {
 		if !c.enqueueReceivedMessage(&msg) {
 			return
 		}
+	}
+}
+
+func (c *Client) failPendingControlCalls(err error) {
+	c.controlMu.Lock()
+	pending := c.controlPending
+	c.controlPending = make(map[int]chan controlResponse)
+	c.controlMu.Unlock()
+	for id, ch := range pending {
+		ch <- controlResponse{ID: id, Error: err.Error()}
 	}
 }
 

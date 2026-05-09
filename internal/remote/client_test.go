@@ -200,6 +200,42 @@ func TestClientEnqueueMessageReturnsAfterContextCancelWithFullBuffer(t *testing.
 	}
 }
 
+func TestClientControlCallReturnsPromptlyWhenReadLoopEnds(t *testing.T) {
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			t.Errorf("accept websocket: %v", err)
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		if _, _, err := conn.Read(ctx); err != nil {
+			t.Errorf("read websocket: %v", err)
+		}
+		_ = conn.Close(websocket.StatusNormalClosure, "closed by test")
+	}))
+	defer httpServer.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	wsURL := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+	client, err := Dial(ctx, wsURL, "")
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer client.Close()
+
+	start := time.Now()
+	err = client.ControlCall(ctx, "status.get", map[string]string{"scope": "tui"}, nil)
+	if err == nil {
+		t.Fatal("ControlCall returned nil error after websocket close")
+	}
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Fatalf("ControlCall took %s after websocket close, want prompt failure", elapsed)
+	}
+}
+
 func mustJSON(t *testing.T, value any) []byte {
 	t.Helper()
 	data, err := json.Marshal(value)
