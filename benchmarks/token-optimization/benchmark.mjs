@@ -1,5 +1,4 @@
 import fs from 'node:fs'
-import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { chromium } from 'playwright-core'
@@ -252,10 +251,10 @@ async function main() {
       vulpineOptimized: mean(results.map((result) => result.tokens.vulpineOptimized)),
     }
     const payload = {
-      generatedAt: new Date().toISOString(),
+      generatedAt: new Date().toISOString().slice(0, 10),
       system: {
-        platform: `${os.type()} ${os.release()} ${os.arch()}`,
-        node: process.version,
+        platform: 'local runner',
+        node: 'local runner',
         chromePath: chromeDisplayName(chromePath),
       },
       options: {

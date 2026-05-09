@@ -23,6 +23,7 @@ npm run benchmark:tokens -- --output benchmarks/token-optimization/results/lates
 ```
 
 The fixture pages are synthetic but deterministic, so published numbers can be reproduced without scraping live ecommerce sites or depending on third-party pages changing underneath us.
+The generated JSON normalizes local runner metadata so committed results do not expose a developer machine's OS, Node version, or executable path.
 
 ## Current Local Result
 

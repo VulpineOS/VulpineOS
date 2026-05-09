@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-05-02T02:25:58.756Z",
+  "generatedAt": "2026-05-02",
   "system": {
-    "platform": "Darwin 25.3.0 arm64",
-    "node": "v25.8.0",
+    "platform": "local runner",
+    "node": "local runner",
     "chromePath": "Google Chrome"
   },
   "options": {
