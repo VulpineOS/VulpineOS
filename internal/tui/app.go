@@ -132,6 +132,7 @@ type App struct {
 	taskInput textinput.Model
 
 	eventCh  chan tea.Msg
+	eventIn  chan tea.Msg
 	stopCh   chan struct{}
 	stopOnce *sync.Once
 }
@@ -144,6 +145,7 @@ func NewApp(k *kernel.Kernel, client *juggler.Client, orch *orchestrator.Orchest
 // NewAppWithControl creates the root TUI model with an optional remote control client.
 func NewAppWithControl(k *kernel.Kernel, client *juggler.Client, orch *orchestrator.Orchestrator, v *vault.DB, cfg *config.Config, audit *runtimeaudit.Manager, control ControlClient) App {
 	eventCh := make(chan tea.Msg, 64)
+	eventIn := make(chan tea.Msg, 256)
 	stopCh := make(chan struct{})
 
 	nameIn := textinput.New()
@@ -179,9 +181,11 @@ func NewAppWithControl(k *kernel.Kernel, client *juggler.Client, orch *orchestra
 		contextList:  contextlist.New(),
 		settings:     settings.New(),
 		eventCh:      eventCh,
+		eventIn:      eventIn,
 		stopCh:       stopCh,
 		stopOnce:     &sync.Once{},
 	}
+	go forwardTUIEvents(stopCh, eventIn, eventCh)
 	if control != nil {
 		app.agentDetail.SetRemote(true)
 	}
@@ -565,6 +569,17 @@ func (a App) emitEvent(msg tea.Msg) {
 	if a.eventCh == nil {
 		return
 	}
+	if a.eventIn != nil {
+		if a.stopCh == nil {
+			a.eventIn <- msg
+			return
+		}
+		select {
+		case <-a.stopCh:
+		case a.eventIn <- msg:
+		}
+		return
+	}
 	if a.stopCh == nil {
 		select {
 		case a.eventCh <- msg:
@@ -576,6 +591,31 @@ func (a App) emitEvent(msg tea.Msg) {
 	case <-a.stopCh:
 	case a.eventCh <- msg:
 	default:
+	}
+}
+
+func forwardTUIEvents(stopCh <-chan struct{}, in <-chan tea.Msg, out chan<- tea.Msg) {
+	pending := make([]tea.Msg, 0)
+	for {
+		if len(pending) == 0 {
+			select {
+			case <-stopCh:
+				return
+			case msg := <-in:
+				pending = append(pending, msg)
+			}
+			continue
+		}
+
+		select {
+		case <-stopCh:
+			return
+		case msg := <-in:
+			pending = append(pending, msg)
+		case out <- pending[0]:
+			pending[0] = nil
+			pending = pending[1:]
+		}
 	}
 }
 

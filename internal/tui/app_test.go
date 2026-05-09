@@ -1784,6 +1784,30 @@ func TestStopForwardersPreventsBlockedEventSends(t *testing.T) {
 	}
 }
 
+func TestEmitEventQueuesWhenEventChannelIsFull(t *testing.T) {
+	app := NewApp(nil, nil, nil, nil, nil, nil)
+	defer app.stopForwarders()
+
+	for i := 0; i < cap(app.eventCh); i++ {
+		app.eventCh <- statusNotice{text: "fill"}
+	}
+
+	app.emitEvent(statusNotice{text: "queued"})
+
+	deadline := time.After(500 * time.Millisecond)
+	for i := 0; i < cap(app.eventCh)+1; i++ {
+		select {
+		case msg := <-app.eventCh:
+			if notice, ok := msg.(statusNotice); ok && notice.text == "queued" {
+				return
+			}
+		case <-deadline:
+			t.Fatal("queued event was not delivered after channel space opened")
+		}
+	}
+	t.Fatal("queued event was dropped")
+}
+
 func TestWaitForEventReturnsAfterStop(t *testing.T) {
 	app := NewApp(nil, nil, nil, nil, nil, nil)
 	app.stopForwarders()
