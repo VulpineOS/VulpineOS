@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,6 +19,36 @@ import (
 	"vulpineos/internal/tui/shared"
 	"vulpineos/internal/vault"
 )
+
+type fakeControlCall struct {
+	method string
+	params json.RawMessage
+}
+
+type fakeControlClient struct {
+	responses map[string]any
+	calls     []fakeControlCall
+}
+
+func (f *fakeControlClient) ControlCall(ctx context.Context, method string, params any, result any) error {
+	data, err := json.Marshal(params)
+	if err != nil {
+		return err
+	}
+	f.calls = append(f.calls, fakeControlCall{method: method, params: data})
+	if result == nil {
+		return nil
+	}
+	response := f.responses[method]
+	if response == nil {
+		response = map[string]any{}
+	}
+	data, err = json.Marshal(response)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(data, result)
+}
 
 func openTestVault(t *testing.T) *vault.DB {
 	t.Helper()
@@ -367,6 +399,78 @@ func TestReplayBrowserTargetsRequestsEnableAfterTUISubscriptions(t *testing.T) {
 	}](t, calls[0].Params)
 	if !params.AttachToDefaultContext {
 		t.Fatalf("attachToDefaultContext = false, want true")
+	}
+}
+
+func TestRemoteControlAppLoadsAgentsAndMessages(t *testing.T) {
+	control := &fakeControlClient{responses: map[string]any{
+		"agents.list": map[string]any{"agents": []map[string]any{{
+			"id":          "agent-remote",
+			"name":        "Remote Scout",
+			"task":        "Inspect remote state",
+			"status":      "paused",
+			"totalTokens": 42,
+		}}},
+		"agents.getMessages": map[string]any{"messages": []map[string]any{{
+			"role":    "assistant",
+			"content": "remote persisted reply",
+			"tokens":  7,
+		}}},
+	}}
+	app := NewAppWithControl(nil, nil, nil, nil, nil, nil, control)
+
+	msg := app.loadRemoteAgents()()
+	model, cmd := app.Update(msg)
+	app = model.(App)
+	if cmd == nil {
+		t.Fatal("remote agent load should request selected agent messages")
+	}
+	model, _ = app.Update(cmd())
+	app = model.(App)
+
+	if app.selectedAgentID != "agent-remote" {
+		t.Fatalf("selected agent = %q, want remote agent", app.selectedAgentID)
+	}
+	if !strings.Contains(app.conversation.View(), "remote persisted reply") {
+		t.Fatalf("conversation missing remote messages:\n%s", app.conversation.View())
+	}
+	if !app.agentDetail.HasAgent() {
+		t.Fatal("agent detail was not populated from remote agent list")
+	}
+}
+
+func TestRemoteControlCreateAgentUsesControlPath(t *testing.T) {
+	control := &fakeControlClient{responses: map[string]any{
+		"agents.spawn": map[string]any{"agentId": "agent-created"},
+		"agents.list": map[string]any{"agents": []map[string]any{{
+			"id":     "agent-created",
+			"name":   "Remote Builder",
+			"task":   "Build remotely",
+			"status": "active",
+		}}},
+	}}
+	app := NewAppWithControl(nil, nil, nil, nil, nil, nil, control)
+
+	msg := app.createAgent("Remote Builder", "Build remotely", "ctx-1")()
+	model, _ := app.Update(msg)
+	app = model.(App)
+
+	if len(control.calls) == 0 || control.calls[0].method != "agents.spawn" {
+		t.Fatalf("first control call = %+v, want agents.spawn", control.calls)
+	}
+	var params struct {
+		Name      string `json:"name"`
+		Task      string `json:"task"`
+		ContextID string `json:"contextId"`
+	}
+	if err := json.Unmarshal(control.calls[0].params, &params); err != nil {
+		t.Fatalf("unmarshal spawn params: %v", err)
+	}
+	if params.Name != "Remote Builder" || params.Task != "Build remotely" || params.ContextID != "ctx-1" {
+		t.Fatalf("spawn params = %+v", params)
+	}
+	if app.selectedAgentID != "agent-created" {
+		t.Fatalf("selected agent = %q, want created remote agent", app.selectedAgentID)
 	}
 }
 

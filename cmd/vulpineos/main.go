@@ -1072,7 +1072,7 @@ func runRemote(addr string, apiKey string) error {
 		return err
 	}
 
-	app := tui.NewApp(nil, client, nil, nil, nil, nil)
+	app := tui.NewAppWithControl(nil, client, nil, nil, nil, nil, rc)
 	p := tea.NewProgram(app, tea.WithAltScreen())
 	_, err = p.Run()
 	return err

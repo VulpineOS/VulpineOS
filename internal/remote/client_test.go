@@ -97,3 +97,88 @@ func TestClientConcurrentSendSerializesWebsocketWrites(t *testing.T) {
 		t.Fatal("timed out waiting for server to receive concurrent sends")
 	}
 }
+
+func TestClientControlCallUsesControlEnvelopeAndReturnsResult(t *testing.T) {
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			t.Errorf("accept websocket: %v", err)
+			return
+		}
+		defer conn.Close(websocket.StatusNormalClosure, "")
+
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+
+		_, data, err := conn.Read(ctx)
+		if err != nil {
+			t.Errorf("read websocket: %v", err)
+			return
+		}
+		var env Envelope
+		if err := json.Unmarshal(data, &env); err != nil {
+			t.Errorf("unmarshal envelope: %v", err)
+			return
+		}
+		if env.Type != "control" {
+			t.Errorf("envelope type = %q, want control", env.Type)
+			return
+		}
+		var payload struct {
+			Command string          `json:"command"`
+			Params  json.RawMessage `json:"params"`
+			ID      int             `json:"id"`
+		}
+		if err := json.Unmarshal(env.Payload, &payload); err != nil {
+			t.Errorf("unmarshal payload: %v", err)
+			return
+		}
+		if payload.Command != "status.get" || payload.ID == 0 {
+			t.Errorf("payload = %+v, want status.get with id", payload)
+			return
+		}
+
+		response := map[string]any{
+			"type": "control",
+			"payload": map[string]any{
+				"params": map[string]any{
+					"id":     payload.ID,
+					"result": map[string]any{"status": "ok"},
+				},
+			},
+		}
+		if err := conn.Write(ctx, websocket.MessageText, mustJSON(t, response)); err != nil {
+			t.Errorf("write response: %v", err)
+		}
+	}))
+	defer httpServer.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	wsURL := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+	client, err := Dial(ctx, wsURL, "")
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer client.Close()
+
+	var result struct {
+		Status string `json:"status"`
+	}
+	if err := client.ControlCall(ctx, "status.get", map[string]string{"scope": "tui"}, &result); err != nil {
+		t.Fatalf("ControlCall: %v", err)
+	}
+	if result.Status != "ok" {
+		t.Fatalf("status = %q, want ok", result.Status)
+	}
+}
+
+func mustJSON(t *testing.T, value any) []byte {
+	t.Helper()
+	data, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("marshal json: %v", err)
+	}
+	return data
+}

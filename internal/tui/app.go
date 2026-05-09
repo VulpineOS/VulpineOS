@@ -56,6 +56,21 @@ type statusNotice struct {
 	text string
 }
 
+// ControlClient sends panel/control commands over a remote connection.
+type ControlClient interface {
+	ControlCall(ctx context.Context, method string, params any, result any) error
+}
+
+type remoteAgentsLoadedMsg struct {
+	Agents          []vault.Agent
+	SelectedAgentID string
+}
+
+type remoteMessagesLoadedMsg struct {
+	AgentID  string
+	Messages []vault.AgentMessage
+}
+
 // App is the root Bubbletea model for the 3-column agent workbench.
 type App struct {
 	kernel  *kernel.Kernel
@@ -64,6 +79,7 @@ type App struct {
 	vault   *vault.DB
 	cfg     *config.Config
 	monitor *monitor.Monitor
+	control ControlClient
 
 	width, height int
 	leftWidth     int // adjustable left sidebar width
@@ -104,6 +120,11 @@ type App struct {
 
 // NewApp creates the root TUI model.
 func NewApp(k *kernel.Kernel, client *juggler.Client, orch *orchestrator.Orchestrator, v *vault.DB, cfg *config.Config, audit *runtimeaudit.Manager) App {
+	return NewAppWithControl(k, client, orch, v, cfg, audit, nil)
+}
+
+// NewAppWithControl creates the root TUI model with an optional remote control client.
+func NewAppWithControl(k *kernel.Kernel, client *juggler.Client, orch *orchestrator.Orchestrator, v *vault.DB, cfg *config.Config, audit *runtimeaudit.Manager, control ControlClient) App {
 	eventCh := make(chan tea.Msg, 64)
 	stopCh := make(chan struct{})
 
@@ -126,6 +147,7 @@ func NewApp(k *kernel.Kernel, client *juggler.Client, orch *orchestrator.Orchest
 		vault:        v,
 		cfg:          cfg,
 		monitor:      mon,
+		control:      control,
 		leftWidth:    18,
 		rightWidth:   18,
 		leftSplit:    13, // system info height (includes pool stats now)
@@ -306,6 +328,50 @@ func NewApp(k *kernel.Kernel, client *juggler.Client, orch *orchestrator.Orchest
 				FrameID:            e.AuxData.FrameID,
 			})
 		})
+		client.Subscribe("Vulpine.agentStatus", func(sid string, params json.RawMessage) {
+			var e struct {
+				AgentID   string `json:"agentId"`
+				ContextID string `json:"contextId"`
+				Status    string `json:"status"`
+				Objective string `json:"objective"`
+				Tokens    int    `json:"tokens"`
+			}
+			if err := json.Unmarshal(params, &e); err != nil {
+				return
+			}
+			emitEvent(shared.AgentStatusMsg{
+				AgentID:   e.AgentID,
+				ContextID: e.ContextID,
+				Status:    e.Status,
+				Objective: e.Objective,
+				Tokens:    e.Tokens,
+			})
+		})
+		client.Subscribe("Vulpine.conversation", func(sid string, params json.RawMessage) {
+			var e struct {
+				AgentID string `json:"agentId"`
+				Role    string `json:"role"`
+				Content string `json:"content"`
+				Tokens  int    `json:"tokens"`
+			}
+			if err := json.Unmarshal(params, &e); err != nil {
+				return
+			}
+			emitEvent(shared.ConversationEntryMsg{
+				AgentID:   e.AgentID,
+				Role:      e.Role,
+				Content:   e.Content,
+				Tokens:    e.Tokens,
+				Timestamp: time.Now(),
+			})
+		})
+		client.Subscribe("Vulpine.runtimeEvent", func(sid string, params json.RawMessage) {
+			var event vault.RuntimeEvent
+			if err := json.Unmarshal(params, &event); err != nil {
+				return
+			}
+			emitEvent(shared.RuntimeEventMsg{Event: event})
+		})
 	}
 
 	// Forward agent status updates from orchestrator to TUI
@@ -375,11 +441,15 @@ func NewApp(k *kernel.Kernel, client *juggler.Client, orch *orchestrator.Orchest
 }
 
 func (a App) Init() tea.Cmd {
-	return tea.Batch(
+	cmds := []tea.Cmd{
 		a.waitForEvent(),
 		a.tick(),
 		a.replayBrowserTargets(),
-	)
+	}
+	if a.control != nil {
+		cmds = append(cmds, a.loadRemoteAgents())
+	}
+	return tea.Batch(cmds...)
 }
 
 func (a App) replayBrowserTargets() tea.Cmd {
@@ -392,6 +462,83 @@ func (a App) replayBrowserTargets() tea.Cmd {
 		})
 		return nil
 	}
+}
+
+type remoteAgentSummary struct {
+	ID                 string `json:"id"`
+	Name               string `json:"name"`
+	Status             string `json:"status"`
+	Task               string `json:"task"`
+	TotalTokens        int    `json:"totalTokens"`
+	Fingerprint        string `json:"fingerprint"`
+	FingerprintSummary string `json:"fingerprintSummary"`
+	ContextID          string `json:"contextId"`
+}
+
+func (a App) loadRemoteAgents() tea.Cmd {
+	if a.control == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		agents, err := a.fetchRemoteAgents(ctx)
+		if err != nil {
+			return statusNotice{text: "Remote agents failed: " + err.Error()}
+		}
+		return remoteAgentsLoadedMsg{Agents: agents}
+	}
+}
+
+func (a App) loadRemoteMessages(agentID string) tea.Cmd {
+	if a.control == nil || agentID == "" {
+		return nil
+	}
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		var result struct {
+			Messages []vault.AgentMessage `json:"messages"`
+		}
+		if err := a.control.ControlCall(ctx, "agents.getMessages", map[string]any{"agentId": agentID}, &result); err != nil {
+			return statusNotice{text: "Remote messages failed: " + err.Error()}
+		}
+		return remoteMessagesLoadedMsg{AgentID: agentID, Messages: result.Messages}
+	}
+}
+
+func (a App) fetchRemoteAgents(ctx context.Context) ([]vault.Agent, error) {
+	var result struct {
+		Agents []remoteAgentSummary `json:"agents"`
+	}
+	if err := a.control.ControlCall(ctx, "agents.list", map[string]any{}, &result); err != nil {
+		return nil, err
+	}
+	agents := make([]vault.Agent, 0, len(result.Agents))
+	for _, item := range result.Agents {
+		agent := remoteSummaryToAgent(item)
+		agents = append(agents, agent)
+	}
+	return agents, nil
+}
+
+func remoteSummaryToAgent(item remoteAgentSummary) vault.Agent {
+	fingerprint := item.Fingerprint
+	if fingerprint == "" {
+		fingerprint = item.FingerprintSummary
+	}
+	agent := vault.Agent{
+		ID:          item.ID,
+		Name:        item.Name,
+		Task:        item.Task,
+		Status:      item.Status,
+		TotalTokens: item.TotalTokens,
+		Fingerprint: fingerprint,
+	}
+	if item.ContextID != "" {
+		agent.Metadata = vault.MarshalAgentMetadata(vault.AgentMetadata{ContextID: item.ContextID})
+	}
+	return agent
 }
 
 func (a App) emitEvent(msg tea.Msg) {
@@ -844,6 +991,41 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.agentList.MarkUnread(msg.AgentID)
 		}
 		cmds = append(cmds, a.waitForEvent())
+
+	case remoteAgentsLoadedMsg:
+		a.agentList.SetAgents(msg.Agents)
+		if len(msg.Agents) == 0 {
+			a.selectedAgentID = ""
+			a.conversation.SetAgentID("")
+			a.agentDetail.Clear()
+			break
+		}
+		selectedID := msg.SelectedAgentID
+		if selectedID == "" {
+			selectedID = a.selectedAgentID
+		}
+		if selectedID == "" {
+			selectedID = msg.Agents[0].ID
+		}
+		if !a.agentList.SelectAgentID(selectedID) {
+			selectedID = msg.Agents[0].ID
+			a.agentList.SelectAgentID(selectedID)
+		}
+		a.selectedAgentID = selectedID
+		for i := range msg.Agents {
+			if msg.Agents[i].ID == selectedID {
+				a.conversation.SetAgentID(msg.Agents[i].ID)
+				a.conversation.SetAgentName(msg.Agents[i].Name)
+				a.updateAgentDetail(&msg.Agents[i])
+				cmds = append(cmds, a.loadRemoteMessages(selectedID))
+				break
+			}
+		}
+
+	case remoteMessagesLoadedMsg:
+		if msg.AgentID == a.selectedAgentID {
+			a.conversation.LoadMessages(msg.Messages)
+		}
 
 	case shared.PoolStatsMsg:
 		a.poolStats, _ = a.poolStats.Update(msg)
@@ -1584,6 +1766,20 @@ func (a *App) selectCurrentAgent() tea.Cmd {
 	a.conversation.SetAgentID(newID)
 	a.agentList.ClearUnread(newID)
 
+	if a.control != nil && a.vault == nil {
+		if item, ok := a.agentList.SelectedAgent(); ok {
+			a.conversation.SetAgentName(item.Name)
+			agent := remoteSummaryToAgent(remoteAgentSummary{
+				ID:          item.ID,
+				Name:        item.Name,
+				Status:      item.Status,
+				TotalTokens: item.Tokens,
+			})
+			a.updateAgentDetail(&agent)
+		}
+		return a.loadRemoteMessages(newID)
+	}
+
 	if a.vault != nil {
 		agent, err := a.vault.GetAgent(newID)
 		if err == nil {
@@ -1622,6 +1818,9 @@ func (a App) tick() tea.Cmd {
 // The agent wakes up and introduces itself — the user doesn't need to send the first message.
 // ALL errors are visible to the user — either as notices (pre-creation) or in the conversation (post-creation).
 func (a *App) createAgent(name, description, contextID string) tea.Cmd {
+	if a.control != nil {
+		return a.createRemoteAgent(name, description, contextID)
+	}
 	return func() tea.Msg {
 		// Pre-creation checks — show errors as notices since there's no agent yet
 		if a.vault == nil {
@@ -1692,8 +1891,36 @@ func (a *App) createAgent(name, description, contextID string) tea.Cmd {
 	}
 }
 
+func (a *App) createRemoteAgent(name, description, contextID string) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		var result struct {
+			AgentID string `json:"agentId"`
+		}
+		params := map[string]any{
+			"name": name,
+			"task": description,
+		}
+		if contextID != "" {
+			params["contextId"] = contextID
+		}
+		if err := a.control.ControlCall(ctx, "agents.spawn", params, &result); err != nil {
+			return statusNotice{text: "Remote agent failed: " + err.Error()}
+		}
+		agents, err := a.fetchRemoteAgents(ctx)
+		if err != nil {
+			return statusNotice{text: "Remote agents failed: " + err.Error()}
+		}
+		return remoteAgentsLoadedMsg{Agents: agents, SelectedAgentID: result.AgentID}
+	}
+}
+
 // pauseAgent pauses an agent.
 func (a App) pauseAgent(agentID string) tea.Cmd {
+	if a.control != nil {
+		return a.remoteAgentStatusCommand("agents.pause", agentID, "paused", "Remote agent paused: ")
+	}
 	return func() tea.Msg {
 		if a.orch == nil {
 			return statusNotice{text: "No orchestrator"}
@@ -1714,6 +1941,9 @@ func (a App) pauseAgent(agentID string) tea.Cmd {
 
 // resumeAgent resumes an agent from saved session.
 func (a App) resumeAgent(agentID string) tea.Cmd {
+	if a.control != nil {
+		return a.remoteAgentStatusCommand("agents.resume", agentID, "active", "Remote agent resumed: ")
+	}
 	return func() tea.Msg {
 		if a.orch == nil {
 			return statusNotice{text: "No orchestrator"}
@@ -1745,8 +1975,27 @@ func (a App) resumeAgent(agentID string) tea.Cmd {
 	}
 }
 
+func (a App) remoteAgentStatusCommand(method, agentID, status, noticePrefix string) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		var result map[string]any
+		if err := a.control.ControlCall(ctx, method, map[string]any{"agentId": agentID}, &result); err != nil {
+			return statusNotice{text: "Remote command failed: " + err.Error()}
+		}
+		return shared.BulkAgentStatusMsg{
+			AgentIDs: []string{agentID},
+			Status:   status,
+			Notice:   noticePrefix + agentID,
+		}
+	}
+}
+
 // deleteAgent removes an agent.
 func (a *App) deleteAgent(agentID string) tea.Cmd {
+	if a.control != nil {
+		return statusNoticeCmd("Remote delete is unavailable; use kill instead")
+	}
 	return func() tea.Msg {
 		// Kill if running
 		if a.orch != nil {
@@ -1765,6 +2014,9 @@ func (a *App) deleteAgent(agentID string) tea.Cmd {
 // OpenClaw's --session-id handles history and compaction automatically.
 // Zero memory between messages. No idle processes.
 func (a App) sendMessageToAgent(agentID, text string) tea.Cmd {
+	if a.control != nil {
+		return a.sendRemoteMessageToAgent(agentID, text)
+	}
 	return func() tea.Msg {
 		if a.orch == nil {
 			return shared.ConversationEntryMsg{
@@ -1812,6 +2064,31 @@ func (a App) sendMessageToAgent(agentID, text string) tea.Cmd {
 		}
 
 		return nil
+	}
+}
+
+func (a App) sendRemoteMessageToAgent(agentID, text string) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		var result struct {
+			AgentID string `json:"agentId"`
+		}
+		if err := a.control.ControlCall(ctx, "agents.resume", map[string]any{
+			"agentId": agentID,
+			"message": text,
+		}, &result); err != nil {
+			return shared.ConversationEntryMsg{
+				AgentID: agentID,
+				Role:    "system",
+				Content: "Error: " + err.Error(),
+			}
+		}
+		return shared.BulkAgentStatusMsg{
+			AgentIDs: []string{agentID},
+			Status:   "active",
+			Notice:   "Remote agent running: " + agentID,
+		}
 	}
 }
 
@@ -1906,6 +2183,12 @@ func (a App) resumeSelectedAgent() tea.Cmd {
 }
 
 func (a App) pauseAllAgents() tea.Cmd {
+	if a.control != nil {
+		ids := a.agentList.IDsByStatus(map[string]bool{
+			"running": true, "thinking": true, "starting": true, "active": true,
+		})
+		return a.remoteBulkAgentStatusCommand("agents.pauseMany", ids, "paused", "Paused %d remote agents")
+	}
 	return func() tea.Msg {
 		if a.orch == nil || a.vault == nil {
 			return statusNotice{text: "Pause all unavailable"}
@@ -1935,6 +2218,10 @@ func (a App) pauseAllAgents() tea.Cmd {
 }
 
 func (a App) resumePausedAgents() tea.Cmd {
+	if a.control != nil {
+		ids := a.agentList.IDsByStatus(map[string]bool{"paused": true})
+		return a.remoteBulkAgentStatusCommand("agents.resumeMany", ids, "active", "Resumed %d remote agents")
+	}
 	return func() tea.Msg {
 		if a.orch == nil || a.vault == nil {
 			return statusNotice{text: "Resume all unavailable"}
@@ -1973,6 +2260,12 @@ func (a App) resumePausedAgents() tea.Cmd {
 }
 
 func (a App) killAllAgents() tea.Cmd {
+	if a.control != nil {
+		ids := a.agentList.IDsByStatus(map[string]bool{
+			"running": true, "thinking": true, "starting": true, "active": true,
+		})
+		return a.remoteBulkAgentStatusCommand("agents.killMany", ids, "interrupted", "Killed %d remote agents")
+	}
 	return func() tea.Msg {
 		if a.orch == nil || a.vault == nil {
 			return statusNotice{text: "Kill all unavailable"}
@@ -1995,6 +2288,25 @@ func (a App) killAllAgents() tea.Cmd {
 			AgentIDs: affected,
 			Status:   "interrupted",
 			Notice:   fmt.Sprintf("Killed %d agents", len(affected)),
+		}
+	}
+}
+
+func (a App) remoteBulkAgentStatusCommand(method string, agentIDs []string, status string, noticeFormat string) tea.Cmd {
+	return func() tea.Msg {
+		if len(agentIDs) == 0 {
+			return statusNotice{text: "No remote agents matched"}
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		var result map[string]any
+		if err := a.control.ControlCall(ctx, method, map[string]any{"agentIds": agentIDs}, &result); err != nil {
+			return statusNotice{text: "Remote command failed: " + err.Error()}
+		}
+		return shared.BulkAgentStatusMsg{
+			AgentIDs: agentIDs,
+			Status:   status,
+			Notice:   fmt.Sprintf(noticeFormat, len(agentIDs)),
 		}
 	}
 }

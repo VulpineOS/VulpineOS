@@ -105,6 +105,25 @@ func (m Model) SelectedAgentID() string {
 	return m.agents[m.selected].ID
 }
 
+// SelectedAgent returns the currently selected list item.
+func (m Model) SelectedAgent() (AgentListItem, bool) {
+	if len(m.agents) == 0 || m.selected >= len(m.agents) {
+		return AgentListItem{}, false
+	}
+	return m.agents[m.selected], true
+}
+
+// SelectAgentID selects an agent by ID.
+func (m *Model) SelectAgentID(id string) bool {
+	for i := range m.agents {
+		if m.agents[i].ID == id {
+			m.selected = i
+			return true
+		}
+	}
+	return false
+}
+
 // AddAgent adds a new agent to the list.
 func (m *Model) AddAgent(a vault.Agent) {
 	m.agents = append(m.agents, AgentListItem{
@@ -176,6 +195,17 @@ func (m Model) Status(id string) string {
 		}
 	}
 	return ""
+}
+
+// IDsByStatus returns IDs whose current status is in the supplied set.
+func (m Model) IDsByStatus(statuses map[string]bool) []string {
+	ids := make([]string, 0)
+	for _, agent := range m.agents {
+		if statuses[agent.Status] {
+			ids = append(ids, agent.ID)
+		}
+	}
+	return ids
 }
 
 // statusIcon returns a styled icon for the given status.

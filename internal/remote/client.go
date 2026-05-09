@@ -3,6 +3,7 @@ package remote
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -21,6 +22,16 @@ type Client struct {
 	cancel  context.CancelFunc
 	recvCh  chan *juggler.Message
 	writeMu sync.Mutex
+
+	controlMu      sync.Mutex
+	nextControlID  int
+	controlPending map[int]chan controlResponse
+}
+
+type controlResponse struct {
+	ID     int             `json:"id"`
+	Result json.RawMessage `json:"result"`
+	Error  string          `json:"error"`
 }
 
 // Dial connects to a remote VulpineOS server.
@@ -39,10 +50,11 @@ func Dial(ctx context.Context, url string, apiKey string) (*Client, error) {
 
 	childCtx, cancel := context.WithCancel(ctx)
 	c := &Client{
-		conn:   conn,
-		ctx:    childCtx,
-		cancel: cancel,
-		recvCh: make(chan *juggler.Message, 64),
+		conn:           conn,
+		ctx:            childCtx,
+		cancel:         cancel,
+		recvCh:         make(chan *juggler.Message, 64),
+		controlPending: make(map[int]chan controlResponse),
 	}
 
 	go c.readLoop()
@@ -62,6 +74,71 @@ func (c *Client) Send(msg *juggler.Message) error {
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
 	return c.conn.Write(c.ctx, websocket.MessageText, env)
+}
+
+// ControlCall sends a panel/control command over the remote websocket.
+func (c *Client) ControlCall(ctx context.Context, method string, params any, result any) error {
+	id, ch := c.registerControlCall()
+	payload, err := json.Marshal(map[string]any{
+		"command": method,
+		"params":  params,
+		"id":      id,
+	})
+	if err != nil {
+		c.unregisterControlCall(id)
+		return err
+	}
+	env, err := json.Marshal(Envelope{
+		Type:    "control",
+		Payload: json.RawMessage(payload),
+	})
+	if err != nil {
+		c.unregisterControlCall(id)
+		return err
+	}
+
+	c.writeMu.Lock()
+	err = c.conn.Write(c.ctx, websocket.MessageText, env)
+	c.writeMu.Unlock()
+	if err != nil {
+		c.unregisterControlCall(id)
+		return err
+	}
+
+	select {
+	case resp := <-ch:
+		if resp.Error != "" {
+			return errors.New(resp.Error)
+		}
+		if result != nil && len(resp.Result) > 0 {
+			if err := json.Unmarshal(resp.Result, result); err != nil {
+				return fmt.Errorf("decode control result: %w", err)
+			}
+		}
+		return nil
+	case <-ctx.Done():
+		c.unregisterControlCall(id)
+		return ctx.Err()
+	case <-c.ctx.Done():
+		c.unregisterControlCall(id)
+		return c.ctx.Err()
+	}
+}
+
+func (c *Client) registerControlCall() (int, chan controlResponse) {
+	ch := make(chan controlResponse, 1)
+	c.controlMu.Lock()
+	c.nextControlID++
+	id := c.nextControlID
+	c.controlPending[id] = ch
+	c.controlMu.Unlock()
+	return id, ch
+}
+
+func (c *Client) unregisterControlCall(id int) {
+	c.controlMu.Lock()
+	delete(c.controlPending, id)
+	c.controlMu.Unlock()
 }
 
 // Receive reads the next Juggler message from the remote server.
@@ -99,6 +176,11 @@ func (c *Client) readLoop() {
 			continue
 		}
 
+		if env.Type == "control" {
+			c.handleControlEnvelope(env.Payload)
+			continue
+		}
+
 		if env.Type != "juggler" {
 			continue
 		}
@@ -110,4 +192,42 @@ func (c *Client) readLoop() {
 
 		c.recvCh <- &msg
 	}
+}
+
+func (c *Client) handleControlEnvelope(payload json.RawMessage) {
+	var outer struct {
+		Params json.RawMessage `json:"params"`
+		ID     int             `json:"id"`
+		Result json.RawMessage `json:"result"`
+		Error  string          `json:"error"`
+	}
+	if err := json.Unmarshal(payload, &outer); err != nil {
+		return
+	}
+
+	respPayload := payload
+	if len(outer.Params) > 0 {
+		respPayload = outer.Params
+	}
+	var resp controlResponse
+	if err := json.Unmarshal(respPayload, &resp); err != nil {
+		return
+	}
+	if resp.ID == 0 {
+		resp.ID = outer.ID
+		resp.Result = outer.Result
+		resp.Error = outer.Error
+	}
+	if resp.ID == 0 {
+		return
+	}
+
+	c.controlMu.Lock()
+	ch := c.controlPending[resp.ID]
+	delete(c.controlPending, resp.ID)
+	c.controlMu.Unlock()
+	if ch == nil {
+		return
+	}
+	ch <- resp
 }
