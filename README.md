@@ -61,7 +61,7 @@ VulpineOS builds on Camoufox's battle-tested stealth foundation (Firefox 146.0.1
 │  ├── Telemetry Service (memory, risk score, 2s interval)      │
 │  └── Trust Warming Service (idle-time profile warming)        │
 │                                                              │
-│  Go Runtime (38 packages, 500+ tests)                         │
+│  Go Runtime (41 packages, 500+ tests)                         │
 │  ├── Bubbletea TUI (3-column agent workbench)                 │
 │  ├── Web Panel (React SPA, 12 pages, 46 control messages)     │
 │  ├── Identity Vault (SQLite — citizens, templates, sessions)  │
@@ -496,7 +496,7 @@ Optional extension hooks are exposed through stable no-op interfaces in this rep
 
 ## Testing
 
-**500+ Go tests** across 38 packages, all passing with race detector enabled.
+**500+ Go tests** across 41 packages, all passing with race detector enabled.
 
 ```bash
 go test -race ./cmd/... ./internal/...

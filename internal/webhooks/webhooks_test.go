@@ -19,6 +19,23 @@ func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
 	return f(r)
 }
 
+type lockedLogBuffer struct {
+	mu sync.Mutex
+	bytes.Buffer
+}
+
+func (b *lockedLogBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.Buffer.Write(p)
+}
+
+func (b *lockedLogBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.Buffer.String()
+}
+
 func TestRegisterAndList(t *testing.T) {
 	m := New()
 	id := m.Register("https://example.com/hook", []EventType{AgentCompleted}, "secret")
@@ -80,7 +97,7 @@ func TestFireDelivers(t *testing.T) {
 }
 
 func TestDeliveryLogsDoNotExposeURLSecrets(t *testing.T) {
-	var logs bytes.Buffer
+	var logs lockedLogBuffer
 	originalWriter := log.Writer()
 	originalFlags := log.Flags()
 	log.SetOutput(&logs)
