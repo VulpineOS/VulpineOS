@@ -188,6 +188,46 @@ describe('AgentDetail page', () => {
     await waitFor(() => expect(screen.getByText('after cap')).toBeInTheDocument())
   })
 
+  it('preserves token totals when status events omit usage', async () => {
+    const call = vi.fn(async (method) => {
+      if (method === 'agents.list') {
+        return { agents: [{ id: 'agent-1', name: 'Agent One', status: 'active', contextId: '', totalTokens: 42 }] }
+      }
+      if (method === 'agents.getMessages') return { messages: [] }
+      if (method === 'recording.getTimeline') return { actions: [] }
+      if (method === 'fingerprints.get') return {}
+      return { status: 'ok' }
+    })
+    const ws = { connected: true, events: [], call }
+    const { rerender } = renderDetail(ws)
+
+    expect(await screen.findByText('active')).toBeInTheDocument()
+    rerender(
+      <MemoryRouter initialEntries={['/agents/agent-1']}>
+        <Routes>
+          <Route
+            path="/agents/:id"
+            element={
+              <AgentDetail
+                ws={{
+                  ...ws,
+                  events: [
+                    { method: 'Vulpine.agentStatus', params: { agentId: 'agent-1', status: 'paused', tokens: 0 } },
+                  ],
+                }}
+              />
+            }
+          />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => expect(screen.getByText('paused')).toBeInTheDocument())
+    expect(screen.getByText('42 tokens')).toBeInTheDocument()
+    expect(call).toHaveBeenCalled()
+    expect(screen.getByText('budget: none')).toBeInTheDocument()
+  })
+
   it('uses inline confirmation before killing an agent', async () => {
     const call = vi.fn(async (method) => {
       if (method === 'agents.list') {

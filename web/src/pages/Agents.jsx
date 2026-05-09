@@ -45,7 +45,7 @@ export default function Agents({ ws }) {
             status: event.params.status || agent.status,
             contextId: event.params.contextId || agent.contextId,
             task: event.params.objective || agent.task,
-            totalTokens: event.params.tokens ?? agent.totalTokens,
+            totalTokens: event.params.tokens > 0 ? event.params.tokens : agent.totalTokens,
           }
         }))
       }
@@ -146,7 +146,9 @@ export default function Agents({ ws }) {
 
   const getTokens = (id) => {
     const c = costs.find(u => u.agentId === id)
-    return c ? c.totalTokens.toLocaleString() : '—'
+    if (c) return c.totalTokens.toLocaleString()
+    const agent = agents.find(a => a.id === id)
+    return (agent?.totalTokens || 0) > 0 ? agent.totalTokens.toLocaleString() : '—'
   }
 
   const totalTokens = costs.reduce((sum, usage) => sum + (usage.totalTokens || 0), 0)

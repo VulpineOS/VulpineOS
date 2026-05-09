@@ -151,7 +151,7 @@ export default function AgentDetail({ ws }) {
           status: event.params.status || prev?.status,
           contextId: event.params.contextId || prev?.contextId,
           task: event.params.objective || prev?.task,
-          totalTokens: event.params.tokens ?? prev?.totalTokens ?? 0,
+          totalTokens: event.params.tokens > 0 ? event.params.tokens : prev?.totalTokens ?? 0,
         }))
       }
       if (event.method === 'Vulpine.conversation' && event.params?.agentId === id) {
@@ -258,6 +258,7 @@ export default function AgentDetail({ ws }) {
           <span className={`badge badge-${agentStatusBadgeClass(agent?.status)}`}>
             {agent?.status || 'unknown'}
           </span>
+          <span className="badge badge-gray">{Number(agent?.totalTokens || 0).toLocaleString()} tokens</span>
           {agent?.status === 'active' && <button className="btn btn-ghost" onClick={pause}>Pause</button>}
           {agent?.status === 'paused' && <button className="btn btn-ghost" onClick={resume}>Resume</button>}
           {agent && !TERMINAL_AGENT_STATUSES.has(agent.status) && <button className="btn btn-danger" onClick={() => setConfirmKill(true)}>Kill</button>}

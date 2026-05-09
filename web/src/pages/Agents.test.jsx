@@ -162,6 +162,41 @@ describe('Agents page', () => {
     expect(await screen.findByText('ctx-empty-ur · about:blank')).toBeInTheDocument()
   })
 
+  it('preserves token totals when status events omit usage', async () => {
+    const calls = vi.fn(async (method) => {
+      if (method === 'agents.list') {
+        return {
+          agents: [
+            { id: 'agent-1', name: 'Agent One', status: 'active', contextId: '', fingerprintSummary: '', totalTokens: 42 },
+          ],
+        }
+      }
+      if (method === 'costs.getAll') return { usage: [], defaults: {} }
+      if (method === 'costs.total') return { totalCostUsd: 0 }
+      if (method === 'contexts.list') return { contexts: [] }
+      return { status: 'ok' }
+    })
+    const ws = { connected: true, events: [], call: calls }
+    const { rerender } = renderPage(ws)
+
+    expect(await screen.findByText('Agent One')).toBeInTheDocument()
+    rerender(
+      <MemoryRouter>
+        <Agents
+          ws={{
+            ...ws,
+            events: [
+              { method: 'Vulpine.agentStatus', params: { agentId: 'agent-1', status: 'paused', tokens: 0 } },
+            ],
+          }}
+        />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => expect(screen.getByText('paused')).toBeInTheDocument())
+    expect(screen.getByText('42')).toBeInTheDocument()
+  })
+
   it('does not offer kill actions for terminal agents', async () => {
     const calls = vi.fn(async (method) => {
       if (method === 'agents.list') {
