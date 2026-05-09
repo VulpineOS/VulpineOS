@@ -5,7 +5,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
+
 	"vulpineos/internal/tui/shared"
+	"vulpineos/internal/vault"
 )
 
 func TestKernelStatusViewShowsModeAndRoute(t *testing.T) {
@@ -30,5 +33,24 @@ func TestKernelStatusViewShowsModeAndRoute(t *testing.T) {
 	}
 	if !strings.Contains(view, "Win HIDDEN") {
 		t.Fatalf("expected window state in view, got:\n%s", view)
+	}
+}
+
+func TestViewFitsRuntimeEventsToWidth(t *testing.T) {
+	model := New()
+	model.SetWidth(18)
+	model.SetHeight(20)
+
+	updated, _ := model.Update(shared.RuntimeEventMsg{Event: vault.RuntimeEvent{
+		Component: "gateway",
+		Event:     "very-long-runtime-event-name-that-would-wrap",
+		Timestamp: time.Date(2026, 5, 10, 12, 34, 0, 0, time.UTC),
+	}})
+
+	view := updated.View()
+	for i, line := range strings.Split(view, "\n") {
+		if width := lipgloss.Width(line); width > 18 {
+			t.Fatalf("line %d width = %d, want <= 18:\n%s", i+1, width, view)
+		}
 	}
 }
