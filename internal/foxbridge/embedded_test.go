@@ -69,6 +69,27 @@ func (b *embeddedTestBackend) Close() error {
 	return nil
 }
 
+type enableFailBackend struct {
+	closeCount     int
+	subscribeCount int
+}
+
+func (b *enableFailBackend) Call(sessionID, method string, params json.RawMessage) (json.RawMessage, error) {
+	if method == "Browser.enable" {
+		return nil, fmt.Errorf("enable failed")
+	}
+	return json.RawMessage(`{}`), nil
+}
+
+func (b *enableFailBackend) Subscribe(event string, handler backend.EventHandler) {
+	b.subscribeCount++
+}
+
+func (b *enableFailBackend) Close() error {
+	b.closeCount++
+	return nil
+}
+
 func TestEmbeddedStopReleasesPort(t *testing.T) {
 	port, err := reservePort()
 	if err != nil {
@@ -115,6 +136,28 @@ func TestStartEmbeddedWithBackendFailsWhenPortUnavailable(t *testing.T) {
 	}
 	if be.closeCount != 1 {
 		t.Fatalf("backend close count = %d, want 1 after failed startup", be.closeCount)
+	}
+}
+
+func TestStartEmbeddedWithBackendClosesBackendWhenBrowserEnableFails(t *testing.T) {
+	port, err := reservePort()
+	if err != nil {
+		t.Fatalf("reservePort: %v", err)
+	}
+	be := &enableFailBackend{}
+
+	es, err := startEmbeddedWithBackend(be, port, true)
+	if err == nil {
+		if es != nil {
+			es.Stop()
+		}
+		t.Fatal("expected Browser.enable failure")
+	}
+	if be.subscribeCount == 0 {
+		t.Fatal("expected bridge subscriptions before Browser.enable")
+	}
+	if be.closeCount != 1 {
+		t.Fatalf("backend close count = %d, want 1 after Browser.enable failure", be.closeCount)
 	}
 }
 

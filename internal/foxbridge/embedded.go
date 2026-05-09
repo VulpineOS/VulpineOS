@@ -221,6 +221,7 @@ func startEmbeddedWithBackend(be backend.Backend, port int, attachToDefaultConte
 		"attachToDefaultContext": attachToDefaultContext,
 	})
 	if _, err := be.Call("", "Browser.enable", enableParams); err != nil {
+		_ = be.Close()
 		return nil, fmt.Errorf("Browser.enable via embedded foxbridge: %w", err)
 	}
 
