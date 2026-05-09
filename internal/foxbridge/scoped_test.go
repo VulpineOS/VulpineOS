@@ -235,6 +235,59 @@ func TestScopedBackendAllowsAttachAfterDetach(t *testing.T) {
 	}
 }
 
+func TestScopedBackendFiltersRequestInterceptedByContext(t *testing.T) {
+	client := &fakeJugglerBackend{}
+	be := newScopedBackend(client, "ctx-1")
+
+	var requestCount int
+	be.Subscribe("Browser.requestIntercepted", func(sessionID string, params json.RawMessage) {
+		requestCount++
+	})
+
+	client.handlers["Browser.requestIntercepted"]("", json.RawMessage(`{
+		"requestId":"request-1",
+		"browserContextId":"ctx-1"
+	}`))
+	client.handlers["Browser.requestIntercepted"]("", json.RawMessage(`{
+		"requestId":"request-2",
+		"browserContextId":"ctx-other"
+	}`))
+
+	if requestCount != 1 {
+		t.Fatalf("requestCount = %d, want 1", requestCount)
+	}
+}
+
+func TestScopedBackendBlocksUntrackedRequestControls(t *testing.T) {
+	client := &fakeJugglerBackend{}
+	be := newScopedBackend(client, "ctx-1")
+
+	if _, err := be.Call("", "Browser.continueInterceptedRequest", json.RawMessage(`{"requestId":"request-other"}`)); err == nil {
+		t.Fatal("expected untracked request control to be blocked")
+	}
+	if client.lastMethod != "" {
+		t.Fatalf("forwarded forbidden call to %s", client.lastMethod)
+	}
+}
+
+func TestScopedBackendAllowsTrackedRequestControls(t *testing.T) {
+	client := &fakeJugglerBackend{}
+	be := newScopedBackend(client, "ctx-1")
+
+	be.Subscribe("Browser.requestIntercepted", func(sessionID string, params json.RawMessage) {})
+	client.handlers["Browser.requestIntercepted"]("", json.RawMessage(`{
+		"requestId":"request-1",
+		"browserContextId":"ctx-1"
+	}`))
+
+	if _, err := be.Call("", "Browser.continueInterceptedRequest", json.RawMessage(`{"requestId":"request-1"}`)); err != nil {
+		t.Fatalf("Call returned error: %v", err)
+	}
+	if client.lastMethod != "Browser.continueInterceptedRequest" {
+		t.Fatalf("lastMethod = %q, want Browser.continueInterceptedRequest", client.lastMethod)
+	}
+}
+
 func TestScopedBackendCloseCancelsSubscriptions(t *testing.T) {
 	client := &fakeJugglerBackend{}
 	be := newScopedBackend(client, "ctx-1")

@@ -24,6 +24,7 @@ type scopedBackend struct {
 	mu              sync.RWMutex
 	allowedSessions map[string]struct{}
 	allowedTargets  map[string]struct{}
+	allowedRequests map[string]struct{}
 	cancelSubs      []func()
 }
 
@@ -35,6 +36,7 @@ func newScopedBackend(client jugglerBackend, browserContextID string) *scopedBac
 		browserContextID: browserContextID,
 		allowedSessions:  make(map[string]struct{}),
 		allowedTargets:   make(map[string]struct{}),
+		allowedRequests:  make(map[string]struct{}),
 	}
 }
 
@@ -67,6 +69,9 @@ func (b *scopedBackend) Call(sessionID, method string, params json.RawMessage) (
 			return b.client.Call(sessionID, method, params)
 		}
 		if _, ok := requestScopedBrowserMethods[method]; ok {
+			if err := b.validateTrackedRequest(method, params); err != nil {
+				return nil, err
+			}
 			return b.client.Call(sessionID, method, params)
 		}
 		if strings.HasPrefix(method, "Browser.") {
@@ -94,6 +99,7 @@ func (b *scopedBackend) Close() error {
 	b.cancelSubs = nil
 	b.allowedSessions = make(map[string]struct{})
 	b.allowedTargets = make(map[string]struct{})
+	b.allowedRequests = make(map[string]struct{})
 	b.mu.Unlock()
 	for _, cancel := range cancels {
 		cancel()
@@ -162,6 +168,25 @@ func (b *scopedBackend) validateOptionalBrowserContext(method string, params jso
 	return nil
 }
 
+func (b *scopedBackend) validateTrackedRequest(method string, params json.RawMessage) error {
+	var payload struct {
+		RequestID string `json:"requestId"`
+	}
+	if err := json.Unmarshal(params, &payload); err != nil {
+		return fmt.Errorf("parse %s params: %w", method, err)
+	}
+	if payload.RequestID == "" {
+		return fmt.Errorf("%s requires requestId for scoped foxbridge sessions", method)
+	}
+	b.mu.RLock()
+	_, ok := b.allowedRequests[payload.RequestID]
+	b.mu.RUnlock()
+	if !ok {
+		return fmt.Errorf("request %s is outside scoped backend", payload.RequestID)
+	}
+	return nil
+}
+
 func (b *scopedBackend) shouldForward(event, sessionID string, params json.RawMessage) bool {
 	switch event {
 	case "Browser.attachedToTarget":
@@ -213,6 +238,24 @@ func (b *scopedBackend) shouldForward(event, sessionID string, params json.RawMe
 		}
 		b.mu.Unlock()
 		return sessionAllowed || targetAllowed
+
+	case "Browser.requestIntercepted":
+		var ev struct {
+			RequestID        string `json:"requestId"`
+			BrowserContextID string `json:"browserContextId"`
+		}
+		if err := json.Unmarshal(params, &ev); err != nil {
+			return false
+		}
+		if ev.BrowserContextID != b.browserContextID {
+			return false
+		}
+		if ev.RequestID != "" {
+			b.mu.Lock()
+			b.allowedRequests[ev.RequestID] = struct{}{}
+			b.mu.Unlock()
+		}
+		return true
 	}
 
 	if sessionID == "" {
