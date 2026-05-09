@@ -27,6 +27,7 @@ type Client struct {
 	pendingMu     sync.Mutex
 	handlers      map[string][]eventSubscription
 	handlerMu     sync.RWMutex
+	events        chan *Message
 	done          chan struct{}
 	closeOnce     sync.Once
 }
@@ -37,9 +38,11 @@ func NewClient(transport Transport) *Client {
 		transport: transport,
 		pending:   make(map[int]chan *Message),
 		handlers:  make(map[string][]eventSubscription),
+		events:    make(chan *Message, 1024),
 		done:      make(chan struct{}),
 	}
 	go c.readLoop()
+	go c.eventLoop()
 	return c
 }
 
@@ -183,12 +186,36 @@ func (c *Client) readLoop() {
 				ch <- msg
 			}
 		} else if msg.IsEvent() {
-			c.handlerMu.RLock()
-			subs := append([]eventSubscription(nil), c.handlers[msg.Method]...)
-			c.handlerMu.RUnlock()
-			for _, sub := range subs {
-				sub.handler(msg.SessionID, msg.Params)
-			}
+			c.queueEvent(msg)
 		}
+	}
+}
+
+func (c *Client) queueEvent(msg *Message) {
+	select {
+	case c.events <- msg:
+	case <-c.done:
+	default:
+		go c.dispatchEvent(msg)
+	}
+}
+
+func (c *Client) eventLoop() {
+	for {
+		select {
+		case <-c.done:
+			return
+		case msg := <-c.events:
+			c.dispatchEvent(msg)
+		}
+	}
+}
+
+func (c *Client) dispatchEvent(msg *Message) {
+	c.handlerMu.RLock()
+	subs := append([]eventSubscription(nil), c.handlers[msg.Method]...)
+	c.handlerMu.RUnlock()
+	for _, sub := range subs {
+		sub.handler(msg.SessionID, msg.Params)
 	}
 }

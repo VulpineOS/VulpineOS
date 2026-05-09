@@ -173,6 +173,48 @@ func TestClient_SubscribeWithCancel_RemovesHandler(t *testing.T) {
 	}
 }
 
+func TestClient_EventHandlerDoesNotBlockResponses(t *testing.T) {
+	mt := newMemTransport()
+	c := NewClient(mt)
+	defer c.Close()
+
+	handlerStarted := make(chan struct{})
+	releaseHandler := make(chan struct{})
+	c.Subscribe("Page.slowEvent", func(_ string, _ json.RawMessage) {
+		close(handlerStarted)
+		<-releaseHandler
+	})
+
+	mt.incoming <- &Message{
+		Method: "Page.slowEvent",
+		Params: json.RawMessage(`{}`),
+	}
+	select {
+	case <-handlerStarted:
+	case <-time.After(time.Second):
+		t.Fatal("event handler did not start")
+	}
+	defer close(releaseHandler)
+
+	go func() {
+		req := <-mt.outgoing
+		mt.incoming <- &Message{
+			ID:     req.ID,
+			Result: json.RawMessage(`{"ok":true}`),
+		}
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	result, err := c.CallWithContext(ctx, "", "Browser.getInfo", nil)
+	if err != nil {
+		t.Fatalf("CallWithContext while event handler blocked: %v", err)
+	}
+	if string(result) != `{"ok":true}` {
+		t.Fatalf("result = %s, want ok response", result)
+	}
+}
+
 func TestClient_CallWithContext_TimesOut(t *testing.T) {
 	mt := newMemTransport()
 	// Don't respond — let it hang
