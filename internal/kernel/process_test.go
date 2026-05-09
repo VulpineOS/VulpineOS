@@ -271,7 +271,9 @@ func TestKernelNewPageAndNavigate(t *testing.T) {
 	defer k.Stop()
 
 	client := k.Client()
-	client.Call("", "Browser.enable", map[string]interface{}{"attachToDefaultContext": true})
+	if _, err := client.Call("", "Browser.enable", map[string]interface{}{"attachToDefaultContext": true}); err != nil {
+		t.Fatalf("Browser.enable: %v", err)
+	}
 
 	// Wait for events to settle
 	time.Sleep(2 * time.Second)
@@ -304,7 +306,9 @@ func TestKernelCreateBrowserContext(t *testing.T) {
 	defer k.Stop()
 
 	client := k.Client()
-	client.Call("", "Browser.enable", map[string]interface{}{"attachToDefaultContext": true})
+	if _, err := client.Call("", "Browser.enable", map[string]interface{}{"attachToDefaultContext": true}); err != nil {
+		t.Fatalf("Browser.enable: %v", err)
+	}
 
 	// Create browser context
 	result, err := client.Call("", "Browser.createBrowserContext", map[string]interface{}{
