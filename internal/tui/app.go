@@ -1141,7 +1141,7 @@ func (a *App) handleBrowserToggle() {
 		return
 	}
 	if a.kernel != nil && a.kernel.IsHeadless() {
-		a.notice = "Cannot show browser in headless mode — run without --headless"
+		a.notice = "Cannot show browser in headless mode — run with --headful"
 		a.noticeTTL = 4
 		return
 	}

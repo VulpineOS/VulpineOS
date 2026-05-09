@@ -36,6 +36,13 @@ go build -o vulpineos ./cmd/vulpineos
 ./vulpineos tui --binary /path/to/camoufox
 ```
 
+The local TUI runs headless by default. Add `--headful` when validating visible
+browser-window behavior:
+
+```bash
+./vulpineos tui --headful --binary /path/to/camoufox
+```
+
 Useful local commands:
 
 ```bash

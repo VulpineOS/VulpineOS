@@ -347,6 +347,13 @@ Local TUI:
 ./vulpineos tui
 ```
 
+The local TUI launches the browser headless by default. Use `--headful` when
+you want the browser window to be visible:
+
+```bash
+./vulpineos tui --headful
+```
+
 Local web panel:
 
 ```bash

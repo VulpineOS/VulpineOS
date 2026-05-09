@@ -60,6 +60,8 @@ var (
 	stderr io.Writer = os.Stderr
 )
 
+var runLocalSession = runLocal
+
 var startGatewayIfAvailable = func(cfg *config.Config, audit *runtimeaudit.Manager) *openclaw.Gateway {
 	mgr := openclaw.NewManager("")
 	if !mgr.OpenClawInstalled() {
@@ -255,6 +257,7 @@ func Run(args []string) int {
 	var (
 		binaryPath = fs.String("binary", "", "Path to VulpineOS/Camoufox binary")
 		headless   = fs.Bool("headless", false, "Run in headless mode")
+		headful    = fs.Bool("headful", false, "Run local TUI browser in a visible window")
 		profileDir = fs.String("profile", "", "Firefox profile directory")
 		remoteAddr = fs.String("remote", "", "Connect to remote VulpineOS (wss://host:port/ws)")
 		serve      = fs.Bool("serve", false, "Run as remote-accessible server")
@@ -310,7 +313,7 @@ func Run(args []string) int {
 	case *serve:
 		err = runServe(*binaryPath, *headless, *profileDir, "0.0.0.0", *port, *apiKey, *tlsCert, *tlsKey, *noTLS, *noBrowser, false)
 	default:
-		err = runLocal(*binaryPath, *headless, *profileDir, *noBrowser)
+		err = runLocalSession(*binaryPath, resolveLocalTUIHeadless(*headless, *headful), *profileDir, *noBrowser)
 	}
 
 	if err != nil {
@@ -342,7 +345,8 @@ func runTUISubcommand(args []string) int {
 	fs := flag.NewFlagSet("vulpineos tui", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	binaryPath := fs.String("binary", "", "Path to VulpineOS/Camoufox binary")
-	headless := fs.Bool("headless", false, "Run in headless mode")
+	headless := fs.Bool("headless", false, "Run in headless mode (default)")
+	headful := fs.Bool("headful", false, "Run browser in a visible window")
 	profileDir := fs.String("profile", "", "Firefox profile directory")
 	noBrowser := fs.Bool("no-browser", false, "Start without launching browser/kernel")
 	if err := fs.Parse(args); err != nil {
@@ -351,11 +355,18 @@ func runTUISubcommand(args []string) int {
 		}
 		return 2
 	}
-	if err := runLocal(*binaryPath, *headless, *profileDir, *noBrowser); err != nil {
+	if err := runLocalSession(*binaryPath, resolveLocalTUIHeadless(*headless, *headful), *profileDir, *noBrowser); err != nil {
 		fmt.Fprintf(stderr, "error: %v\n", err)
 		return 1
 	}
 	return 0
+}
+
+func resolveLocalTUIHeadless(headlessFlag bool, headfulFlag bool) bool {
+	if headlessFlag {
+		return true
+	}
+	return !headfulFlag
 }
 
 func runPanelSubcommand(args []string) int {

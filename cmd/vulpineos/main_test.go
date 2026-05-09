@@ -2,12 +2,15 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+var errStopAfterFlagParse = errors.New("stop after flag parse")
 
 // TestRun_VersionFlag verifies the Run wrapper-friendly entrypoint
 // honors --version, writes a version string to the configured stdout,
@@ -62,6 +65,74 @@ func TestRun_HelpFlagsExitZero(t *testing.T) {
 			}
 			if strings.TrimSpace(errBuf.String()) == "" {
 				t.Fatalf("Run(%v) should print help text to stderr", args)
+			}
+		})
+	}
+}
+
+func TestRun_LocalTUIDefaultsHeadlessAndSupportsHeadful(t *testing.T) {
+	tests := []struct {
+		name         string
+		args         []string
+		wantHeadless bool
+	}{
+		{
+			name:         "bare command defaults local TUI to headless",
+			args:         []string{"vulpineos"},
+			wantHeadless: true,
+		},
+		{
+			name:         "bare command headful flag launches visible browser",
+			args:         []string{"vulpineos", "--headful"},
+			wantHeadless: false,
+		},
+		{
+			name:         "tui subcommand defaults to headless",
+			args:         []string{"vulpineos", "tui"},
+			wantHeadless: true,
+		},
+		{
+			name:         "tui subcommand headful flag launches visible browser",
+			args:         []string{"vulpineos", "tui", "--headful"},
+			wantHeadless: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var gotHeadless bool
+			called := false
+
+			prevRunLocal := runLocalSession
+			runLocalSession = func(binaryPath string, headless bool, profileDir string, noBrowser bool) error {
+				called = true
+				gotHeadless = headless
+				return errStopAfterFlagParse
+			}
+			t.Cleanup(func() {
+				runLocalSession = prevRunLocal
+			})
+
+			var outBuf, errBuf bytes.Buffer
+			prevOut, prevErr := stdout, stderr
+			stdout = &outBuf
+			stderr = &errBuf
+			t.Cleanup(func() {
+				stdout = prevOut
+				stderr = prevErr
+			})
+
+			if code := Run(tt.args); code != 1 {
+				t.Fatalf("Run(%v) exit code = %d, want 1 from stub error", tt.args, code)
+			}
+			if !called {
+				t.Fatalf("Run(%v) did not call local TUI startup", tt.args)
+			}
+			if gotHeadless != tt.wantHeadless {
+				t.Fatalf("Run(%v) headless = %v, want %v", tt.args, gotHeadless, tt.wantHeadless)
+			}
+			if !strings.Contains(errBuf.String(), errStopAfterFlagParse.Error()) {
+				t.Fatalf("Run(%v) stderr = %q, want stub error", tt.args, errBuf.String())
 			}
 		})
 	}
