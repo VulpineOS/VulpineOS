@@ -65,14 +65,42 @@ func (m Model) Done() bool {
 }
 
 func (m Model) View() string {
-	content := m.spinner.View() + " " + textStyle.Render(m.message) + "\n" +
-		hintStyle.Render("  Starting VulpineOS kernel...")
+	width := m.width
+	if width <= 0 {
+		width = 80
+	}
+	lines := []string{
+		fitLoadingLine(m.spinner.View()+" "+textStyle.Render(m.message), width),
+		fitLoadingLine(hintStyle.Render("Starting VulpineOS kernel..."), width),
+	}
+	if m.height > 0 && len(lines) > m.height {
+		lines = lines[:m.height]
+	}
+	content := strings.Join(lines, "\n")
 
-	pad := m.height / 2
+	pad := 0
+	if m.height > len(lines) {
+		pad = (m.height - len(lines)) / 2
+	}
 	if pad < 0 {
 		pad = 0
 	}
-	return strings.Repeat("\n", pad) + lipgloss.PlaceHorizontal(m.width, lipgloss.Center, content)
+	return strings.Repeat("\n", pad) + lipgloss.PlaceHorizontal(width, lipgloss.Center, content)
+}
+
+func fitLoadingLine(line string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	if lipgloss.Width(line) <= width {
+		return line
+	}
+	fitted := lipgloss.NewStyle().MaxWidth(width).Render(line)
+	lines := strings.Split(fitted, "\n")
+	if len(lines) == 0 {
+		return ""
+	}
+	return lines[0]
 }
 
 // WaitForStartup returns a tea.Cmd that waits for the given function to complete,

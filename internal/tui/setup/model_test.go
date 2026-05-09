@@ -66,12 +66,15 @@ func TestSetupViewFitsNarrowTerminal(t *testing.T) {
 	model, _ := m.Update(tea.WindowSizeMsg{Width: 50, Height: 20})
 	m = model.(Model)
 
-	view := m.View()
-	for i, line := range strings.Split(view, "\n") {
-		if width := lipgloss.Width(line); width > m.width {
-			t.Fatalf("line %d width = %d, want <= %d:\n%s", i+1, width, m.width, view)
-		}
-	}
+	assertSetupViewFits(t, m)
+}
+
+func TestSetupProviderViewFitsShortTerminal(t *testing.T) {
+	m := New()
+	model, _ := m.Update(tea.WindowSizeMsg{Width: 50, Height: 10})
+	m = model.(Model)
+
+	assertSetupViewFits(t, m)
 }
 
 func TestSetupViewFitsVeryNarrowAPIKeyAndDoneSteps(t *testing.T) {
@@ -94,7 +97,11 @@ func TestSetupViewFitsVeryNarrowAPIKeyAndDoneSteps(t *testing.T) {
 func assertSetupViewFits(t *testing.T, m Model) {
 	t.Helper()
 	view := m.View()
-	for i, line := range strings.Split(view, "\n") {
+	lines := strings.Split(view, "\n")
+	if m.height > 0 && len(lines) > m.height {
+		t.Fatalf("line count = %d, want <= %d:\n%s", len(lines), m.height, view)
+	}
+	for i, line := range lines {
 		if width := lipgloss.Width(line); width > m.width {
 			t.Fatalf("line %d width = %d, want <= %d:\n%s", i+1, width, m.width, view)
 		}
