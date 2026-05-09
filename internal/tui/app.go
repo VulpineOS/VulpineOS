@@ -2240,9 +2240,10 @@ func (a *App) deleteAgent(agentID string) tea.Cmd {
 		return a.remoteAgentStatusCommand("agents.kill", agentID, "interrupted", "Remote agent killed: ")
 	}
 	return func() tea.Msg {
-		// Kill if running
-		if a.orch != nil {
-			a.orch.Agents.Kill(agentID)
+		if a.orch != nil && isLiveAgentStatus(a.selectedAgentStatus()) {
+			if err := a.orch.KillAgent(agentID); err != nil && !strings.Contains(err.Error(), "not found") {
+				return statusNotice{text: "Kill failed: " + err.Error()}
+			}
 		}
 		// Remove from vault
 		if a.vault != nil {
@@ -2526,10 +2527,14 @@ func (a App) killAllAgents() tea.Cmd {
 
 		affected := make([]string, 0, len(statuses))
 		for _, status := range statuses {
+			if err := a.orch.KillAgent(status.AgentID); err != nil {
+				continue
+			}
 			affected = append(affected, status.AgentID)
 		}
-
-		a.orch.Agents.KillAll()
+		if len(affected) == 0 {
+			return statusNotice{text: "No live agents killed"}
+		}
 		for _, agentID := range affected {
 			_ = a.vault.UpdateAgentStatus(agentID, "interrupted")
 		}

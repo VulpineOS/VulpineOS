@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1611,6 +1613,40 @@ func TestBulkKillKeybindingWithoutOrchestrator(t *testing.T) {
 	}
 	if notice.text != "Kill all unavailable" {
 		t.Fatalf("bulk kill notice = %q, want %q", notice.text, "Kill all unavailable")
+	}
+}
+
+func TestLocalKillPathsUseOrchestratorCleanup(t *testing.T) {
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "app.go", nil, 0)
+	if err != nil {
+		t.Fatalf("parse app.go: %v", err)
+	}
+	data, err := os.ReadFile("app.go")
+	if err != nil {
+		t.Fatalf("read app.go: %v", err)
+	}
+	source := string(data)
+	for _, decl := range file.Decls {
+		start := fset.Position(decl.Pos()).Offset
+		end := fset.Position(decl.End()).Offset
+		body := source[start:end]
+		switch {
+		case strings.Contains(body, "func (a *App) deleteAgent"):
+			if !strings.Contains(body, "a.orch.KillAgent(agentID)") {
+				t.Fatal("deleteAgent should use Orchestrator.KillAgent for local live agents")
+			}
+			if strings.Contains(body, "a.orch.Agents.Kill(agentID)") {
+				t.Fatal("deleteAgent bypasses orchestrator cleanup via Agents.Kill")
+			}
+		case strings.Contains(body, "func (a App) killAllAgents"):
+			if !strings.Contains(body, "a.orch.KillAgent(status.AgentID)") {
+				t.Fatal("killAllAgents should use Orchestrator.KillAgent for each live agent")
+			}
+			if strings.Contains(body, "a.orch.Agents.KillAll()") {
+				t.Fatal("killAllAgents bypasses orchestrator cleanup via Agents.KillAll")
+			}
+		}
 	}
 }
 
