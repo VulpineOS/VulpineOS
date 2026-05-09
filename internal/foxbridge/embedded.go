@@ -197,6 +197,10 @@ func StartEmbeddedScoped(client *juggler.Client, port int, browserContextID stri
 }
 
 func startEmbeddedWithBackend(be backend.Backend, port int, attachToDefaultContext bool) (*EmbeddedServer, error) {
+	if err := ensurePortAvailable(port); err != nil {
+		_ = be.Close()
+		return nil, fmt.Errorf("embedded foxbridge port unavailable: %w", err)
+	}
 
 	// Create CDP session manager and server (same wiring as foxbridge main.go).
 	sessions := cdp.NewSessionManager()
@@ -237,6 +241,10 @@ func startEmbeddedWithBackend(be backend.Backend, port int, attachToDefaultConte
 		}
 	}()
 
+	if err := waitForPort(port, 2*time.Second); err != nil {
+		es.Stop()
+		return nil, err
+	}
 	log.Printf("embedded foxbridge CDP server listening on 127.0.0.1:%d", port)
 	return es, nil
 }

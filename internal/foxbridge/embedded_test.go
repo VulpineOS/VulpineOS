@@ -97,6 +97,27 @@ func TestEmbeddedStopReleasesPort(t *testing.T) {
 	}
 }
 
+func TestStartEmbeddedWithBackendFailsWhenPortUnavailable(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer listener.Close()
+	port := listener.Addr().(*net.TCPAddr).Port
+
+	be := &embeddedTestBackend{}
+	es, err := startEmbeddedWithBackend(be, port, true)
+	if err == nil {
+		if es != nil {
+			es.Stop()
+		}
+		t.Fatal("expected occupied port to fail startup")
+	}
+	if be.closeCount != 1 {
+		t.Fatalf("backend close count = %d, want 1 after failed startup", be.closeCount)
+	}
+}
+
 func TestEmbeddedStopClosesBackend(t *testing.T) {
 	port, err := reservePort()
 	if err != nil {
