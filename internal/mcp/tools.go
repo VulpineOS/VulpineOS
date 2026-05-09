@@ -16,6 +16,8 @@ var (
 	toolsCached []ToolDefinition
 )
 
+var newContextAttachTimeout = 10 * time.Second
+
 // tools returns the list of VulpineOS browser tools available via MCP.
 // The result is computed exactly once per process and cached. Callers
 // must treat the returned slice as read-only; mutating it will affect
@@ -706,6 +708,12 @@ func handleNewContext(client *juggler.Client, args json.RawMessage) (*ToolCallRe
 	if ctx.BrowserContextID == "" {
 		return errorResult(fmt.Errorf("Browser.createBrowserContext returned empty browserContextId")), nil
 	}
+	cleanupContext := true
+	defer func() {
+		if cleanupContext {
+			cleanupBrowserContext(client, ctx.BrowserContextID)
+		}
+	}()
 
 	// Subscribe to get the sessionID from the attachedToTarget event. Filter by
 	// browserContextId so concurrent target attaches cannot steal this result.
@@ -739,11 +747,23 @@ func handleNewContext(client *juggler.Client, args json.RawMessage) (*ToolCallRe
 	var sessionID string
 	select {
 	case sessionID = <-sessionCh:
-	case <-time.After(10 * time.Second):
+	case <-time.After(newContextAttachTimeout):
 		return errorResult(fmt.Errorf("timed out waiting for page session")), nil
 	}
 
+	cleanupContext = false
 	return textResult(fmt.Sprintf(`{"contextId":"%s","sessionId":"%s"}`, ctx.BrowserContextID, sessionID)), nil
+}
+
+func cleanupBrowserContext(client *juggler.Client, contextID string) {
+	if client == nil || contextID == "" {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	_, _ = client.CallWithContext(ctx, "", "Browser.removeBrowserContext", map[string]interface{}{
+		"browserContextId": contextID,
+	})
 }
 
 func handleCloseContext(client *juggler.Client, args json.RawMessage) (*ToolCallResult, error) {
