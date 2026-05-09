@@ -175,6 +175,9 @@ type ProxyImportedMsg struct {
 // SettingsClosedMsg fires when the settings panel is closed.
 type SettingsClosedMsg struct{}
 
+// ReconfigureRequestedMsg requests launching the setup wizard on next start.
+type ReconfigureRequestedMsg struct{}
+
 // ProxyAddMsg requests adding a proxy to the vault.
 type ProxyAddMsg struct {
 	URL string // raw proxy URL to parse and save

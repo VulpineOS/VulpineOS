@@ -710,12 +710,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 		case "c":
 			// Request the setup wizard on next launch without mutating the active config first.
-			if err := config.RequestReconfigure(); err != nil {
-				a.notice = "Failed to queue reconfigure: " + err.Error()
-				a.noticeTTL = 4
-				return a, nil
-			}
-			return a, a.shutdown()
+			return a, a.requestReconfigure()
 		}
 
 	case tea.WindowSizeMsg:
@@ -917,6 +912,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if a.focus == FocusSettings {
 			a.focus = FocusAgentList
 		}
+
+	case shared.ReconfigureRequestedMsg:
+		return a, a.requestReconfigure()
 
 	case shared.ProxyAddMsg:
 		pc, err := proxy.ParseProxyURL(msg.URL)
@@ -1497,6 +1495,15 @@ func shrinkSideWidths(left, right, budget int) (int, int) {
 
 func (a *App) resizeModeEnabled() bool {
 	return a.resizeMode
+}
+
+func (a *App) requestReconfigure() tea.Cmd {
+	if err := config.RequestReconfigure(); err != nil {
+		a.notice = "Failed to queue reconfigure: " + err.Error()
+		a.noticeTTL = 4
+		return nil
+	}
+	return a.shutdown()
 }
 
 func (a *App) browserRouteLabel() string {

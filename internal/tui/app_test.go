@@ -711,6 +711,39 @@ func TestReconfigureShortcutQueuesWizardWithoutClearingConfig(t *testing.T) {
 	}
 }
 
+func TestSettingsReconfigureShortcutQueuesWizard(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	cfg := &config.Config{
+		Provider:      "anthropic",
+		APIKey:        "sk-test",
+		Model:         "anthropic/claude-sonnet-4-6",
+		SetupComplete: true,
+	}
+	app := NewApp(nil, nil, nil, nil, cfg, nil)
+
+	model, _ := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'S'}})
+	app = model.(App)
+	model, cmd := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	app = model.(App)
+	if cmd == nil {
+		t.Fatal("settings reconfigure shortcut returned no command")
+	}
+	model, _ = app.Update(cmd())
+	updated := model.(App)
+
+	if !config.ReconfigureRequested() {
+		t.Fatal("settings reconfigure shortcut should queue the setup wizard")
+	}
+	if !cfg.SetupComplete {
+		t.Fatal("settings reconfigure shortcut should not clear setupComplete")
+	}
+	if updated.focus != FocusSettings {
+		t.Fatalf("focus = %d, want settings until shutdown command quits", updated.focus)
+	}
+}
+
 func TestUnfocusedChatAllowsOpenLogShortcut(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

@@ -217,6 +217,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				}
 			}
 
+		case "c":
+			return m, func() tea.Msg { return shared.ReconfigureRequestedMsg{} }
+
 		case " ":
 			if m.section == SectionGeneral {
 				m.resizePanelsWithArrows = !m.resizePanelsWithArrows
