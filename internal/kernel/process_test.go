@@ -1,10 +1,14 @@
 package kernel
 
 import (
+	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"vulpineos/internal/juggler"
 )
 
 func camoufoxBinary() string {
@@ -25,6 +29,17 @@ func camoufoxBinary() string {
 		return b
 	}
 	return ""
+}
+
+func liveKernelCall(t *testing.T, client *juggler.Client, sessionID, method string, params interface{}) json.RawMessage {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	result, err := client.CallWithContext(ctx, sessionID, method, params)
+	if err != nil {
+		t.Fatalf("%s: %v", method, err)
+	}
+	return result
 }
 
 func TestBinaryLocatorPrefersRepoLocalBuild(t *testing.T) {
@@ -240,18 +255,12 @@ func TestKernelBrowserEnable(t *testing.T) {
 	client := k.Client()
 
 	// Browser.enable
-	_, err := client.Call("", "Browser.enable", map[string]interface{}{
+	liveKernelCall(t, client, "", "Browser.enable", map[string]interface{}{
 		"attachToDefaultContext": true,
 	})
-	if err != nil {
-		t.Fatalf("Browser.enable: %v", err)
-	}
 
 	// Browser.getInfo
-	result, err := client.Call("", "Browser.getInfo", nil)
-	if err != nil {
-		t.Fatalf("Browser.getInfo: %v", err)
-	}
+	result := liveKernelCall(t, client, "", "Browser.getInfo", nil)
 	if len(result) == 0 {
 		t.Fatal("Browser.getInfo returned empty")
 	}
@@ -271,18 +280,13 @@ func TestKernelNewPageAndNavigate(t *testing.T) {
 	defer k.Stop()
 
 	client := k.Client()
-	if _, err := client.Call("", "Browser.enable", map[string]interface{}{"attachToDefaultContext": true}); err != nil {
-		t.Fatalf("Browser.enable: %v", err)
-	}
+	liveKernelCall(t, client, "", "Browser.enable", map[string]interface{}{"attachToDefaultContext": true})
 
 	// Wait for events to settle
 	time.Sleep(2 * time.Second)
 
 	// Create a new page
-	result, err := client.Call("", "Browser.newPage", nil)
-	if err != nil {
-		t.Fatalf("Browser.newPage: %v", err)
-	}
+	result := liveKernelCall(t, client, "", "Browser.newPage", nil)
 	t.Logf("newPage: %s", string(result))
 
 	// Navigate
@@ -306,21 +310,16 @@ func TestKernelCreateBrowserContext(t *testing.T) {
 	defer k.Stop()
 
 	client := k.Client()
-	if _, err := client.Call("", "Browser.enable", map[string]interface{}{"attachToDefaultContext": true}); err != nil {
-		t.Fatalf("Browser.enable: %v", err)
-	}
+	liveKernelCall(t, client, "", "Browser.enable", map[string]interface{}{"attachToDefaultContext": true})
 
 	// Create browser context
-	result, err := client.Call("", "Browser.createBrowserContext", map[string]interface{}{
+	result := liveKernelCall(t, client, "", "Browser.createBrowserContext", map[string]interface{}{
 		"removeOnDetach": true,
 	})
-	if err != nil {
-		t.Fatalf("createBrowserContext: %v", err)
-	}
 	t.Logf("createBrowserContext: %s", string(result))
 
 	// Remove it
-	_, err = client.Call("", "Browser.removeBrowserContext", map[string]interface{}{
+	_, _ = client.Call("", "Browser.removeBrowserContext", map[string]interface{}{
 		"browserContextId": "default", // just test the call doesn't crash
 	})
 	// May fail for default context — that's ok
