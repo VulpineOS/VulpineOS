@@ -58,7 +58,7 @@ describe('Agents page', () => {
 
     fireEvent.click(screen.getAllByRole('checkbox')[1])
     expect(screen.getByText('Pause Selected')).not.toBeDisabled()
-    expect(screen.getByText('Resume Selected')).not.toBeDisabled()
+    expect(screen.getByText('Resume Selected')).toBeDisabled()
     expect(screen.getByText('Kill Selected')).not.toBeDisabled()
 
     rerender(
@@ -84,12 +84,12 @@ describe('Agents page', () => {
     expect(screen.getByText('ctx-2')).toBeInTheDocument()
   })
 
-  it('runs selected bulk pause and resume actions', async () => {
+  it('runs selected bulk pause and resume actions only for eligible statuses', async () => {
     const calls = vi.fn(async (method) => {
       if (method === 'agents.list') {
         return {
           agents: [
-            { id: 'agent-1', name: 'Agent One', status: 'active', contextId: '', fingerprintSummary: '', totalTokens: 0, budgetSource: 'agent', budgetMaxCostUsd: 1.5, budgetMaxTokens: 5000 },
+            { id: 'agent-1', name: 'Agent One', status: 'running', contextId: '', fingerprintSummary: '', totalTokens: 0, budgetSource: 'agent', budgetMaxCostUsd: 1.5, budgetMaxTokens: 5000 },
             { id: 'agent-2', name: 'Agent Two', status: 'paused', contextId: '', fingerprintSummary: '', totalTokens: 0, budgetSource: 'default', budgetMaxCostUsd: 2.5, budgetMaxTokens: 10000 },
           ],
         }
@@ -116,18 +116,18 @@ describe('Agents page', () => {
 
     fireEvent.click(screen.getByText('Pause Selected'))
     await waitFor(() => {
-      expect(calls).toHaveBeenCalledWith('agents.pauseMany', { agentIds: ['agent-1', 'agent-2'] })
+      expect(calls).toHaveBeenCalledWith('agents.pauseMany', { agentIds: ['agent-1'] })
     })
-    expect(screen.getByText('Paused 2 agents')).toBeInTheDocument()
+    expect(screen.getByText('Paused 1 agents')).toBeInTheDocument()
 
     checkboxes = screen.getAllByRole('checkbox')
     fireEvent.click(checkboxes[1])
     fireEvent.click(checkboxes[2])
     fireEvent.click(screen.getByText('Resume Selected'))
     await waitFor(() => {
-      expect(calls).toHaveBeenCalledWith('agents.resumeMany', { agentIds: ['agent-1', 'agent-2'] })
+      expect(calls).toHaveBeenCalledWith('agents.resumeMany', { agentIds: ['agent-2'] })
     })
-    expect(screen.getByText('Resumed 2 agents')).toBeInTheDocument()
+    expect(screen.getByText('Resumed 1 agents')).toBeInTheDocument()
 
     checkboxes = screen.getAllByRole('checkbox')
     fireEvent.click(checkboxes[1])
@@ -283,5 +283,28 @@ describe('Agents page', () => {
     await waitFor(() => {
       expect(calls).toHaveBeenCalledWith('agents.killMany', { agentIds: ['agent-active'] })
     })
+  })
+
+  it('shows pause controls for live non-active statuses', async () => {
+    const calls = vi.fn(async (method) => {
+      if (method === 'agents.list') {
+        return {
+          agents: [
+            { id: 'agent-thinking', name: 'Thinking Agent', status: 'thinking', contextId: '', fingerprintSummary: '', totalTokens: 0 },
+          ],
+        }
+      }
+      if (method === 'costs.getAll') return { usage: [], defaults: {} }
+      if (method === 'costs.total') return { totalCostUsd: 0 }
+      if (method === 'contexts.list') return { contexts: [] }
+      return {}
+    })
+
+    renderPage({ connected: true, events: [], call: calls })
+
+    const row = (await screen.findByText('Thinking Agent')).closest('tr')
+    expect(within(row).getByText('thinking')).toBeInTheDocument()
+    expect(within(row).getByText('Pause')).toBeInTheDocument()
+    expect(within(row).queryByText('Resume')).not.toBeInTheDocument()
   })
 })

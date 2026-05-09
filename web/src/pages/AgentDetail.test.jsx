@@ -120,6 +120,10 @@ describe('AgentDetail page', () => {
     expect(screen.getByText('{"type":"message","message":{"role":"assistant"}}')).toBeInTheDocument()
 
     fireEvent.click(screen.getByText('Conversation'))
+    fireEvent.click(screen.getByText('Pause'))
+    await waitFor(() => {
+      expect(call).toHaveBeenCalledWith('agents.pause', { agentId: 'agent-1' })
+    })
     fireEvent.click(screen.getByText('Save Budget'))
     await waitFor(() => {
       expect(call).toHaveBeenCalledWith('costs.setBudget', { agentId: 'agent-1', inheritDefault: true })
@@ -305,5 +309,32 @@ describe('AgentDetail page', () => {
     })
     expect(screen.getByText('interrupted')).toBeInTheDocument()
     expect(screen.queryByText('Kill')).not.toBeInTheDocument()
+  })
+
+  it('shows pause for live statuses and does not resume-message running agents', async () => {
+    const notify = vi.fn()
+    const call = vi.fn(async (method) => {
+      if (method === 'agents.list') {
+        return { agents: [{ id: 'agent-1', name: 'Agent One', status: 'running', contextId: '', totalTokens: 0 }] }
+      }
+      if (method === 'agents.getMessages') return { messages: [] }
+      if (method === 'recording.getTimeline') return { actions: [] }
+      if (method === 'fingerprints.get') return {}
+      return { status: 'ok' }
+    })
+
+    renderDetail({ connected: true, events: [], call, notify })
+
+    expect(await screen.findByText('running')).toBeInTheDocument()
+    expect(screen.getByText('Pause')).toBeInTheDocument()
+    expect(screen.queryByText('Resume')).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByPlaceholderText('Pause agent before sending a message...'), { target: { value: 'continue' } })
+    fireEvent.click(screen.getByText('Send'))
+
+    await waitFor(() => {
+      expect(notify).toHaveBeenCalledWith('Pause the agent before sending a follow-up message')
+    })
+    expect(call).not.toHaveBeenCalledWith('agents.resume', { agentId: 'agent-1', message: 'continue' })
   })
 })

@@ -1,5 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import {
+  agentStatusBadgeClass,
+  isLiveAgentStatus,
+  isPausedAgentStatus,
+  isTerminalAgentStatus,
+} from '../utils/agentStatus'
 
 function downloadTextFile(content, fileName, contentType = 'application/json') {
   const blob = new Blob([content || ''], { type: contentType })
@@ -13,8 +19,6 @@ function downloadTextFile(content, fileName, contentType = 'application/json') {
   URL.revokeObjectURL(url)
 }
 
-const TERMINAL_AGENT_STATUSES = new Set(['completed', 'error', 'failed', 'interrupted'])
-
 function formatBytes(value) {
   const bytes = Number(value || 0)
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
@@ -23,14 +27,6 @@ function formatBytes(value) {
   if (kb < 1024) return `${kb.toFixed(kb >= 10 ? 0 : 1)} KB`
   const mb = kb / 1024
   return `${mb.toFixed(mb >= 10 ? 0 : 1)} MB`
-}
-
-function agentStatusBadgeClass(status) {
-  if (status === 'active') return 'green'
-  if (status === 'paused') return 'yellow'
-  if (status === 'completed') return 'blue'
-  if (status === 'error' || status === 'failed') return 'red'
-  return 'gray'
 }
 
 export default function AgentDetail({ ws }) {
@@ -55,6 +51,8 @@ export default function AgentDetail({ ws }) {
 
   const conversationMessages = messages.filter(m => m.role !== 'system')
   const traceMessages = messages.filter(m => m.role === 'system')
+  const canPauseAgent = agent && isLiveAgentStatus(agent.status)
+  const canResumeAgent = agent && isPausedAgentStatus(agent.status)
 
   function traceMeta(content) {
     if (!content) return { label: 'TRACE', tone: '#9ca3af', bg: '#111827' }
@@ -211,6 +209,10 @@ export default function AgentDetail({ ws }) {
   const sendMessage = async () => {
     const text = input.trim()
     if (!text) return
+    if (!canResumeAgent) {
+      ws.notify?.('Pause the agent before sending a follow-up message')
+      return
+    }
     try {
       await ws.call('agents.resume', { agentId: id, message: text })
       setMessages(prev => [...prev, { role: 'user', content: text, tokens: 0 }])
@@ -274,9 +276,9 @@ export default function AgentDetail({ ws }) {
             {agent?.status || 'unknown'}
           </span>
           <span className="badge badge-gray">{Number(agent?.totalTokens || 0).toLocaleString()} tokens</span>
-          {agent?.status === 'active' && <button className="btn btn-ghost" onClick={pause}>Pause</button>}
-          {agent?.status === 'paused' && <button className="btn btn-ghost" onClick={resume}>Resume</button>}
-          {agent && !TERMINAL_AGENT_STATUSES.has(agent.status) && <button className="btn btn-danger" onClick={() => setConfirmKill(true)}>Kill</button>}
+          {canPauseAgent && <button className="btn btn-ghost" onClick={pause}>Pause</button>}
+          {canResumeAgent && <button className="btn btn-ghost" onClick={resume}>Resume</button>}
+          {agent && !isTerminalAgentStatus(agent.status) && <button className="btn btn-danger" onClick={() => setConfirmKill(true)}>Kill</button>}
           <button className="btn btn-ghost" onClick={refresh}>Refresh</button>
         </div>
       </div>
@@ -348,7 +350,7 @@ export default function AgentDetail({ ws }) {
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <input className="input" value={input} onChange={e => setInput(e.target.value)}
-              placeholder="Send message to agent..." onKeyDown={e => e.key === 'Enter' && sendMessage()} />
+              placeholder={canResumeAgent ? 'Send message to agent...' : 'Pause agent before sending a message...'} onKeyDown={e => e.key === 'Enter' && sendMessage()} />
             <button className="btn btn-primary" onClick={sendMessage}>Send</button>
           </div>
         </div>
