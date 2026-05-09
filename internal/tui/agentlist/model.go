@@ -256,27 +256,27 @@ func (m Model) View() string {
 			cursor = "▸ "
 		}
 
-		name := a.Name
-		// Truncate name to fit width.
-		maxName := m.width - 6 // cursor(2) + space(1) + icon(~2) + padding
-		if maxName < 4 {
-			maxName = 4
-		}
-		if len(name) > maxName {
-			name = name[:maxName-1] + "…"
-		}
-
 		icon := statusIcon(a.Status)
-		unread := ""
+		unreadText := ""
 		if a.Unread > 0 {
 			if a.Unread > 9 {
-				unread = lipgloss.NewStyle().Foreground(shared.ColorWarning).Render(" 9+")
+				unreadText = " 9+"
 			} else {
-				unread = lipgloss.NewStyle().Foreground(shared.ColorWarning).Render(fmt.Sprintf(" %d", a.Unread))
+				unreadText = fmt.Sprintf(" %d", a.Unread)
 			}
 		}
+		unread := ""
+		if unreadText != "" {
+			unread = lipgloss.NewStyle().Foreground(shared.ColorWarning).Render(unreadText)
+		}
 
-		line := fmt.Sprintf("%s%-*s %s%s", cursor, maxName, name, icon, unread)
+		maxName := m.width - lipgloss.Width(cursor) - 1 - lipgloss.Width(icon) - lipgloss.Width(unreadText)
+		if maxName < 1 {
+			maxName = 1
+		}
+		name := padVisible(fitVisible(a.Name, maxName), maxName)
+
+		line := fitAgentRow(fmt.Sprintf("%s%s %s%s", cursor, name, icon, unread), m.width)
 		if i == m.selected {
 			line = shared.SelectedStyle.Render(line)
 		}
@@ -296,4 +296,51 @@ func (m Model) View() string {
 		}
 	}
 	return result
+}
+
+func fitVisible(text string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	if lipgloss.Width(text) <= width {
+		return text
+	}
+	if width == 1 {
+		return "…"
+	}
+	var b strings.Builder
+	for _, r := range text {
+		next := b.String() + string(r)
+		if lipgloss.Width(next) > width-1 {
+			break
+		}
+		b.WriteRune(r)
+	}
+	b.WriteString("…")
+	return b.String()
+}
+
+func padVisible(text string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	for lipgloss.Width(text) < width {
+		text += " "
+	}
+	return text
+}
+
+func fitAgentRow(line string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	if lipgloss.Width(line) <= width {
+		return line
+	}
+	fitted := lipgloss.NewStyle().MaxWidth(width).Render(line)
+	lines := strings.Split(fitted, "\n")
+	if len(lines) == 0 {
+		return ""
+	}
+	return lines[0]
 }
