@@ -83,3 +83,14 @@ func TestWatchdog_SetConfig(t *testing.T) {
 	}
 	w.mu.Unlock()
 }
+
+func TestWatchdog_OnRestart(t *testing.T) {
+	k := New()
+	w := NewWatchdog(k, true)
+	w.OnRestart(func(*Kernel) error { return nil })
+	w.mu.Lock()
+	if w.onRestart == nil {
+		t.Fatal("restart callback not registered")
+	}
+	w.mu.Unlock()
+}

@@ -910,6 +910,9 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 							case "restart_failed":
 								level = "error"
 								message = "kernel restart failed"
+							case "restart_skipped":
+								level = "warn"
+								message = "kernel restart skipped"
 							}
 							metadata := map[string]string{}
 							if event.Attempt > 0 {
@@ -1261,6 +1264,9 @@ func runServe(binaryPath string, headless bool, profileDir string, host string, 
 			case "restart_failed":
 				level = "error"
 				message = "kernel restart failed"
+			case "restart_skipped":
+				level = "warn"
+				message = "kernel restart skipped"
 			}
 			metadata := map[string]string{}
 			if event.Attempt > 0 {

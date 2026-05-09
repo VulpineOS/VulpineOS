@@ -1,6 +1,7 @@
 package kernel
 
 import (
+	"fmt"
 	"sync"
 	"time"
 )
@@ -12,6 +13,7 @@ type Watchdog struct {
 	config      Config
 	onCrash     func()
 	onEvent     func(WatchdogEvent)
+	onRestart   func(*Kernel) error
 	autoRestart bool
 	maxRestarts int
 	restarts    int
@@ -29,8 +31,9 @@ type WatchdogEvent struct {
 }
 
 // NewWatchdog creates a watchdog for the given kernel.
-// If autoRestart is true, the watchdog will attempt to restart the kernel
-// on crash up to 3 times.
+// If autoRestart is true, the watchdog will attempt to restart the kernel on
+// crash only after OnRestart has been configured. Restarting creates a new
+// Juggler client, so callers must rewire dependent services in that callback.
 func NewWatchdog(k *Kernel, autoRestart bool) *Watchdog {
 	return &Watchdog{
 		kernel:      k,
@@ -66,6 +69,15 @@ func (w *Watchdog) OnEvent(fn func(WatchdogEvent)) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.onEvent = fn
+}
+
+// OnRestart registers the callback invoked after a restarted kernel has been
+// launched. Use this to re-enable Browser and rewire services that hold the old
+// Juggler client. Without this callback, auto-restart is skipped.
+func (w *Watchdog) OnRestart(fn func(*Kernel) error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.onRestart = fn
 }
 
 // Restarts returns the number of auto-restarts performed so far.
@@ -124,14 +136,23 @@ func (w *Watchdog) monitor() {
 
 			// Attempt auto-restart if enabled
 			w.mu.Lock()
-			canRestart := w.autoRestart && w.restarts < w.maxRestarts
+			canRestart := w.autoRestart && w.onRestart != nil && w.restarts < w.maxRestarts
+			skipRestart := w.autoRestart && w.onRestart == nil
 			cfg := w.config
 			attempt := w.restarts + 1
 			eventCb = w.onEvent
+			restartCb := w.onRestart
 			w.mu.Unlock()
 
-			if canRestart {
+			if skipRestart {
+				if eventCb != nil {
+					eventCb(WatchdogEvent{Type: "restart_skipped", Attempt: attempt, Err: fmt.Errorf("restart handler not configured")})
+				}
+			} else if canRestart {
 				err := w.kernel.Start(cfg)
+				if err == nil && restartCb != nil {
+					err = restartCb(w.kernel)
+				}
 				if err == nil {
 					w.mu.Lock()
 					w.restarts++
@@ -141,6 +162,7 @@ func (w *Watchdog) monitor() {
 						eventCb(WatchdogEvent{Type: "restart_success", Attempt: attempt})
 					}
 				} else if eventCb != nil {
+					_ = w.kernel.Stop()
 					eventCb(WatchdogEvent{Type: "restart_failed", Attempt: attempt, Err: err})
 				}
 			}
