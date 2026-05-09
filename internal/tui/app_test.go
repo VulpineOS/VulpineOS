@@ -553,10 +553,18 @@ func TestRemoteControlPauseSelectedUsesAgentListStatus(t *testing.T) {
 
 func TestRemoteControlStatusEventRefreshesSelectedDetail(t *testing.T) {
 	app := NewAppWithControl(nil, nil, nil, nil, nil, nil, &fakeControlClient{})
-	app.agentList.SetAgents([]vault.Agent{{ID: "agent-1", Name: "Remote", Status: "paused", TotalTokens: 1}})
+	app.agentList.SetAgents([]vault.Agent{{
+		ID:          "agent-1",
+		Name:        "Remote",
+		Task:        "Inspect remote state",
+		Status:      "paused",
+		TotalTokens: 1,
+		Fingerprint: `{"navigator.platform":"MacIntel","navigator.userAgent":"Mozilla/5.0 rv:146.0","screen.width":1440,"screen.height":900}`,
+		Metadata:    vault.MarshalAgentMetadata(vault.AgentMetadata{ContextID: "ctx-remote-123456"}),
+	}})
 	app.agentList.SelectAgentID("agent-1")
 	app.selectedAgentID = "agent-1"
-	agent := vault.Agent{ID: "agent-1", Name: "Remote", Status: "paused", TotalTokens: 1}
+	agent := vault.Agent{ID: "agent-1", Name: "Remote", Status: "paused", TotalTokens: 1, Task: "Inspect remote state"}
 	app.updateAgentDetail(&agent)
 
 	model, _ := app.Update(shared.AgentStatusMsg{AgentID: "agent-1", Status: "active", Tokens: 99})
@@ -565,6 +573,15 @@ func TestRemoteControlStatusEventRefreshesSelectedDetail(t *testing.T) {
 	view := app.agentDetail.View()
 	if !strings.Contains(view, "Tokens: 99") || !strings.Contains(view, "working") {
 		t.Fatalf("detail did not refresh from remote status:\n%s", view)
+	}
+	if !strings.Contains(view, "Inspect remote state") {
+		t.Fatalf("detail lost remote task after status update:\n%s", view)
+	}
+	if !strings.Contains(view, "pinned ctx-remote") {
+		t.Fatalf("detail lost remote context after status update:\n%s", view)
+	}
+	if !strings.Contains(view, "macOS") {
+		t.Fatalf("detail lost remote fingerprint after status update:\n%s", view)
 	}
 }
 

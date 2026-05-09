@@ -565,6 +565,20 @@ func remoteSummaryToAgent(item remoteAgentSummary) vault.Agent {
 	return agent
 }
 
+func agentListItemToAgent(item agentlist.AgentListItem) vault.Agent {
+	return vault.Agent{
+		ID:          item.ID,
+		Name:        item.Name,
+		Task:        item.Task,
+		Status:      item.Status,
+		TotalTokens: item.Tokens,
+		Fingerprint: item.Fingerprint,
+		ProxyConfig: item.ProxyConfig,
+		Metadata:    item.Metadata,
+		CreatedAt:   item.CreatedAt,
+	}
+}
+
 func (a App) emitEvent(msg tea.Msg) {
 	if a.eventCh == nil {
 		return
@@ -1980,12 +1994,7 @@ func (a *App) updateRemoteAgentDetailFromList(agentID string) {
 	if !ok {
 		return
 	}
-	agent := remoteSummaryToAgent(remoteAgentSummary{
-		ID:          item.ID,
-		Name:        item.Name,
-		Status:      item.Status,
-		TotalTokens: item.Tokens,
-	})
+	agent := agentListItemToAgent(item)
 	a.updateAgentDetail(&agent)
 }
 
@@ -2002,12 +2011,7 @@ func (a *App) selectCurrentAgent() tea.Cmd {
 	if a.control != nil && a.vault == nil {
 		if item, ok := a.agentList.SelectedAgent(); ok {
 			a.conversation.SetAgentName(item.Name)
-			agent := remoteSummaryToAgent(remoteAgentSummary{
-				ID:          item.ID,
-				Name:        item.Name,
-				Status:      item.Status,
-				TotalTokens: item.Tokens,
-			})
+			agent := agentListItemToAgent(item)
 			a.updateAgentDetail(&agent)
 		}
 		return a.loadRemoteMessages(newID)

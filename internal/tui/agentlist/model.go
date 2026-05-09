@@ -3,6 +3,7 @@ package agentlist
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -13,11 +14,16 @@ import (
 
 // AgentListItem represents one agent in the list.
 type AgentListItem struct {
-	ID     string
-	Name   string
-	Status string
-	Tokens int
-	Unread int
+	ID          string
+	Name        string
+	Task        string
+	Status      string
+	Tokens      int
+	Fingerprint string
+	ProxyConfig string
+	Metadata    string
+	CreatedAt   time.Time
+	Unread      int
 }
 
 // Model holds the selectable agent list state.
@@ -72,10 +78,15 @@ func (m *Model) SetAgents(agents []vault.Agent) {
 	m.agents = make([]AgentListItem, len(agents))
 	for i, a := range agents {
 		m.agents[i] = AgentListItem{
-			ID:     a.ID,
-			Name:   a.Name,
-			Status: a.Status,
-			Tokens: a.TotalTokens,
+			ID:          a.ID,
+			Name:        a.Name,
+			Task:        a.Task,
+			Status:      a.Status,
+			Tokens:      a.TotalTokens,
+			Fingerprint: a.Fingerprint,
+			ProxyConfig: a.ProxyConfig,
+			Metadata:    a.Metadata,
+			CreatedAt:   a.CreatedAt,
 		}
 	}
 	if m.selected >= len(m.agents) {
@@ -137,10 +148,15 @@ func (m *Model) SelectAgentID(id string) bool {
 // AddAgent adds a new agent to the list.
 func (m *Model) AddAgent(a vault.Agent) {
 	m.agents = append(m.agents, AgentListItem{
-		ID:     a.ID,
-		Name:   a.Name,
-		Status: a.Status,
-		Tokens: a.TotalTokens,
+		ID:          a.ID,
+		Name:        a.Name,
+		Task:        a.Task,
+		Status:      a.Status,
+		Tokens:      a.TotalTokens,
+		Fingerprint: a.Fingerprint,
+		ProxyConfig: a.ProxyConfig,
+		Metadata:    a.Metadata,
+		CreatedAt:   a.CreatedAt,
 	})
 }
 
