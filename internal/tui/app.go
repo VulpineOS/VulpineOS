@@ -1255,7 +1255,14 @@ func (a App) View() string {
 	// Center column: settings panel OR full-height conversation
 	var centerContent string
 	if a.focus == FocusSettings && a.settings.IsActive() {
-		centerContent = a.settings.View()
+		settingsView := a.settings.View()
+		maxContentLines := bodyHeight - 2
+		settingsLines := strings.Split(settingsView, "\n")
+		if maxContentLines > 0 && len(settingsLines) > maxContentLines {
+			settingsLines = settingsLines[:maxContentLines]
+			settingsView = strings.Join(settingsLines, "\n")
+		}
+		centerContent = shared.ActivePanelStyle.Width(centerWidth).Height(bodyHeight - 2).Render(settingsView)
 	} else {
 		// Check if we need to show agent creation inputs overlaid on conversation
 		var convView string

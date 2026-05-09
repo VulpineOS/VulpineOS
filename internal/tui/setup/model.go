@@ -112,6 +112,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.apiKeyInput.Width = m.inputWidth()
 
 	case tea.KeyMsg:
 		switch m.step {
@@ -207,7 +208,7 @@ func (m Model) View() string {
 		content = m.viewDone()
 	}
 
-	box := boxStyle.Render(content)
+	box := boxStyle.Width(m.boxWidth()).Render(content)
 
 	// Center vertically
 	pad := (m.height - lipgloss.Height(box)) / 2
@@ -216,6 +217,31 @@ func (m Model) View() string {
 	}
 
 	return strings.Repeat("\n", pad) + lipgloss.PlaceHorizontal(m.width, lipgloss.Center, box)
+}
+
+func (m Model) boxWidth() int {
+	if m.width <= 0 {
+		return 76
+	}
+	width := m.width - 2
+	if width > 76 {
+		width = 76
+	}
+	if width < 12 {
+		width = max(1, m.width-2)
+	}
+	return width
+}
+
+func (m Model) inputWidth() int {
+	width := m.boxWidth() - 8
+	if width > 50 {
+		width = 50
+	}
+	if width < 10 {
+		width = 10
+	}
+	return width
 }
 
 func (m Model) viewProvider() string {

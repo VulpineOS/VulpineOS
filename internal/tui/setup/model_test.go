@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"vulpineos/internal/config"
 )
@@ -57,5 +58,18 @@ func TestExistingAPIKeyCanBeKeptBlank(t *testing.T) {
 	}
 	if updated.cfg.APIKey != cfg.APIKey {
 		t.Fatalf("cfg APIKey = %q, want existing key preserved", updated.cfg.APIKey)
+	}
+}
+
+func TestSetupViewFitsNarrowTerminal(t *testing.T) {
+	m := New()
+	model, _ := m.Update(tea.WindowSizeMsg{Width: 50, Height: 20})
+	m = model.(Model)
+
+	view := m.View()
+	for i, line := range strings.Split(view, "\n") {
+		if width := lipgloss.Width(line); width > m.width {
+			t.Fatalf("line %d width = %d, want <= %d:\n%s", i+1, width, m.width, view)
+		}
 	}
 }

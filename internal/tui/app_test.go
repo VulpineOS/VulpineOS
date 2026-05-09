@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"vulpineos/internal/config"
+	"vulpineos/internal/tui/settings"
 	"vulpineos/internal/tui/shared"
 	"vulpineos/internal/vault"
 )
@@ -355,6 +356,46 @@ func TestViewKeepsRenderedLinesWithinTerminalWidthAfterShrink(t *testing.T) {
 	for i, line := range strings.Split(view, "\n") {
 		if width := lipgloss.Width(line); width > app.width {
 			t.Fatalf("line %d width = %d, want <= %d:\n%s", i+1, width, app.width, view)
+		}
+	}
+}
+
+func TestSettingsViewKeepsRenderedLinesWithinTerminalAfterShrink(t *testing.T) {
+	cfg := &config.Config{
+		Provider:               "anthropic",
+		Model:                  "anthropic/claude-sonnet-4-6-with-a-long-display-name",
+		APIKey:                 "sk-test",
+		ResizePanelsWithArrows: true,
+	}
+	app := NewApp(nil, nil, nil, nil, cfg, nil)
+	app.width = 58
+	app.height = 16
+	app.leftWidth = 30
+	app.rightWidth = 30
+	app.leftSplit = 13
+	app.rightSplit = 10
+	app.updatePanelSizes()
+	app.focus = FocusSettings
+	app.settings.SetActive(true)
+	app.settings.SetConfig(cfg)
+	app.settings.SetProxies([]settings.ProxyItem{{
+		ID:      "proxy-1",
+		Label:   "customer-research-proxy-with-a-very-long-label",
+		Type:    "socks5",
+		Host:    "very-long-proxy-hostname-that-would-wrap.example.internal",
+		Port:    1080,
+		Country: "GB",
+		Latency: "123456789ms",
+	}})
+
+	view := app.View()
+	lines := strings.Split(view, "\n")
+	if len(lines) > app.height {
+		t.Fatalf("settings view height = %d, want <= %d:\n%s", len(lines), app.height, view)
+	}
+	for i, line := range lines {
+		if width := lipgloss.Width(line); width > app.width {
+			t.Fatalf("settings line %d width = %d, want <= %d:\n%s", i+1, width, app.width, view)
 		}
 	}
 }

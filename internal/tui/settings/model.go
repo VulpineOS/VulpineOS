@@ -277,6 +277,7 @@ func (m Model) View() string {
 	if !m.active {
 		return ""
 	}
+	contentWidth := m.contentWidth()
 
 	var b strings.Builder
 
@@ -288,7 +289,7 @@ func (m Model) View() string {
 	b.WriteString("\n")
 
 	// Separator
-	sep := shared.MutedStyle.Render(strings.Repeat("─", m.width-2))
+	sep := shared.MutedStyle.Render(strings.Repeat("─", max(1, contentWidth-2)))
 	b.WriteString(sep)
 	b.WriteString("\n\n")
 
@@ -303,9 +304,9 @@ func (m Model) View() string {
 	b.WriteString(m.viewSkills())
 
 	b.WriteString("\n\n")
-	b.WriteString(shared.MutedStyle.Render("[Esc] close settings  [Tab] next section"))
+	b.WriteString(shared.MutedStyle.Render(clipText("[Esc] close settings  [Tab] next section", contentWidth)))
 
-	return b.String()
+	return m.fitContent(b.String())
 }
 
 // viewGeneral renders the General settings section.
@@ -330,10 +331,10 @@ func (m Model) viewGeneral() string {
 	}
 
 	b.WriteString(shared.HeaderStyle.Render("Provider:  "))
-	b.WriteString(providerName)
+	b.WriteString(clipText(providerName, max(1, m.contentWidth()-11)))
 	b.WriteString("\n")
 	b.WriteString(shared.HeaderStyle.Render("Model:     "))
-	b.WriteString(m.model)
+	b.WriteString(clipText(m.model, max(1, m.contentWidth()-11)))
 	b.WriteString("\n")
 	b.WriteString(shared.HeaderStyle.Render("API Key:   "))
 	b.WriteString(lipgloss.NewStyle().Render(strings.Repeat("*", 13) + " "))
@@ -354,12 +355,12 @@ func (m Model) viewGeneral() string {
 	b.WriteString(line)
 	b.WriteString("\n\n")
 	if m.section == SectionGeneral {
-		b.WriteString(shared.MutedStyle.Render("[space] toggle saved default  [c] reconfigure provider/model"))
+		b.WriteString(shared.MutedStyle.Render(clipText("[space] toggle saved default  [c] reconfigure provider/model", m.contentWidth())))
 	} else {
-		b.WriteString(shared.MutedStyle.Render("Press 'c' to reconfigure provider/model"))
+		b.WriteString(shared.MutedStyle.Render(clipText("Press 'c' to reconfigure provider/model", m.contentWidth())))
 	}
 	b.WriteString("\n")
-	b.WriteString(shared.MutedStyle.Render("Press 'm' in the main TUI to switch the current session between navigate and resize mode."))
+	b.WriteString(shared.MutedStyle.Render(clipText("Press 'm' in the main TUI to switch the current session between navigate and resize mode.", m.contentWidth())))
 
 	return b.String()
 }
@@ -386,13 +387,8 @@ func (m Model) viewProxies() string {
 				cursor = shared.RunningStyle.Render("| ")
 			}
 
-			label := lipgloss.NewStyle().Width(12).Render(p.Label)
-			typ := lipgloss.NewStyle().Width(6).Render(p.Type)
-			host := lipgloss.NewStyle().Width(20).Render(fmt.Sprintf("%s:%d", p.Host, p.Port))
-			country := lipgloss.NewStyle().Width(4).Render(p.Country)
-			latency := p.Latency
-
-			line := fmt.Sprintf("%s%s%s%s%s%s", cursor, label, typ, host, country, latency)
+			line := fmt.Sprintf("%s%s %s %s:%d %s %s", cursor, p.Label, p.Type, p.Host, p.Port, p.Country, p.Latency)
+			line = clipText(line, m.contentWidth())
 			if i == m.proxyIdx && m.section == SectionProxies {
 				line = shared.SelectedStyle.Render(line)
 			}
@@ -409,7 +405,7 @@ func (m Model) viewProxies() string {
 		b.WriteString("\n")
 		b.WriteString(shared.MutedStyle.Render("[Enter] add  [Esc] cancel"))
 	} else if m.section == SectionProxies {
-		b.WriteString(shared.MutedStyle.Render("[i] import  [d] delete  [t] test  [j/k] navigate"))
+		b.WriteString(shared.MutedStyle.Render(clipText("[i] import  [d] delete  [t] test  [j/k] navigate", m.contentWidth())))
 	}
 
 	return b.String()
@@ -443,6 +439,7 @@ func (m Model) viewSkills() string {
 			}
 
 			line := fmt.Sprintf("%s%s %s", cursor, check, s.Name)
+			line = clipText(line, m.contentWidth())
 			if i == m.skillIdx && m.section == SectionSkills {
 				line = shared.SelectedStyle.Render(line)
 			}
@@ -452,8 +449,58 @@ func (m Model) viewSkills() string {
 	}
 
 	if m.section == SectionSkills {
-		b.WriteString(shared.MutedStyle.Render("[space] toggle  [j/k] navigate"))
+		b.WriteString(shared.MutedStyle.Render(clipText("[space] toggle  [j/k] navigate", m.contentWidth())))
 	}
 
 	return b.String()
+}
+
+func (m Model) contentWidth() int {
+	if m.width < 1 {
+		return 1
+	}
+	return m.width
+}
+
+func (m Model) fitContent(content string) string {
+	width := m.contentWidth()
+	lines := strings.Split(content, "\n")
+	for i, line := range lines {
+		if lipgloss.Width(line) > width {
+			lines[i] = lipgloss.NewStyle().MaxWidth(width).Render(line)
+		}
+	}
+	if m.height > 0 && len(lines) > m.height {
+		start := m.scroll
+		if start < 0 {
+			start = 0
+		}
+		if start > len(lines)-m.height {
+			start = max(0, len(lines)-m.height)
+		}
+		lines = lines[start : start+m.height]
+	}
+	return strings.Join(lines, "\n")
+}
+
+func clipText(text string, maxWidth int) string {
+	if maxWidth <= 0 {
+		return ""
+	}
+	if lipgloss.Width(text) <= maxWidth {
+		return text
+	}
+	if maxWidth == 1 {
+		return "…"
+	}
+	suffix := "…"
+	var b strings.Builder
+	for _, r := range text {
+		next := b.String() + string(r) + suffix
+		if lipgloss.Width(next) > maxWidth {
+			break
+		}
+		b.WriteRune(r)
+	}
+	return b.String() + suffix
 }
