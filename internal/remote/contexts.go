@@ -74,6 +74,7 @@ func (r *ContextRegistry) Attached(sessionID, contextID, url string) {
 			if prev := r.contexts[prevContextID]; prev != nil && prev.Pages > 0 {
 				prev.Pages--
 			}
+			ctx.Pages++
 		}
 	} else {
 		ctx.Pages++

@@ -37,3 +37,24 @@ func TestContextRegistryRemoveClearsSessions(t *testing.T) {
 		t.Fatalf("len(list) = %d, want 0", len(list))
 	}
 }
+
+func TestContextRegistryCountsSessionRemapToNewContext(t *testing.T) {
+	reg := NewContextRegistry()
+	reg.Attached("sess-1", "ctx-1", "https://example.com/one")
+	reg.Attached("sess-1", "ctx-2", "https://example.com/two")
+
+	list := reg.List()
+	if len(list) != 2 {
+		t.Fatalf("len(list) = %d, want 2", len(list))
+	}
+	counts := map[string]int{}
+	for _, ctx := range list {
+		counts[ctx.ID] = ctx.Pages
+	}
+	if counts["ctx-1"] != 0 {
+		t.Fatalf("ctx-1 pages = %d, want 0", counts["ctx-1"])
+	}
+	if counts["ctx-2"] != 1 {
+		t.Fatalf("ctx-2 pages = %d, want 1", counts["ctx-2"])
+	}
+}
