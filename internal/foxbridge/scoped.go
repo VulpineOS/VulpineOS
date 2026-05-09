@@ -81,6 +81,9 @@ func (b *scopedBackend) Call(sessionID, method string, params json.RawMessage) (
 		if strings.HasPrefix(method, "Browser.") {
 			return nil, fmt.Errorf("%s is not allowed for scoped foxbridge sessions", method)
 		}
+		if err := b.validateSession(method, sessionID); err != nil {
+			return nil, err
+		}
 		return b.client.Call(sessionID, method, params)
 	}
 }
@@ -187,6 +190,19 @@ func (b *scopedBackend) validateTrackedRequest(method string, params json.RawMes
 	b.mu.RUnlock()
 	if !ok {
 		return fmt.Errorf("request %s is outside scoped backend", payload.RequestID)
+	}
+	return nil
+}
+
+func (b *scopedBackend) validateSession(method, sessionID string) error {
+	if sessionID == "" {
+		return nil
+	}
+	b.mu.RLock()
+	_, ok := b.allowedSessions[sessionID]
+	b.mu.RUnlock()
+	if !ok {
+		return fmt.Errorf("%s session %s is outside scoped backend", method, sessionID)
 	}
 	return nil
 }

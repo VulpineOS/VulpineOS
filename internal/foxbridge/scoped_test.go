@@ -144,6 +144,35 @@ func TestScopedBackendBlocksUnknownBrowserMethods(t *testing.T) {
 	}
 }
 
+func TestScopedBackendBlocksOutOfScopeSessionCalls(t *testing.T) {
+	client := &fakeJugglerBackend{}
+	be := newScopedBackend(client, "ctx-7")
+
+	if _, err := be.Call("page-other", "Page.navigate", json.RawMessage(`{"url":"https://example.com"}`)); err == nil {
+		t.Fatal("expected out-of-scope session call to be blocked")
+	}
+	if client.lastMethod != "" {
+		t.Fatalf("forwarded forbidden call to %s", client.lastMethod)
+	}
+}
+
+func TestScopedBackendAllowsTrackedSessionCalls(t *testing.T) {
+	client := &fakeJugglerBackend{}
+	be := newScopedBackend(client, "ctx-7")
+	be.Subscribe("Browser.attachedToTarget", func(sessionID string, params json.RawMessage) {})
+	client.handlers["Browser.attachedToTarget"]("", json.RawMessage(`{
+		"sessionId":"page-1",
+		"targetInfo":{"targetId":"target-1","browserContextId":"ctx-7"}
+	}`))
+
+	if _, err := be.Call("page-1", "Page.navigate", json.RawMessage(`{"url":"https://example.com"}`)); err != nil {
+		t.Fatalf("tracked session call returned error: %v", err)
+	}
+	if client.lastMethod != "Page.navigate" {
+		t.Fatalf("lastMethod = %q, want Page.navigate", client.lastMethod)
+	}
+}
+
 func TestScopedBackendFiltersEvents(t *testing.T) {
 	client := &fakeJugglerBackend{}
 	be := newScopedBackend(client, "ctx-1")
