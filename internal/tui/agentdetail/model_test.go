@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -44,5 +45,30 @@ func TestStatusIndicatorNamesPausedAndInterrupted(t *testing.T) {
 				t.Fatalf("statusIndicator(%q) = %q, want %q", tc.status, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestViewClipsWideTaskWithoutSplittingUTF8(t *testing.T) {
+	m := New()
+	m.SetSize(18, 8)
+	m.SetAgent(
+		"agent-1",
+		"Agent",
+		strings.Repeat("🙂", 20),
+		"active",
+		0,
+		"",
+		"",
+		time.Now(),
+	)
+
+	view := m.View()
+	if !utf8.ValidString(view) {
+		t.Fatalf("view contains invalid UTF-8 after task clipping: %q", view)
+	}
+	for i, line := range strings.Split(view, "\n") {
+		if width := lipgloss.Width(line); width > m.width {
+			t.Fatalf("line %d width = %d, want <= %d:\n%s", i+1, width, m.width, view)
+		}
 	}
 }

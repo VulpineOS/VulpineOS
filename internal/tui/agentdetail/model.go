@@ -172,9 +172,7 @@ func (m Model) View() string {
 	if maxTask < 10 {
 		maxTask = 10
 	}
-	if len(task) > maxTask {
-		task = task[:maxTask-1] + "..."
-	}
+	task = clipCells(task, maxTask)
 	b.WriteString("Task: ")
 	b.WriteString(task)
 	b.WriteString("\n")
@@ -244,4 +242,29 @@ func fitLine(line string, width int) string {
 		return ""
 	}
 	return lines[0]
+}
+
+func clipCells(text string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	if lipgloss.Width(text) <= width {
+		return text
+	}
+	suffix := "..."
+	limit := width - lipgloss.Width(suffix)
+	if limit <= 0 {
+		return fitLine(suffix, width)
+	}
+	var b strings.Builder
+	used := 0
+	for _, r := range text {
+		rWidth := lipgloss.Width(string(r))
+		if used+rWidth > limit {
+			break
+		}
+		b.WriteRune(r)
+		used += rWidth
+	}
+	return b.String() + suffix
 }
