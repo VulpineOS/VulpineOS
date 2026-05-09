@@ -1378,6 +1378,34 @@ func TestFocusedEmptyChatAllowsOpenLogShortcut(t *testing.T) {
 	}
 }
 
+func TestOpenExternalTargetFallsBackToAvailableLauncher(t *testing.T) {
+	originalStart := startExternalCommand
+	originalLook := lookExternalCommand
+	defer func() {
+		startExternalCommand = originalStart
+		lookExternalCommand = originalLook
+	}()
+
+	lookExternalCommand = func(name string) (string, error) {
+		if name == "xdg-open" {
+			return "/usr/bin/xdg-open", nil
+		}
+		return "", errors.New("missing")
+	}
+	var opened []string
+	startExternalCommand = func(name string, args ...string) error {
+		opened = append([]string{name}, args...)
+		return nil
+	}
+
+	if err := openExternalTarget("https://example.test"); err != nil {
+		t.Fatalf("openExternalTarget: %v", err)
+	}
+	if len(opened) != 2 || opened[0] != "xdg-open" || opened[1] != "https://example.test" {
+		t.Fatalf("opened = %#v, want xdg-open fallback", opened)
+	}
+}
+
 func TestOpenSessionLogRejectsUnsafeAgentID(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 

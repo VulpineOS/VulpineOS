@@ -40,6 +40,25 @@ var startExternalCommand = func(name string, args ...string) error {
 	return exec.Command(name, args...).Start()
 }
 
+var lookExternalCommand = exec.LookPath
+
+func openExternalTarget(target string) error {
+	candidates := [][]string{
+		{"open", target},
+		{"xdg-open", target},
+		{"rundll32", "url.dll,FileProtocolHandler", target},
+	}
+	for _, candidate := range candidates {
+		if _, err := lookExternalCommand(candidate[0]); err != nil {
+			continue
+		}
+		if err := startExternalCommand(candidate[0], candidate[1:]...); err == nil {
+			return nil
+		}
+	}
+	return fmt.Errorf("no opener available")
+}
+
 // Focus panel identifiers.
 const (
 	FocusAgentList    = 0
@@ -1393,9 +1412,13 @@ func (a *App) handleBrowserToggle() {
 	}
 	url := a.contextList.SelectedURL()
 	if url != "" && url != "about:blank" {
-		_ = startExternalCommand("open", url)
-		a.notice = "Opened " + contextlist.SafeDisplayURL(url)
-		a.noticeTTL = 3
+		if err := openExternalTarget(url); err != nil {
+			a.notice = "Failed to open URL: " + err.Error()
+			a.noticeTTL = 4
+		} else {
+			a.notice = "Opened " + contextlist.SafeDisplayURL(url)
+			a.noticeTTL = 3
+		}
 	}
 }
 
@@ -1421,7 +1444,7 @@ func (a *App) handleOpenSessionLog() {
 		a.noticeTTL = 4
 		return
 	}
-	if err := startExternalCommand("open", logPath); err != nil {
+	if err := openExternalTarget(logPath); err != nil {
 		a.notice = "Failed to open session log: " + err.Error()
 		a.noticeTTL = 4
 		return
