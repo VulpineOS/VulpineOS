@@ -658,6 +658,7 @@ func openBrowserURL(rawURL string) error {
 		}
 		cmd := exec.Command(candidate[0], candidate[1:]...)
 		if err := cmd.Start(); err == nil {
+			_ = cmd.Process.Release()
 			return nil
 		}
 	}
