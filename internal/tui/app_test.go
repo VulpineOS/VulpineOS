@@ -846,6 +846,21 @@ func TestNoticeStatusLineIsWidthConstrained(t *testing.T) {
 	}
 }
 
+func TestStatusBarPreservesModeAndQuitHints(t *testing.T) {
+	app := NewApp(nil, nil, nil, nil, nil, nil)
+	app.width = 80
+
+	bar := app.renderStatusBar()
+	for _, want := range []string{"mode:navigate", "q:quit"} {
+		if !strings.Contains(bar, want) {
+			t.Fatalf("status bar missing %q:\n%s", want, bar)
+		}
+	}
+	if width := lipgloss.Width(bar); width > app.width {
+		t.Fatalf("status bar width = %d, want <= %d:\n%s", width, app.width, bar)
+	}
+}
+
 func TestModeHotkeyTogglesResizeMode(t *testing.T) {
 	db := openTestVault(t)
 	cfg := &config.Config{ResizePanelsWithArrows: false}

@@ -1819,20 +1819,31 @@ func (a App) renderStatusBar() string {
 		arrowMode = shared.WarmingStyle.Render("mode:resize")
 	}
 
-	controls := "  n:new  p/r:agent  P/R:all  X:kill-all  x:del  v:view  o:log  m:mode  S:settings  Enter:chat  Tab:focus  "
+	controls := "  n:new  p/r:agent  P/R:all  X:kill-all  x:del  v:view  o:log  m:mode  S:settings  Enter:chat  Tab:focus  t:trace  "
 	if a.control != nil {
-		controls = "  n:new  p/r:agent  P/R:all  X:kill-all  x:kill  v:view  m:mode  Enter:chat  Tab:focus  "
+		controls = "  n:new  p/r:agent  P/R:all  X:kill-all  x:kill  v:view  m:mode  Enter:chat  Tab:focus  t:trace  "
 	}
-	bar := shared.TitleStyle.Render("VULPINE") +
+	prefix := shared.TitleStyle.Render("VULPINE") +
 		shared.MutedStyle.Render(" | ") +
-		shared.RunningStyle.Render("* "+mode) +
-		shared.MutedStyle.Render(controls) +
-		shared.MutedStyle.Render("t:trace  ") +
+		shared.RunningStyle.Render("* "+mode)
+	right := arrowMode +
+		shared.MutedStyle.Render("  q:quit") +
+		ctxHint
+	statusWidth := a.width
+	if statusWidth <= 0 {
+		statusWidth = lipgloss.Width(prefix) + lipgloss.Width(shared.MutedStyle.Render(controls)) + lipgloss.Width(right)
+	}
+	controlsWidth := statusWidth - lipgloss.Width(prefix) - lipgloss.Width(right)
+	if controlsWidth < 0 {
+		controlsWidth = 0
+	}
+	bar := prefix +
+		fitTerminalLine(shared.MutedStyle.Render(controls), controlsWidth) +
 		arrowMode +
 		shared.MutedStyle.Render("  q:quit") +
 		ctxHint
 
-	return lipgloss.NewStyle().MaxWidth(a.width).Render(bar)
+	return fitTerminalLine(bar, statusWidth)
 }
 
 // updatePanelSizes recalculates panel dimensions after a resize.
