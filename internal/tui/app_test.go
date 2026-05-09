@@ -337,6 +337,32 @@ func TestAgentCreatedKeepsChatLockedUntilAgentResponds(t *testing.T) {
 	}
 }
 
+func TestAgentCreatedSelectsNewAgentListRow(t *testing.T) {
+	db := openTestVault(t)
+	oldAgent, err := db.CreateAgent("Old", "old task", "{}")
+	if err != nil {
+		t.Fatalf("create old agent: %v", err)
+	}
+	app := NewApp(nil, nil, nil, db, nil, nil)
+	app.agentList.SelectAgentID(oldAgent.ID)
+	app.selectedAgentID = oldAgent.ID
+
+	newAgent, err := db.CreateAgent("New", "new task", "{}")
+	if err != nil {
+		t.Fatalf("create new agent: %v", err)
+	}
+
+	model, _ := app.Update(shared.AgentCreatedMsg{Agent: *newAgent})
+	app = model.(App)
+
+	if app.selectedAgentID != newAgent.ID {
+		t.Fatalf("selected agent = %q, want %q", app.selectedAgentID, newAgent.ID)
+	}
+	if got := app.agentList.SelectedAgentID(); got != newAgent.ID {
+		t.Fatalf("highlighted agent = %q, want %q", got, newAgent.ID)
+	}
+}
+
 func TestArrowKeysNavigateAgentsWhenResizeModeDisabled(t *testing.T) {
 	db := openTestVault(t)
 	first, err := db.CreateAgent("first-agent", "first task", "{}")

@@ -1136,6 +1136,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case shared.AgentCreatedMsg:
 		a.agentList, _ = a.agentList.Update(msg)
 		// Auto-select the newly created agent
+		a.agentList.SelectAgentID(msg.Agent.ID)
 		a.selectedAgentID = msg.Agent.ID
 		a.conversation.SetAgentID(msg.Agent.ID)
 		a.conversation.SetAgentName(msg.Agent.Name)
