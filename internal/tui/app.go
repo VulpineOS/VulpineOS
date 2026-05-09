@@ -1216,20 +1216,27 @@ func (a *App) browserWindowLabel() string {
 const (
 	minSplit      = 5
 	maxSplitRatio = 80 // percent of column height
+
+	minCenterWidth        = 20
+	panelHorizontalChrome = 2 // Lipgloss Width includes horizontal padding; the border adds 2 columns.
+	workbenchPanelCount   = 3
 )
+
+type workbenchWidths struct {
+	left   int
+	center int
+	right  int
+}
 
 func (a App) View() string {
 	if a.width == 0 {
 		return "Loading..."
 	}
 
-	leftWidth := a.leftWidth
-	rightWidth := a.rightWidth
-	// Each panel adds 4 cols (2 border + 2 padding). Three panels = 12 cols overhead.
-	centerWidth := a.width - leftWidth - rightWidth - 12
-	if centerWidth < 20 {
-		centerWidth = 20
-	}
+	widths := resolveWorkbenchWidths(a.width, a.leftWidth, a.rightWidth)
+	leftWidth := widths.left
+	centerWidth := widths.center
+	rightWidth := widths.right
 
 	bodyHeight := a.height - 2 // status bar
 
@@ -1385,12 +1392,10 @@ func (a App) renderStatusBar() string {
 
 // updatePanelSizes recalculates panel dimensions after a resize.
 func (a *App) updatePanelSizes() {
-	leftWidth := a.leftWidth
-	rightWidth := a.rightWidth
-	centerWidth := a.width - leftWidth - rightWidth - 12
-	if centerWidth < 20 {
-		centerWidth = 20
-	}
+	widths := resolveWorkbenchWidths(a.width, a.leftWidth, a.rightWidth)
+	leftWidth := widths.left
+	centerWidth := widths.center
+	rightWidth := widths.right
 	bodyHeight := a.height - 2
 
 	// Center is full-height conversation (minus panel border)
@@ -1439,6 +1444,55 @@ func (a *App) updatePanelSizes() {
 	}
 	a.nameInput.Width = inputWidth
 	a.taskInput.Width = inputWidth
+}
+
+func resolveWorkbenchWidths(totalWidth, preferredLeft, preferredRight int) workbenchWidths {
+	available := totalWidth - workbenchPanelCount*panelHorizontalChrome
+	if available <= 0 {
+		return workbenchWidths{}
+	}
+
+	left := max(0, preferredLeft)
+	right := max(0, preferredRight)
+	if left+right+minCenterWidth <= available {
+		return workbenchWidths{
+			left:   left,
+			center: available - left - right,
+			right:  right,
+		}
+	}
+
+	sideBudget := available - minCenterWidth
+	if sideBudget < 0 {
+		sideBudget = 0
+	}
+	left, right = shrinkSideWidths(left, right, sideBudget)
+	return workbenchWidths{
+		left:   left,
+		center: max(0, available-left-right),
+		right:  right,
+	}
+}
+
+func shrinkSideWidths(left, right, budget int) (int, int) {
+	if budget <= 0 {
+		return 0, 0
+	}
+	if left+right <= budget {
+		return left, right
+	}
+	total := left + right
+	if total <= 0 {
+		return budget / 2, budget - budget/2
+	}
+	left = budget * left / total
+	if left < 0 {
+		left = 0
+	}
+	if left > budget {
+		left = budget
+	}
+	return left, budget - left
 }
 
 func (a *App) resizeModeEnabled() bool {

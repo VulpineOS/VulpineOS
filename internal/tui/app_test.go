@@ -8,6 +8,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"vulpineos/internal/config"
 	"vulpineos/internal/tui/shared"
@@ -336,6 +337,25 @@ func TestStatusBarShowsResizeModeWhenEnabled(t *testing.T) {
 
 	if !strings.Contains(app.renderStatusBar(), "mode:resize") {
 		t.Fatalf("status bar missing resize mode: %s", app.renderStatusBar())
+	}
+}
+
+func TestViewKeepsRenderedLinesWithinTerminalWidthAfterShrink(t *testing.T) {
+	db := openTestVault(t)
+	app := NewApp(nil, nil, nil, db, nil, nil)
+	app.width = 70
+	app.height = 24
+	app.leftWidth = 30
+	app.rightWidth = 30
+	app.leftSplit = 13
+	app.rightSplit = 10
+	app.updatePanelSizes()
+
+	view := app.View()
+	for i, line := range strings.Split(view, "\n") {
+		if width := lipgloss.Width(line); width > app.width {
+			t.Fatalf("line %d width = %d, want <= %d:\n%s", i+1, width, app.width, view)
+		}
 	}
 }
 
