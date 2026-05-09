@@ -1322,7 +1322,7 @@ func (a App) updateChatInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (a App) allowFocusedChatShortcut(msg tea.KeyMsg) bool {
 	switch msg.String() {
 	case "v", "t", "o":
-		return strings.TrimSpace(a.conversation.InputValue()) == ""
+		return strings.TrimSpace(a.conversation.TextInput().Value()) == ""
 	default:
 		return false
 	}

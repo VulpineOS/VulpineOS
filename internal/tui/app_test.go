@@ -962,6 +962,38 @@ func TestFocusedEmptyChatAllowsViewShortcut(t *testing.T) {
 	}
 }
 
+func TestFocusedDraftChatTreatsShortcutLettersAsText(t *testing.T) {
+	for _, key := range []rune{'v', 't', 'o'} {
+		t.Run(string(key), func(t *testing.T) {
+			db := openTestVault(t)
+			cfg := &config.Config{}
+			app := NewApp(nil, nil, nil, db, cfg, nil)
+			app.conversation.SetSize(80, 20)
+
+			agent, err := db.CreateAgent("Scraper", "Scrape prices", "{}")
+			if err != nil {
+				t.Fatalf("create agent: %v", err)
+			}
+			app.selectedAgentID = agent.ID
+			app.focus = FocusConversation
+			app.inputMode = "chat"
+			app.conversation.SetAgentID(agent.ID)
+			app.conversation.SetAgentName(agent.Name)
+			app.conversation.SetAwake(true)
+			app.conversation.Focus()
+			app.conversation.TextInput().SetValue("draft")
+
+			model, _ := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{key}})
+			app = model.(App)
+
+			want := "draft" + string(key)
+			if got := app.conversation.TextInput().Value(); got != want {
+				t.Fatalf("conversation input = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
 func TestUnfocusedChatAllowsTraceShortcut(t *testing.T) {
 	db := openTestVault(t)
 	cfg := &config.Config{}
