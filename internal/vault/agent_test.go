@@ -567,7 +567,7 @@ func TestReconcileNonTerminalAgentsPreservesTerminalStatuses(t *testing.T) {
 		t.Fatalf("reconcile: %v", err)
 	}
 
-	terminalStatuses := []string{"completed", "error", "failed", "interrupted"}
+	terminalStatuses := []string{"paused", "completed", "error", "failed", "interrupted"}
 	for _, status := range terminalStatuses {
 		agent, err := db.GetAgent(agentIDs[status])
 		if err != nil {
@@ -578,7 +578,7 @@ func TestReconcileNonTerminalAgentsPreservesTerminalStatuses(t *testing.T) {
 		}
 	}
 
-	nonTerminalStatuses := []string{"created", "active", "paused"}
+	nonTerminalStatuses := []string{"created", "active"}
 	for _, status := range nonTerminalStatuses {
 		agent, err := db.GetAgent(agentIDs[status])
 		if err != nil {
