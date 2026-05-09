@@ -703,13 +703,23 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "x":
 			// Delete selected agent — ask for confirmation
 			if a.selectedAgentID != "" {
+				if a.control != nil && !isLiveAgentStatus(a.selectedAgentStatus()) {
+					a.confirmDelete = false
+					a.notice = "Remote kill is only available for live agents"
+					a.noticeTTL = 3
+					return a, nil
+				}
 				if a.confirmDelete {
 					// Second press = confirmed
 					a.confirmDelete = false
 					cmds = append(cmds, a.deleteAgent(a.selectedAgentID))
 				} else {
 					a.confirmDelete = true
-					a.notice = "Press x again to delete agent, or any other key to cancel"
+					if a.control != nil {
+						a.notice = "Press x again to kill remote agent, or any other key to cancel"
+					} else {
+						a.notice = "Press x again to delete agent, or any other key to cancel"
+					}
 					a.noticeTTL = 5
 				}
 			}
@@ -2090,6 +2100,9 @@ func (a App) remoteAgentStatusCommand(method, agentID, status, noticePrefix stri
 // deleteAgent removes an agent.
 func (a *App) deleteAgent(agentID string) tea.Cmd {
 	if a.control != nil {
+		if !isLiveAgentStatus(a.selectedAgentStatus()) {
+			return statusNoticeCmd("Remote kill is only available for live agents")
+		}
 		return a.remoteAgentStatusCommand("agents.kill", agentID, "interrupted", "Remote agent killed: ")
 	}
 	return func() tea.Msg {

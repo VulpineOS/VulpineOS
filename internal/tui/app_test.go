@@ -644,6 +644,49 @@ func TestRemoteControlBlocksLocalSettingsAndReconfigure(t *testing.T) {
 	}
 }
 
+func TestRemoteControlKillConfirmationUsesKillLanguage(t *testing.T) {
+	app := NewAppWithControl(nil, nil, nil, nil, nil, nil, &fakeControlClient{})
+	app.agentList.SetAgents([]vault.Agent{{ID: "agent-1", Name: "Remote", Status: "active"}})
+	app.agentList.SelectAgentID("agent-1")
+	app.selectedAgentID = "agent-1"
+
+	model, _ := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	app = model.(App)
+
+	if !app.confirmDelete {
+		t.Fatal("expected remote kill confirmation to be armed")
+	}
+	if !strings.Contains(app.notice, "kill remote agent") || strings.Contains(app.notice, "delete") {
+		t.Fatalf("notice = %q, want remote kill confirmation", app.notice)
+	}
+}
+
+func TestRemoteControlKillIgnoresNonLiveAgents(t *testing.T) {
+	control := &fakeControlClient{responses: map[string]any{
+		"agents.kill": map[string]any{"status": "ok"},
+	}}
+	app := NewAppWithControl(nil, nil, nil, nil, nil, nil, control)
+	app.agentList.SetAgents([]vault.Agent{{ID: "agent-1", Name: "Remote", Status: "paused"}})
+	app.agentList.SelectAgentID("agent-1")
+	app.selectedAgentID = "agent-1"
+
+	model, cmd := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	app = model.(App)
+
+	if cmd != nil {
+		t.Fatal("paused remote kill should not return command")
+	}
+	if app.confirmDelete {
+		t.Fatal("paused remote kill should not arm confirmation")
+	}
+	if !strings.Contains(app.notice, "only available for live agents") {
+		t.Fatalf("notice = %q, want non-live kill notice", app.notice)
+	}
+	if len(control.calls) != 0 {
+		t.Fatalf("remote kill should not be called, got %+v", control.calls)
+	}
+}
+
 func TestViewKeepsRenderedLinesWithinTerminalWidthAfterShrink(t *testing.T) {
 	db := openTestVault(t)
 	app := NewApp(nil, nil, nil, db, nil, nil)
