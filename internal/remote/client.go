@@ -190,7 +190,18 @@ func (c *Client) readLoop() {
 			continue
 		}
 
-		c.recvCh <- &msg
+		if !c.enqueueReceivedMessage(&msg) {
+			return
+		}
+	}
+}
+
+func (c *Client) enqueueReceivedMessage(msg *juggler.Message) bool {
+	select {
+	case c.recvCh <- msg:
+		return true
+	case <-c.ctx.Done():
+		return false
 	}
 }
 

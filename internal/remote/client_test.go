@@ -174,6 +174,32 @@ func TestClientControlCallUsesControlEnvelopeAndReturnsResult(t *testing.T) {
 	}
 }
 
+func TestClientEnqueueMessageReturnsAfterContextCancelWithFullBuffer(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	client := &Client{
+		ctx:    ctx,
+		cancel: cancel,
+		recvCh: make(chan *juggler.Message, 1),
+	}
+	client.recvCh <- &juggler.Message{ID: 1}
+
+	done := make(chan bool, 1)
+	go func() {
+		done <- client.enqueueReceivedMessage(&juggler.Message{ID: 2})
+	}()
+
+	cancel()
+
+	select {
+	case ok := <-done:
+		if ok {
+			t.Fatal("enqueue succeeded after context cancel with full buffer")
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("enqueue stayed blocked after context cancel")
+	}
+}
+
 func mustJSON(t *testing.T, value any) []byte {
 	t.Helper()
 	data, err := json.Marshal(value)
