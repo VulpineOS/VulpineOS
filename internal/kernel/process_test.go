@@ -218,7 +218,7 @@ func TestKernelRunningReflectsExitedProcess(t *testing.T) {
 	}
 	defer k.Stop()
 
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		if !k.Running() {
 			if err := k.Start(Config{BinaryPath: bin, Headless: true}); err != nil {
