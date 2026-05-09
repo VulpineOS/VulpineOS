@@ -78,11 +78,24 @@ func (c *Client) CallWithContext(ctx context.Context, sessionID, method string, 
 	c.pending[id] = ch
 	c.pendingMu.Unlock()
 
-	if err := c.transport.Send(msg); err != nil {
-		c.pendingMu.Lock()
-		delete(c.pending, id)
-		c.pendingMu.Unlock()
-		return nil, err
+	sendErr := make(chan error, 1)
+	go func() {
+		sendErr <- c.transport.Send(msg)
+	}()
+
+	select {
+	case err := <-sendErr:
+		if err != nil {
+			c.deletePending(id)
+			return nil, err
+		}
+	case <-ctx.Done():
+		c.deletePending(id)
+		_ = c.Close()
+		return nil, fmt.Errorf("call %s: %w", method, ctx.Err())
+	case <-c.done:
+		c.deletePending(id)
+		return nil, fmt.Errorf("client closed")
 	}
 
 	select {
@@ -92,13 +105,18 @@ func (c *Client) CallWithContext(ctx context.Context, sessionID, method string, 
 		}
 		return resp.Result, nil
 	case <-ctx.Done():
-		c.pendingMu.Lock()
-		delete(c.pending, id)
-		c.pendingMu.Unlock()
+		c.deletePending(id)
 		return nil, fmt.Errorf("call %s: %w", method, ctx.Err())
 	case <-c.done:
+		c.deletePending(id)
 		return nil, fmt.Errorf("client closed")
 	}
+}
+
+func (c *Client) deletePending(id int) {
+	c.pendingMu.Lock()
+	delete(c.pending, id)
+	c.pendingMu.Unlock()
 }
 
 // Subscribe registers a handler for a Juggler event.

@@ -48,6 +48,39 @@ func (t *memTransport) Close() error {
 	return nil
 }
 
+type blockingSendTransport struct {
+	sendStarted chan struct{}
+	closed      chan struct{}
+	once        sync.Once
+}
+
+func newBlockingSendTransport() *blockingSendTransport {
+	return &blockingSendTransport{
+		sendStarted: make(chan struct{}),
+		closed:      make(chan struct{}),
+	}
+}
+
+func (t *blockingSendTransport) Send(*Message) error {
+	t.once.Do(func() { close(t.sendStarted) })
+	<-t.closed
+	return fmt.Errorf("transport closed")
+}
+
+func (t *blockingSendTransport) Receive() (*Message, error) {
+	<-t.closed
+	return nil, fmt.Errorf("transport closed")
+}
+
+func (t *blockingSendTransport) Close() error {
+	select {
+	case <-t.closed:
+	default:
+		close(t.closed)
+	}
+	return nil
+}
+
 // respondToRequests reads outgoing messages and replies with canned responses.
 func respondToRequests(mt *memTransport) {
 	for {
@@ -155,6 +188,45 @@ func TestClient_CallWithContext_TimesOut(t *testing.T) {
 	}
 	if !contains(err.Error(), "context deadline exceeded") {
 		t.Errorf("expected context deadline exceeded, got: %v", err)
+	}
+}
+
+func TestClient_CallWithContext_TimesOutWhenSendBlocks(t *testing.T) {
+	bt := newBlockingSendTransport()
+	c := NewClient(bt)
+	defer c.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := c.CallWithContext(ctx, "", "Blocked.method", nil)
+		done <- err
+	}()
+
+	select {
+	case <-bt.sendStarted:
+	case <-time.After(time.Second):
+		t.Fatal("Send was not reached")
+	}
+
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("expected timeout error, got nil")
+		}
+		if !contains(err.Error(), "context deadline exceeded") {
+			t.Fatalf("expected context deadline exceeded, got: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("CallWithContext did not return after context timeout")
+	}
+
+	select {
+	case <-bt.closed:
+	default:
+		t.Fatal("client did not close the blocked transport")
 	}
 }
 
