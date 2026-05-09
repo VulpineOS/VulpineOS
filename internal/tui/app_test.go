@@ -766,6 +766,28 @@ func TestViewHandlesTinyTerminalWithoutPanic(t *testing.T) {
 	}
 }
 
+func TestViewHandlesNarrowWorkbenchWithoutOverflow(t *testing.T) {
+	app := NewApp(nil, nil, nil, nil, nil, nil)
+	app.width = 20
+	app.height = 12
+	app.leftWidth = 18
+	app.rightWidth = 18
+	app.leftSplit = 13
+	app.rightSplit = 10
+	app.updatePanelSizes()
+
+	view := app.View()
+	lines := strings.Split(view, "\n")
+	if len(lines) > app.height {
+		t.Fatalf("narrow view height = %d, want <= %d:\n%s", len(lines), app.height, view)
+	}
+	for i, line := range lines {
+		if width := lipgloss.Width(line); width > app.width {
+			t.Fatalf("narrow line %d width = %d, want <= %d:\n%s", i+1, width, app.width, view)
+		}
+	}
+}
+
 func TestNoticeStatusLineIsWidthConstrained(t *testing.T) {
 	app := NewApp(nil, nil, nil, nil, nil, nil)
 	app.width = 40

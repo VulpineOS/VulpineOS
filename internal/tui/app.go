@@ -1562,6 +1562,9 @@ func (a App) View() string {
 	rightWidth := widths.right
 
 	bodyHeight := a.height - 2 // status bar
+	if a.useCompactWorkbench(widths, bodyHeight) {
+		return a.renderCompactWorkbench()
+	}
 
 	// Left column: systemInfo (with pool stats) on top, agentList below
 	leftTop := a.leftSplit
@@ -1669,7 +1672,75 @@ func (a App) View() string {
 		outputLines = append(outputLines[excess:len(outputLines)-1], outputLines[len(outputLines)-1])
 		output = strings.Join(outputLines, "\n")
 	}
-	return output
+	return fitTerminalBlock(output, a.width, a.height)
+}
+
+func (a App) useCompactWorkbench(widths workbenchWidths, bodyHeight int) bool {
+	if a.width < 48 || bodyHeight < 10 {
+		return true
+	}
+	return widths.left < 6 || widths.right < 6 || widths.center < minCenterWidth
+}
+
+func (a App) renderCompactWorkbench() string {
+	bodyHeight := a.height - 1
+	if bodyHeight < 1 {
+		return fitTerminalLine(a.renderStatusBar(), a.width)
+	}
+	contentWidth := a.width - 4
+	if contentWidth < 1 {
+		contentWidth = max(1, a.width)
+	}
+	contentHeight := bodyHeight - 2
+	if contentHeight < 1 {
+		contentHeight = 1
+	}
+
+	var content string
+	panel := a.focus
+	switch {
+	case a.focus == FocusSettings && a.settings.IsActive():
+		a.settings.SetSize(contentWidth, contentHeight)
+		content = a.settings.View()
+	case a.focus == FocusContextList:
+		a.contextList.SetWidth(contentWidth)
+		a.contextList.SetHeight(contentHeight)
+		content = a.contextList.View()
+	case a.focus == FocusAgentDetail:
+		a.agentDetail.SetSize(contentWidth, contentHeight)
+		content = a.agentDetail.View()
+	case a.focus == FocusConversation:
+		a.conversation.SetSize(contentWidth, contentHeight)
+		content = a.conversation.View()
+	default:
+		panel = FocusAgentList
+		a.agentList.SetWidth(contentWidth)
+		a.agentList.SetHeight(contentHeight)
+		content = a.agentList.View()
+	}
+
+	contentLines := strings.Split(content, "\n")
+	if len(contentLines) > contentHeight {
+		content = strings.Join(contentLines[:contentHeight], "\n")
+	}
+	body := a.renderFocusPanel(panel, content, contentWidth, contentHeight)
+	statusBar := fitTerminalLine(a.renderStatusBar(), a.width)
+	if a.notice != "" {
+		statusBar = fitTerminalLine(shared.WarmingStyle.Render("  "+a.notice), a.width)
+	}
+	return fitTerminalBlock(lipgloss.JoinVertical(lipgloss.Left, body, statusBar), a.width, a.height)
+}
+
+func fitTerminalBlock(output string, width, height int) string {
+	lines := strings.Split(output, "\n")
+	for i, line := range lines {
+		lines[i] = fitTerminalLine(line, width)
+	}
+	if height > 0 && len(lines) > height {
+		excess := len(lines) - height
+		lines = append(lines[excess:len(lines)-1], lines[len(lines)-1])
+	}
+	return strings.Join(lines, "\n")
 }
 
 func fitTerminalLine(line string, width int) string {
