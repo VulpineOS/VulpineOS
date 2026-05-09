@@ -187,9 +187,9 @@ A terminal-based command center for managing AI agents, browser contexts, and id
 +----------------+------------------------------+-----------------+
 ```
 
-**Keybinds:** `n` new agent · `j/k` navigate · `Enter` chat · `p/r` pause or resume selected agent · `P/R` pause or resume all agents · `X` kill all live agents · `x` delete · `v` show or hide Camoufox · `o` open raw session log · `t` toggle action trace · `m` toggle arrow-key mode · `S` settings · `c` reconfigure · `q` quit
+**Keybinds:** `n` new agent · `j/k` navigate · `Enter` chat · `p/r` pause or resume selected agent · `P` pause all active agents · `R` resume all paused agents · `X` kill all live agents · `x` delete · `v` show or hide Camoufox · `o` open raw session log · `t` toggle action trace · `m` toggle arrow-key mode · `S` settings · `c` reconfigure · `q` quit
 
-Arrow keys navigate the agent list and conversation by default. If you want panel resizing on arrow keys, enable **Arrow Keys Resize Panels** in `Settings -> General`. Press `m` to toggle resize mode for the current session without rewriting the saved default.
+Arrow keys navigate the agent list and scroll the conversation by default. In resize mode, left/right resize the side column when the agent list or context list has focus; up/down resize the vertical split for the focused side stack. Press `m` to toggle resize mode for the current session without rewriting the saved default, or enable **Arrow Keys Resize Panels** in `Settings -> General` to make it the saved default.
 The settings toggle controls the saved default; `m` is the temporary per-session mode switch.
 
 The generated OpenClaw workspace under `~/.openclaw-vulpine/workspace` is refreshed with VulpineOS-owned bootstrap files so agents follow the current assigned name and task instead of inheriting an older persona from a stale workspace.
