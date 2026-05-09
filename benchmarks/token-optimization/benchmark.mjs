@@ -104,6 +104,16 @@ function findChrome(explicit) {
   throw new Error('Chrome/Chromium executable not found. Set CHROME_PATH or pass --chrome-path.')
 }
 
+function chromeDisplayName(chromePath) {
+  const normalized = chromePath.replace(/\\/g, '/')
+  const executable = path.basename(normalized).toLowerCase()
+  if (normalized.includes('/Google Chrome.app/') || executable === 'google-chrome' || executable === 'google-chrome-stable')
+    return 'Google Chrome'
+  if (normalized.includes('/Chromium.app/') || executable === 'chromium' || executable === 'chromium-browser')
+    return 'Chromium'
+  return path.basename(normalized) || 'Chrome/Chromium'
+}
+
 function fixtureURL(value) {
   if (/^https?:\/\//.test(value) || value.startsWith('file://')) return value
   const absolute = path.isAbsolute(value) ? value : path.join(__dirname, value)
@@ -246,7 +256,7 @@ async function main() {
       system: {
         platform: `${os.type()} ${os.release()} ${os.arch()}`,
         node: process.version,
-        chromePath,
+        chromePath: chromeDisplayName(chromePath),
       },
       options: {
         maxDepth: args.maxDepth,

@@ -3,7 +3,7 @@
   "system": {
     "platform": "Darwin 25.3.0 arm64",
     "node": "v25.8.0",
-    "chromePath": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+    "chromePath": "Google Chrome"
   },
   "options": {
     "maxDepth": 10,
