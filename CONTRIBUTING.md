@@ -20,6 +20,10 @@ See README.md
 4. Open a PR with a clear description of what you changed and why.
 5. All pull requests must pass the relevant checks for the files changed before merging.
 
+## Repository Scope
+
+This public repository is for high-level architecture, orchestration, public integration surfaces, compatibility fixes, documentation, tests, and release hygiene. Do not open public PRs that add large product features, larger feature proposals, unreviewed planning detail, implementation detail, or sensitive operational infrastructure. If a change would reveal out-of-scope implementation details, discuss the intended repository scope with a maintainer before opening a PR.
+
 ## Testing Requirements
 
 For most VulpineOS runtime changes, run:

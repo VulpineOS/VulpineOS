@@ -2,6 +2,8 @@
 
 Run the public boundary audit before cutting a release candidate or after any cross-repo refactor.
 
+Public releases should contain high-level architecture, orchestration, public integration seams, compatibility work, docs, tests, and release hygiene only. Do not ship large product features, larger feature proposals, unreviewed planning detail, implementation detail, or sensitive operational infrastructure in public repos unless the maintainer has explicitly approved that disclosure.
+
 ## Command
 
 ```bash
@@ -28,6 +30,8 @@ It checks for:
 It intentionally skips generated and vendored paths such as `node_modules`, build output, `go.sum`, and public LLM text exports. Placeholder examples like `/home/name` or `C:\Users\<user>` are not treated as leaks.
 
 The history audit scans all reachable commits in the same public repos. It checks commit messages, historical file paths, and text diffs for the same leak patterns before a release tag or release candidate.
+
+The audit does not decide whether a feature is in scope to publish. Review every release diff for out-of-scope implementation details before tagging or pushing public release branches.
 
 ## Release checklist
 
