@@ -15,6 +15,8 @@ import (
 
 	"vulpineos/internal/config"
 	"vulpineos/internal/juggler"
+	"vulpineos/internal/orchestrator"
+	"vulpineos/internal/pool"
 	"vulpineos/internal/testutil"
 	"vulpineos/internal/tui/settings"
 	"vulpineos/internal/tui/shared"
@@ -1686,7 +1688,7 @@ func TestBulkAgentStatusMsgMarksAgentsPaused(t *testing.T) {
 	}
 }
 
-func TestGracefulShutdownPausesActiveAgents(t *testing.T) {
+func TestGracefulShutdownWithoutOrchestratorLeavesVaultState(t *testing.T) {
 	db := openTestVault(t)
 
 	agent, err := db.CreateAgent("active-agent", "task", "{}")
@@ -1716,6 +1718,47 @@ func TestGracefulShutdownPausesActiveAgents(t *testing.T) {
 	}
 	if shouldPauseOnShutdown("paused") {
 		t.Fatal("did not expect paused agents to be re-paused during shutdown")
+	}
+}
+
+func TestGracefulShutdownPausesActiveAgents(t *testing.T) {
+	db := openTestVault(t)
+
+	agent, err := db.CreateAgent("active-agent", "task", "{}")
+	if err != nil {
+		t.Fatalf("create active agent: %v", err)
+	}
+
+	openclawPath := filepath.Join(t.TempDir(), "fake-openclaw")
+	if err := os.WriteFile(openclawPath, []byte("#!/bin/sh\nwhile true; do sleep 1; done\n"), 0o755); err != nil {
+		t.Fatalf("write fake openclaw: %v", err)
+	}
+
+	orch := orchestrator.New(nil, nil, db, pool.Config{PreWarm: 0, MaxActive: 1, MaxUsesPerSlot: 1}, openclawPath)
+	defer orch.Agents.Dispose()
+	defer orch.Pool.Close()
+
+	app := NewApp(nil, nil, orch, db, nil, nil)
+	if _, err := orch.Agents.SpawnWithSessionIsolated(agent.ID, "hold", "shutdown-"+agent.ID, "", nil); err != nil {
+		t.Fatalf("spawn fake agent: %v", err)
+	}
+	if err := db.UpdateAgentStatus(agent.ID, "active"); err != nil {
+		t.Fatalf("set active status: %v", err)
+	}
+
+	app.gracefulShutdown()
+
+	stored, err := db.GetAgent(agent.ID)
+	if err != nil {
+		t.Fatalf("get agent after shutdown: %v", err)
+	}
+	if stored.Status != "paused" {
+		t.Fatalf("agent status = %q, want paused", stored.Status)
+	}
+
+	statuses := orch.Agents.List()
+	if len(statuses) != 0 {
+		t.Fatalf("manager statuses = %d, want 0 live agents after pause", len(statuses))
 	}
 }
 
