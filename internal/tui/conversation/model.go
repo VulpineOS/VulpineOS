@@ -145,8 +145,8 @@ func (m *Model) SetSize(w, h int) {
 	m.width = w
 	m.height = h
 	m.textInput.Width = w - 4
-	if m.textInput.Width < 10 {
-		m.textInput.Width = 10
+	if m.textInput.Width < 1 {
+		m.textInput.Width = 1
 	}
 	if newContentWidth := m.contentWidth(); newContentWidth != oldContentWidth {
 		m.rewrapEntries(newContentWidth)
@@ -296,8 +296,8 @@ func (m *Model) AddEntry(role, content string) {
 
 func (m Model) contentWidth() int {
 	maxWidth := m.width - 8
-	if maxWidth < 10 {
-		return 10
+	if maxWidth < 1 {
+		return 1
 	}
 	return maxWidth
 }
@@ -655,23 +655,22 @@ func renderMarkdown(text string, maxWidth int) []string {
 	for _, para := range paragraphs {
 		para = strings.TrimRight(para, " ")
 
-		// Apply inline styles (order matters: bold before italic to handle ** vs *)
-		styled := reBold.ReplaceAllStringFunc(para, func(m string) string {
-			inner := m[2 : len(m)-2]
-			return boldStyle.Render(inner)
-		})
-		styled = reCode.ReplaceAllStringFunc(styled, func(m string) string {
-			inner := m[1 : len(m)-1]
-			return codeStyle.Render(inner)
-		})
-		styled = reItalic.ReplaceAllStringFunc(styled, func(m string) string {
-			inner := m[1 : len(m)-1]
-			return italicStyle.Render(inner)
-		})
-
-		// Word wrap the styled text
-		wrapped := wordWrap(styled, maxWidth)
-		allLines = append(allLines, wrapped...)
+		for _, line := range wordWrap(para, maxWidth) {
+			// Apply inline styles after wrapping so ANSI spans are not split.
+			styled := reBold.ReplaceAllStringFunc(line, func(m string) string {
+				inner := m[2 : len(m)-2]
+				return boldStyle.Render(inner)
+			})
+			styled = reCode.ReplaceAllStringFunc(styled, func(m string) string {
+				inner := m[1 : len(m)-1]
+				return codeStyle.Render(inner)
+			})
+			styled = reItalic.ReplaceAllStringFunc(styled, func(m string) string {
+				inner := m[1 : len(m)-1]
+				return italicStyle.Render(inner)
+			})
+			allLines = append(allLines, styled)
+		}
 	}
 
 	if len(allLines) == 0 {

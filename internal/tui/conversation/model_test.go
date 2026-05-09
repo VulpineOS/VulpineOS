@@ -3,6 +3,9 @@ package conversation
 import (
 	"strings"
 	"testing"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 )
 
 func TestTraceOnlyFiltersToSystemMessages(t *testing.T) {
@@ -66,4 +69,54 @@ func TestSetSizeRewrapsRenderedEntries(t *testing.T) {
 			t.Fatalf("line width = %d, want <= 16 after resize: %q", got, line)
 		}
 	}
+}
+
+func TestSetSizeAllowsVeryNarrowContentWidth(t *testing.T) {
+	m := New()
+	m.SetSize(6, 10)
+	m.SetAgentID("agent-1")
+	m.AddEntry("assistant", "abcdef")
+
+	if m.textInput.Width > 2 {
+		t.Fatalf("text input width = %d, want <= 2", m.textInput.Width)
+	}
+	for _, line := range m.entries[0].renderedLines {
+		if got := ansiVisualWidth(line); got > 1 {
+			t.Fatalf("line width = %d, want <= 1 in narrow view: %q", got, line)
+		}
+	}
+}
+
+func TestRenderMarkdownDoesNotSplitStyledANSI(t *testing.T) {
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	t.Cleanup(func() { lipgloss.SetColorProfile(termenv.Ascii) })
+
+	lines := renderMarkdown("**"+strings.Repeat("bold ", 8)+"**", 12)
+	for _, line := range lines {
+		if hasUnclosedSGR(line) {
+			t.Fatalf("line has unclosed ANSI style: %q\nall lines: %#v", line, lines)
+		}
+	}
+}
+
+func hasUnclosedSGR(line string) bool {
+	active := false
+	for i := 0; i < len(line); i++ {
+		if line[i] != '\x1b' || i+1 >= len(line) || line[i+1] != '[' {
+			continue
+		}
+		end := i + 2
+		for end < len(line) && (line[end] < 0x40 || line[end] > 0x7e) {
+			end++
+		}
+		if end >= len(line) {
+			return true
+		}
+		seq := line[i : end+1]
+		if strings.HasSuffix(seq, "m") {
+			active = seq != "\x1b[0m" && seq != "\x1b[m"
+		}
+		i = end
+	}
+	return active
 }
