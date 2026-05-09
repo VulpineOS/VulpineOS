@@ -71,6 +71,34 @@ func TestMidHeightShowsFocusedSection(t *testing.T) {
 	}
 }
 
+func TestMediumHeightAboveCompactShowsFocusedSection(t *testing.T) {
+	m := New()
+	m.SetActive(true)
+	m.SetSize(36, 19)
+
+	var cmd tea.Cmd
+	m, cmd = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	if cmd != nil {
+		if msg := cmd(); msg != nil {
+			t.Fatalf("unexpected message after first tab: %#v", msg)
+		}
+	}
+	m, cmd = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	if cmd != nil {
+		if msg := cmd(); msg != nil {
+			t.Fatalf("unexpected message after second tab: %#v", msg)
+		}
+	}
+
+	view := m.View()
+	if !strings.Contains(view, "Skills") {
+		t.Fatalf("medium-height settings view did not show focused section:\n%s", view)
+	}
+	if lines := strings.Split(view, "\n"); len(lines) > 19 {
+		t.Fatalf("medium-height settings view height = %d, want <= 19:\n%s", len(lines), view)
+	}
+}
+
 func TestProxyTestedMsgUpdatesLatencyAndCountry(t *testing.T) {
 	m := New()
 	m.SetActive(true)

@@ -294,17 +294,7 @@ func (m Model) View() string {
 	b.WriteString("\n\n")
 
 	if m.height > 0 && m.height <= 18 {
-		switch m.section {
-		case SectionGeneral:
-			b.WriteString(m.viewGeneral())
-		case SectionProxies:
-			b.WriteString(m.viewProxies())
-		case SectionSkills:
-			b.WriteString(m.viewSkills())
-		}
-		b.WriteString("\n\n")
-		b.WriteString(shared.MutedStyle.Render(clipText("[Esc] close settings  [Tab] next section", contentWidth)))
-		return m.fitContent(b.String())
+		return m.viewFocusedSection(contentWidth)
 	}
 
 	// --- General section ---
@@ -329,6 +319,28 @@ func (m Model) View() string {
 	b.WriteString("\n\n")
 	b.WriteString(shared.MutedStyle.Render(clipText("[Esc] close settings  [Tab] next section", contentWidth)))
 
+	content := b.String()
+	if m.height > 0 && m.section != SectionGeneral && len(strings.Split(content, "\n")) > m.height {
+		return m.viewFocusedSection(contentWidth)
+	}
+	return m.fitContent(content)
+}
+
+func (m Model) viewFocusedSection(contentWidth int) string {
+	var b strings.Builder
+
+	b.WriteString(shared.TitleStyle.Render("SETTINGS"))
+	b.WriteString("\n\n")
+	switch m.section {
+	case SectionGeneral:
+		b.WriteString(m.viewGeneral())
+	case SectionProxies:
+		b.WriteString(m.viewProxies())
+	case SectionSkills:
+		b.WriteString(m.viewSkills())
+	}
+	b.WriteString("\n\n")
+	b.WriteString(shared.MutedStyle.Render(clipText("[Esc] close settings  [Tab] next section", contentWidth)))
 	return m.fitContent(b.String())
 }
 
