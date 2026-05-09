@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"vulpineos/internal/config"
 	"vulpineos/internal/juggler"
@@ -147,6 +148,21 @@ func TestScriptsRunExecutesScriptAgainstRealSession(t *testing.T) {
 	}
 	if result.Vars["heading"] != "Welcome" || result.Vars["capture.png"] != "capture.png" {
 		t.Fatalf("unexpected script vars: %#v", result.Vars)
+	}
+}
+
+func TestWaitForSessionFrameIgnoresOtherSessions(t *testing.T) {
+	api := &PanelAPI{}
+	frameCh := make(chan sessionFrame, 2)
+	frameCh <- sessionFrame{SessionID: "other-session", FrameID: "wrong-frame"}
+	frameCh <- sessionFrame{SessionID: "target-session", FrameID: "right-frame"}
+
+	frameID, err := api.waitForSessionFrame("target-session", frameCh, 100*time.Millisecond)
+	if err != nil {
+		t.Fatalf("waitForSessionFrame: %v", err)
+	}
+	if frameID != "right-frame" {
+		t.Fatalf("frameID = %q, want right-frame", frameID)
 	}
 }
 
