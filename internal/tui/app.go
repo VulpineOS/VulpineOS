@@ -1609,16 +1609,8 @@ func (a App) View() string {
 		// Check if we need to show agent creation inputs overlaid on conversation
 		var convView string
 		switch a.inputMode {
-		case "new-agent-name":
-			convView = shared.TitleStyle.Render("NEW AGENT — NAME") + "\n\n" +
-				a.nameInput.View() + "\n\n" +
-				a.newAgentContextNotice() +
-				shared.MutedStyle.Render("[Enter] confirm  [Esc] cancel")
-		case "new-agent-desc":
-			convView = shared.TitleStyle.Render("NEW AGENT — DESCRIPTION for "+a.newAgentName) + "\n\n" +
-				a.taskInput.View() + "\n\n" +
-				a.newAgentContextNotice() +
-				shared.MutedStyle.Render("[Enter] create  [Esc] cancel")
+		case "new-agent-name", "new-agent-desc":
+			convView = a.newAgentInputView()
 		default:
 			convView = a.conversation.View()
 		}
@@ -1713,6 +1705,8 @@ func (a App) renderCompactWorkbench() string {
 	var content string
 	panel := a.focus
 	switch {
+	case a.inputMode == "new-agent-name" || a.inputMode == "new-agent-desc":
+		content = a.newAgentInputView()
 	case a.focus == FocusSettings && a.settings.IsActive():
 		a.settings.SetSize(contentWidth, contentHeight)
 		content = a.settings.View()
@@ -1743,6 +1737,23 @@ func (a App) renderCompactWorkbench() string {
 		statusBar = fitTerminalLine(shared.WarmingStyle.Render("  "+a.notice), a.width)
 	}
 	return fitTerminalBlock(lipgloss.JoinVertical(lipgloss.Left, body, statusBar), a.width, a.height)
+}
+
+func (a App) newAgentInputView() string {
+	switch a.inputMode {
+	case "new-agent-name":
+		return shared.TitleStyle.Render("NEW AGENT — NAME") + "\n\n" +
+			a.nameInput.View() + "\n\n" +
+			a.newAgentContextNotice() +
+			shared.MutedStyle.Render("[Enter] confirm  [Esc] cancel")
+	case "new-agent-desc":
+		return shared.TitleStyle.Render("NEW AGENT — DESCRIPTION for "+a.newAgentName) + "\n\n" +
+			a.taskInput.View() + "\n\n" +
+			a.newAgentContextNotice() +
+			shared.MutedStyle.Render("[Enter] create  [Esc] cancel")
+	default:
+		return ""
+	}
 }
 
 func fitTerminalBlock(output string, width, height int) string {

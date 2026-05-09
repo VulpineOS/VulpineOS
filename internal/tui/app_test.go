@@ -807,6 +807,30 @@ func TestViewHandlesNarrowWorkbenchWithoutOverflow(t *testing.T) {
 	}
 }
 
+func TestCompactWorkbenchShowsNewAgentInput(t *testing.T) {
+	app := NewAppWithControl(nil, nil, nil, nil, nil, nil, &fakeControlClient{})
+	app.width = 40
+	app.height = 10
+	app.focus = FocusAgentList
+	app.updatePanelSizes()
+
+	model, _ := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	app = model.(App)
+
+	view := app.View()
+	if !strings.Contains(view, "NEW AGENT") {
+		t.Fatalf("compact new-agent prompt hidden:\n%s", view)
+	}
+	if strings.Contains(view, "No agents yet") {
+		t.Fatalf("compact view rendered agent list instead of active input:\n%s", view)
+	}
+	for i, line := range strings.Split(view, "\n") {
+		if width := lipgloss.Width(line); width > app.width {
+			t.Fatalf("compact input line %d width = %d, want <= %d:\n%s", i+1, width, app.width, view)
+		}
+	}
+}
+
 func TestNoticeStatusLineIsWidthConstrained(t *testing.T) {
 	app := NewApp(nil, nil, nil, nil, nil, nil)
 	app.width = 40
