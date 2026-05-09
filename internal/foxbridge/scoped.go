@@ -72,7 +72,11 @@ func (b *scopedBackend) Call(sessionID, method string, params json.RawMessage) (
 			if err := b.validateTrackedRequest(method, params); err != nil {
 				return nil, err
 			}
-			return b.client.Call(sessionID, method, params)
+			result, err := b.client.Call(sessionID, method, params)
+			if err == nil && requestControlRetiresRequest(method) {
+				b.retireTrackedRequest(params)
+			}
+			return result, err
 		}
 		if strings.HasPrefix(method, "Browser.") {
 			return nil, fmt.Errorf("%s is not allowed for scoped foxbridge sessions", method)
@@ -185,6 +189,27 @@ func (b *scopedBackend) validateTrackedRequest(method string, params json.RawMes
 		return fmt.Errorf("request %s is outside scoped backend", payload.RequestID)
 	}
 	return nil
+}
+
+func (b *scopedBackend) retireTrackedRequest(params json.RawMessage) {
+	var payload struct {
+		RequestID string `json:"requestId"`
+	}
+	if err := json.Unmarshal(params, &payload); err != nil || payload.RequestID == "" {
+		return
+	}
+	b.mu.Lock()
+	delete(b.allowedRequests, payload.RequestID)
+	b.mu.Unlock()
+}
+
+func requestControlRetiresRequest(method string) bool {
+	switch method {
+	case "Browser.abortInterceptedRequest", "Browser.continueInterceptedRequest", "Browser.fulfillInterceptedRequest", "Browser.handleAuthRequest":
+		return true
+	default:
+		return false
+	}
 }
 
 func (b *scopedBackend) shouldForward(event, sessionID string, params json.RawMessage) bool {

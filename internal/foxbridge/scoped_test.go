@@ -288,6 +288,24 @@ func TestScopedBackendAllowsTrackedRequestControls(t *testing.T) {
 	}
 }
 
+func TestScopedBackendRetiresRequestAfterTerminalControl(t *testing.T) {
+	client := &fakeJugglerBackend{}
+	be := newScopedBackend(client, "ctx-1")
+
+	be.Subscribe("Browser.requestIntercepted", func(sessionID string, params json.RawMessage) {})
+	client.handlers["Browser.requestIntercepted"]("", json.RawMessage(`{
+		"requestId":"request-1",
+		"browserContextId":"ctx-1"
+	}`))
+
+	if _, err := be.Call("", "Browser.continueInterceptedRequest", json.RawMessage(`{"requestId":"request-1"}`)); err != nil {
+		t.Fatalf("first Call returned error: %v", err)
+	}
+	if _, err := be.Call("", "Browser.continueInterceptedRequest", json.RawMessage(`{"requestId":"request-1"}`)); err == nil {
+		t.Fatal("expected retired request control to be blocked")
+	}
+}
+
 func TestScopedBackendCloseCancelsSubscriptions(t *testing.T) {
 	client := &fakeJugglerBackend{}
 	be := newScopedBackend(client, "ctx-1")
