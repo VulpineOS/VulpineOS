@@ -564,6 +564,26 @@ func TestRemoteControlStatusEventRefreshesSelectedDetail(t *testing.T) {
 	}
 }
 
+func TestRemoteControlBulkStatusRefreshesSelectedDetail(t *testing.T) {
+	app := NewAppWithControl(nil, nil, nil, nil, nil, nil, &fakeControlClient{})
+	app.agentList.SetAgents([]vault.Agent{{ID: "agent-1", Name: "Remote", Status: "active", TotalTokens: 7}})
+	app.agentList.SelectAgentID("agent-1")
+	app.selectedAgentID = "agent-1"
+	app.updateAgentDetail(&vault.Agent{ID: "agent-1", Name: "Remote", Status: "active", TotalTokens: 7})
+
+	model, _ := app.Update(shared.BulkAgentStatusMsg{
+		AgentIDs: []string{"agent-1"},
+		Status:   "paused",
+		Notice:   "Paused 1 remote agent",
+	})
+	app = model.(App)
+
+	view := app.agentDetail.View()
+	if !strings.Contains(view, "paused") {
+		t.Fatalf("detail did not refresh from remote bulk status:\n%s", view)
+	}
+}
+
 func TestRemoteControlBulkStatusExcludesFailures(t *testing.T) {
 	control := &fakeControlClient{responses: map[string]any{
 		"agents.pauseMany": map[string]any{

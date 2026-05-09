@@ -1115,7 +1115,11 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if agentID == a.selectedAgentID {
 				a.conversation.SetThinking(false)
-				a.refreshAgentDetail(agentID)
+				if a.control != nil && a.vault == nil {
+					a.updateRemoteAgentDetailFromList(agentID)
+				} else {
+					a.refreshAgentDetail(agentID)
+				}
 			}
 		}
 		a.notice = msg.Notice
