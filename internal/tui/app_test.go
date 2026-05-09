@@ -363,6 +363,19 @@ func TestAgentCreatedSelectsNewAgentListRow(t *testing.T) {
 	}
 }
 
+func TestPoolStatsMsgUpdatesVisibleSystemPanel(t *testing.T) {
+	app := NewApp(nil, nil, nil, nil, nil, nil)
+	app.systemInfo.SetHeight(20)
+
+	model, _ := app.Update(shared.PoolStatsMsg{Available: 3, Active: 2, Total: 5})
+	app = model.(App)
+
+	view := app.systemInfo.View()
+	if !strings.Contains(view, "Pool: 3/2/5") {
+		t.Fatalf("system panel missing pool stats:\n%s", view)
+	}
+}
+
 func TestArrowKeysNavigateAgentsWhenResizeModeDisabled(t *testing.T) {
 	db := openTestVault(t)
 	first, err := db.CreateAgent("first-agent", "first task", "{}")
