@@ -77,6 +77,14 @@ func TestSetupProviderViewFitsShortTerminal(t *testing.T) {
 	assertSetupViewFits(t, m)
 }
 
+func TestSetupViewFitsUltraTinyTerminal(t *testing.T) {
+	m := New()
+	model, _ := m.Update(tea.WindowSizeMsg{Width: 4, Height: 4})
+	m = model.(Model)
+
+	assertSetupViewFits(t, m)
+}
+
 func TestSetupViewFitsVeryNarrowAPIKeyAndDoneSteps(t *testing.T) {
 	cfg := &config.Config{
 		Provider: "anthropic",

@@ -208,6 +208,10 @@ func (m Model) View() string {
 		content = m.viewDone()
 	}
 
+	if m.width > 0 && m.width < 8 {
+		return fitSetupBlock(content, m.width, m.height)
+	}
+
 	box := boxStyle.Width(m.boxWidth()).Render(content)
 
 	// Center vertically
@@ -216,7 +220,7 @@ func (m Model) View() string {
 		pad = 0
 	}
 
-	return strings.Repeat("\n", pad) + lipgloss.PlaceHorizontal(m.width, lipgloss.Center, box)
+	return fitSetupBlock(strings.Repeat("\n", pad)+lipgloss.PlaceHorizontal(m.width, lipgloss.Center, box), m.width, m.height)
 }
 
 func (m Model) boxWidth() int {
@@ -420,6 +424,17 @@ func fitSetupLine(line string, width int) string {
 		return ""
 	}
 	return lines[0]
+}
+
+func fitSetupBlock(block string, width, height int) string {
+	lines := strings.Split(block, "\n")
+	for i, line := range lines {
+		lines[i] = fitSetupLine(line, width)
+	}
+	if height > 0 && len(lines) > height {
+		lines = lines[:height]
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (m Model) viewDone() string {
