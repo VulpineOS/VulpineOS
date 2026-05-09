@@ -514,14 +514,17 @@ func (api *PanelAPI) agentsResume(params json.RawMessage) (json.RawMessage, erro
 	if p.SessionName == "" {
 		p.SessionName = "vulpine-" + agentID
 	}
+	if api.Vault == nil {
+		return nil, fmt.Errorf("vault not available")
+	}
+	agent, err := api.Vault.GetAgent(agentID)
+	if err != nil {
+		return nil, err
+	}
+	if err := requirePausedAgentStatus(agent); err != nil {
+		return nil, err
+	}
 	if strings.TrimSpace(p.Message) != "" {
-		if api.Vault == nil {
-			return nil, fmt.Errorf("vault not available")
-		}
-		agent, err := api.Vault.GetAgent(agentID)
-		if err != nil {
-			return nil, err
-		}
 		_ = api.Vault.AppendMessage(agentID, "user", p.Message, 0)
 		configPath, cleanup, err := api.agentRuntimeConfig(agent)
 		if err != nil {
@@ -533,13 +536,6 @@ func (api *PanelAPI) agentsResume(params json.RawMessage) (json.RawMessage, erro
 		}
 		_ = api.Vault.UpdateAgentStatus(agentID, "active")
 		return json.Marshal(map[string]string{"agentId": id})
-	}
-	if api.Vault == nil {
-		return nil, fmt.Errorf("vault not available")
-	}
-	agent, err := api.Vault.GetAgent(agentID)
-	if err != nil {
-		return nil, err
 	}
 	configPath, cleanup, err := api.agentRuntimeConfig(agent)
 	if err != nil {
@@ -572,6 +568,10 @@ func (api *PanelAPI) agentsResumeMany(params json.RawMessage) (json.RawMessage, 
 	for _, agentID := range agentIDs {
 		agent, err := api.Vault.GetAgent(agentID)
 		if err != nil {
+			failures[agentID] = err.Error()
+			continue
+		}
+		if err := requirePausedAgentStatus(agent); err != nil {
 			failures[agentID] = err.Error()
 			continue
 		}
@@ -694,6 +694,20 @@ func agentSessionLogPath(agentID string) (string, error) {
 		return "", fmt.Errorf("invalid agentId")
 	}
 	return path, nil
+}
+
+func requirePausedAgentStatus(agent *vault.Agent) error {
+	if agent == nil {
+		return fmt.Errorf("agent is required")
+	}
+	if strings.EqualFold(strings.TrimSpace(agent.Status), "paused") {
+		return nil
+	}
+	status := strings.TrimSpace(agent.Status)
+	if status == "" {
+		status = "unknown"
+	}
+	return fmt.Errorf("agent %s is %s; resume requires paused status", agent.ID, status)
 }
 
 func safePanelAgentID(agentID string) (string, error) {

@@ -91,6 +91,86 @@ func TestAgentsResumeManyReportsPerAgentFailure(t *testing.T) {
 	}
 }
 
+func TestAgentsResumeRejectsNonPausedAgent(t *testing.T) {
+	api := newBulkAgentAPI(t)
+
+	agent, err := api.Vault.CreateAgent("Running", "task", "{}")
+	if err != nil {
+		t.Fatalf("CreateAgent: %v", err)
+	}
+	if err := api.Vault.UpdateAgentStatus(agent.ID, "running"); err != nil {
+		t.Fatalf("UpdateAgentStatus: %v", err)
+	}
+
+	params, err := json.Marshal(map[string]interface{}{"agentId": agent.ID})
+	if err != nil {
+		t.Fatalf("Marshal params: %v", err)
+	}
+	_, err = api.HandleMessage("agents.resume", params)
+	if err == nil || !strings.Contains(err.Error(), "requires paused status") {
+		t.Fatalf("error = %v, want paused-status rejection", err)
+	}
+}
+
+func TestAgentsResumeWithMessageRejectsLiveAgentBeforeAppendingMessage(t *testing.T) {
+	api := newBulkAgentAPI(t)
+
+	agent, err := api.Vault.CreateAgent("Running Chat", "task", "{}")
+	if err != nil {
+		t.Fatalf("CreateAgent: %v", err)
+	}
+	if err := api.Vault.UpdateAgentStatus(agent.ID, "active"); err != nil {
+		t.Fatalf("UpdateAgentStatus: %v", err)
+	}
+
+	params, err := json.Marshal(map[string]interface{}{"agentId": agent.ID, "message": "continue"})
+	if err != nil {
+		t.Fatalf("Marshal params: %v", err)
+	}
+	_, err = api.HandleMessage("agents.resume", params)
+	if err == nil || !strings.Contains(err.Error(), "requires paused status") {
+		t.Fatalf("error = %v, want paused-status rejection", err)
+	}
+	messages, err := api.Vault.GetMessages(agent.ID)
+	if err != nil {
+		t.Fatalf("GetMessages: %v", err)
+	}
+	if len(messages) != 0 {
+		t.Fatalf("messages appended despite rejected live resume: %#v", messages)
+	}
+}
+
+func TestAgentsResumeManyRejectsNonPausedAgents(t *testing.T) {
+	api := newBulkAgentAPI(t)
+
+	agent, err := api.Vault.CreateAgent("Active Bulk", "task", "{}")
+	if err != nil {
+		t.Fatalf("CreateAgent: %v", err)
+	}
+	if err := api.Vault.UpdateAgentStatus(agent.ID, "active"); err != nil {
+		t.Fatalf("UpdateAgentStatus: %v", err)
+	}
+
+	params, err := json.Marshal(map[string]interface{}{"agentIds": []string{agent.ID}})
+	if err != nil {
+		t.Fatalf("Marshal params: %v", err)
+	}
+	payload, err := api.HandleMessage("agents.resumeMany", params)
+	if err != nil {
+		t.Fatalf("HandleMessage: %v", err)
+	}
+	var result struct {
+		Resumed  int               `json:"resumed"`
+		Failures map[string]string `json:"failures"`
+	}
+	if err := json.Unmarshal(payload, &result); err != nil {
+		t.Fatalf("Unmarshal result: %v", err)
+	}
+	if result.Resumed != 0 || !strings.Contains(result.Failures[agent.ID], "requires paused status") {
+		t.Fatalf("unexpected result: %#v", result)
+	}
+}
+
 func TestAgentsKillManyReportsFailures(t *testing.T) {
 	api := newBulkAgentAPI(t)
 
