@@ -710,7 +710,7 @@ func handleNewContext(client *juggler.Client, args json.RawMessage) (*ToolCallRe
 	// Subscribe to get the sessionID from the attachedToTarget event. Filter by
 	// browserContextId so concurrent target attaches cannot steal this result.
 	sessionCh := make(chan string, 4)
-	client.Subscribe("Browser.attachedToTarget", func(_ string, params json.RawMessage) {
+	cancelAttach := client.SubscribeWithCancel("Browser.attachedToTarget", func(_ string, params json.RawMessage) {
 		var ev struct {
 			SessionID  string `json:"sessionId"`
 			TargetInfo struct {
@@ -725,6 +725,7 @@ func handleNewContext(client *juggler.Client, args json.RawMessage) (*ToolCallRe
 			}
 		}
 	})
+	defer cancelAttach()
 
 	// Create page in context
 	_, err = client.Call("", "Browser.newPage", map[string]interface{}{

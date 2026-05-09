@@ -26,6 +26,7 @@ type jugglerAdapter struct {
 	mu               sync.Mutex
 	attachedSessions map[string]string
 	attachedTargets  map[string]string
+	cancelSubs       []func()
 }
 
 // Verify jugglerAdapter implements backend.Backend at compile time.
@@ -37,27 +38,40 @@ func (a *jugglerAdapter) Call(sessionID, method string, params json.RawMessage) 
 }
 
 func (a *jugglerAdapter) Subscribe(event string, handler backend.EventHandler) {
+	var cancel func()
 	switch event {
 	case "Browser.attachedToTarget":
-		a.client.Subscribe(event, func(sessionID string, params json.RawMessage) {
+		cancel = a.client.SubscribeWithCancel(event, func(sessionID string, params json.RawMessage) {
 			if !a.recordAttachedTarget(params) {
 				return
 			}
 			handler(sessionID, params)
 		})
 	case "Browser.detachedFromTarget":
-		a.client.Subscribe(event, func(sessionID string, params json.RawMessage) {
+		cancel = a.client.SubscribeWithCancel(event, func(sessionID string, params json.RawMessage) {
 			a.recordDetachedTarget(params)
 			handler(sessionID, params)
 		})
 	default:
 		// Both sides use func(sessionID string, params json.RawMessage) — direct passthrough.
-		a.client.Subscribe(event, juggler.EventHandler(handler))
+		cancel = a.client.SubscribeWithCancel(event, juggler.EventHandler(handler))
 	}
+	a.mu.Lock()
+	a.cancelSubs = append(a.cancelSubs, cancel)
+	a.mu.Unlock()
 }
 
 func (a *jugglerAdapter) Close() error {
 	// Don't close the underlying client — it belongs to the kernel.
+	a.mu.Lock()
+	cancels := append([]func(){}, a.cancelSubs...)
+	a.cancelSubs = nil
+	a.attachedSessions = nil
+	a.attachedTargets = nil
+	a.mu.Unlock()
+	for _, cancel := range cancels {
+		cancel()
+	}
 	return nil
 }
 
@@ -140,6 +154,7 @@ type EmbeddedServer struct {
 	server   *cdp.Server
 	sessions *cdp.SessionManager
 	bridge   *bridge.Bridge
+	backend  backend.Backend
 	port     int
 	done     chan struct{}
 }
@@ -209,6 +224,7 @@ func startEmbeddedWithBackend(be backend.Backend, port int, attachToDefaultConte
 		server:   server,
 		sessions: sessions,
 		bridge:   b,
+		backend:  be,
 		port:     port,
 		done:     make(chan struct{}),
 	}
@@ -254,6 +270,10 @@ func (es *EmbeddedServer) Port() int {
 func (es *EmbeddedServer) Stop() {
 	if es == nil || es.server == nil {
 		return
+	}
+	if es.backend != nil {
+		_ = es.backend.Close()
+		es.backend = nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	if err := es.server.Shutdown(ctx); err != nil {

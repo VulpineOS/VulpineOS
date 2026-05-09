@@ -113,6 +113,18 @@ func NewContextTracker(client *juggler.Client) *ContextTracker {
 		}
 	})
 
+	client.Subscribe("Browser.detachedFromTarget", func(_ string, params json.RawMessage) {
+		var ev struct {
+			SessionID string `json:"sessionId"`
+		}
+		json.Unmarshal(params, &ev)
+		if ev.SessionID != "" {
+			ct.mu.Lock()
+			delete(ct.contexts, ev.SessionID)
+			ct.mu.Unlock()
+		}
+	})
+
 	return ct
 }
 

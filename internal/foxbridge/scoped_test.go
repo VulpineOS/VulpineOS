@@ -28,10 +28,17 @@ func (f *fakeJugglerBackend) Call(sessionID, method string, params interface{}) 
 }
 
 func (f *fakeJugglerBackend) Subscribe(event string, handler juggler.EventHandler) {
+	f.SubscribeWithCancel(event, handler)
+}
+
+func (f *fakeJugglerBackend) SubscribeWithCancel(event string, handler juggler.EventHandler) func() {
 	if f.handlers == nil {
 		f.handlers = make(map[string]juggler.EventHandler)
 	}
 	f.handlers[event] = handler
+	return func() {
+		delete(f.handlers, event)
+	}
 }
 
 func TestScopedBackendCreateBrowserContext(t *testing.T) {
@@ -225,5 +232,22 @@ func TestScopedBackendAllowsAttachAfterDetach(t *testing.T) {
 	}
 	if detachedCount != 1 {
 		t.Fatalf("detachedCount = %d, want 1", detachedCount)
+	}
+}
+
+func TestScopedBackendCloseCancelsSubscriptions(t *testing.T) {
+	client := &fakeJugglerBackend{}
+	be := newScopedBackend(client, "ctx-1")
+
+	be.Subscribe("Browser.attachedToTarget", func(sessionID string, params json.RawMessage) {})
+	if _, ok := client.handlers["Browser.attachedToTarget"]; !ok {
+		t.Fatal("expected test subscription to be installed")
+	}
+
+	if err := be.Close(); err != nil {
+		t.Fatalf("Close returned error: %v", err)
+	}
+	if _, ok := client.handlers["Browser.attachedToTarget"]; ok {
+		t.Fatal("subscription still installed after Close")
 	}
 }

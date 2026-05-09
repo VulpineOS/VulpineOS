@@ -54,7 +54,9 @@ func TestStopDoesNotPanic(t *testing.T) {
 	es.Stop()
 }
 
-type embeddedTestBackend struct{}
+type embeddedTestBackend struct {
+	closeCount int
+}
 
 func (b *embeddedTestBackend) Call(sessionID, method string, params json.RawMessage) (json.RawMessage, error) {
 	return json.RawMessage(`{}`), nil
@@ -63,6 +65,7 @@ func (b *embeddedTestBackend) Call(sessionID, method string, params json.RawMess
 func (b *embeddedTestBackend) Subscribe(event string, handler backend.EventHandler) {}
 
 func (b *embeddedTestBackend) Close() error {
+	b.closeCount++
 	return nil
 }
 
@@ -91,6 +94,24 @@ func TestEmbeddedStopReleasesPort(t *testing.T) {
 			t.Fatalf("port %d was not released", port)
 		}
 		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func TestEmbeddedStopClosesBackend(t *testing.T) {
+	port, err := reservePort()
+	if err != nil {
+		t.Fatalf("reservePort: %v", err)
+	}
+	be := &embeddedTestBackend{}
+	es, err := startEmbeddedWithBackend(be, port, true)
+	if err != nil {
+		t.Fatalf("startEmbeddedWithBackend: %v", err)
+	}
+
+	es.Stop()
+
+	if be.closeCount != 1 {
+		t.Fatalf("backend close count = %d, want 1", be.closeCount)
 	}
 }
 
@@ -177,6 +198,28 @@ func TestJugglerAdapterAllowsAttachAfterDetach(t *testing.T) {
 
 	transport.InjectEvent("", "Browser.attachedToTarget", target)
 	expectAdapterEvent(t, attached)
+}
+
+func TestJugglerAdapterCloseCancelsSubscriptions(t *testing.T) {
+	transport := testutil.NewFakeJugglerTransport(t)
+	client := juggler.NewClient(transport)
+	adapter := &jugglerAdapter{client: client}
+
+	attached := make(chan string, 4)
+	adapter.Subscribe("Browser.attachedToTarget", func(_ string, params json.RawMessage) {
+		attached <- string(params)
+	})
+	if err := adapter.Close(); err != nil {
+		t.Fatalf("Close returned error: %v", err)
+	}
+
+	transport.InjectEvent("", "Browser.attachedToTarget", map[string]any{
+		"sessionId": "session-1",
+		"targetInfo": map[string]any{
+			"targetId": "target-1",
+		},
+	})
+	expectNoAdapterEvent(t, attached)
 }
 
 func expectAdapterEvent(t *testing.T, ch <-chan string) {

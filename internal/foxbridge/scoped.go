@@ -14,6 +14,7 @@ import (
 type jugglerBackend interface {
 	Call(sessionID, method string, params interface{}) (json.RawMessage, error)
 	Subscribe(event string, handler juggler.EventHandler)
+	SubscribeWithCancel(event string, handler juggler.EventHandler) func()
 }
 
 type scopedBackend struct {
@@ -23,6 +24,7 @@ type scopedBackend struct {
 	mu              sync.RWMutex
 	allowedSessions map[string]struct{}
 	allowedTargets  map[string]struct{}
+	cancelSubs      []func()
 }
 
 var _ backend.Backend = (*scopedBackend)(nil)
@@ -75,15 +77,27 @@ func (b *scopedBackend) Call(sessionID, method string, params json.RawMessage) (
 }
 
 func (b *scopedBackend) Subscribe(event string, handler backend.EventHandler) {
-	b.client.Subscribe(event, func(sessionID string, params json.RawMessage) {
+	cancel := b.client.SubscribeWithCancel(event, func(sessionID string, params json.RawMessage) {
 		if !b.shouldForward(event, sessionID, params) {
 			return
 		}
 		handler(sessionID, params)
 	})
+	b.mu.Lock()
+	b.cancelSubs = append(b.cancelSubs, cancel)
+	b.mu.Unlock()
 }
 
 func (b *scopedBackend) Close() error {
+	b.mu.Lock()
+	cancels := append([]func(){}, b.cancelSubs...)
+	b.cancelSubs = nil
+	b.allowedSessions = make(map[string]struct{})
+	b.allowedTargets = make(map[string]struct{})
+	b.mu.Unlock()
+	for _, cancel := range cancels {
+		cancel()
+	}
 	return nil
 }
 
