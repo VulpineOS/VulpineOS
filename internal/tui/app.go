@@ -832,6 +832,11 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		case "S":
+			if a.control != nil {
+				a.notice = "Remote settings are unavailable in TUI; use the web panel"
+				a.noticeTTL = 3
+				return a, nil
+			}
 			a.focus = FocusSettings
 			a.settings.SetActive(true)
 			a.settings.SetConfig(a.cfg)
@@ -870,6 +875,11 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return a, nil
 		case "c":
+			if a.control != nil {
+				a.notice = "Remote reconfigure is unavailable in TUI; use the web panel"
+				a.noticeTTL = 3
+				return a, nil
+			}
 			// Request the setup wizard on next launch without mutating the active config first.
 			return a, a.requestReconfigure()
 		}
@@ -1117,27 +1127,38 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case shared.ReconfigureRequestedMsg:
+		if a.control != nil {
+			a.notice = "Remote reconfigure is unavailable in TUI; use the web panel"
+			a.noticeTTL = 3
+			break
+		}
 		return a, a.requestReconfigure()
 
 	case shared.ProxyAddMsg:
+		if a.vault == nil {
+			a.notice = "Proxy changes unavailable without local vault access"
+			a.noticeTTL = 3
+			break
+		}
 		pc, err := proxy.ParseProxyURL(msg.URL)
 		if err != nil {
 			a.notice = "Invalid proxy: " + err.Error()
 			a.noticeTTL = 3
 		} else {
 			configJSON, _ := json.Marshal(pc)
-			if a.vault != nil {
-				a.vault.AddProxy(string(configJSON), "", pc.String())
-			}
+			a.vault.AddProxy(string(configJSON), "", pc.String())
 			a.notice = "Proxy added: " + pc.String()
 			a.noticeTTL = 3
 		}
 		a.reloadSettingsProxies()
 
 	case shared.ProxyDeleteMsg:
-		if a.vault != nil {
-			a.vault.DeleteProxy(msg.ProxyID)
+		if a.vault == nil {
+			a.notice = "Proxy changes unavailable without local vault access"
+			a.noticeTTL = 3
+			break
 		}
+		a.vault.DeleteProxy(msg.ProxyID)
 		a.notice = "Proxy deleted"
 		a.noticeTTL = 3
 		a.reloadSettingsProxies()
@@ -1617,7 +1638,7 @@ func (a App) renderStatusBar() string {
 
 	controls := "  n:new  p/r:agent  P/R:all  X:kill-all  x:del  v:view  o:log  m:mode  S:settings  Enter:chat  Tab:focus  "
 	if a.control != nil {
-		controls = "  n:new  p/r:agent  P/R:all  X:kill-all  x:kill  v:view  m:mode  S:settings  Enter:chat  Tab:focus  "
+		controls = "  n:new  p/r:agent  P/R:all  X:kill-all  x:kill  v:view  m:mode  Enter:chat  Tab:focus  "
 	}
 	bar := shared.TitleStyle.Render("VULPINE") +
 		shared.MutedStyle.Render(" | ") +

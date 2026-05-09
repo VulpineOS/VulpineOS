@@ -594,11 +594,33 @@ func TestRemoteControlLabelsHideLocalOnlyLogAndDelete(t *testing.T) {
 
 	status := app.renderStatusBar()
 	detail := app.agentDetail.View()
-	if strings.Contains(status, "o:log") || strings.Contains(status, "x:del") {
+	if strings.Contains(status, "o:log") || strings.Contains(status, "x:del") || strings.Contains(status, "S:settings") {
 		t.Fatalf("remote status bar advertises local-only controls: %s", status)
 	}
 	if strings.Contains(detail, "[o] log") || strings.Contains(detail, "[x] delete") {
 		t.Fatalf("remote detail advertises local-only controls: %s", detail)
+	}
+}
+
+func TestRemoteControlBlocksLocalSettingsAndReconfigure(t *testing.T) {
+	app := NewAppWithControl(nil, nil, nil, nil, nil, nil, &fakeControlClient{})
+
+	model, _ := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'S'}})
+	app = model.(App)
+	if app.focus == FocusSettings || app.settings.IsActive() {
+		t.Fatal("remote TUI should not open local settings")
+	}
+	if !strings.Contains(app.notice, "Remote settings") {
+		t.Fatalf("notice = %q, want remote settings notice", app.notice)
+	}
+
+	model, cmd := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	app = model.(App)
+	if cmd != nil {
+		t.Fatal("remote reconfigure should not queue local setup wizard")
+	}
+	if !strings.Contains(app.notice, "Remote reconfigure") {
+		t.Fatalf("notice = %q, want remote reconfigure notice", app.notice)
 	}
 }
 
