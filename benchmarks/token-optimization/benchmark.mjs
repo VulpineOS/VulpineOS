@@ -110,6 +110,10 @@ function fixtureURL(value) {
   return pathToFileURL(absolute).href
 }
 
+function resultURL(fixture, url) {
+  return url.startsWith('file://') ? fixture : url
+}
+
 function tokenCount(value) {
   return encode(typeof value === 'string' ? value : JSON.stringify(value)).length
 }
@@ -203,7 +207,7 @@ async function measureFixture(browser, fixture, options) {
 
   return {
     fixture,
-    url,
+    url: resultURL(fixture, url),
     tokens: counts,
     reductions: {
       vsRawHTML: reduction(counts.rawHTML, counts.vulpineOptimized),
