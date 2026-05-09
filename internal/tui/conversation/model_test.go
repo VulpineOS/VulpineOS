@@ -87,6 +87,18 @@ func TestSetSizeAllowsVeryNarrowContentWidth(t *testing.T) {
 	}
 }
 
+func TestWordWrapUsesTerminalCellWidth(t *testing.T) {
+	lines := wordWrap("界界界界界", 4)
+	if len(lines) < 2 {
+		t.Fatalf("wide glyph text did not wrap: %#v", lines)
+	}
+	for _, line := range lines {
+		if got := lipgloss.Width(line); got > 4 {
+			t.Fatalf("line cell width = %d, want <= 4: %q in %#v", got, line, lines)
+		}
+	}
+}
+
 func TestRenderMarkdownDoesNotSplitStyledANSI(t *testing.T) {
 	lipgloss.SetColorProfile(termenv.TrueColor)
 	t.Cleanup(func() { lipgloss.SetColorProfile(termenv.Ascii) })

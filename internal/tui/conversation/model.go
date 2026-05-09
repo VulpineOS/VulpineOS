@@ -5,10 +5,12 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-runewidth"
 
 	"vulpineos/internal/tui/shared"
 	"vulpineos/internal/vault"
@@ -694,7 +696,7 @@ func ansiVisualWidth(s string) int {
 			inEscape = true
 			continue
 		}
-		width++
+		width += runewidth.RuneWidth(r)
 	}
 	return width
 }
@@ -735,8 +737,12 @@ func wordWrap(text string, maxWidth int) []string {
 				bytePos = i + len(string(r))
 				continue
 			}
-			visualW++
-			bytePos = i + len(string(r))
+			runeWidth := runewidth.RuneWidth(r)
+			if visualW+runeWidth > maxWidth && bytePos > 0 {
+				break
+			}
+			visualW += runeWidth
+			bytePos = i + utf8.RuneLen(r)
 			if visualW >= maxWidth {
 				break
 			}
