@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,6 +28,7 @@ type fakeControlCall struct {
 
 type fakeControlClient struct {
 	responses map[string]any
+	errors    map[string]error
 	calls     []fakeControlCall
 }
 
@@ -36,6 +38,9 @@ func (f *fakeControlClient) ControlCall(ctx context.Context, method string, para
 		return err
 	}
 	f.calls = append(f.calls, fakeControlCall{method: method, params: data})
+	if err := f.errors[method]; err != nil {
+		return err
+	}
 	if result == nil {
 		return nil
 	}
@@ -471,6 +476,41 @@ func TestRemoteControlCreateAgentUsesControlPath(t *testing.T) {
 	}
 	if app.selectedAgentID != "agent-created" {
 		t.Fatalf("selected agent = %q, want created remote agent", app.selectedAgentID)
+	}
+}
+
+func TestRemoteControlCreateAgentReloadsAgentsAfterSpawnError(t *testing.T) {
+	control := &fakeControlClient{
+		errors: map[string]error{
+			"agents.spawn": errors.New("runtime config missing"),
+		},
+		responses: map[string]any{
+			"agents.list": map[string]any{"agents": []map[string]any{{
+				"id":     "agent-error",
+				"name":   "Remote Error",
+				"task":   "Build remotely",
+				"status": "error",
+			}}},
+		},
+	}
+	app := NewAppWithControl(nil, nil, nil, nil, nil, nil, control)
+
+	msg := app.createAgent("Remote Error", "Build remotely", "")()
+	loaded, ok := msg.(remoteAgentsLoadedMsg)
+	if !ok {
+		t.Fatalf("createAgent returned %#v, want remoteAgentsLoadedMsg", msg)
+	}
+	if !strings.Contains(loaded.Notice, "runtime config missing") {
+		t.Fatalf("notice = %q, want spawn error", loaded.Notice)
+	}
+
+	model, _ := app.Update(loaded)
+	app = model.(App)
+	if app.selectedAgentID != "agent-error" {
+		t.Fatalf("selected agent = %q, want error agent", app.selectedAgentID)
+	}
+	if !strings.Contains(app.notice, "runtime config missing") {
+		t.Fatalf("app notice = %q, want spawn error", app.notice)
 	}
 }
 

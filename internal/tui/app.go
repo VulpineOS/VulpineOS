@@ -63,6 +63,7 @@ type ControlClient interface {
 type remoteAgentsLoadedMsg struct {
 	Agents          []vault.Agent
 	SelectedAgentID string
+	Notice          string
 }
 
 type remoteMessagesLoadedMsg struct {
@@ -1015,6 +1016,10 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.agentList.SelectAgentID(selectedID)
 		}
 		a.selectedAgentID = selectedID
+		if msg.Notice != "" {
+			a.notice = msg.Notice
+			a.noticeTTL = 3
+		}
 		for i := range msg.Agents {
 			if msg.Agents[i].ID == selectedID {
 				a.conversation.SetAgentID(msg.Agents[i].ID)
@@ -1955,7 +1960,14 @@ func (a *App) createRemoteAgent(name, description, contextID string) tea.Cmd {
 			params["contextId"] = contextID
 		}
 		if err := a.control.ControlCall(ctx, "agents.spawn", params, &result); err != nil {
-			return statusNotice{text: "Remote agent failed: " + err.Error()}
+			agents, listErr := a.fetchRemoteAgents(ctx)
+			if listErr != nil {
+				return statusNotice{text: "Remote agent failed: " + err.Error() + "; reload failed: " + listErr.Error()}
+			}
+			return remoteAgentsLoadedMsg{
+				Agents: agents,
+				Notice: "Remote agent failed: " + err.Error(),
+			}
 		}
 		agents, err := a.fetchRemoteAgents(ctx)
 		if err != nil {
