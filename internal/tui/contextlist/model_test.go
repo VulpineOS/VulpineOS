@@ -80,3 +80,30 @@ func TestViewConstrainsRowsAtVeryNarrowWidth(t *testing.T) {
 		}
 	}
 }
+
+func TestViewKeepsSelectedContextVisibleWhenListOverflows(t *testing.T) {
+	m := New()
+	m.SetWidth(40)
+	m.SetHeight(4)
+	for i := 0; i < 8; i++ {
+		var suffix = string(rune('a' + i))
+		var msg = shared.TargetAttachedMsg{
+			SessionID: "session-" + suffix,
+			TargetID:  "target-" + suffix,
+			ContextID: "context-" + suffix,
+			URL:       "https://example.com/context-" + suffix,
+		}
+		m, _ = m.Update(msg)
+	}
+	for i := 0; i < 6; i++ {
+		m.MoveDown()
+	}
+
+	view := m.View()
+	if !strings.Contains(view, "context-g") {
+		t.Fatalf("selected context hidden in overflowed view:\n%s", view)
+	}
+	if strings.Contains(view, "context-a") {
+		t.Fatalf("overflowed view stayed pinned to top:\n%s", view)
+	}
+}

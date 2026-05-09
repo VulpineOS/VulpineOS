@@ -268,7 +268,9 @@ func (m Model) View() string {
 		return b.String()
 	}
 
-	for i, a := range m.agents {
+	start, end := visibleAgentRange(len(m.agents), m.selected, m.height-1)
+	for i := start; i < end; i++ {
+		a := m.agents[i]
 		cursor := "  "
 		if i == m.selected {
 			cursor = "▸ "
@@ -299,7 +301,7 @@ func (m Model) View() string {
 			line = shared.SelectedStyle.Render(line)
 		}
 		b.WriteString(line)
-		if i < len(m.agents)-1 {
+		if i < end-1 {
 			b.WriteString("\n")
 		}
 	}
@@ -314,6 +316,29 @@ func (m Model) View() string {
 		}
 	}
 	return result
+}
+
+func visibleAgentRange(total, selected, capacity int) (int, int) {
+	if total <= 0 {
+		return 0, 0
+	}
+	if capacity <= 0 || capacity >= total {
+		return 0, total
+	}
+	if selected < 0 {
+		selected = 0
+	}
+	if selected >= total {
+		selected = total - 1
+	}
+	start := selected - capacity/2
+	if start < 0 {
+		start = 0
+	}
+	if start+capacity > total {
+		start = total - capacity
+	}
+	return start, start + capacity
 }
 
 func fitVisible(text string, width int) string {

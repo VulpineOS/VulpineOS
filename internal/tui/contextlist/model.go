@@ -202,7 +202,9 @@ func (m Model) View() string {
 	}
 
 	maxURL := m.width - 4
-	for i, item := range m.items {
+	start, end := visibleContextRange(len(m.items), m.selected, m.height-1)
+	for i := start; i < end; i++ {
+		item := m.items[i]
 		cursor := " "
 		if i == m.selected {
 			cursor = "▸"
@@ -230,7 +232,7 @@ func (m Model) View() string {
 		}
 		line = fitLine(line, m.width)
 		b.WriteString(line)
-		if i < len(m.items)-1 {
+		if i < end-1 {
 			b.WriteString("\n")
 		}
 	}
@@ -245,6 +247,29 @@ func (m Model) View() string {
 		}
 	}
 	return result
+}
+
+func visibleContextRange(total, selected, capacity int) (int, int) {
+	if total <= 0 {
+		return 0, 0
+	}
+	if capacity <= 0 || capacity >= total {
+		return 0, total
+	}
+	if selected < 0 {
+		selected = 0
+	}
+	if selected >= total {
+		selected = total - 1
+	}
+	start := selected - capacity/2
+	if start < 0 {
+		start = 0
+	}
+	if start+capacity > total {
+		start = total - capacity
+	}
+	return start, start + capacity
 }
 
 func fitLine(line string, width int) string {

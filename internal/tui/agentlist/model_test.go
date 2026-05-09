@@ -60,3 +60,29 @@ func TestStatusEventWithoutTokensPreservesExistingCount(t *testing.T) {
 		t.Fatalf("tokens = %d, want preserved 42", got)
 	}
 }
+
+func TestViewKeepsSelectedAgentVisibleWhenListOverflows(t *testing.T) {
+	m := New()
+	m.SetWidth(24)
+	m.SetHeight(4)
+	agents := make([]vault.Agent, 8)
+	for i := range agents {
+		agents[i] = vault.Agent{
+			ID:     "agent-visible",
+			Name:   "Agent " + string(rune('A'+i)),
+			Status: "active",
+		}
+	}
+	m.SetAgents(agents)
+	for i := 0; i < 6; i++ {
+		m.MoveDown()
+	}
+
+	view := m.View()
+	if !strings.Contains(view, "Agent G") {
+		t.Fatalf("selected agent hidden in overflowed view:\n%s", view)
+	}
+	if strings.Contains(view, "Agent A") {
+		t.Fatalf("overflowed view stayed pinned to top:\n%s", view)
+	}
+}
