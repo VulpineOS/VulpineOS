@@ -33,6 +33,8 @@ type Config struct {
 	ProfileDir     string
 }
 
+var waitForProcessPort = waitForPort
+
 // New creates a new foxbridge process manager.
 func New() *Process {
 	return &Process{port: 9222}
@@ -145,7 +147,8 @@ func (p *Process) StartEmbeddedMode(client *juggler.Client, port int) error {
 	p.embedded = es
 
 	// Wait briefly for the HTTP server to bind.
-	if err := waitForPort(port, 5*time.Second); err != nil {
+	if err := waitForProcessPort(port, 5*time.Second); err != nil {
+		es.Stop()
 		p.embedded = nil
 		p.logRuntimeEvent("error", "start_failed", "embedded foxbridge port not ready", map[string]string{
 			"error": err.Error(),
