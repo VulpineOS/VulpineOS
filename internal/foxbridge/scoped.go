@@ -165,6 +165,12 @@ func (b *scopedBackend) shouldForward(event, sessionID string, params json.RawMe
 			return false
 		}
 		b.mu.Lock()
+		_, sessionKnown := b.allowedSessions[ev.SessionID]
+		_, targetKnown := b.allowedTargets[ev.TargetInfo.TargetID]
+		if sessionKnown || targetKnown {
+			b.mu.Unlock()
+			return false
+		}
 		if ev.SessionID != "" {
 			b.allowedSessions[ev.SessionID] = struct{}{}
 		}

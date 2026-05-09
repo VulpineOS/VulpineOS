@@ -7,6 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"vulpineos/internal/juggler"
+	"vulpineos/internal/testutil"
+
 	"github.com/VulpineOS/foxbridge/pkg/backend"
 )
 
@@ -107,6 +110,90 @@ func TestJugglerAdapterClose(t *testing.T) {
 	a := &jugglerAdapter{client: nil}
 	if err := a.Close(); err != nil {
 		t.Errorf("Close() returned error: %v", err)
+	}
+}
+
+func TestJugglerAdapterSuppressesDuplicateAttachedTargets(t *testing.T) {
+	transport := testutil.NewFakeJugglerTransport(t)
+	client := juggler.NewClient(transport)
+	adapter := &jugglerAdapter{client: client}
+
+	attached := make(chan string, 4)
+	adapter.Subscribe("Browser.attachedToTarget", func(_ string, params json.RawMessage) {
+		attached <- string(params)
+	})
+
+	target := map[string]any{
+		"sessionId": "session-1",
+		"targetInfo": map[string]any{
+			"targetId": "target-1",
+		},
+	}
+
+	transport.InjectEvent("", "Browser.attachedToTarget", target)
+	expectAdapterEvent(t, attached)
+
+	transport.InjectEvent("", "Browser.attachedToTarget", target)
+	expectNoAdapterEvent(t, attached)
+
+	transport.InjectEvent("", "Browser.attachedToTarget", map[string]any{
+		"sessionId": "session-2",
+		"targetInfo": map[string]any{
+			"targetId": "target-1",
+		},
+	})
+	expectNoAdapterEvent(t, attached)
+}
+
+func TestJugglerAdapterAllowsAttachAfterDetach(t *testing.T) {
+	transport := testutil.NewFakeJugglerTransport(t)
+	client := juggler.NewClient(transport)
+	adapter := &jugglerAdapter{client: client}
+
+	attached := make(chan string, 4)
+	detached := make(chan string, 4)
+	adapter.Subscribe("Browser.attachedToTarget", func(_ string, params json.RawMessage) {
+		attached <- string(params)
+	})
+	adapter.Subscribe("Browser.detachedFromTarget", func(_ string, params json.RawMessage) {
+		detached <- string(params)
+	})
+
+	target := map[string]any{
+		"sessionId": "session-1",
+		"targetInfo": map[string]any{
+			"targetId": "target-1",
+		},
+	}
+
+	transport.InjectEvent("", "Browser.attachedToTarget", target)
+	expectAdapterEvent(t, attached)
+
+	transport.InjectEvent("", "Browser.detachedFromTarget", map[string]any{
+		"sessionId": "session-1",
+		"targetId":  "target-1",
+	})
+	expectAdapterEvent(t, detached)
+
+	transport.InjectEvent("", "Browser.attachedToTarget", target)
+	expectAdapterEvent(t, attached)
+}
+
+func expectAdapterEvent(t *testing.T, ch <-chan string) {
+	t.Helper()
+	select {
+	case <-ch:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("timed out waiting for adapter event")
+	}
+}
+
+func expectNoAdapterEvent(t *testing.T, ch <-chan string) {
+	t.Helper()
+	select {
+	case event := <-ch:
+		t.Fatalf("unexpected adapter event: %s", event)
+	case <-time.After(50 * time.Millisecond):
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"sync"
 	"time"
 
 	"vulpineos/internal/juggler"
@@ -21,6 +22,10 @@ import (
 // client (which calls json.Marshal) produces identical bytes — no double-encoding.
 type jugglerAdapter struct {
 	client *juggler.Client
+
+	mu               sync.Mutex
+	attachedSessions map[string]string
+	attachedTargets  map[string]string
 }
 
 // Verify jugglerAdapter implements backend.Backend at compile time.
@@ -32,13 +37,102 @@ func (a *jugglerAdapter) Call(sessionID, method string, params json.RawMessage) 
 }
 
 func (a *jugglerAdapter) Subscribe(event string, handler backend.EventHandler) {
-	// Both sides use func(sessionID string, params json.RawMessage) — direct passthrough.
-	a.client.Subscribe(event, juggler.EventHandler(handler))
+	switch event {
+	case "Browser.attachedToTarget":
+		a.client.Subscribe(event, func(sessionID string, params json.RawMessage) {
+			if !a.recordAttachedTarget(params) {
+				return
+			}
+			handler(sessionID, params)
+		})
+	case "Browser.detachedFromTarget":
+		a.client.Subscribe(event, func(sessionID string, params json.RawMessage) {
+			a.recordDetachedTarget(params)
+			handler(sessionID, params)
+		})
+	default:
+		// Both sides use func(sessionID string, params json.RawMessage) — direct passthrough.
+		a.client.Subscribe(event, juggler.EventHandler(handler))
+	}
 }
 
 func (a *jugglerAdapter) Close() error {
 	// Don't close the underlying client — it belongs to the kernel.
 	return nil
+}
+
+func (a *jugglerAdapter) recordAttachedTarget(params json.RawMessage) bool {
+	var ev struct {
+		SessionID  string `json:"sessionId"`
+		TargetInfo struct {
+			TargetID string `json:"targetId"`
+		} `json:"targetInfo"`
+	}
+	if err := json.Unmarshal(params, &ev); err != nil {
+		return true
+	}
+	if ev.SessionID == "" && ev.TargetInfo.TargetID == "" {
+		return true
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.ensureAttachMapsLocked()
+
+	if ev.SessionID != "" {
+		if _, ok := a.attachedSessions[ev.SessionID]; ok {
+			return false
+		}
+	}
+	if ev.TargetInfo.TargetID != "" {
+		if _, ok := a.attachedTargets[ev.TargetInfo.TargetID]; ok {
+			return false
+		}
+	}
+
+	if ev.SessionID != "" {
+		a.attachedSessions[ev.SessionID] = ev.TargetInfo.TargetID
+	}
+	if ev.TargetInfo.TargetID != "" {
+		a.attachedTargets[ev.TargetInfo.TargetID] = ev.SessionID
+	}
+	return true
+}
+
+func (a *jugglerAdapter) recordDetachedTarget(params json.RawMessage) {
+	var ev struct {
+		SessionID string `json:"sessionId"`
+		TargetID  string `json:"targetId"`
+	}
+	if err := json.Unmarshal(params, &ev); err != nil {
+		return
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.ensureAttachMapsLocked()
+
+	if ev.SessionID != "" {
+		if targetID := a.attachedSessions[ev.SessionID]; targetID != "" {
+			delete(a.attachedTargets, targetID)
+		}
+		delete(a.attachedSessions, ev.SessionID)
+	}
+	if ev.TargetID != "" {
+		if sessionID := a.attachedTargets[ev.TargetID]; sessionID != "" {
+			delete(a.attachedSessions, sessionID)
+		}
+		delete(a.attachedTargets, ev.TargetID)
+	}
+}
+
+func (a *jugglerAdapter) ensureAttachMapsLocked() {
+	if a.attachedSessions == nil {
+		a.attachedSessions = make(map[string]string)
+	}
+	if a.attachedTargets == nil {
+		a.attachedTargets = make(map[string]string)
+	}
 }
 
 // EmbeddedServer runs foxbridge's CDP server in-process, wrapping the kernel's Juggler client.

@@ -29,15 +29,33 @@ export class BrowserHandler {
     this._trustWarmService = null;
     this._telemetryService = null;
     this._targetInterceptionListeners = new Map();
+    this._enablePromise = null;
   }
 
   async ['Browser.enable']({attachToDefaultContext, userPrefs = []}) {
     if (this._enabled) {
-      for (const [target, session] of this._attachedSessions)
-        this._emitAttachedToTarget(target, session);
+      this._replayAttachedTargets();
       return;
     }
+
+    if (this._enablePromise) {
+      await this._enablePromise;
+      this._replayAttachedTargets();
+      return;
+    }
+
+    this._enablePromise = this._doEnable({attachToDefaultContext, userPrefs});
+    try {
+      await this._enablePromise;
+    } finally {
+      this._enablePromise = null;
+    }
+  }
+
+  async _doEnable({attachToDefaultContext, userPrefs}) {
     await this._startCompletePromise;
+    if (this._enabled)
+      return;
     this._enabled = true;
     this._attachToDefaultContext = attachToDefaultContext;
 
@@ -74,6 +92,11 @@ export class BrowserHandler {
     } catch (e) {
       dump(`Warning: TelemetryService failed to start: ${e.message}\n`);
     }
+  }
+
+  _replayAttachedTargets() {
+    for (const [target, session] of this._attachedSessions)
+      this._emitAttachedToTarget(target, session);
   }
 
   async ['Browser.createBrowserContext']({removeOnDetach}) {

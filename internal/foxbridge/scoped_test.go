@@ -167,3 +167,63 @@ func TestScopedBackendFiltersEvents(t *testing.T) {
 		t.Fatalf("pageCount = %d, want 1", pageCount)
 	}
 }
+
+func TestScopedBackendSuppressesDuplicateAttachedTargets(t *testing.T) {
+	client := &fakeJugglerBackend{}
+	be := newScopedBackend(client, "ctx-1")
+
+	var attachedCount int
+	be.Subscribe("Browser.attachedToTarget", func(sessionID string, params json.RawMessage) {
+		attachedCount++
+	})
+
+	client.handlers["Browser.attachedToTarget"]("", json.RawMessage(`{
+		"sessionId":"page-1",
+		"targetInfo":{"targetId":"target-1","browserContextId":"ctx-1"}
+	}`))
+	client.handlers["Browser.attachedToTarget"]("", json.RawMessage(`{
+		"sessionId":"page-1",
+		"targetInfo":{"targetId":"target-1","browserContextId":"ctx-1"}
+	}`))
+	client.handlers["Browser.attachedToTarget"]("", json.RawMessage(`{
+		"sessionId":"page-2",
+		"targetInfo":{"targetId":"target-1","browserContextId":"ctx-1"}
+	}`))
+
+	if attachedCount != 1 {
+		t.Fatalf("attachedCount = %d, want 1", attachedCount)
+	}
+}
+
+func TestScopedBackendAllowsAttachAfterDetach(t *testing.T) {
+	client := &fakeJugglerBackend{}
+	be := newScopedBackend(client, "ctx-1")
+
+	var attachedCount, detachedCount int
+	be.Subscribe("Browser.attachedToTarget", func(sessionID string, params json.RawMessage) {
+		attachedCount++
+	})
+	be.Subscribe("Browser.detachedFromTarget", func(sessionID string, params json.RawMessage) {
+		detachedCount++
+	})
+
+	client.handlers["Browser.attachedToTarget"]("", json.RawMessage(`{
+		"sessionId":"page-1",
+		"targetInfo":{"targetId":"target-1","browserContextId":"ctx-1"}
+	}`))
+	client.handlers["Browser.detachedFromTarget"]("", json.RawMessage(`{
+		"sessionId":"page-1",
+		"targetId":"target-1"
+	}`))
+	client.handlers["Browser.attachedToTarget"]("", json.RawMessage(`{
+		"sessionId":"page-1",
+		"targetInfo":{"targetId":"target-1","browserContextId":"ctx-1"}
+	}`))
+
+	if attachedCount != 2 {
+		t.Fatalf("attachedCount = %d, want 2", attachedCount)
+	}
+	if detachedCount != 1 {
+		t.Fatalf("detachedCount = %d, want 1", detachedCount)
+	}
+}
