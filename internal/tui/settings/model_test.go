@@ -67,3 +67,35 @@ func TestProxyTestedMsgUpdatesLatencyAndCountry(t *testing.T) {
 		t.Fatalf("country = %q, want United Kingdom", got.Country)
 	}
 }
+
+func TestProxyTestRequestUsesStoredConfig(t *testing.T) {
+	m := New()
+	m.SetActive(true)
+	m.SetProxies([]ProxyItem{{
+		ID:      "proxy-1",
+		Label:   "auth-proxy",
+		Type:    "socks5",
+		Host:    "127.0.0.1",
+		Port:    1080,
+		Config:  `{"type":"socks5","host":"127.0.0.1","port":1080,"username":"user","password":"pass"}`,
+		Latency: "untested",
+	}})
+
+	var cmd tea.Cmd
+	m, cmd = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	if cmd != nil {
+		t.Fatalf("unexpected command after tab: %#v", cmd())
+	}
+	_, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'t'}})
+	if cmd == nil {
+		t.Fatal("expected proxy test command")
+	}
+
+	msg, ok := cmd().(shared.ProxyTestRequestMsg)
+	if !ok {
+		t.Fatalf("command returned %T, want ProxyTestRequestMsg", cmd())
+	}
+	if msg.Config != `{"type":"socks5","host":"127.0.0.1","port":1080,"username":"user","password":"pass"}` {
+		t.Fatalf("config = %s", msg.Config)
+	}
+}

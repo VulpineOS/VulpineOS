@@ -28,6 +28,7 @@ type ProxyItem struct {
 	Type    string
 	Host    string
 	Port    int
+	Config  string
 	Country string
 	Latency string // "45ms" or "untested"
 }
@@ -209,10 +210,14 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		case "t":
 			if m.section == SectionProxies && len(m.proxies) > 0 {
 				p := m.proxies[m.proxyIdx]
+				config := p.Config
+				if config == "" {
+					config = fmt.Sprintf(`{"type":"%s","host":"%s","port":%d}`, p.Type, p.Host, p.Port)
+				}
 				return m, func() tea.Msg {
 					return shared.ProxyTestRequestMsg{
 						ProxyID: p.ID,
-						Config:  fmt.Sprintf(`{"type":"%s","host":"%s","port":%d}`, p.Type, p.Host, p.Port),
+						Config:  config,
 					}
 				}
 			}

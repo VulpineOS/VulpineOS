@@ -849,6 +849,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						items[i] = settings.ProxyItem{
 							ID:      sp.ID,
 							Label:   safeProxyLabel(sp.Label),
+							Config:  sp.Config,
 							Latency: "untested",
 						}
 						// Try to parse config for display
@@ -2435,6 +2436,7 @@ func (a *App) reloadSettingsProxies() {
 		items[i] = settings.ProxyItem{
 			ID:      sp.ID,
 			Label:   safeProxyLabel(sp.Label),
+			Config:  sp.Config,
 			Latency: "untested",
 		}
 		var pc struct {
