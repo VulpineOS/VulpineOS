@@ -22,7 +22,7 @@ See README.md
 
 ## Repository Scope
 
-This public repository is for high-level architecture, orchestration, public integration surfaces, compatibility fixes, documentation, tests, and release hygiene. Do not open public PRs that add large product features, larger feature proposals, unreviewed planning detail, implementation detail, or sensitive operational infrastructure. If a change would reveal out-of-scope implementation details, discuss the intended repository scope with a maintainer before opening a PR.
+This repository accepts changes to documented public APIs, integration points, compatibility fixes, documentation, tests, and release hygiene. Larger feature proposals should start as an issue so maintainers can confirm scope and repository placement before code is submitted.
 
 ## Testing Requirements
 
