@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -97,5 +98,72 @@ func TestProxyTestRequestUsesStoredConfig(t *testing.T) {
 	}
 	if msg.Config != `{"type":"socks5","host":"127.0.0.1","port":1080,"username":"user","password":"pass"}` {
 		t.Fatalf("config = %s", msg.Config)
+	}
+}
+
+func TestProxyListKeepsSelectionVisibleWhenCropped(t *testing.T) {
+	m := New()
+	m.SetActive(true)
+	m.SetSize(40, 10)
+	proxies := make([]ProxyItem, 20)
+	for i := range proxies {
+		proxies[i] = ProxyItem{
+			ID:      fmt.Sprintf("proxy-%02d", i),
+			Label:   fmt.Sprintf("proxy-%02d", i),
+			Type:    "http",
+			Host:    "127.0.0.1",
+			Port:    8000 + i,
+			Latency: "untested",
+		}
+	}
+	m.SetProxies(proxies)
+
+	var cmd tea.Cmd
+	m, cmd = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	if cmd != nil {
+		t.Fatalf("unexpected command after tab: %#v", cmd())
+	}
+	for i := 0; i < 18; i++ {
+		m, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+		if cmd != nil {
+			t.Fatalf("unexpected command after j: %#v", cmd())
+		}
+	}
+
+	view := m.View()
+	if !strings.Contains(view, "proxy-18") {
+		t.Fatalf("selected proxy not visible:\n%s", view)
+	}
+}
+
+func TestSkillListKeepsSelectionVisibleWhenCropped(t *testing.T) {
+	m := New()
+	m.SetActive(true)
+	m.SetSize(40, 10)
+	skills := make([]SkillItem, 20)
+	for i := range skills {
+		skills[i] = SkillItem{Name: fmt.Sprintf("skill-%02d", i)}
+	}
+	m.SetSkills(skills)
+
+	var cmd tea.Cmd
+	m, cmd = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	if cmd != nil {
+		t.Fatalf("unexpected command after first tab: %#v", cmd())
+	}
+	m, cmd = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	if cmd != nil {
+		t.Fatalf("unexpected command after second tab: %#v", cmd())
+	}
+	for i := 0; i < 18; i++ {
+		m, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+		if cmd != nil {
+			t.Fatalf("unexpected command after j: %#v", cmd())
+		}
+	}
+
+	view := m.View()
+	if !strings.Contains(view, "skill-18") {
+		t.Fatalf("selected skill not visible:\n%s", view)
 	}
 }

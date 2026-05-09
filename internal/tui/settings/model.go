@@ -403,7 +403,9 @@ func (m Model) viewProxies() string {
 		b.WriteString(shared.MutedStyle.Render("No proxies configured."))
 		b.WriteString("\n")
 	} else {
-		for i, p := range m.proxies {
+		start, end := m.visibleListRange(len(m.proxies), m.proxyIdx)
+		for i := start; i < end; i++ {
+			p := m.proxies[i]
 			cursor := "  "
 			if i == m.proxyIdx && m.section == SectionProxies {
 				cursor = shared.RunningStyle.Render("| ")
@@ -449,7 +451,9 @@ func (m Model) viewSkills() string {
 		b.WriteString(shared.MutedStyle.Render("No skills configured."))
 		b.WriteString("\n")
 	} else {
-		for i, s := range m.skills {
+		start, end := m.visibleListRange(len(m.skills), m.skillIdx)
+		for i := start; i < end; i++ {
+			s := m.skills[i]
 			cursor := "  "
 			if i == m.skillIdx && m.section == SectionSkills {
 				cursor = shared.RunningStyle.Render("| ")
@@ -482,6 +486,36 @@ func (m Model) contentWidth() int {
 		return 1
 	}
 	return m.width
+}
+
+func (m Model) visibleListRange(total, selected int) (int, int) {
+	if total <= 0 {
+		return 0, 0
+	}
+	if m.height <= 0 {
+		return 0, total
+	}
+	maxRows := m.height - 5
+	if maxRows < 1 {
+		maxRows = 1
+	}
+	if maxRows >= total {
+		return 0, total
+	}
+	if selected < 0 {
+		selected = 0
+	}
+	if selected >= total {
+		selected = total - 1
+	}
+	start := selected - maxRows/2
+	if start < 0 {
+		start = 0
+	}
+	if start+maxRows > total {
+		start = total - maxRows
+	}
+	return start, start + maxRows
 }
 
 func (m Model) fitContent(content string) string {
