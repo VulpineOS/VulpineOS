@@ -39,13 +39,13 @@ npm --prefix web test -- --run
 npm --prefix web run build
 ```
 
-The browser-layer test suites below are required when you change Firefox/Camoufox patches, browser fingerprinting code, or Python package integration. They test different layers of the browser stack and catch different classes of bugs.
+The browser-layer validation suites below are required when you change Firefox/Camoufox patches, browser behavior, or Python package integration. They test different layers of the browser stack and catch different classes of bugs.
 
 ### build-tester
 
-Tests the **raw binary** in isolation, bypassing the Python package entirely. Fingerprints are injected manually via `generate_context_fingerprint` + `addInitScript` (per-context mode) and via the `CAMOU_CONFIG` environment variable (global mode). It also validates that injected values actually appear in the page via match result checks.
+Tests the **raw binary** in isolation without using the Python package. It validates the browser build against the project compatibility checks.
 
-**Run this when you change:** browser patches, Firefox source modifications, WebGL/canvas/audio spoofing, WebRTC IP handling, or anything in the C++/JS browser layer.
+**Run this when you change:** browser patches, Firefox source modifications, or anything in the C++/JS browser layer.
 
 ```bash
 cd build-tester
@@ -60,9 +60,9 @@ See [`build-tester/README.md`](build-tester/README.md) for full details.
 
 ### service-tester
 
-Tests the **full stack** — the binary and the Python package together — using only the public `AsyncNewContext` API. Fingerprints are generated entirely by camoufox/browserforge with no manual injection. Real proxies are required; the WebRTC IP and timezone are auto-derived from each proxy's exit IP. This is a black-box trust test: if it fails, the fix belongs in the Python package, not in the test.
+Tests the **full stack** — the binary and the Python package together — using only the public `AsyncNewContext` API. Real proxies are required for the network-routing cases.
 
-**Run this when you change:** `pythonlib/` (fingerprint generation, `AsyncNewContext`, `NewContext`), proxy handling, or any behaviour that affects how the Python package interacts with the binary.
+**Run this when you change:** `pythonlib/`, proxy handling, context creation, or any behaviour that affects how the Python package interacts with the binary.
 
 ```bash
 cd service-tester
@@ -80,7 +80,7 @@ See [`service-tester/README.md`](service-tester/README.md) for full details.
 | | build-tester | service-tester |
 |---|---|---|
 | Entry point | Raw browser binary path | local Python package install |
-| Fingerprint injection | Manual | Via `AsyncNewContext` API |
+| Profile setup | Manual | Via `AsyncNewContext` API |
 | Global mode (`CAMOU_CONFIG`) | yes | no |
 | Match result validation | yes | no |
 | Proxy required | no | yes |

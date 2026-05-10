@@ -1,6 +1,6 @@
-# Camoufox Build Tester
+# Browser Build Tester
 
-Tests a raw Camoufox binary (Firefox) directly against the same antibot-detection checks used in the service tests. Use this to validate a binary before packaging/releasing — it bypasses the Python package entirely.
+Tests a raw Camoufox/Firefox binary directly against the project compatibility checks. Use this to validate a binary before packaging or releasing without using the Python package.
 
 ## Prerequisites
 
@@ -42,36 +42,28 @@ python scripts/run_tests.py /path/to/camoufox-bin/camoufox
 
 8 profiles total, run in two phases:
 
-**Per-context phase (6 profiles)** — 3 macOS + 3 Linux profiles open simultaneously in a single browser instance, each with an isolated fingerprint injected via `addInitScript`. Tests that fingerprints are unique and don't leak between contexts.
+**Per-context phase (6 profiles)** — multiple macOS and Linux profiles open simultaneously in a single browser instance.
 
-**Global phase (2 profiles)** — 1 macOS + 1 Linux profile launched with fingerprint config passed via the `CAMOU_CONFIG` environment variable. Tests that browser-level fingerprint injection works correctly.
+**Global phase (2 profiles)** — one macOS and one Linux profile launched with global browser configuration.
 
 Each profile is scored across:
 
 | Category | What it checks |
 |---|---|
-| Automation Detection | Playwright/CDP artefacts |
-| JS Engine | V8 vs SpiderMonkey signals |
-| Lie Detection | Inconsistent property overrides |
-| Firefox APIs | Firefox-specific API presence |
-| Cross-Signal | Consistency across navigator, screen, etc. |
-| CSS Fingerprint | CSS rendering fingerprint |
-| Canvas Noise | Canvas hash uniqueness and stability |
-| WebGL Render | WebGL rendering hash |
-| Audio Integrity | AudioContext fingerprint |
-| Font Platform | OS-consistent font availability |
-| Speech Voices | Voice list matches declared OS |
-| WebRTC | IP spoofing (test IP injected) |
-| Stability | Fingerprint stable over time |
-| Headless Detection | No headless mode signals |
-| Match Results | Injected values actually appear in page |
+| Runtime compatibility | Browser automation and API compatibility |
+| Engine behavior | Expected Firefox-family behavior |
+| Profile consistency | Profile values remain internally consistent |
+| Rendering | Graphics and media surfaces stay stable |
+| Network routing | Browser networking behavior matches configuration |
+| Stability | Profile state remains stable over time |
+| Match Results | Configured values appear through public APIs |
 
 ## How It Differs from the Service Tests
 
 | | Build Tester | Service Tests |
 |---|---|---|
 | Entry point | Raw binary path | `pip install camoufox` |
-| Fingerprint injection | Manual (`generate_context_fingerprint` + init script) | Via `AsyncNewContext` API |
+| Profile setup | Manual test harness | Via `AsyncNewContext` API |
 | Global mode | Yes (`CAMOU_CONFIG` env var) | No |
 | Match validation | Yes (checks injected values match page) | No |
 | Proxy support | No | Yes |
@@ -88,7 +80,7 @@ python scripts/run_tests.py <binary_path>
 
 Source files:
 - `src/lib/checks/index.ts` — entry point
-- `src/lib/checks/core.ts` — automation, JS engine, lie detection, etc.
-- `src/lib/checks/extended.ts` — canvas, WebGL, fonts, audio, etc.
-- `src/lib/checks/workers.ts` — worker thread consistency
-- `src/lib/checks/collectors.ts` — fingerprint data collectors (hashes, WebRTC, stability)
+- `src/lib/checks/core.ts` — core browser compatibility checks
+- `src/lib/checks/extended.ts` — extended rendering and media checks
+- `src/lib/checks/workers.ts` — worker-thread consistency checks
+- `src/lib/checks/collectors.ts` — browser-state collectors

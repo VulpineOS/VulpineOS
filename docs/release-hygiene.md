@@ -11,13 +11,7 @@ Public release branches should stay focused on documented public APIs, integrati
 ./scripts/public-history-audit.py
 ```
 
-The audit scans the tracked files in these public repos:
-
-- `VulpineOS`
-- `vulpine-mark`
-- `mobilebridge`
-- `foxbridge`
-- `vulpineos-docs`
+The audit scans the tracked files in the configured public release repositories.
 
 It checks for:
 
@@ -39,7 +33,7 @@ The audit does not decide whether a change belongs in this repository. Review ev
 1. Run `./scripts/public-boundary-audit.sh`
 2. Run `./scripts/public-history-audit.py`
 3. Confirm every public repo is clean with `git status --short`
-4. Confirm `VulpineOS` still has `remote.upstream.pushurl=DISABLED`
+4. Confirm upstream remotes cannot be pushed accidentally
 5. Review release notes and docs for private-code references before tagging
 
 For the broader public release flow, including verification, rebuild,

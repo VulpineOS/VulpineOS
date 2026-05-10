@@ -6,21 +6,23 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/.." && pwd)"
 workspace_root="$(cd "${repo_root}/.." && pwd)"
 
-public_repo_paths=(
-  "${repo_root}"
-  "${workspace_root}/vulpine-mark"
-  "${workspace_root}/mobilebridge"
-  "${workspace_root}/foxbridge"
-  "${workspace_root}/vulpineos-docs"
-)
-
-public_repo_names=(
-  "VulpineOS"
-  "vulpine-mark"
-  "mobilebridge"
-  "foxbridge"
-  "vulpineos-docs"
-)
+public_repo_names=("$(basename "${repo_root}")")
+public_repo_paths=("${repo_root}")
+repo_list_file="${VULPINE_PUBLIC_AUDIT_REPOS:-${repo_root}/.public-boundary-repos.local}"
+if [[ -f "${repo_list_file}" ]]; then
+  public_repo_names=()
+  public_repo_paths=()
+  while IFS= read -r repo_entry || [[ -n "${repo_entry}" ]]; do
+    [[ -z "${repo_entry}" || "${repo_entry}" =~ ^[[:space:]]*# ]] && continue
+    if [[ "${repo_entry}" = /* ]]; then
+      repo_path="${repo_entry}"
+    else
+      repo_path="${workspace_root}/${repo_entry}"
+    fi
+    public_repo_names+=("$(basename "${repo_path}")")
+    public_repo_paths+=("${repo_path}")
+  done < "${repo_list_file}"
+fi
 
 exclude_specs=(
   ":(exclude)go.sum"

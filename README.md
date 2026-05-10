@@ -3,11 +3,11 @@
 </p>
 
 <p align="center">
-  <b>Operate Stealth-Aware OpenClaw Agents at Scale</b>
+  <b>Operate OpenClaw Browser Agents at Scale</b>
 </p>
 
 <p align="center">
-VulpineOS is the operating system for AI browser agents: a Firefox/Camoufox-based platform for managing OpenClaw agents with unique identities, browser-engine security, and stealth-aware runtime controls.
+VulpineOS is a Firefox/Camoufox-based runtime for orchestrating browser agents, identity profiles, operator controls, and integration surfaces.
 </p>
 
 <p align="center">
@@ -31,17 +31,17 @@ AI agents that browse the web face three unsolved problems:
 2. **Page mutation** — The page changes between when the agent reads it and when it acts
 3. **Token waste** — Raw HTML/accessibility trees consume 10x more tokens than necessary
 
-Most existing solutions try to fix these in JavaScript or in the agent framework. VulpineOS fixes them in the browser engine itself, below page-level JavaScript hooks, making the protections harder to observe or bypass from the page.
+Most existing solutions try to fix these in JavaScript or in the agent framework. VulpineOS moves the core controls into the browser/runtime layer so agents see a cleaner, more stable operating surface.
 
 ---
 
 ## Origin
 
-VulpineOS was born from work on [Camoufox](https://github.com/daijro/camoufox), the open-source anti-detect browser originally created by [daijro](https://github.com/daijro). Camoufox pioneered C++-level fingerprint injection — spoofing navigator properties, WebGL parameters, fonts, screen dimensions, and hundreds of other signals at the implementation level rather than through detectable JavaScript overrides.
+VulpineOS was born from work on [Camoufox](https://github.com/daijro/camoufox), the Firefox-based browser automation project originally created by [daijro](https://github.com/daijro).
 
-[Clover Labs](https://cloverlabs.ai) took over maintenance of Camoufox, where Elliot built per-context fingerprint spoofing — the ability to run multiple browser contexts, each with a completely unique hardware identity, in a single Camoufox process. This work revealed that the same C++ interception techniques used for fingerprint rotation could solve the AI agent security problem: if you can intercept what the browser exposes to JavaScript, you can also intercept what the browser exposes to AI agents.
+[Clover Labs](https://cloverlabs.ai) took over maintenance of Camoufox, where Elliot worked on per-context browser identity profiles. That work shaped VulpineOS around a simple idea: browser-agent safety should be handled at the browser/runtime boundary, not bolted onto each agent prompt.
 
-VulpineOS builds on Camoufox's battle-tested stealth foundation (Firefox 146.0.1) and adds four security phases purpose-built for autonomous agents, a Go TUI for managing agents, and full integration with [OpenClaw](https://github.com/anthropics/openclaw) for deploying AI agents at scale.
+VulpineOS builds on Camoufox and Firefox 146.0.1, adding browser-agent safety controls, a Go TUI for managing agents, a web panel, and integration with [OpenClaw](https://github.com/anthropics/openclaw).
 
 ---
 
@@ -51,24 +51,24 @@ VulpineOS builds on Camoufox's battle-tested stealth foundation (Firefox 146.0.1
 ┌──────────────────────────────────────────────────────────────┐
 │                        VulpineOS                              │
 │                                                              │
-│  C++ Engine (Firefox 146.0.1 + Camoufox patches)             │
-│  ├── Phase 1: Injection-Proof Accessibility Filter            │
-│  ├── Phase 2: Deterministic Execution (Action-Lock)           │
-│  ├── Phase 3: Token-Optimized DOM Export                      │
+│  Browser Engine (Firefox 146.0.1 + Camoufox base)             │
+│  ├── Phase 1: Accessibility Snapshot Filtering                │
+│  ├── Phase 2: Page State Lock                                 │
+│  ├── Phase 3: Optimized DOM Snapshot                          │
 │  └── Phase 4: Opt-in Profile Maintenance                      │
 │                                                              │
 │  Juggler Protocol (pipe FD 3/4)                               │
-│  ├── Telemetry Service (memory, risk score, 2s interval)      │
+│  ├── Telemetry Service (runtime health, 2s interval)           │
 │  └── Extension Services (optional provider hooks)             │
 │                                                              │
-│  Go Runtime (41 packages, 500+ tests)                         │
+│  Go Runtime                                                   │
 │  ├── Bubbletea TUI (3-column agent workbench)                 │
 │  ├── Web Panel (React SPA, 12 pages, 44 control messages)     │
 │  ├── Identity Vault (SQLite — citizens, templates, sessions)  │
 │  ├── Context Pool (pre-warm, recycle, memory limits)           │
 │  ├── Orchestrator (spawn citizens + nomads, auto-release)      │
 │  ├── OpenClaw Manager (30 AI providers, skills, SOP files)     │
-│  ├── Proxy Manager (geo-synced fingerprints, auto-rotation)    │
+│  ├── Proxy Manager (profile-aware routing, auto-rotation)      │
 │  ├── MCP Server (36 tools via stdio)                           │
 │  ├── Foxbridge CDP Proxy (Puppeteer compatibility)             │
 │  ├── Agent Bus (inter-agent messaging with approval policies)  │
@@ -87,26 +87,25 @@ VulpineOS builds on Camoufox's battle-tested stealth foundation (Firefox 146.0.1
 
 ---
 
-## Core Security Phases
+## Core Safety Phases
 
-### Phase 1: Injection-Proof Accessibility Filter
+### Phase 1: Accessibility Snapshot Filtering
 
-Strips non-visible DOM nodes from the accessibility tree before the AI agent sees them. Hidden `<div>` with "ignore previous instructions"? Gone.
+Filters non-visible DOM nodes from the accessibility snapshot before it reaches the agent.
 
-- 7 visibility checks ordered by cost (aria-hidden → display → visibility → opacity → dimensions → position → clip)
-- Runs at the Gecko accessibility layer — JavaScript cannot override it
-- Detects and logs injection attempts to the telemetry pipeline
+- Runs in the browser layer
+- Produces a cleaner agent-facing snapshot
+- Reports relevant runtime alerts to the telemetry pipeline
 
-### Phase 2: Deterministic Execution (Action-Lock)
+### Phase 2: Page State Lock
 
-Freezes the page completely while the agent is thinking. No JavaScript, no timers, no layout reflows, no animations, no event handlers.
+Holds page state steady while the agent is deciding what to do next.
 
-- C++ patch to `nsDocShell`: `suspendPage()` / `resumePage()`
-- Freezes refresh driver, suspends timers, suppresses event handling
-- Guarantees the page the agent analyzed is the page it acts on
+- Coordinates browser/runtime state around agent actions
+- Reduces action drift between observation and execution
 - Auto-releases on navigation
 
-### Phase 3: Token-Optimized DOM Export
+### Phase 3: Optimized DOM Snapshot
 
 Compressed semantic JSON snapshot for reducing agent context size while preserving semantic structure and stable element references. The fixture benchmark is reproducible with `npm run benchmark:tokens`; keep published claims tied to generated benchmark output rather than hand-edited numbers.
 
@@ -142,7 +141,7 @@ Beyond the four core phases, VulpineOS includes hardened runtime security:
 |---------|-------------|
 | **Content Security Policy** | CSP enforcement for agent-controlled pages |
 | **DOM Mutation Monitoring** | Real-time alerting on unexpected DOM changes |
-| **Action Signatures** | 13 injection signatures verified before execution |
+| **Action Signatures** | Runtime checks before sensitive actions |
 | **Agent Sandboxing** | Constraint enforcement on agent capabilities |
 
 ---
@@ -155,13 +154,13 @@ Beyond the four core phases, VulpineOS includes hardened runtime security:
 | **Agent Bus** | Inter-agent communication (ask, delegate, reply, notify) with user-controlled approval policies and full audit trail |
 | **Cost Tracking** | Per-agent token usage and API cost tracking with budget limits. Built-in pricing for Claude, GPT-4o, Gemini. Alerts at configurable thresholds. |
 | **Session Recording** | Record browser actions as timestamped timelines with a bounded per-agent in-memory window and sensitive action-data redaction. Export to JSON. Terminal-based replay at real speed. |
-| **Proxy Rotation** | Auto-rotate proxies on rate limit, IP block, or time interval. Fingerprint re-synced on every rotation. 32-country locale map. |
+| **Proxy Rotation** | Auto-rotate proxies based on configured runtime policies and profile metadata. |
 | **Webhook Notifications** | HTTP webhooks for agent.completed/failed/paused/interrupted, rate_limit.detected, injection.detected, budget.alert/exceeded. Async delivery with secret verification and redacted delivery logs. |
 | **Scripting DSL** | JSON scripting language for repetitive tasks without LLM calls. 8 actions: navigate, click, type, wait, extract, screenshot, set, if. Variable expansion with bounded script payloads, capped waits, and redacted operator-facing results. |
 | **Kernel Watchdog** | Monitors Camoufox every 2s. On crash: fires callback, auto-restarts (up to 3 attempts), re-establishes Juggler connection. |
 | **Token Optimization** | Viewport-aware DOM pruning, persistent page cache, delta encoding between snapshots, batch operations. |
 | **Page Cache** | Saves and restores page state (URL, HTML, cookies, scroll, forms) across agent restarts. |
-| **Rate Limit Monitor** | Pattern-based scanning of agent output for 429s, captchas, and blocks. Per-agent failure tracking. |
+| **Runtime Monitor** | Pattern-based scanning of agent output for operator-visible runtime alerts. |
 | **Structured Logging** | JSON structured logger with levels, component tags, and field chaining. |
 
 ---
@@ -250,11 +249,11 @@ A React SPA served from the Go binary — no separate frontend deployment needed
 
 **12 pages:** Dashboard, Agents, Agent Detail, Bus, Contexts, Proxies, Security, Webhooks, Scripts, Settings, Logs, Login
 
-**44 control messages** covering: agent CRUD plus bulk controls and session-log access; config get/set/providers; cost usage plus persisted per-agent/default budgets; webhooks; proxy management plus rotation get/set; agent bus pending/approve/reject/policies/add/remove; session recording export; fingerprint get/generate-and-apply; runtime-backed script execution; runtime-backed security status; status; optional extension availability; runtime audit history with retention/export controls; and context create/remove/list.
+**44 control messages** covering: agent CRUD plus bulk controls and session-log access; config get/set/providers; cost usage plus persisted per-agent/default budgets; webhooks; proxy management plus rotation get/set; agent bus pending/approve/reject/policies/add/remove; session recording export; profile metadata; runtime-backed script execution; runtime-backed security status; status; runtime audit history with retention/export controls; and context create/remove/list.
 
 Credential, audio, mobile, and optional provider-backed controls are stable public interfaces. The stock open-source build returns unavailable for extension-backed actions unless a provider is registered by an external package. Operator-facing extension data is reduced to availability/status in the public panel.
 
-Agent Detail includes separate conversation, action trace, raw session log, recording, and fingerprint views so operator-visible tool activity is inspectable without exposing hidden reasoning or sensitive action values.
+Agent Detail includes separate conversation, action trace, raw session log, recording, and profile views so operator-visible tool activity is inspectable without exposing hidden reasoning or sensitive action values.
 
 The panel now validates access keys through `/auth/check`, keeps the key only
 for the current browser session, authenticates browser websocket sessions with
@@ -265,8 +264,7 @@ alerts.
 The panel now also includes:
 - a dedicated **Bus** page for pending approvals and communication policies
 - **Settings** controls for persisted default agent budgets
-- optional extension availability surfaces when a provider is attached
-- **Agent Detail** controls for per-agent budget overrides, recording export, and fingerprint regeneration
+- **Agent Detail** controls for per-agent budget overrides, recording export, and profile refresh
 - **Proxies** controls for persisted per-agent rotation rules
 - **Scripts** execution against a real browser context through the server-side scripting engine
 - **Security** protection states sourced from runtime/config instead of fixed frontend flags
@@ -479,24 +477,15 @@ VulpineOS exposes 36 tools via Model Context Protocol:
 
 ---
 
-## Ecosystem
+## Extension Interfaces
 
-The public ecosystem is split by repository:
-
-| Product | Source | Public Description |
-|---------|--------|--------------------|
-| VulpineOS | Open source | Browser-agent runtime, MCP tools, TUI, web panel, and remote server |
-| Foxbridge | Open source | CDP-to-Firefox bridge for OpenClaw, Puppeteer, and CDP clients |
-| Vulpine Mark | Open source | Set-of-Mark screenshots, element labels, and label-based interactions |
-| MobileBridge for Android | Open source | Android device discovery, CDP proxying, gestures, and sessions |
-
-Optional extension hooks are exposed through stable no-op interfaces in this repository. Hosted products are documented separately when they are ready for public use.
+Optional extension hooks are exposed through stable no-op interfaces in this repository. External providers can attach additional capabilities without changing the stock public build.
 
 ---
 
 ## Testing
 
-**500+ Go tests** across 41 packages, all passing with race detector enabled.
+Run the Go runtime tests before shipping runtime changes:
 
 ```bash
 go test -race ./cmd/... ./internal/...
@@ -520,9 +509,9 @@ make package-macos  # Package the macOS browser artifact
 
 VulpineOS stands on the shoulders of excellent open-source work:
 
-- **[daijro](https://github.com/daijro)** — Created [Camoufox](https://github.com/daijro/camoufox), pioneering C++-level fingerprint injection in Firefox. The foundation that makes VulpineOS possible.
+- **[daijro](https://github.com/daijro)** — Created [Camoufox](https://github.com/daijro/camoufox), the Firefox-based project that VulpineOS builds on.
 - **[Clover Labs](https://cloverlabs.ai)** — Primary maintainers of Camoufox.
-- **[BrowserForge](https://github.com/daijro/browserforge)** — Bayesian network fingerprint generator that ensures spoofed identities match real-world traffic distribution.
+- **[BrowserForge](https://github.com/daijro/browserforge)** — Browser identity profile data generation library used by Camoufox.
 - **[LibreWolf](https://gitlab.com/librewolf-community/browser/source)** — Build system inspiration and debloat patches.
 - **[riflosnake/HumanCursor](https://github.com/riflosnake/HumanCursor)** — Original human-like cursor algorithm, ported to C++.
 

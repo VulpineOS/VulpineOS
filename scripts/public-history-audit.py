@@ -12,13 +12,22 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKSPACE_ROOT = REPO_ROOT.parent
 
-PUBLIC_REPOS = [
-    ("VulpineOS", REPO_ROOT),
-    ("vulpine-mark", WORKSPACE_ROOT / "vulpine-mark"),
-    ("mobilebridge", WORKSPACE_ROOT / "mobilebridge"),
-    ("foxbridge", WORKSPACE_ROOT / "foxbridge"),
-    ("vulpineos-docs", WORKSPACE_ROOT / "vulpineos-docs"),
-]
+def configured_public_repos() -> list[tuple[str, Path]]:
+    repo_list = Path(os.environ.get("VULPINE_PUBLIC_AUDIT_REPOS", REPO_ROOT / ".public-boundary-repos.local"))
+    if not repo_list.exists():
+        return [(REPO_ROOT.name, REPO_ROOT)]
+
+    repos: list[tuple[str, Path]] = []
+    for raw_line in repo_list.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        path = Path(line) if line.startswith("/") else WORKSPACE_ROOT / line
+        repos.append((path.name, path))
+    return repos or [(REPO_ROOT.name, REPO_ROOT)]
+
+
+PUBLIC_REPOS = configured_public_repos()
 
 EXCLUDE_SPECS = [
     ":(exclude)go.sum",

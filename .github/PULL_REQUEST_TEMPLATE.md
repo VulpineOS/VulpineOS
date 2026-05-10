@@ -17,12 +17,12 @@ Closes #
 
 <!-- How did you test your changes? -->
 
-## Fingerprint Report
+## Browser Validation
 
-Please submit a report from both the service tester and build tester.
+For browser-layer changes, include the relevant browser validation output.
 
 <details>
-<summary>Fingerprint report</summary>
+<summary>Browser validation</summary>
 
 <!-- Paste your report here -->
 
@@ -33,5 +33,4 @@ Please submit a report from both the service tester and build tester.
 - [ ] I have linked a related issue above
 - [ ] My changes are focused on a single logical change
 - [ ] I have added testing instructions which include the desired result
-- [ ] I have included a fingerprint report from https://camoufox-tester.vercel.app/
-- [ ] Service tests pass (`bash service-tester/run_tests.sh`)
+- [ ] Browser validation passes when the change touches browser-layer behavior
