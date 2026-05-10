@@ -110,19 +110,19 @@ Holds page state steady while the agent is deciding what to do next.
 Compressed semantic JSON snapshot for reducing agent context size while preserving semantic structure and stable element references. The fixture benchmark is reproducible with `npm run benchmark:tokens`; keep published claims tied to generated benchmark output rather than hand-edited numbers.
 
 ```json
-{"v":1,"title":"Example","url":"https://example.com","nodes":[
+{"v":1,"title":"Example","url":"https://example.com","refGeneration":7,"nodes":[
   [0,"doc","Example"],
   [1,"nav","Main Navigation"],
-  [2,"a","Home",{"hr":"/"},"@0"],
-  [2,"a","About",{"hr":"/about"},"@1"],
+  [2,"a","Home",{"hr":"/"},"@7:0"],
+  [2,"a","About",{"hr":"/about"},"@7:1"],
   [1,"main",""],
   [2,"h1","Welcome"],
-  [2,"btn","Sign Up",null,"@2"]
+  [2,"btn","Sign Up",null,"@7:2"]
 ]}
 ```
 
 - Compact role codes for common semantic elements
-- Element references (`@0`, `@1`) on interactive elements for click/type by ref
+- Snapshot-scoped element references (`@7:0`, `@7:1`) on interactive elements for click/type by ref
 - Viewport-only mode — only return elements visible on screen
 - Structural wrapper skipping, single-child flattening, text merging
 - Reproducible benchmark: `npm run benchmark:tokens`

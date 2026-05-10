@@ -143,12 +143,12 @@ func baseTools() []ToolDefinition {
 		},
 		{
 			Name:        "vulpine_click_ref",
-			Description: "Click an element by its ref from the optimized DOM snapshot (e.g. @0, @1). Use vulpine_snapshot first to get refs.",
+			Description: "Click an element by its snapshot-scoped ref from the optimized DOM snapshot (e.g. @7:0, @7:1). Use vulpine_snapshot first to get refs.",
 			InputSchema: InputSchema{
 				Type: "object",
 				Properties: map[string]Property{
 					"sessionId": {Type: "string", Description: "Target page session ID"},
-					"ref":       {Type: "string", Description: "Element reference from snapshot (e.g. \"@0\", \"@1\")"},
+					"ref":       {Type: "string", Description: "Snapshot-scoped element reference from snapshot (e.g. \"@7:0\", \"@7:1\")"},
 				},
 				Required: []string{"sessionId", "ref"},
 			},
@@ -160,7 +160,7 @@ func baseTools() []ToolDefinition {
 				Type: "object",
 				Properties: map[string]Property{
 					"sessionId": {Type: "string", Description: "Target page session ID"},
-					"ref":       {Type: "string", Description: "Element reference from snapshot (e.g. \"@0\", \"@1\")"},
+					"ref":       {Type: "string", Description: "Snapshot-scoped element reference from snapshot (e.g. \"@7:0\", \"@7:1\")"},
 					"text":      {Type: "string", Description: "Text to type into the element"},
 				},
 				Required: []string{"sessionId", "ref", "text"},
@@ -173,7 +173,7 @@ func baseTools() []ToolDefinition {
 				Type: "object",
 				Properties: map[string]Property{
 					"sessionId": {Type: "string", Description: "Target page session ID"},
-					"ref":       {Type: "string", Description: "Element reference from snapshot (e.g. \"@0\", \"@1\")"},
+					"ref":       {Type: "string", Description: "Snapshot-scoped element reference from snapshot (e.g. \"@7:0\", \"@7:1\")"},
 				},
 				Required: []string{"sessionId", "ref"},
 			},

@@ -207,6 +207,8 @@ export class PageAgent {
     this._runtime = frameTree.runtime();
 
     this._workerData = new Map();
+    this._refGeneration = 0;
+    this._refMap = new Map();
 
     const docShell = frameTree.mainFrame().docShell();
     this._docShell = docShell;
@@ -919,6 +921,8 @@ export class PageAgent {
     const vpHeight = viewportOnly ? domWindow.innerHeight : 0;
 
     // VulpineOS: Element reference tracking for ref-based actions
+    this._refGeneration++;
+    const refGeneration = this._refGeneration;
     this._refMap = new Map();
     const refMap = this._refMap;
     let refCounter = 0;
@@ -1167,7 +1171,7 @@ export class PageAgent {
     for (const candidate of selected) {
       let ref = null;
       if (candidate.interactive && candidate.domNode) {
-        ref = '@' + refCounter++;
+        ref = '@' + refGeneration + ':' + refCounter++;
         refMap.set(ref, candidate.domNode);
       }
 
@@ -1201,6 +1205,7 @@ export class PageAgent {
         v: 1,
         title: document.title || '',
         url: domWindow.location.href || '',
+        refGeneration,
         nodes: merged,
       },
       profile: hasCustomLimits ? 'custom' : profileName,
@@ -1210,6 +1215,7 @@ export class PageAgent {
   }
 
   _resolveRef({ ref }) {
+    this._assertCurrentRefGeneration(ref);
     const el = this._refMap?.get(ref);
     if (!el)
       throw new Error('stale ref: ' + ref);
@@ -1225,6 +1231,7 @@ export class PageAgent {
   }
 
   _focusByRef({ ref }) {
+    this._assertCurrentRefGeneration(ref);
     const el = this._refMap?.get(ref);
     if (!el)
       throw new Error('stale ref: ' + ref);
@@ -1235,6 +1242,12 @@ export class PageAgent {
       el.scrollIntoView({ block: 'center', inline: 'center' });
     el.focus();
     return { focused: true };
+  }
+
+  _assertCurrentRefGeneration(ref) {
+    const match = /^@(\d+):\d+$/.exec(ref);
+    if (!match || Number(match[1]) !== this._refGeneration)
+      throw new Error('stale ref: ' + ref);
   }
 
   _assertFreshRef(ref, el) {

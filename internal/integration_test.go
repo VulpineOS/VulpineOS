@@ -639,13 +639,34 @@ func TestIntegration_ElementRefs(t *testing.T) {
 
 	domStr := string(domResult)
 	if !strings.Contains(domStr, "@") {
-		t.Error("optimized DOM does not contain element refs (@0, @1, etc.)")
+		t.Error("optimized DOM does not contain element refs")
 	}
 	t.Logf("DOM with refs: %s", domStr[:min(len(domStr), 500)])
+	var domPayload struct {
+		Snapshot struct {
+			Nodes [][]interface{} `json:"nodes"`
+		} `json:"snapshot"`
+	}
+	if err := json.Unmarshal(domResult, &domPayload); err != nil {
+		t.Fatalf("unmarshal optimized DOM: %v", err)
+	}
+	ref := ""
+	for _, node := range domPayload.Snapshot.Nodes {
+		if len(node) == 0 {
+			continue
+		}
+		if value, ok := node[len(node)-1].(string); ok && strings.HasPrefix(value, "@") {
+			ref = value
+			break
+		}
+	}
+	if ref == "" {
+		t.Fatal("optimized DOM did not include an element ref")
+	}
 
 	// Try resolving a ref
 	resolveResult, err := client.Call(sid, "Page.resolveRef", mustJSON(map[string]interface{}{
-		"ref": "@0",
+		"ref": ref,
 	}))
 	if err != nil {
 		t.Skipf("Page.resolveRef not available (rebuild Camoufox with VulpineOS patches): %v", err)
@@ -659,9 +680,9 @@ func TestIntegration_ElementRefs(t *testing.T) {
 	json.Unmarshal(resolveResult, &resolved)
 
 	if !resolved.Found {
-		t.Error("resolveRef(@0) returned found=false")
+		t.Errorf("resolveRef(%s) returned found=false", ref)
 	}
-	t.Logf("Ref @0 resolved to x=%.1f y=%.1f", resolved.X, resolved.Y)
+	t.Logf("Ref %s resolved to x=%.1f y=%.1f", ref, resolved.X, resolved.Y)
 }
 
 // === MCP TOOLS TESTS ===
