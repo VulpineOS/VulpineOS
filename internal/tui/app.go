@@ -2793,6 +2793,10 @@ func (a App) testProxy(proxyID, configJSON string) tea.Cmd {
 
 // gracefulShutdown pauses all running agents so they save state before exit.
 func (a *App) gracefulShutdown() {
+	if a.control != nil && a.vault == nil {
+		a.pauseRemoteAgentsOnShutdown()
+		return
+	}
 	if a.orch == nil || a.vault == nil {
 		return
 	}
@@ -2808,6 +2812,27 @@ func (a *App) gracefulShutdown() {
 			}
 			a.vault.UpdateAgentStatus(status.AgentID, "paused")
 		}
+	}
+}
+
+func (a *App) pauseRemoteAgentsOnShutdown() {
+	ids := a.agentList.IDsByStatus(map[string]bool{
+		"running": true, "thinking": true, "starting": true, "active": true,
+	})
+	if len(ids) == 0 {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	var result struct {
+		Failures map[string]string `json:"failures"`
+	}
+	if err := a.control.ControlCall(ctx, "agents.pauseMany", map[string]any{"agentIds": ids}, &result); err != nil {
+		log.Printf("pause remote agents during shutdown: %v", err)
+		return
+	}
+	if len(result.Failures) > 0 {
+		log.Printf("pause remote agents during shutdown: %d failed", len(result.Failures))
 	}
 }
 

@@ -2027,6 +2027,40 @@ func TestGracefulShutdownWithoutOrchestratorLeavesVaultState(t *testing.T) {
 	}
 }
 
+func TestRemoteGracefulShutdownPausesActiveAgents(t *testing.T) {
+	control := &fakeControlClient{responses: map[string]any{
+		"agents.pauseMany": map[string]any{"failures": map[string]string{}},
+	}}
+	app := NewAppWithControl(nil, nil, nil, nil, nil, nil, control)
+	app.agentList.SetAgents([]vault.Agent{
+		{ID: "agent-active", Name: "Active", Status: "active"},
+		{ID: "agent-paused", Name: "Paused", Status: "paused"},
+	})
+
+	cmd := app.shutdown()
+	if cmd == nil {
+		t.Fatal("remote shutdown returned no quit command")
+	}
+	if _, ok := cmd().(tea.QuitMsg); !ok {
+		t.Fatal("remote shutdown did not return tea.QuitMsg")
+	}
+	if len(control.calls) != 1 {
+		t.Fatalf("control calls = %+v, want one pauseMany call", control.calls)
+	}
+	if control.calls[0].method != "agents.pauseMany" {
+		t.Fatalf("method = %q, want agents.pauseMany", control.calls[0].method)
+	}
+	var params struct {
+		AgentIDs []string `json:"agentIds"`
+	}
+	if err := json.Unmarshal(control.calls[0].params, &params); err != nil {
+		t.Fatalf("unmarshal pauseMany params: %v", err)
+	}
+	if len(params.AgentIDs) != 1 || params.AgentIDs[0] != "agent-active" {
+		t.Fatalf("agentIds = %+v, want only active agent", params.AgentIDs)
+	}
+}
+
 func TestGracefulShutdownPausesActiveAgents(t *testing.T) {
 	db := openTestVault(t)
 
