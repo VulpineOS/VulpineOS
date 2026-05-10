@@ -223,10 +223,58 @@ def audit_diff_history(name: str, repo: Path, patterns: list[tuple[str, str, str
     return failures
 
 
+def audit_local_diff_history(name: str, repo: Path, patterns: list[tuple[str, str]]) -> int:
+    if not patterns:
+        return 0
+
+    compiled_patterns: list[tuple[str, re.Pattern[str]]] = []
+    failures = 0
+    for description, pattern in patterns:
+        regex = compile_pattern(name, description, pattern)
+        if regex is None:
+            failures += 1
+            continue
+        compiled_patterns.append((description, regex))
+
+    proc = run(
+        repo,
+        [
+            "log",
+            *PUBLIC_REVSET,
+            "--format=commit:%H",
+            "-p",
+            "--",
+            ".",
+            *EXCLUDE_SPECS,
+        ],
+    )
+    if proc.returncode != 0:
+        print_fail(f"{name}: unable to scan diff history for local denylist patterns", proc.stderr)
+        return failures + 1
+
+    matched_descriptions: set[str] = set()
+    current_commit = "<unknown>"
+    for line in proc.stdout.splitlines():
+        if line.startswith("commit:"):
+            current_commit = line.split(":", 1)[1]
+            continue
+        for description, regex in compiled_patterns:
+            if description in matched_descriptions:
+                continue
+            if regex.search(line):
+                print_fail(f"{name}: diff history matched {description}", current_commit)
+                matched_descriptions.add(description)
+                failures += 1
+        if len(matched_descriptions) == len(compiled_patterns):
+            break
+
+    return failures
+
+
 def main() -> int:
     local_patterns = load_local_denylist()
     message_patterns = [*MESSAGE_PATTERNS, *local_patterns]
-    diff_patterns = [*DIFF_PATTERNS, *((description, pattern, pattern) for description, pattern in local_patterns)]
+    diff_patterns = [*DIFF_PATTERNS]
 
     failures = 0
     for name, repo in PUBLIC_REPOS:
@@ -238,6 +286,7 @@ def main() -> int:
         failures += audit_commit_messages(name, repo, message_patterns)
         failures += audit_path_history(name, repo, local_patterns)
         failures += audit_diff_history(name, repo, diff_patterns)
+        failures += audit_local_diff_history(name, repo, local_patterns)
 
     if failures:
         print(f"\nHistory audit failed with {failures} finding(s).")
