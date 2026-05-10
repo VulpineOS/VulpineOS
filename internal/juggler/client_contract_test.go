@@ -71,10 +71,13 @@ func TestClientCallReturnsProtocolError(t *testing.T) {
 	client := NewClient(mt)
 	defer client.Close()
 
-	mt.incoming <- &Message{
-		ID:    1,
-		Error: &Error{Message: "no such browser instance"},
-	}
+	go func() {
+		req := <-mt.outgoing
+		mt.incoming <- &Message{
+			ID:    req.ID,
+			Error: &Error{Message: "no such browser instance"},
+		}
+	}()
 
 	_, err := client.Call("", "Browser.getInfo", nil)
 	if err == nil {
