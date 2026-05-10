@@ -2249,6 +2249,53 @@ func TestBrowserEventsDoNotPolluteSelectedConversation(t *testing.T) {
 	}
 }
 
+func TestEventNoticeRearmsEventPump(t *testing.T) {
+	app := NewApp(nil, nil, nil, nil, nil, nil)
+	defer app.stopForwarders()
+	app.eventCh <- shared.TickMsg{}
+
+	model, cmd := app.Update(eventNotice{text: "monitor warning"})
+	app = model.(App)
+
+	if app.notice != "monitor warning" {
+		t.Fatalf("notice = %q, want monitor warning", app.notice)
+	}
+	if cmd == nil {
+		t.Fatal("event notice did not return a wait command")
+	}
+	if _, ok := cmd().(shared.TickMsg); !ok {
+		t.Fatal("event notice wait command did not read the next event")
+	}
+}
+
+func TestRemoteStatusUpdatesSystemPanel(t *testing.T) {
+	control := &fakeControlClient{responses: map[string]any{
+		"status.get": map[string]any{
+			"kernel_running":  true,
+			"kernel_pid":      1234,
+			"kernel_headless": true,
+			"browser_route":   "camoufox",
+			"browser_window":  "headless",
+			"pool_available":  2,
+			"pool_active":     3,
+			"pool_total":      5,
+		},
+	}}
+	app := NewAppWithControl(nil, nil, nil, nil, &config.Config{}, nil, control)
+	defer app.stopForwarders()
+
+	msg := app.loadRemoteStatus()()
+	model, _ := app.Update(msg)
+	app = model.(App)
+
+	view := app.systemInfo.View()
+	for _, want := range []string{"RUNNING", "PID 1234", "Mode HEADLESS", "Route camoufox", "Win headless", "Pool: 2/3/5"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("system view missing %q:\n%s", want, view)
+		}
+	}
+}
+
 func TestStopForwardersPreventsBlockedEventSends(t *testing.T) {
 	app := NewApp(nil, nil, nil, nil, nil, nil)
 	for i := 0; i < cap(app.eventCh); i++ {

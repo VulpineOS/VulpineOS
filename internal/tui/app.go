@@ -72,6 +72,26 @@ type statusNotice struct {
 	text string
 }
 
+// eventNotice is delivered through the event channel and must re-arm
+// waitForEvent after it is displayed.
+type eventNotice struct {
+	text string
+}
+
+type remoteStatusMsg struct {
+	Err            string `json:"-"`
+	KernelRunning  bool   `json:"kernel_running"`
+	KernelPID      int    `json:"kernel_pid"`
+	KernelHeadless bool   `json:"kernel_headless"`
+	BrowserRoute   string `json:"browser_route"`
+	BrowserWindow  string `json:"browser_window"`
+	PoolAvailable  int    `json:"pool_available"`
+	PoolActive     int    `json:"pool_active"`
+	PoolTotal      int    `json:"pool_total"`
+	ActiveContexts int    `json:"active_contexts"`
+	ActivePages    int    `json:"active_pages"`
+}
+
 // ControlClient sends panel/control commands over a remote connection.
 type ControlClient interface {
 	ControlCall(ctx context.Context, method string, params any, result any) error
@@ -445,7 +465,7 @@ func NewAppWithControl(k *kernel.Kernel, client *juggler.Client, orch *orchestra
 				if !ok {
 					return
 				}
-				emitEvent(statusNotice{text: fmt.Sprintf("WARNING %s: %s on agent %s", alert.Type, alert.Details, alert.AgentID)})
+				emitEvent(eventNotice{text: fmt.Sprintf("WARNING %s: %s on agent %s", alert.Type, alert.Details, alert.AgentID)})
 			}
 		}
 	}()
@@ -461,6 +481,7 @@ func (a App) Init() tea.Cmd {
 	}
 	if a.control != nil {
 		cmds = append(cmds, a.loadRemoteAgents())
+		cmds = append(cmds, a.loadRemoteStatus())
 	}
 	return tea.Batch(cmds...)
 }
@@ -500,6 +521,21 @@ func (a App) loadRemoteAgents() tea.Cmd {
 			return statusNotice{text: "Remote agents failed: " + err.Error()}
 		}
 		return remoteAgentsLoadedMsg{Agents: agents}
+	}
+}
+
+func (a App) loadRemoteStatus() tea.Cmd {
+	if a.control == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		var result remoteStatusMsg
+		if err := a.control.ControlCall(ctx, "status.get", map[string]any{}, &result); err != nil {
+			return remoteStatusMsg{Err: err.Error()}
+		}
+		return result
 	}
 }
 
@@ -987,6 +1023,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			a.systemInfo, _ = a.systemInfo.Update(ksMsg)
 		}
+		if a.control != nil && a.kernel == nil {
+			cmds = append(cmds, a.loadRemoteStatus())
+		}
 		if a.orch != nil {
 			avail, active, total := a.orch.Pool.Stats()
 			a.systemInfo.SetPoolStats(avail, active, total)
@@ -1020,6 +1059,11 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case shared.TrustWarmMsg:
 		cmds = append(cmds, a.waitForEvent())
 	case shared.AlertMsg:
+		cmds = append(cmds, a.waitForEvent())
+
+	case eventNotice:
+		a.notice = msg.text
+		a.noticeTTL = 3
 		cmds = append(cmds, a.waitForEvent())
 
 	case shared.AgentStatusMsg:
@@ -1124,6 +1168,25 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				break
 			}
 		}
+
+	case remoteStatusMsg:
+		if msg.Err != "" {
+			a.notice = "Remote status failed: " + msg.Err
+			a.noticeTTL = 3
+			break
+		}
+		a.systemInfo, _ = a.systemInfo.Update(shared.KernelStatusMsg{
+			Running:       msg.KernelRunning,
+			PID:           msg.KernelPID,
+			Headless:      msg.KernelHeadless,
+			BrowserRoute:  msg.BrowserRoute,
+			BrowserWindow: msg.BrowserWindow,
+		})
+		a.systemInfo.SetPoolStats(msg.PoolAvailable, msg.PoolActive, msg.PoolTotal)
+		a.systemInfo, _ = a.systemInfo.Update(shared.TelemetryMsg{
+			ActiveContexts: msg.ActiveContexts,
+			ActivePages:    msg.ActivePages,
+		})
 
 	case remoteMessagesLoadedMsg:
 		if msg.AgentID == a.selectedAgentID {
