@@ -224,6 +224,10 @@ export default function App() {
       : ws.connectionState === 'connecting'
         ? 'Connecting'
         : 'Failed'
+  const degradedIssue = shellStatus?.degraded
+    ? (shellStatus?.degraded_reasons?.[0] || { level: 'warn', message: 'Runtime started in a degraded state.' })
+    : null
+  const degradedTone = degradedIssue?.level === 'error' ? 'red' : 'yellow'
 
   return (
     <div className="app">
@@ -284,7 +288,7 @@ export default function App() {
         </button>
       </nav>
       <main className="content">
-        {(conn || notice) && (
+        {(conn || degradedIssue || notice) && (
           <div className="panel-banner-stack">
             {conn && (
               <div className={`panel-banner panel-banner-${conn.tone}`}>
@@ -297,6 +301,14 @@ export default function App() {
                   {ws.connectionState === 'failed' && (
                     <button className="btn btn-ghost btn-sm" onClick={clearSession}>Reset access key</button>
                   )}
+                </div>
+              </div>
+            )}
+            {degradedIssue && (
+              <div className={`panel-banner panel-banner-${degradedTone}`}>
+                <div>
+                  <strong>Runtime degraded</strong>
+                  <span>{degradedIssue.message || `${degradedIssue.component || 'runtime'} unavailable`}</span>
                 </div>
               </div>
             )}

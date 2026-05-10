@@ -29,6 +29,12 @@ type gatewayStatus interface {
 	Running() bool
 }
 
+type StartupIssue struct {
+	Component string `json:"component"`
+	Level     string `json:"level"`
+	Message   string `json:"message"`
+}
+
 type PanelAPI struct {
 	Orchestrator     *orchestrator.Orchestrator
 	Config           *config.Config
@@ -44,6 +50,7 @@ type PanelAPI struct {
 	Client           *juggler.Client
 	Contexts         *ContextRegistry
 	RuntimeAudit     *runtimeaudit.Manager
+	StartupIssues    []StartupIssue
 }
 
 const (
@@ -1707,6 +1714,7 @@ func safePanelFingerprintSeed(value string) (string, error) {
 
 func (api *PanelAPI) statusGet() (json.RawMessage, error) {
 	route, source := api.browserRoute()
+	issues := api.degradedReasons()
 	out := map[string]interface{}{
 		"kernelUp":                    false,
 		"kernelPid":                   0,
@@ -1718,6 +1726,9 @@ func (api *PanelAPI) statusGet() (json.RawMessage, error) {
 		"browser_window":              api.browserWindow(),
 		"gateway_running":             false,
 		"openclaw_profile_configured": config.OpenClawProfileBrowserRoute() != "",
+		"vault_available":             api.Vault != nil,
+		"degraded":                    len(issues) > 0,
+		"degraded_reasons":            issues,
 	}
 
 	if api.Kernel != nil {
@@ -1744,6 +1755,27 @@ func (api *PanelAPI) statusGet() (json.RawMessage, error) {
 		out["total_cost_usd"] = status.TotalCostUSD
 	}
 	return json.Marshal(out)
+}
+
+func (api *PanelAPI) degradedReasons() []StartupIssue {
+	issues := append([]StartupIssue(nil), api.StartupIssues...)
+	if api.Vault == nil && !hasStartupIssue(issues, "vault") {
+		issues = append(issues, StartupIssue{
+			Component: "vault",
+			Level:     "error",
+			Message:   "vault unavailable",
+		})
+	}
+	return issues
+}
+
+func hasStartupIssue(issues []StartupIssue, component string) bool {
+	for _, issue := range issues {
+		if issue.Component == component {
+			return true
+		}
+	}
+	return false
 }
 
 func (api *PanelAPI) browserRoute() (string, string) {

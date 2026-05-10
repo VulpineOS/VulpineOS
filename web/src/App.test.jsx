@@ -151,6 +151,32 @@ describe('App shell', () => {
     expect(screen.getAllByText('RUNNING').length).toBeGreaterThan(0)
   })
 
+  it('renders a degraded runtime banner from status.get', async () => {
+    sessionStorage.setItem('vulpine_key', 'dev')
+    FakeWebSocket.controlResults = {
+      'status.get': {
+        degraded: true,
+        degraded_reasons: [{
+          component: 'vault',
+          level: 'error',
+          message: 'vault unavailable: permission denied',
+        }],
+        vault_available: false,
+      },
+    }
+    vi.stubGlobal('fetch', makeFetch())
+    vi.stubGlobal('WebSocket', FakeWebSocket)
+
+    render(
+      <MemoryRouter>
+        <App />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText('Runtime degraded')).toBeInTheDocument()
+    expect(screen.getByText('vault unavailable: permission denied')).toBeInTheDocument()
+  })
+
   it('clears stored access keys when the websocket rejects auth', async () => {
     sessionStorage.setItem('vulpine_key', 'stale')
     vi.stubGlobal('fetch', makeFetch())

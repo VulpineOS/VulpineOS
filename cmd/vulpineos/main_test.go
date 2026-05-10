@@ -17,6 +17,7 @@ import (
 	"vulpineos/internal/juggler"
 	"vulpineos/internal/remote"
 	"vulpineos/internal/testutil"
+	"vulpineos/internal/vault"
 )
 
 var errStopAfterFlagParse = errors.New("stop after flag parse")
@@ -166,6 +167,31 @@ func TestStartLocalSessionLoggingWritesToFile(t *testing.T) {
 	}
 	if !strings.Contains(string(data), "startup log redirected") {
 		t.Fatalf("log file %q missing redirected message: %q", path, string(data))
+	}
+}
+
+func TestOpenServerVaultReportsStartupIssue(t *testing.T) {
+	prevOpenVault := openVault
+	openVault = func() (*vault.DB, error) {
+		return nil, errors.New("permission denied")
+	}
+	t.Cleanup(func() {
+		openVault = prevOpenVault
+	})
+
+	db, audit, issues, cleanup := openServerVault()
+	t.Cleanup(cleanup)
+	if db != nil {
+		t.Fatal("db = non-nil, want nil on open failure")
+	}
+	if audit != nil {
+		t.Fatal("audit = non-nil, want nil on open failure")
+	}
+	if len(issues) != 1 {
+		t.Fatalf("issues = %#v, want one issue", issues)
+	}
+	if issues[0].Component != "vault" || issues[0].Level != "error" || !strings.Contains(issues[0].Message, "permission denied") {
+		t.Fatalf("unexpected startup issue: %#v", issues[0])
 	}
 }
 

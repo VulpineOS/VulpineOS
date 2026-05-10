@@ -60,6 +60,7 @@ var (
 )
 
 var runLocalSession = runLocal
+var openVault = vault.Open
 
 var startGatewayIfAvailable = func(cfg *config.Config, audit *runtimeaudit.Manager) *openclaw.Gateway {
 	mgr := openclaw.NewManager("")
@@ -90,6 +91,32 @@ var startGatewayIfAvailable = func(cfg *config.Config, audit *runtimeaudit.Manag
 		}
 	}
 	return gw
+}
+
+func openServerVault() (*vault.DB, *runtimeaudit.Manager, []remote.StartupIssue, func()) {
+	cleanup := func() {}
+	v, err := openVault()
+	if err != nil {
+		log.Printf("Warning: could not open vault: %v", err)
+		return nil, nil, []remote.StartupIssue{{
+			Component: "vault",
+			Level:     "error",
+			Message:   "vault unavailable: " + err.Error(),
+		}}, cleanup
+	}
+	if v == nil {
+		return nil, nil, []remote.StartupIssue{{
+			Component: "vault",
+			Level:     "error",
+			Message:   "vault unavailable",
+		}}, cleanup
+	}
+	audit := runtimeaudit.New(v)
+	cleanup = func() {
+		audit.Close()
+		_ = v.Close()
+	}
+	return v, audit, nil, cleanup
 }
 
 func startLocalSessionLogging(baseDir string) (restore func(), path string) {
@@ -1118,14 +1145,12 @@ func runServe(binaryPath string, headless bool, profileDir string, host string, 
 	)
 
 	// Open vault
-	v, _ := vault.Open()
+	v, audit, startupIssues, cleanupVault := openServerVault()
+	defer cleanupVault()
 	if v != nil {
 		if err := v.ReconcileNonTerminalAgents("interrupted"); err != nil {
 			log.Printf("Warning: reconcile agents: %v", err)
 		}
-		audit = runtimeaudit.New(v)
-		defer v.Close()
-		defer audit.Close()
 	}
 
 	if !noBrowser {
@@ -1275,9 +1300,10 @@ func runServe(binaryPath string, headless bool, profileDir string, host string, 
 		FoxbridgeRunning: func() bool {
 			return false
 		},
-		Client:       client,
-		Contexts:     contexts,
-		RuntimeAudit: audit,
+		Client:        client,
+		Contexts:      contexts,
+		RuntimeAudit:  audit,
+		StartupIssues: startupIssues,
 	}
 	if err := panelAPI.SyncPersistentState(); err != nil {
 		log.Printf("Warning: sync persistent state: %v", err)

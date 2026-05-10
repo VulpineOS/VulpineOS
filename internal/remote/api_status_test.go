@@ -165,6 +165,39 @@ func TestStatusGetWithoutKernelReportsDisabledRoute(t *testing.T) {
 	}
 }
 
+func TestStatusGetReportsVaultDegradedState(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	api := &PanelAPI{
+		Config: &config.Config{},
+	}
+
+	payload, err := api.HandleMessage("status.get", nil)
+	if err != nil {
+		t.Fatalf("HandleMessage: %v", err)
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(payload, &result); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
+	if got := result["vault_available"]; got != false {
+		t.Fatalf("vault_available = %v, want false", got)
+	}
+	if got := result["degraded"]; got != true {
+		t.Fatalf("degraded = %v, want true", got)
+	}
+	reasons, ok := result["degraded_reasons"].([]interface{})
+	if !ok || len(reasons) == 0 {
+		t.Fatalf("degraded_reasons = %#v, want non-empty list", result["degraded_reasons"])
+	}
+	first, ok := reasons[0].(map[string]interface{})
+	if !ok || first["component"] != "vault" {
+		t.Fatalf("first degraded reason = %#v, want vault component", reasons[0])
+	}
+}
+
 func TestAgentRuntimeConfigClearsStoppedFoxbridgeURL(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
