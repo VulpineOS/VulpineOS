@@ -798,11 +798,11 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "enter":
 			switch a.focus {
 			case FocusAgentList, FocusAgentDetail, FocusConversation:
-				// Focus conversation input — always allow chatting with a selected agent
+				// Focus conversation input for the selected agent. Startup-locked
+				// chats stay locked until the first assistant reply or terminal status.
 				if a.selectedAgentID != "" {
 					a.focus = FocusConversation
 					a.inputMode = "chat"
-					a.conversation.SetAwake(true) // ensure input is enabled
 					cmd := a.conversation.Focus()
 					return a, cmd
 				}
@@ -1074,6 +1074,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.AgentID == a.selectedAgentID {
 			a.conversation.SetThinking(false)
 			a.conversation.AddEntry(msg.Role, msg.Content)
+			if msg.Role == "assistant" {
+				a.conversation.ForceScrollToBottom()
+			}
 			a.agentList.ClearUnread(msg.AgentID)
 			if pendingAssistantReply {
 				a.focus = FocusConversation
@@ -1439,6 +1442,7 @@ func (a App) updateChatInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if text != "" && a.selectedAgentID != "" {
 			// Add to conversation view + show thinking with animation
 			a.conversation.AddEntry("user", text)
+			a.conversation.ForceScrollToBottom()
 			a.conversation.SetThinking(true)
 			// Save to vault
 			if a.vault != nil {

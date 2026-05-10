@@ -257,6 +257,7 @@ func (m *Model) SetAgentID(id string) {
 	m.scroll = 0
 	m.autoScroll = true
 	m.awake = false
+	m.textInput.Reset()
 }
 
 // AgentID returns the current agent ID.
@@ -293,6 +294,12 @@ func (m *Model) AddEntry(role, content string) {
 	if role == "assistant" {
 		m.awake = true
 	}
+	m.scrollToBottom()
+}
+
+// ForceScrollToBottom re-enables auto-scroll and moves to the latest entry.
+func (m *Model) ForceScrollToBottom() {
+	m.autoScroll = true
 	m.scrollToBottom()
 }
 

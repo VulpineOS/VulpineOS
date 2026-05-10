@@ -370,6 +370,36 @@ func TestStartupLockedChatDoesNotAcceptInput(t *testing.T) {
 	}
 }
 
+func TestStartupLockedChatEnterFromListDoesNotWakeInput(t *testing.T) {
+	db := openTestVault(t)
+	app := NewApp(nil, nil, nil, db, &config.Config{}, nil)
+	app.conversation.SetSize(80, 20)
+
+	agent, err := db.CreateAgent("Scraper", "Scrape prices", "{}")
+	if err != nil {
+		t.Fatalf("create agent: %v", err)
+	}
+	agent.Status = "active"
+
+	model, _ := app.Update(shared.AgentCreatedMsg{Agent: *agent})
+	app = model.(App)
+	app.focus = FocusAgentList
+	app.inputMode = ""
+
+	model, _ = app.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	app = model.(App)
+
+	if app.focus != FocusConversation {
+		t.Fatalf("focus = %d, want conversation", app.focus)
+	}
+	if app.inputMode != "chat" {
+		t.Fatalf("inputMode = %q, want chat", app.inputMode)
+	}
+	if app.conversation.IsAwake() {
+		t.Fatal("conversation should stay locked when focus changes before first reply")
+	}
+}
+
 func TestStartupLockedChatAllowsQuitShortcut(t *testing.T) {
 	db := openTestVault(t)
 	app := NewApp(nil, nil, nil, db, &config.Config{}, nil)

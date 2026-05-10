@@ -4,9 +4,19 @@ import (
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 )
+
+func teaKey(key string) tea.KeyMsg {
+	switch key {
+	case "up":
+		return tea.KeyMsg{Type: tea.KeyUp}
+	default:
+		return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(key)}
+	}
+}
 
 func TestTraceOnlyFiltersToSystemMessages(t *testing.T) {
 	m := New()
@@ -84,6 +94,46 @@ func TestSetSizeAllowsVeryNarrowContentWidth(t *testing.T) {
 		if got := ansiVisualWidth(line); got > 1 {
 			t.Fatalf("line width = %d, want <= 1 in narrow view: %q", got, line)
 		}
+	}
+}
+
+func TestSetAgentIDClearsDraftInput(t *testing.T) {
+	m := New()
+	m.SetAgentID("agent-1")
+	m.textInput.SetValue("draft for first agent")
+
+	m.SetAgentID("agent-2")
+
+	if got := m.textInput.Value(); got != "" {
+		t.Fatalf("draft after agent switch = %q, want empty", got)
+	}
+}
+
+func TestForceScrollToBottomOverridesManualScroll(t *testing.T) {
+	m := New()
+	m.SetSize(80, 6)
+	m.SetAgentID("agent-1")
+	for i := 0; i < 12; i++ {
+		m.AddEntry("assistant", "line")
+	}
+
+	updated, _ := m.Update(teaKey("up"))
+	m = updated
+	if m.autoScroll {
+		t.Fatal("manual scroll should disable auto-scroll")
+	}
+
+	m.AddEntry("assistant", "latest")
+	if m.autoScroll {
+		t.Fatal("AddEntry should respect manual scroll state before force")
+	}
+
+	m.ForceScrollToBottom()
+	if !m.autoScroll {
+		t.Fatal("ForceScrollToBottom should re-enable auto-scroll")
+	}
+	if m.scroll == 0 {
+		t.Fatal("ForceScrollToBottom should move to the latest entries")
 	}
 }
 
