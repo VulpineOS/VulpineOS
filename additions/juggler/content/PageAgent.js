@@ -437,6 +437,7 @@ export class PageAgent {
   }
 
   _onNavigationStarted(frame) {
+    this._clearRefMapForFrame(frame);
     this._browserPage.emit('pageNavigationStarted', {
       frameId: frame.id(),
       navigationId: frame.pendingNavigationId(),
@@ -455,6 +456,7 @@ export class PageAgent {
   }
 
   _onSameDocumentNavigation(frame) {
+    this._clearRefMapForFrame(frame);
     this._browserPage.emit('pageSameDocumentNavigation', {
       frameId: frame.id(),
       url: frame.url(),
@@ -462,6 +464,7 @@ export class PageAgent {
   }
 
   _onNavigationCommitted(frame) {
+    this._clearRefMapForFrame(frame);
     this._browserPage.emit('pageNavigationCommitted', {
       frameId: frame.id(),
       navigationId: frame.lastCommittedNavigationId() || undefined,
@@ -479,9 +482,15 @@ export class PageAgent {
   }
 
   _onFrameDetached(frame) {
+    this._clearRefMapForFrame(frame);
     this._browserPage.emit('pageFrameDetached', {
       frameId: frame.id(),
     });
+  }
+
+  _clearRefMapForFrame(frame) {
+    if (frame === this._frameTree.mainFrame())
+      this._refMap = new Map();
   }
 
   _onBindingCalled({executionContextId, name, payload}) {
@@ -1204,6 +1213,7 @@ export class PageAgent {
     const el = this._refMap?.get(ref);
     if (!el)
       throw new Error('stale ref: ' + ref);
+    this._assertFreshRef(ref, el);
     if (el.scrollIntoViewIfNeeded)
       el.scrollIntoViewIfNeeded();
     else if (el.scrollIntoView)
@@ -1218,12 +1228,21 @@ export class PageAgent {
     const el = this._refMap?.get(ref);
     if (!el)
       throw new Error('stale ref: ' + ref);
+    this._assertFreshRef(ref, el);
     if (el.scrollIntoViewIfNeeded)
       el.scrollIntoViewIfNeeded();
     else if (el.scrollIntoView)
       el.scrollIntoView({ block: 'center', inline: 'center' });
     el.focus();
     return { focused: true };
+  }
+
+  _assertFreshRef(ref, el) {
+    const document = this._frameTree.mainFrame().domWindow().document;
+    if (!el.isConnected || el.ownerDocument !== document) {
+      this._refMap?.delete(ref);
+      throw new Error('stale ref: ' + ref);
+    }
   }
 
   // VulpineOS: Secure credential injection — sets input value at C++ level
