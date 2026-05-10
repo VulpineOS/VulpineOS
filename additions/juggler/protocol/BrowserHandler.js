@@ -127,12 +127,18 @@ export class BrowserHandler {
     for (const [target, session] of this._attachedSessions)
       this._dispatcher.destroySession(session);
     this._attachedSessions.clear();
+    const destroyPromises = [];
     for (const browserContextId of this._createdBrowserContextIds) {
       const browserContext = this._targetRegistry.browserContextForId(browserContextId);
       if (browserContext.removeOnDetach)
-        browserContext.destroy();
+        destroyPromises.push(browserContext.destroy());
     }
     this._createdBrowserContextIds.clear();
+    if (destroyPromises.length) {
+      void Promise.all(destroyPromises).catch(e => {
+        dump(`Warning: removeOnDetach cleanup failed: ${e.message}\n`);
+      });
+    }
   }
 
   _shouldAttachToTarget(target) {
