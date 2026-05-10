@@ -48,16 +48,16 @@ func baseTools() []ToolDefinition {
 		},
 		{
 			Name:        "vulpine_snapshot",
-			Description: "Get a token-optimized semantic snapshot of the page content for LLM processing. Default profile is compact (180 nodes, 90 chars). If a target is missing from a truncated snapshot, retry with retry:true or profile:\"expanded\"/\"full\" before giving up.",
+			Description: "Get a token-optimized semantic snapshot of the page content for LLM processing. Default profile is compact. If a target is missing from a truncated snapshot, retry with retry:true or profile:\"expanded\"/\"full\" before giving up.",
 			InputSchema: InputSchema{
 				Type: "object",
 				Properties: map[string]Property{
 					"sessionId":     {Type: "string", Description: "Target page session ID"},
-					"profile":       {Type: "string", Description: "Snapshot profile: compact=180 nodes/90 chars, expanded=360/160, full=800/240. Explicit max* values override this."},
+					"profile":       {Type: "string", Description: "Snapshot profile: compact, expanded, or full. Explicit max* values override this."},
 					"retry":         {Type: "boolean", Description: "Use the next larger profile after a truncated snapshot for this session (compact -> expanded -> full)."},
 					"maxDepth":      {Type: "number", Description: "Max tree depth (default compact: 10)"},
-					"maxNodes":      {Type: "number", Description: "Max nodes to return (default compact: 180)"},
-					"maxTextLength": {Type: "number", Description: "Max text per node (default compact: 90)"},
+					"maxNodes":      {Type: "number", Description: "Max nodes to return (defaults to the selected profile)"},
+					"maxTextLength": {Type: "number", Description: "Max text per node (defaults to the selected profile)"},
 					"viewportOnly":  {Type: "boolean", Description: "Only return elements visible in the viewport (default false)"},
 				},
 				Required: []string{"sessionId"},
@@ -323,12 +323,12 @@ func baseTools() []ToolDefinition {
 	}
 }
 
-// humanTools returns tool definitions for human-like interactions.
+// humanTools returns tool definitions for varied interaction tools.
 func humanTools() []ToolDefinition {
 	return []ToolDefinition{
 		{
 			Name:        "vulpine_human_click",
-			Description: "Move mouse naturally to coordinates and click. Generates bezier curve path with overshoot and micro-jitter.",
+			Description: "Move the pointer to coordinates with timed variation and click.",
 			InputSchema: InputSchema{
 				Type: "object",
 				Properties: map[string]Property{

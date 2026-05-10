@@ -81,7 +81,7 @@ function generateTrajectory(fromX, fromY, toX, toY) {
     curvePoints.push(bernsteinPolynomial(controlPoints, t));
   }
 
-  // Distort with Gaussian noise
+  // Apply small random variation between the fixed endpoints.
   const distorted = [curvePoints[0]];
   for (let i = 1; i < curvePoints.length - 1; i++) {
     let delta = 0;
