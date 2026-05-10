@@ -1159,6 +1159,37 @@ func TestSettingsViewKeepsRenderedLinesWithinTerminalAfterShrink(t *testing.T) {
 	}
 }
 
+func TestSettingsWorkbenchViewRendersFullContainerFrame(t *testing.T) {
+	cfg := &config.Config{Provider: "anthropic", Model: "anthropic/claude-sonnet-4-6"}
+	app := NewApp(nil, nil, nil, nil, cfg, nil)
+	app.width = 100
+	app.height = 24
+	app.leftWidth = 28
+	app.rightWidth = 28
+	app.leftSplit = 10
+	app.rightSplit = 10
+	app.focus = FocusSettings
+	app.settings.SetActive(true)
+	app.settings.SetConfig(cfg)
+	app.updatePanelSizes()
+
+	view := app.View()
+	lines := strings.Split(view, "\n")
+	if len(lines) < 2 {
+		t.Fatalf("settings workbench rendered too few lines:\n%s", view)
+	}
+
+	border := lipgloss.RoundedBorder()
+	topLine := lines[0]
+	bodyBottomLine := lines[len(lines)-2]
+	if got := strings.Count(topLine, border.TopLeft) + strings.Count(topLine, border.TopRight); got < 6 {
+		t.Fatalf("top workbench row has %d panel corners, want at least 6:\n%s", got, view)
+	}
+	if got := strings.Count(bodyBottomLine, border.BottomLeft) + strings.Count(bodyBottomLine, border.BottomRight); got < 6 {
+		t.Fatalf("bottom workbench row has %d panel corners, want at least 6:\n%s", got, view)
+	}
+}
+
 func TestWorkbenchBodyHeightReservesOneStatusRow(t *testing.T) {
 	tests := []struct {
 		terminalHeight int
@@ -1643,8 +1674,104 @@ func TestFocusedEmptyChatAllowsViewShortcut(t *testing.T) {
 	}
 }
 
+func TestFocusedEmptyChatAllowsModeShortcut(t *testing.T) {
+	db := openTestVault(t)
+	cfg := &config.Config{}
+	app := NewApp(nil, nil, nil, db, cfg, nil)
+	app.conversation.SetSize(80, 20)
+
+	agent, err := db.CreateAgent("Scraper", "Scrape prices", "{}")
+	if err != nil {
+		t.Fatalf("create agent: %v", err)
+	}
+	app.selectedAgentID = agent.ID
+	app.focus = FocusConversation
+	app.inputMode = "chat"
+	app.conversation.SetAgentID(agent.ID)
+	app.conversation.SetAgentName(agent.Name)
+	app.conversation.SetAwake(true)
+	app.conversation.Focus()
+
+	model, _ := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'m'}})
+	app = model.(App)
+
+	if !app.resizeModeEnabled() {
+		t.Fatal("mode shortcut should enable resize mode from empty focused chat")
+	}
+	if got := app.conversation.TextInput().Value(); got != "" {
+		t.Fatalf("conversation input = %q, want empty when mode shortcut is used from empty focused chat", got)
+	}
+}
+
+func TestFocusedEmptyChatAllowsSettingsShortcut(t *testing.T) {
+	db := openTestVault(t)
+	cfg := &config.Config{}
+	app := NewApp(nil, nil, nil, db, cfg, nil)
+	app.conversation.SetSize(80, 20)
+
+	agent, err := db.CreateAgent("Scraper", "Scrape prices", "{}")
+	if err != nil {
+		t.Fatalf("create agent: %v", err)
+	}
+	app.selectedAgentID = agent.ID
+	app.focus = FocusConversation
+	app.inputMode = "chat"
+	app.conversation.SetAgentID(agent.ID)
+	app.conversation.SetAgentName(agent.Name)
+	app.conversation.SetAwake(true)
+	app.conversation.Focus()
+
+	model, _ := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'S'}})
+	app = model.(App)
+
+	if app.focus != FocusSettings || !app.settings.IsActive() {
+		t.Fatal("settings shortcut should open settings from empty focused chat")
+	}
+	if got := app.conversation.TextInput().Value(); got != "" {
+		t.Fatalf("conversation input = %q, want empty when settings shortcut is used from empty focused chat", got)
+	}
+}
+
+func TestFocusedEmptyChatAllowsReconfigureShortcut(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	db := openTestVault(t)
+	cfg := &config.Config{SetupComplete: true}
+	app := NewApp(nil, nil, nil, db, cfg, nil)
+	app.conversation.SetSize(80, 20)
+
+	agent, err := db.CreateAgent("Scraper", "Scrape prices", "{}")
+	if err != nil {
+		t.Fatalf("create agent: %v", err)
+	}
+	app.selectedAgentID = agent.ID
+	app.focus = FocusConversation
+	app.inputMode = "chat"
+	app.conversation.SetAgentID(agent.ID)
+	app.conversation.SetAgentName(agent.Name)
+	app.conversation.SetAwake(true)
+	app.conversation.Focus()
+
+	model, cmd := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	app = model.(App)
+
+	if cmd == nil {
+		t.Fatal("reconfigure shortcut returned no command from empty focused chat")
+	}
+	if got := app.conversation.TextInput().Value(); got != "" {
+		t.Fatalf("conversation input = %q, want empty when reconfigure shortcut is used from empty focused chat", got)
+	}
+	if !cfg.SetupComplete {
+		t.Fatal("reconfigure shortcut should not clear setupComplete on the active config")
+	}
+	if !config.ReconfigureRequested() {
+		t.Fatal("reconfigure shortcut should queue the setup wizard")
+	}
+}
+
 func TestFocusedDraftChatTreatsShortcutLettersAsText(t *testing.T) {
-	for _, key := range []rune{'v', 't', 'o'} {
+	for _, key := range []rune{'v', 't', 'o', 'm', 'c', 'S'} {
 		t.Run(string(key), func(t *testing.T) {
 			db := openTestVault(t)
 			cfg := &config.Config{}

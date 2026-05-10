@@ -713,7 +713,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return a.updateChatInput(msg)
 			}
-			if msg.String() != "v" && msg.String() != "t" && msg.String() != "o" {
+			if !a.allowFocusedChatShortcut(msg) {
 				if a.conversationInputLocked() && isGlobalLifecycleKey(msg) {
 					break
 				}
@@ -1612,7 +1612,7 @@ func (a *App) cycleFocus() {
 
 func (a App) allowFocusedChatShortcut(msg tea.KeyMsg) bool {
 	switch msg.String() {
-	case "v", "t", "o":
+	case "v", "t", "o", "m", "S", "c":
 		return strings.TrimSpace(a.conversation.TextInput().Value()) == ""
 	default:
 		return false
