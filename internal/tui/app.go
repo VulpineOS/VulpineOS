@@ -2783,7 +2783,10 @@ func (a *App) gracefulShutdown() {
 	for _, status := range agents {
 		if shouldPauseOnShutdown(status.Status) {
 			// Send /savestate and mark as paused in vault
-			a.orch.Agents.PauseAgent(status.AgentID)
+			if err := a.orch.Agents.PauseAgent(status.AgentID); err != nil {
+				log.Printf("pause agent during shutdown %s: %v", status.AgentID, err)
+				continue
+			}
 			a.vault.UpdateAgentStatus(status.AgentID, "paused")
 		}
 	}
