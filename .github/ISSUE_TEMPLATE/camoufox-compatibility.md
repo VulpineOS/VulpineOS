@@ -1,15 +1,15 @@
 ---
-name: Camoufox detected
-about: Report a website that detects Camoufox
+name: Camoufox compatibility issue
+about: Report a website compatibility issue
 title: ''
-labels: detection-issue
+labels: compatibility
 assignees: ''
 
 ---
 
-### Website detecting Camoufox:
+### Website:
 
-What website or WAF is flagging Camoufox? Provide as much detail and additional context as possible.
+What website is not working as expected? Provide as much detail and additional context as possible.
 
 ### Screenshots:
 
@@ -31,7 +31,7 @@ These questions will help me diagnose the issue:
 
 
 
-3. Is Camoufox detected randomly or every time?
+3. Does the issue happen randomly or every time?
 
 
 
