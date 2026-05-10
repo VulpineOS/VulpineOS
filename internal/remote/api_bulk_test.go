@@ -140,6 +140,34 @@ func TestAgentsResumeWithMessageRejectsLiveAgentBeforeAppendingMessage(t *testin
 	}
 }
 
+func TestAgentsResumeWithMessageAllowsTerminalAgentBeforeSpawn(t *testing.T) {
+	api := newBulkAgentAPI(t)
+
+	agent, err := api.Vault.CreateAgent("Completed Chat", "task", "{}")
+	if err != nil {
+		t.Fatalf("CreateAgent: %v", err)
+	}
+	if err := api.Vault.UpdateAgentStatus(agent.ID, "completed"); err != nil {
+		t.Fatalf("UpdateAgentStatus: %v", err)
+	}
+
+	params, err := json.Marshal(map[string]interface{}{"agentId": agent.ID, "message": " continue work "})
+	if err != nil {
+		t.Fatalf("Marshal params: %v", err)
+	}
+	_, err = api.HandleMessage("agents.resume", params)
+	if err != nil && strings.Contains(err.Error(), "requires paused status") {
+		t.Fatalf("terminal follow-up was rejected by status gate: %v", err)
+	}
+	messages, err := api.Vault.GetMessages(agent.ID)
+	if err != nil {
+		t.Fatalf("GetMessages: %v", err)
+	}
+	if len(messages) != 1 || messages[0].Role != "user" || messages[0].Content != "continue work" {
+		t.Fatalf("messages = %#v, want trimmed follow-up appended", messages)
+	}
+}
+
 func TestAgentsResumeManyRejectsNonPausedAgents(t *testing.T) {
 	api := newBulkAgentAPI(t)
 

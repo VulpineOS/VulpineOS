@@ -518,21 +518,25 @@ func (api *PanelAPI) agentsResume(params json.RawMessage) (json.RawMessage, erro
 	if err != nil {
 		return nil, err
 	}
-	if err := requirePausedAgentStatus(agent); err != nil {
-		return nil, err
-	}
-	if strings.TrimSpace(p.Message) != "" {
-		_ = api.Vault.AppendMessage(agentID, "user", p.Message, 0)
+	message := strings.TrimSpace(p.Message)
+	if message != "" {
+		if err := requireAgentCanReceiveFollowUp(agent); err != nil {
+			return nil, err
+		}
+		_ = api.Vault.AppendMessage(agentID, "user", message, 0)
 		configPath, cleanup, err := api.agentRuntimeConfig(agent)
 		if err != nil {
 			return nil, err
 		}
-		id, err := api.Orchestrator.Agents.SpawnWithSessionIsolated(agentID, p.Message, p.SessionName, configPath, cleanup)
+		id, err := api.Orchestrator.Agents.SpawnWithSessionIsolated(agentID, message, p.SessionName, configPath, cleanup)
 		if err != nil {
 			return nil, err
 		}
 		_ = api.Vault.UpdateAgentStatus(agentID, "active")
 		return json.Marshal(map[string]string{"agentId": id})
+	}
+	if err := requirePausedAgentStatus(agent); err != nil {
+		return nil, err
 	}
 	configPath, cleanup, err := api.agentRuntimeConfig(agent)
 	if err != nil {
@@ -705,6 +709,23 @@ func requirePausedAgentStatus(agent *vault.Agent) error {
 		status = "unknown"
 	}
 	return fmt.Errorf("agent %s is %s; resume requires paused status", agent.ID, status)
+}
+
+func requireAgentCanReceiveFollowUp(agent *vault.Agent) error {
+	if agent == nil {
+		return fmt.Errorf("agent is required")
+	}
+	status := strings.ToLower(strings.TrimSpace(agent.Status))
+	switch status {
+	case "active", "running", "thinking", "starting":
+		display := strings.TrimSpace(agent.Status)
+		if display == "" {
+			display = "unknown"
+		}
+		return fmt.Errorf("agent %s is %s; follow-up message requires paused status or terminal status", agent.ID, display)
+	default:
+		return nil
+	}
 }
 
 func safePanelAgentID(agentID string) (string, error) {

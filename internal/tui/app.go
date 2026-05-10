@@ -1198,6 +1198,12 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if msg.Agents[i].ID == selectedID {
 				a.conversation.SetAgentID(msg.Agents[i].ID)
 				a.conversation.SetAgentName(msg.Agents[i].Name)
+				if isLiveAgentStatus(msg.Agents[i].Status) {
+					a.conversation.SetThinking(true)
+					cmds = append(cmds, conversation.ThinkingTick())
+				} else {
+					a.conversation.SetThinking(false)
+				}
 				a.updateAgentDetail(&msg.Agents[i])
 				cmds = append(cmds, a.loadRemoteMessages(selectedID))
 				break
@@ -1422,6 +1428,8 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // updateNameInput handles keystrokes in "new-agent-name" mode.
 func (a App) updateNameInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
+	case "ctrl+c":
+		return a, a.shutdown()
 	case "enter":
 		name := strings.TrimSpace(a.nameInput.Value())
 		if name != "" {
@@ -1481,6 +1489,8 @@ func isGlobalLifecycleKey(msg tea.KeyMsg) bool {
 // updateDescInput handles keystrokes in "new-agent-desc" mode.
 func (a App) updateDescInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
+	case "ctrl+c":
+		return a, a.shutdown()
 	case "enter":
 		desc := strings.TrimSpace(a.taskInput.Value())
 		if desc == "" {

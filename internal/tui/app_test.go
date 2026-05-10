@@ -427,6 +427,21 @@ func TestStartupLockedChatAllowsQuitShortcut(t *testing.T) {
 	}
 }
 
+func TestNewAgentPromptsAllowQuitShortcut(t *testing.T) {
+	for _, mode := range []string{"new-agent-name", "new-agent-desc"} {
+		app := NewApp(nil, nil, nil, nil, &config.Config{}, nil)
+		app.inputMode = mode
+
+		_, cmd := app.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+		if cmd == nil {
+			t.Fatalf("%s quit returned no command", mode)
+		}
+		if _, ok := cmd().(tea.QuitMsg); !ok {
+			t.Fatalf("%s quit did not return tea.QuitMsg", mode)
+		}
+	}
+}
+
 func TestFocusedChatAllowsQuitShortcut(t *testing.T) {
 	app := NewApp(nil, nil, nil, nil, &config.Config{}, nil)
 	app.selectedAgentID = "agent-1"
@@ -790,6 +805,29 @@ func TestRemoteControlCreateAgentReloadsAgentsAfterSpawnError(t *testing.T) {
 	}
 	if !strings.Contains(app.notice, "runtime config missing") {
 		t.Fatalf("app notice = %q, want spawn error", app.notice)
+	}
+}
+
+func TestRemoteAgentsLoadedMarksSelectedLiveAgentThinking(t *testing.T) {
+	control := &fakeControlClient{responses: map[string]any{
+		"agents.getMessages": map[string]any{"messages": []map[string]any{}},
+	}}
+	app := NewAppWithControl(nil, nil, nil, nil, nil, nil, control)
+
+	model, _ := app.Update(remoteAgentsLoadedMsg{
+		Agents: []vault.Agent{{
+			ID:     "agent-live",
+			Name:   "Remote Live",
+			Status: "active",
+		}},
+	})
+	app = model.(App)
+
+	if app.selectedAgentID != "agent-live" {
+		t.Fatalf("selected agent = %q, want agent-live", app.selectedAgentID)
+	}
+	if !app.conversation.IsThinking() {
+		t.Fatal("selected live remote agent should mark conversation as thinking")
 	}
 }
 
