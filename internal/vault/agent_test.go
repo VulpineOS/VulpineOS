@@ -418,10 +418,7 @@ func TestGenerateFingerprintValidJSON(t *testing.T) {
 		t.Error("platform says Linux but UA doesn't")
 	}
 
-	// Note: determinism only guaranteed for fallback generator.
-	// BrowserForge uses its own RNG so results vary.
-
-	// Different seed -> different fingerprint (with very high probability)
+	// Different seed -> different fingerprint.
 	fp3, err := GenerateFingerprint("other-agent-id")
 	if err != nil {
 		t.Fatal(err)

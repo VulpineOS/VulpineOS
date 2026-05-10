@@ -6,7 +6,7 @@ import "time"
 type Citizen struct {
 	ID              string    `json:"id"`
 	Label           string    `json:"label"`
-	Fingerprint     string    `json:"fingerprint"`  // JSON blob (BrowserForge config)
+	Fingerprint     string    `json:"fingerprint"`  // JSON blob
 	ProxyConfig     string    `json:"proxy_config"` // JSON blob
 	Locale          string    `json:"locale"`
 	Timezone        string    `json:"timezone"`
