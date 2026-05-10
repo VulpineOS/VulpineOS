@@ -17,7 +17,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"vulpineos/internal/config"
-	"vulpineos/internal/extensions"
 	"vulpineos/internal/juggler"
 	"vulpineos/internal/kernel"
 	"vulpineos/internal/monitor"
@@ -25,7 +24,6 @@ import (
 	"vulpineos/internal/orchestrator"
 	"vulpineos/internal/proxy"
 	"vulpineos/internal/runtimeaudit"
-	"vulpineos/internal/sentinelcapture"
 	"vulpineos/internal/tui/agentdetail"
 	"vulpineos/internal/tui/agentlist"
 	"vulpineos/internal/tui/contextlist"
@@ -270,7 +268,6 @@ func NewAppWithControl(k *kernel.Kernel, client *juggler.Client, orch *orchestra
 		client.Subscribe("Browser.trustWarmingStateChanged", func(sid string, params json.RawMessage) {
 			var e juggler.TrustWarmingState
 			json.Unmarshal(params, &e)
-			_ = sentinelcapture.RecordTrustActivity(context.Background(), e)
 			emitEvent(shared.TrustWarmMsg{State: e.State, CurrentSite: e.CurrentSite})
 		})
 		client.Subscribe("Browser.telemetryUpdate", func(sid string, params json.RawMessage) {
@@ -448,7 +445,6 @@ func NewAppWithControl(k *kernel.Kernel, client *juggler.Client, orch *orchestra
 				if !ok {
 					return
 				}
-				_ = sentinelcapture.RecordMonitorAlert(context.Background(), alert)
 				emitEvent(statusNotice{text: fmt.Sprintf("WARNING %s: %s on agent %s", alert.Type, alert.Details, alert.AgentID)})
 			}
 		}
@@ -981,16 +977,13 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		if a.kernel != nil {
-			sentinelStatus, sentinelAvailable, _ := extensions.SentinelSnapshot(context.Background())
 			ksMsg := shared.KernelStatusMsg{
-				Running:           a.kernel.Running(),
-				PID:               a.kernel.PID(),
-				Uptime:            a.kernel.Uptime(),
-				Headless:          a.kernel.IsHeadless(),
-				BrowserRoute:      a.browserRouteLabel(),
-				BrowserWindow:     a.browserWindowLabel(),
-				SentinelAvailable: sentinelAvailable,
-				SentinelMode:      sentinelStatus.Mode,
+				Running:       a.kernel.Running(),
+				PID:           a.kernel.PID(),
+				Uptime:        a.kernel.Uptime(),
+				Headless:      a.kernel.IsHeadless(),
+				BrowserRoute:  a.browserRouteLabel(),
+				BrowserWindow: a.browserWindowLabel(),
 			}
 			a.systemInfo, _ = a.systemInfo.Update(ksMsg)
 		}

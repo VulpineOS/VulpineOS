@@ -257,7 +257,7 @@ func Path() string {
 	return filepath.Join(Dir(), "config.json")
 }
 
-// ReconfigureFlagPath returns the sentinel path used to request the setup wizard
+// ReconfigureFlagPath returns the marker path used to request the setup wizard
 // on the next launch without mutating the active config first.
 func ReconfigureFlagPath() string {
 	return filepath.Join(Dir(), "reconfigure")
@@ -381,7 +381,7 @@ func ReconfigureRequested() bool {
 	return err == nil
 }
 
-// ClearReconfigureRequest removes the reconfigure sentinel if present.
+// ClearReconfigureRequest removes the reconfigure marker if present.
 func ClearReconfigureRequest() error {
 	if err := os.Remove(ReconfigureFlagPath()); err != nil && !os.IsNotExist(err) {
 		return err

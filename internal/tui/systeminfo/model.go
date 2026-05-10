@@ -13,25 +13,23 @@ import (
 
 // Model holds compact system metrics for the left sidebar.
 type Model struct {
-	running           bool
-	pid               int
-	uptime            time.Duration
-	headless          bool
-	browserRoute      string
-	browserWindow     string
-	sentinelAvailable bool
-	sentinelMode      string
-	memoryMB          float64
-	eventLoopLag      float64
-	detectionRisk     float64
-	activeContexts    int
-	activePages       int
-	poolAvailable     int
-	poolActive        int
-	poolTotal         int
-	runtimeEvents     []sharedRuntimeEvent
-	width             int
-	height            int
+	running        bool
+	pid            int
+	uptime         time.Duration
+	headless       bool
+	browserRoute   string
+	browserWindow  string
+	memoryMB       float64
+	eventLoopLag   float64
+	detectionRisk  float64
+	activeContexts int
+	activePages    int
+	poolAvailable  int
+	poolActive     int
+	poolTotal      int
+	runtimeEvents  []sharedRuntimeEvent
+	width          int
+	height         int
 }
 
 type sharedRuntimeEvent struct {
@@ -73,8 +71,6 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.headless = msg.Headless
 		m.browserRoute = msg.BrowserRoute
 		m.browserWindow = msg.BrowserWindow
-		m.sentinelAvailable = msg.SentinelAvailable
-		m.sentinelMode = msg.SentinelMode
 	case shared.TelemetryMsg:
 		m.memoryMB = msg.MemoryMB
 		m.eventLoopLag = msg.EventLoopLagMs
@@ -181,13 +177,6 @@ func (m Model) View() string {
 		b.WriteString(shared.MutedStyle.Render(fmt.Sprintf("Win %s", m.browserWindow)))
 		b.WriteString("\n")
 	}
-	if m.sentinelAvailable {
-		b.WriteString(shared.MutedStyle.Render(fmt.Sprintf("Sent %s", sentinelModeLabel(m.sentinelMode))))
-	} else {
-		b.WriteString(shared.MutedStyle.Render("Sent OFF"))
-	}
-	b.WriteString("\n")
-
 	b.WriteString(shared.MutedStyle.Render(fmt.Sprintf("Pool: %d/%d/%d", m.poolAvailable, m.poolActive, m.poolTotal)))
 	b.WriteString("\n")
 	b.WriteString(shared.MutedStyle.Render(fmt.Sprintf("Ctx: %d Pg: %d", m.activeContexts, m.activePages)))
@@ -261,18 +250,4 @@ func formatDuration(d time.Duration) string {
 		return fmt.Sprintf("%dh", h)
 	}
 	return fmt.Sprintf("%dh%dm", h, m)
-}
-
-func sentinelModeLabel(mode string) string {
-	value := strings.TrimSpace(strings.ToUpper(mode))
-	if value == "" {
-		return "ON"
-	}
-	if value == "SCAFFOLD" {
-		return "SCFLD"
-	}
-	if len(value) > 6 {
-		value = value[:6]
-	}
-	return value
 }

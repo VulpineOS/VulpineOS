@@ -1,7 +1,6 @@
 package orchestrator
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -10,7 +9,6 @@ import (
 	"vulpineos/internal/agentbus"
 	"vulpineos/internal/config"
 	"vulpineos/internal/costtrack"
-	"vulpineos/internal/extensions"
 	"vulpineos/internal/foxbridge"
 	"vulpineos/internal/juggler"
 	"vulpineos/internal/kernel"
@@ -19,7 +17,6 @@ import (
 	"vulpineos/internal/pool"
 	"vulpineos/internal/recording"
 	"vulpineos/internal/security"
-	"vulpineos/internal/sentinelcapture"
 	"vulpineos/internal/vault"
 	"vulpineos/internal/webhooks"
 )
@@ -149,20 +146,6 @@ func (o *Orchestrator) SpawnCitizen(citizenID, templateID string) (string, error
 	o.agentToSlotMu.Lock()
 	o.agentToSlot[agentID] = slot
 	o.agentToSlotMu.Unlock()
-	if cookies, err := o.Vault.GetCookies(citizen.ID); err == nil {
-		storage, storageErr := o.Vault.GetStorage(citizen.ID)
-		if storageErr == nil {
-			carryForward := *citizen
-			carryForward.TotalSessions++
-			if err := sentinelcapture.RecordTrustAssets(context.Background(), extensions.SentinelScope{
-				CitizenID: citizen.ID,
-				AgentID:   agentID,
-				ContextID: slot.ContextID,
-			}, &carryForward, cookies, storage); err != nil {
-				log.Printf("orchestrator: warning: failed to record trust assets for citizen %s: %v", citizen.ID, err)
-			}
-		}
-	}
 	o.Vault.UpdateCitizenUsage(citizenID)
 
 	// Start recording for this agent

@@ -6,8 +6,6 @@ import (
 	"testing"
 
 	"vulpineos/internal/config"
-	"vulpineos/internal/extensions"
-	"vulpineos/internal/extensions/extensionstest"
 	"vulpineos/internal/kernel"
 )
 
@@ -53,12 +51,6 @@ func TestStatusGetIncludesBrowserRoute(t *testing.T) {
 	}
 	if got := result["openclaw_profile_configured"]; got != false {
 		t.Fatalf("openclaw_profile_configured = %v, want false", got)
-	}
-	if got := result["sentinel_available"]; got != false {
-		t.Fatalf("sentinel_available = %v, want false", got)
-	}
-	if got := result["sentinel_mode"]; got != extensions.SentinelModePublicNoop {
-		t.Fatalf("sentinel_mode = %v, want %s", got, extensions.SentinelModePublicNoop)
 	}
 }
 
@@ -136,39 +128,5 @@ func TestStatusGetWithoutKernelReportsDisabledRoute(t *testing.T) {
 	}
 	if got := result["gateway_running"]; got != false {
 		t.Fatalf("gateway_running = %v, want false", got)
-	}
-}
-
-func TestStatusGetIncludesSentinelStatus(t *testing.T) {
-	original := extensions.Registry.Sentinel()
-	t.Cleanup(func() { extensions.Registry.SetSentinel(original) })
-	fake := &extensionstest.FakeSentinelProvider{
-		AvailableFlag: true,
-		StatusValue: extensions.SentinelStatus{
-			Provider: "extension-provider",
-			Mode:     "scaffold",
-		},
-	}
-	extensions.Registry.SetSentinel(fake)
-
-	api := &PanelAPI{Config: &config.Config{}}
-	payload, err := api.HandleMessage("status.get", nil)
-	if err != nil {
-		t.Fatalf("HandleMessage: %v", err)
-	}
-
-	var result map[string]interface{}
-	if err := json.Unmarshal(payload, &result); err != nil {
-		t.Fatalf("Unmarshal: %v", err)
-	}
-
-	if got := result["sentinel_available"]; got != true {
-		t.Fatalf("sentinel_available = %v, want true", got)
-	}
-	if got := result["sentinel_provider"]; got != "extension-provider" {
-		t.Fatalf("sentinel_provider = %v, want extension-provider", got)
-	}
-	if got := result["sentinel_mode"]; got != "scaffold" {
-		t.Fatalf("sentinel_mode = %v, want scaffold", got)
 	}
 }

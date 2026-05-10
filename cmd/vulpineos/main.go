@@ -40,7 +40,6 @@ import (
 	"vulpineos/internal/recording"
 	"vulpineos/internal/remote"
 	"vulpineos/internal/runtimeaudit"
-	"vulpineos/internal/sentinelcapture"
 	"vulpineos/internal/tui"
 	"vulpineos/internal/tui/loading"
 	"vulpineos/internal/tui/setup"
@@ -91,83 +90,6 @@ var startGatewayIfAvailable = func(cfg *config.Config, audit *runtimeaudit.Manag
 		}
 	}
 	return gw
-}
-
-func logSentinelRuntimeStatus(audit *runtimeaudit.Manager) {
-	status, available, err := extensions.SentinelSnapshot(context.Background())
-	if err != nil {
-		if audit != nil {
-			_, _ = audit.Log("sentinel", "warn", "status_error", "Sentinel status lookup failed", map[string]string{
-				"error": err.Error(),
-			})
-		}
-		return
-	}
-	metadata := map[string]string{
-		"available": fmt.Sprintf("%t", available),
-		"mode":      status.Mode,
-	}
-	if status.Provider != "" {
-		metadata["provider"] = status.Provider
-	}
-	if status.EventSink != "" {
-		metadata["event_sink"] = status.EventSink
-	}
-	if status.OutcomeSink != "" {
-		metadata["outcome_sink"] = status.OutcomeSink
-	}
-	if status.VariantSource != "" {
-		metadata["variant_source"] = status.VariantSource
-	}
-	if status.VariantBundles > 0 {
-		metadata["variant_bundles"] = fmt.Sprintf("%d", status.VariantBundles)
-	}
-	if status.TrustRecipes > 0 {
-		metadata["trust_recipes"] = fmt.Sprintf("%d", status.TrustRecipes)
-	}
-	eventName := "provider_unavailable"
-	if available {
-		eventName = "provider_ready"
-		_ = sentinelcapture.RecordRuntimeSignal(context.Background(), eventName, metadata)
-		if audit != nil {
-			_, _ = audit.Log("sentinel", "info", eventName, "Sentinel provider ready", metadata)
-		}
-		return
-	}
-	if audit != nil {
-		_, _ = audit.Log("sentinel", "info", eventName, "Sentinel provider unavailable", metadata)
-	}
-}
-
-func sentinelScopeForAgent(v *vault.DB, contexts *remote.ContextRegistry, agentID string) extensions.SentinelScope {
-	scope := extensions.SentinelScope{AgentID: agentID}
-	if v == nil || agentID == "" {
-		return scope
-	}
-	agent, err := v.GetAgent(agentID)
-	if err != nil {
-		return scope
-	}
-	meta, err := vault.ParseAgentMetadata(agent.Metadata)
-	if err != nil {
-		return scope
-	}
-	scope.ContextID = meta.ContextID
-	if contexts == nil || meta.ContextID == "" {
-		return scope
-	}
-	scope.SessionID = contexts.SessionForContext(meta.ContextID)
-	for _, info := range contexts.List() {
-		if info.ID != meta.ContextID {
-			continue
-		}
-		scope.URL = info.LastURL
-		if parsed, err := url.Parse(info.LastURL); err == nil {
-			scope.Domain = parsed.Hostname()
-		}
-		break
-	}
-	return scope
 }
 
 func startLocalSessionLogging(baseDir string) (restore func(), path string) {
@@ -1044,7 +966,6 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 		// providers. On the default public build this is a no-op
 		// because privateProviders is zero-valued.
 		extensions.InitWithClient(client)
-		logSentinelRuntimeStatus(audit)
 		if !browserEnabled {
 			if err := enableBrowser(client, "Browser.enable"); err != nil {
 				return err
@@ -1149,11 +1070,6 @@ func wireServerBrowserEvents(client *juggler.Client, contexts *remote.ContextReg
 						contexts.Navigated(sessionID, payload.FrameID, payload.URL)
 					}
 				}
-			case "Browser.trustWarmingStateChanged":
-				var payload juggler.TrustWarmingState
-				if err := json.Unmarshal(params, &payload); err == nil {
-					_ = sentinelcapture.RecordTrustActivity(context.Background(), payload)
-				}
 			}
 			if broadcast != nil {
 				broadcast(evt, sessionID, params)
@@ -1236,7 +1152,6 @@ func runServe(binaryPath string, headless bool, profileDir string, host string, 
 
 		client = k.Client()
 		extensions.InitWithClient(client)
-		logSentinelRuntimeStatus(audit)
 		if err := enableBrowser(client, "Browser.enable"); err != nil {
 			return err
 		}
@@ -1342,9 +1257,6 @@ func runServe(binaryPath string, headless bool, profileDir string, host string, 
 	contexts := remote.NewContextRegistry()
 	// Create proxy rotator
 	rotator := proxy.NewRotator()
-	rotator.SetObserver(func(event proxy.RotationEvent) {
-		_ = sentinelcapture.RecordProxyRotationWithScope(context.Background(), event, sentinelScopeForAgent(v, contexts, event.AgentID))
-	})
 
 	addr := fmt.Sprintf("%s:%d", host, port)
 	server := remote.NewServer(addr, apiKey, client)
@@ -1408,7 +1320,6 @@ func runServe(binaryPath string, headless bool, profileDir string, host string, 
 		defer mon.Dispose()
 		go func() {
 			for alert := range mon.AlertChan() {
-				_ = sentinelcapture.RecordMonitorAlert(context.Background(), alert)
 				if audit != nil {
 					_, _ = audit.Log("monitor", "warn", string(alert.Type), alert.Details, map[string]string{
 						"agent_id": alert.AgentID,

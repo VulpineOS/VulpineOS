@@ -4,7 +4,6 @@ import (
 	"context"
 	"sync"
 	"testing"
-	"time"
 
 	"vulpineos/internal/extensions"
 )
@@ -34,27 +33,14 @@ func TestFakesNoRaceUnderConcurrentSet(t *testing.T) {
 			{UDID: "udid-1", Name: "Test iPhone"},
 		},
 	}
-	sentinel := &FakeSentinelProvider{
-		AvailableFlag: true,
-		StatusValue: extensions.SentinelStatus{
-			Provider: "extension-provider",
-			Mode:     "scaffold",
-		},
-		VariantBundles: []extensions.SentinelVariantBundle{
-			{ID: "control", Name: "Control", Enabled: true, Weight: 100},
-		},
-		TrustRecipes: []extensions.SentinelTrustRecipe{
-			{ID: "baseline-warmup", Name: "Baseline warmup", WarmupStrategy: "generic_revisit"},
-		},
-	}
 
 	ctx := context.Background()
 	var wg sync.WaitGroup
 	const iters = 50
 
-	// 50 writers, 50 readers per fake = 400 goroutines total.
+	// 50 writers and 50 readers per fake = 300 goroutines total.
 	for i := 0; i < iters; i++ {
-		wg.Add(8)
+		wg.Add(6)
 		// Credential writers + readers.
 		go func(i int) {
 			defer wg.Done()
@@ -108,59 +94,6 @@ func TestFakesNoRaceUnderConcurrentSet(t *testing.T) {
 			_ = mobile.Disconnect(ctx, "session-1")
 			_ = mobile.Available()
 		}()
-		// Sentinel writers + readers.
-		go func(i int) {
-			defer wg.Done()
-			sentinel.SetAvailable(i%2 == 0)
-			sentinel.SetStatus(extensions.SentinelStatus{
-				Provider: "extension-provider",
-				Mode:     "scaffold",
-			})
-			sentinel.SetVariantBundles([]extensions.SentinelVariantBundle{
-				{ID: "control", Name: "Control", Enabled: true, Weight: 100 + i},
-			})
-			sentinel.SetTrustRecipes([]extensions.SentinelTrustRecipe{
-				{ID: "baseline-warmup", Name: "Baseline warmup", WarmupStrategy: "generic_revisit"},
-			})
-			sentinel.SetMaturityMetrics([]extensions.SentinelMaturityMetric{
-				{ID: "session_age_seconds", Name: "Session age"},
-			})
-			sentinel.SetAssignmentRules([]extensions.SentinelAssignmentRule{
-				{ID: "cold-holdout", Name: "Cold holdout"},
-			})
-			sentinel.SetSessionTimelines([]extensions.SentinelSessionTimeline{
-				{SessionID: "session-1", Items: []extensions.SentinelTimelineItem{{Type: "event", Name: "canvas.toDataURL"}}},
-			})
-			sentinel.SetOutcomeLabels([]extensions.SentinelOutcomeLabel{
-				{ID: extensions.SentinelOutcomeSoftChallenge, Name: "Soft challenge"},
-			})
-			sentinel.SetOutcomeSummary([]extensions.SentinelOutcomeSummary{
-				{Outcome: extensions.SentinelOutcomeSoftChallenge, Count: 1},
-			})
-		}(i)
-		go func(i int) {
-			defer wg.Done()
-			_, _ = sentinel.Status(ctx)
-			_ = sentinel.RecordEvent(ctx, extensions.SentinelEvent{
-				Kind:      extensions.SentinelEventKindBrowserProbe,
-				Name:      "canvas.toDataURL",
-				Timestamp: time.Now(),
-			})
-			_ = sentinel.RecordOutcome(ctx, extensions.SentinelOutcome{
-				Outcome:   extensions.SentinelOutcomeSoftChallenge,
-				Timestamp: time.Now(),
-			})
-			_, _ = sentinel.ListVariantBundles(ctx)
-			_, _ = sentinel.ListTrustRecipes(ctx)
-			_, _ = sentinel.ListMaturityMetrics(ctx)
-			_, _ = sentinel.ListAssignmentRules(ctx)
-			_, _ = sentinel.ListSessionTimelines(ctx, extensions.SentinelTimelineFilter{Limit: 1})
-			_, _ = sentinel.ListOutcomeLabels(ctx)
-			_, _ = sentinel.SummarizeOutcomes(ctx)
-			_ = sentinel.RecordedEvents()
-			_ = sentinel.RecordedOutcomes()
-			_ = sentinel.Available()
-		}(i)
 	}
 
 	wg.Wait()

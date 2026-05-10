@@ -229,9 +229,6 @@ export default function Settings({ ws }) {
             </div>
             <div>Window: {(status.browser_window || "unknown").toUpperCase()}</div>
             <div>Gateway: {status.gateway_running ? "RUNNING" : "STOPPED"}</div>
-            <div>
-              Optional extensions: {status.sentinel_available ? "AVAILABLE" : "UNAVAILABLE"}
-            </div>
           </div>
         </div>
       </div>

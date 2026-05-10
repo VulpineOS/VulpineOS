@@ -41,7 +41,6 @@ function settingsWS(overrides = {}) {
           kernel_headless: false,
           kernel_running: true,
           openclaw_profile_configured: true,
-          sentinel_available: false,
           ...overrides.status,
         };
       }
@@ -52,8 +51,8 @@ function settingsWS(overrides = {}) {
 }
 
 describe("Settings page", () => {
-  it("shows route, mode, gateway, and public extension status", async () => {
-    const ws = settingsWS({ status: { sentinel_available: true } });
+  it("shows route, mode, and gateway status", async () => {
+    const ws = settingsWS();
 
     render(<Settings ws={ws} />);
 
@@ -62,12 +61,6 @@ describe("Settings page", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Window: HIDDEN")).toBeInTheDocument();
     expect(screen.getByText("Gateway: RUNNING")).toBeInTheDocument();
-    expect(screen.getByText("Optional extensions: AVAILABLE")).toBeInTheDocument();
-    await waitFor(() => {
-      const calledMethods = ws.call.mock.calls.map(([method]) => method);
-      expect(calledMethods).not.toContain(`sentinel.${"get"}`);
-      expect(calledMethods).not.toContain(`sentinel.${"timeline"}`);
-    });
   });
 
   it("saves provider credentials", async () => {

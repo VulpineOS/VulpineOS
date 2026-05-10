@@ -273,7 +273,7 @@ The panel now also includes:
 - a richer **Dashboard** shell showing runtime route/mode/window, retained runtime alerts, spend, budget posture, active-work previews, and direct operator shortcuts
 - an **Agents** view that surfaces aggregate spend/tokens plus per-agent budget source and limit summaries without drilling into each detail page
 
-Panel script execution rejects payloads over 64 KiB, rejects scripts over 100 steps, and rejects `wait` durations longer than 30 seconds. Runtime filter echoes, proxy errors, webhook delivery logs, MCP credential metadata/errors, raw session logs, and Sentinel timeline payloads all redact common secret fields before reaching operator-facing surfaces.
+Panel script execution rejects payloads over 64 KiB, rejects scripts over 100 steps, and rejects `wait` durations longer than 30 seconds. Runtime filter echoes, proxy errors, webhook delivery logs, MCP credential metadata/errors, and raw session logs all redact common secret fields before reaching operator-facing surfaces.
 
 Access via `vulpineos panel`, `vulpineos serve`, or through the remote client.
 

@@ -375,7 +375,7 @@ func HandleToolCallDirect(client *juggler.Client, name string, args json.RawMess
 
 // HandleToolCallDirectCtx dispatches a tool call directly with an
 // explicit context, for tests and callers that want to pass through a
-// per-call deadline or sentinel value into extension handlers.
+// per-call deadline or marker value into extension handlers.
 func HandleToolCallDirectCtx(ctx context.Context, client *juggler.Client, name string, args json.RawMessage) (*ToolCallResult, error) {
 	tracker := NewContextTracker(client)
 	defer tracker.Close()

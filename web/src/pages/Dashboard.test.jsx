@@ -20,11 +20,6 @@ describe('Dashboard page', () => {
             browser_route_source: 'runtime',
             browser_window: 'hidden',
             gateway_running: true,
-            sentinel_available: true,
-            sentinel_mode: 'scaffold',
-            sentinel_trust_recipes: 1,
-            sentinel_maturity_metrics: 5,
-            sentinel_assignment_rules: 3,
             kernel_headless: false,
             openclaw_profile_configured: true,
             active_agents: 1,
@@ -85,14 +80,11 @@ describe('Dashboard page', () => {
     expect(screen.getByText('4,200 tokens · 1 tracked usage records')).toBeInTheDocument()
     expect(screen.getByText('1 agent override · $5.00 · 10,000 tok')).toBeInTheDocument()
     expect(screen.getByText('RUNNING')).toBeInTheDocument()
-    expect(screen.getByText('SCAFFOLD')).toBeInTheDocument()
-    expect(screen.getByText('Maturity metrics')).toBeInTheDocument()
-    expect(screen.getByText('Assignment rules')).toBeInTheDocument()
     expect(screen.getAllByText('Gateway profile repair failed').length).toBeGreaterThan(0)
     expect(screen.getByText('Review agents')).toBeInTheDocument()
   })
 
-  it('hides Sentinel labels when the extension is unavailable', async () => {
+  it('keeps private extension rows out of the public dashboard', async () => {
     const ws = {
       connected: true,
       connectionState: 'connected',
@@ -105,7 +97,6 @@ describe('Dashboard page', () => {
             browser_route: 'camoufox',
             browser_window: 'visible',
             gateway_running: true,
-            sentinel_available: false,
             kernel_headless: false,
             active_agents: 0,
           }
@@ -125,9 +116,6 @@ describe('Dashboard page', () => {
     )
 
     expect(await screen.findByText('CAMOUFOX')).toBeInTheDocument()
-    expect(screen.queryByText('Sentinel')).not.toBeInTheDocument()
-    expect(screen.queryByText('Trust recipes')).not.toBeInTheDocument()
-    expect(screen.queryByText('Maturity metrics')).not.toBeInTheDocument()
-    expect(screen.queryByText('Assignment rules')).not.toBeInTheDocument()
+    expect(screen.getByText('RUNNING')).toBeInTheDocument()
   })
 })
