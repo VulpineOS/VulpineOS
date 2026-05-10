@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"log"
 	"os"
 	"path/filepath"
@@ -336,6 +339,67 @@ func TestPrintPanelAccessExplicitKeyAvoidsTokenURL(t *testing.T) {
 			t.Fatalf("printPanelAccess output %q missing %q", out, want)
 		}
 	}
+}
+
+func TestTUIProgramsEnableMouseCellMotion(t *testing.T) {
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "main.go", nil, 0)
+	if err != nil {
+		t.Fatalf("parse main.go: %v", err)
+	}
+
+	funcs := map[string]*ast.FuncDecl{}
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if ok {
+			funcs[fn.Name.Name] = fn
+		}
+	}
+
+	for _, name := range []string{"runLocal", "runRemote"} {
+		fn := funcs[name]
+		if fn == nil {
+			t.Fatalf("missing %s", name)
+		}
+		foundAppProgram := false
+		ast.Inspect(fn.Body, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok || !isSelectorCall(call.Fun, "tea", "NewProgram") || len(call.Args) == 0 {
+				return true
+			}
+			first, ok := call.Args[0].(*ast.Ident)
+			if !ok || first.Name != "app" {
+				return true
+			}
+			foundAppProgram = true
+			if !callHasSelectorArg(call, "tea", "WithMouseCellMotion") {
+				t.Errorf("%s app tea.NewProgram missing tea.WithMouseCellMotion()", name)
+			}
+			return true
+		})
+		if !foundAppProgram {
+			t.Fatalf("%s did not create app tea.NewProgram", name)
+		}
+	}
+}
+
+func isSelectorCall(expr ast.Expr, pkg string, name string) bool {
+	sel, ok := expr.(*ast.SelectorExpr)
+	if !ok || sel.Sel.Name != name {
+		return false
+	}
+	ident, ok := sel.X.(*ast.Ident)
+	return ok && ident.Name == pkg
+}
+
+func callHasSelectorArg(call *ast.CallExpr, pkg string, name string) bool {
+	for _, arg := range call.Args {
+		option, ok := arg.(*ast.CallExpr)
+		if ok && isSelectorCall(option.Fun, pkg, name) {
+			return true
+		}
+	}
+	return false
 }
 
 func TestRunRemoteRejectsUnknownMode(t *testing.T) {
