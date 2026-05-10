@@ -1,0 +1,1 @@
+# CDP Protocol types and constants

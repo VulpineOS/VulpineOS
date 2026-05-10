@@ -9,4 +9,4 @@ description = "Shared utilities for Vulpine browser automation libraries"
 requires-python = ">=3.10"
 
 [tool.setuptools]
-packages = ["vulpine_shared", "vulpine_shared.fingerprint"]
+packages = ["vulpine_shared", "vulpine_shared.fingerprint", "vulpine_shared.cdp"]
