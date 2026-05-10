@@ -667,18 +667,24 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a.updateDescInput(msg)
 		case "chat":
 			if a.conversation.Focused() {
+				if a.conversationInputLocked() && isGlobalLifecycleKey(msg) {
+					break
+				}
 				if a.allowFocusedChatShortcut(msg) {
 					break
 				}
 				return a.updateChatInput(msg)
 			}
 			if msg.String() != "v" && msg.String() != "t" && msg.String() != "o" {
+				if a.conversationInputLocked() && isGlobalLifecycleKey(msg) {
+					break
+				}
 				return a.updateChatInput(msg)
 			}
 		}
 
 		// Route to settings panel when active
-		if a.focus == FocusSettings {
+		if a.focus == FocusSettings && !isGlobalLifecycleKey(msg) {
 			var cmd tea.Cmd
 			a.settings, cmd = a.settings.Update(msg)
 			// If settings closed itself (via Esc or Tab cycling out)
@@ -1360,6 +1366,19 @@ func isTerminalAgentStatus(status string) bool {
 func isLiveAgentStatus(status string) bool {
 	switch status {
 	case "active", "running", "thinking", "starting":
+		return true
+	default:
+		return false
+	}
+}
+
+func (a App) conversationInputLocked() bool {
+	return !a.conversation.IsAwake() && a.conversation.IsThinking()
+}
+
+func isGlobalLifecycleKey(msg tea.KeyMsg) bool {
+	switch msg.String() {
+	case "q", "ctrl+c", "p", "r", "P", "R", "X":
 		return true
 	default:
 		return false

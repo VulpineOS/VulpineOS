@@ -370,6 +370,47 @@ func TestStartupLockedChatDoesNotAcceptInput(t *testing.T) {
 	}
 }
 
+func TestStartupLockedChatAllowsQuitShortcut(t *testing.T) {
+	db := openTestVault(t)
+	app := NewApp(nil, nil, nil, db, &config.Config{}, nil)
+	app.conversation.SetSize(80, 20)
+
+	agent, err := db.CreateAgent("Scraper", "Scrape prices", "{}")
+	if err != nil {
+		t.Fatalf("create agent: %v", err)
+	}
+	agent.Status = "active"
+
+	model, _ := app.Update(shared.AgentCreatedMsg{Agent: *agent})
+	app = model.(App)
+	model, cmd := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	app = model.(App)
+
+	if cmd == nil {
+		t.Fatal("locked startup quit returned no command")
+	}
+	if _, ok := cmd().(tea.QuitMsg); !ok {
+		t.Fatal("locked startup quit did not return tea.QuitMsg")
+	}
+	if app.conversation.TextInput().Value() != "" {
+		t.Fatal("locked startup quit should not type into chat")
+	}
+}
+
+func TestSettingsAllowsGlobalQuitShortcut(t *testing.T) {
+	app := NewApp(nil, nil, nil, nil, &config.Config{}, nil)
+	app.focus = FocusSettings
+	app.settings.SetActive(true)
+
+	_, cmd := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	if cmd == nil {
+		t.Fatal("settings quit returned no command")
+	}
+	if _, ok := cmd().(tea.QuitMsg); !ok {
+		t.Fatal("settings quit did not return tea.QuitMsg")
+	}
+}
+
 func TestAgentCreatedSelectsNewAgentListRow(t *testing.T) {
 	db := openTestVault(t)
 	oldAgent, err := db.CreateAgent("Old", "old task", "{}")
