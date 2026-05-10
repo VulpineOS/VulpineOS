@@ -231,6 +231,39 @@ func TestKernelRunningReflectsExitedProcess(t *testing.T) {
 	t.Fatal("kernel still reported running after child process exited")
 }
 
+func TestKernelStartFailureRemovesTempProfile(t *testing.T) {
+	before := tempProfileDirs(t)
+
+	k := New()
+	err := k.Start(Config{BinaryPath: filepath.Join(t.TempDir(), "missing-camoufox"), Headless: true})
+	if err == nil {
+		defer k.Stop()
+		t.Fatal("expected missing binary startup to fail")
+	}
+	if k.profileDir != "" {
+		t.Fatalf("profileDir retained after failed start: %q", k.profileDir)
+	}
+
+	for path := range tempProfileDirs(t) {
+		if !before[path] {
+			t.Fatalf("temp profile leaked after failed start: %s", path)
+		}
+	}
+}
+
+func tempProfileDirs(t *testing.T) map[string]bool {
+	t.Helper()
+	matches, err := filepath.Glob(filepath.Join(os.TempDir(), "vulpineos-profile-*"))
+	if err != nil {
+		t.Fatalf("glob temp profiles: %v", err)
+	}
+	dirs := make(map[string]bool, len(matches))
+	for _, path := range matches {
+		dirs[path] = true
+	}
+	return dirs
+}
+
 func TestKernelStartStop(t *testing.T) {
 	bin := camoufoxBinary()
 	if bin == "" {

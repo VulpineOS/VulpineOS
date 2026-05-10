@@ -119,13 +119,14 @@ func (k *Kernel) Start(cfg Config) error {
 	}
 
 	profileDir := cfg.ProfileDir
+	tempProfileDir := ""
 	if profileDir == "" {
-		tempProfileDir, err := os.MkdirTemp("", "vulpineos-profile-*")
+		var err error
+		tempProfileDir, err = os.MkdirTemp("", "vulpineos-profile-*")
 		if err != nil {
 			return fmt.Errorf("create temp profile: %w", err)
 		}
 		profileDir = tempProfileDir
-		k.profileDir = tempProfileDir
 	}
 
 	// Build args
@@ -146,12 +147,18 @@ func (k *Kernel) Start(cfg Config) error {
 	// From our perspective: we write to Firefox's FD 3 and read from Firefox's FD 4.
 	toFirefoxRead, toFirefoxWrite, err := os.Pipe()
 	if err != nil {
+		if tempProfileDir != "" {
+			_ = os.RemoveAll(tempProfileDir)
+		}
 		return fmt.Errorf("create pipe to firefox: %w", err)
 	}
 	fromFirefoxRead, fromFirefoxWrite, err := os.Pipe()
 	if err != nil {
 		toFirefoxRead.Close()
 		toFirefoxWrite.Close()
+		if tempProfileDir != "" {
+			_ = os.RemoveAll(tempProfileDir)
+		}
 		return fmt.Errorf("create pipe from firefox: %w", err)
 	}
 
@@ -159,14 +166,18 @@ func (k *Kernel) Start(cfg Config) error {
 	// Redirect Firefox stdout/stderr to a log file to keep the TUI clean.
 	// If the log file can't be created, fall back to /dev/null.
 	logPath := filepath.Join(os.TempDir(), "vulpineos-kernel.log")
+	var outputFile *os.File
 	if logFile, err := os.Create(logPath); err == nil {
+		outputFile = logFile
 		cmd.Stdout = logFile
 		cmd.Stderr = logFile
-		k.logFile = logFile
 	} else {
-		devNull, _ := os.Open(os.DevNull)
-		cmd.Stdout = devNull
-		cmd.Stderr = devNull
+		devNull, openErr := os.Open(os.DevNull)
+		if openErr == nil {
+			outputFile = devNull
+			cmd.Stdout = devNull
+			cmd.Stderr = devNull
+		}
 	}
 	// FD 0=stdin, 1=stdout, 2=stderr, 3=juggler-read (from us), 4=juggler-write (to us)
 	cmd.ExtraFiles = []*os.File{toFirefoxRead, fromFirefoxWrite}
@@ -176,9 +187,11 @@ func (k *Kernel) Start(cfg Config) error {
 		toFirefoxWrite.Close()
 		fromFirefoxRead.Close()
 		fromFirefoxWrite.Close()
-		if k.profileDir != "" {
-			_ = os.RemoveAll(k.profileDir)
-			k.profileDir = ""
+		if outputFile != nil {
+			_ = outputFile.Close()
+		}
+		if tempProfileDir != "" {
+			_ = os.RemoveAll(tempProfileDir)
 		}
 		return fmt.Errorf("start firefox: %w", err)
 	}
@@ -194,6 +207,8 @@ func (k *Kernel) Start(cfg Config) error {
 	k.cmd = cmd
 	k.client = client
 	k.transport = transport
+	k.logFile = outputFile
+	k.profileDir = tempProfileDir
 	k.startedAt = time.Now()
 	k.waited = false
 	k.exitErr = nil
