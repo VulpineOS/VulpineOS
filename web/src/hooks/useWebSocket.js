@@ -203,6 +203,7 @@ export function useWebSocket(apiKey) {
 
   const retry = useCallback(() => {
     if (!apiKey) return
+    rejectPending('Panel session retrying')
     if (wsRef.current) {
       manualCloseRef.current = true
       wsRef.current.close()
@@ -211,7 +212,7 @@ export function useWebSocket(apiKey) {
     manualCloseRef.current = false
     setLastError('')
     connect(0)
-  }, [apiKey, connect])
+  }, [apiKey, connect, rejectPending])
 
   const call = useCallback((method, params = {}) => {
     return new Promise((resolve, reject) => {
