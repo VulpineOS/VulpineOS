@@ -1258,8 +1258,8 @@ export class PageAgent {
     }
   }
 
-  // VulpineOS: Secure credential injection — sets input value at C++ level
-  // bypassing JavaScript input events. Page scripts cannot detect the injection.
+  // VulpineOS: credential injection uses a privileged value-setting path first,
+  // then falls back to ordinary chrome-privileged input paths when unavailable.
   _secureSetInputValue({ frameId, objectId, value }) {
     const frame = this._frameTree.frame(frameId);
     if (!frame)

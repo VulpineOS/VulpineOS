@@ -8,7 +8,7 @@ locale: >-
 
 geolocation: >-
     Please use the `geoip` parameter in Camoufox instead of setting your geolocation manually.
-    This can lead to detection if your target geolocation does not match your IP.
+    A target geolocation that does not match your network location can make the profile inconsistent.
     Pass `geoip=True` or a target IP (ex: geoip='123.45.67.89') to let Camoufox populate this data for you.
 
 header-ua: >-
@@ -17,35 +17,33 @@ header-ua: >-
 viewport: >-
     Manually setting screen & window properties is not recommended.
     Screen dimensions are randomly generated within Camoufox
-    based on the provided screen constraints. See here:
-    https://github.com/daijro/camoufox/tree/main/pythonlib#browserforge-integration.
+    based on the provided screen constraints.
 
 custom_fingerprint: >-
     Passing your own fingerprint is not recommended.
-    BrowserForge fingerprints are automatically generated within Camoufox
+    Profile values are automatically generated within Camoufox
     based on the provided `os` and `screen` constraints.
 
 proxy_without_geoip: >-
     When using a proxy, it is heavily recommended that you pass `geoip=True`.
 
 ff_version: >-
-    Spoofing the Firefox version will likely lead to detection.
+    Setting a Firefox version manually can make the profile inconsistent.
     If rotating the Firefox version is absolutely necessary, it would be more advisable to
     rotate between older versions of Camoufox instead.
 
 no_region: >-
     Because you did not pass in a locale region, Camoufox will generate one for you.
-    This can cause suspicion if your IP does not match your locale region.
+    This avoids mismatches between the network location and locale region.
 
 block_webgl: >-
-    Disabling WebGL is not recommended. Many WAFs will check if WebGL is enabled.
+    Disabling WebGL is not recommended because many sites expect it to be available.
 
 block_images: >-
-    Blocking image requests has been reported to cause detection issues on major WAFs.
+    Blocking image requests can break normal site behavior.
 
 custom_fonts_only: >-
-    Disabling OS-specific fonts while spoofing your OS will make your browser fingerprint inconsistent.
-    WAFs can detect this mismatch between your claimed OS and available system fonts.
+    Disabling OS-specific fonts while setting an OS profile can make browser state inconsistent.
 
 disable_coop: >-
-    Disabling Cross-Origin-Opener-Policy (COOP) handling can potentially be detected by sophisticated WAFs.
+    Disabling Cross-Origin-Opener-Policy (COOP) handling can break sites that rely on normal isolation behavior.

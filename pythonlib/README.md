@@ -15,9 +15,9 @@
 
 This Python library wraps around Playwright's API to help automatically generate & inject unique device characteristics (OS, CPU info, navigator, fonts, headers, screen dimensions, viewport size, WebGL, addons, etc.) into Camoufox.
 
-It uses [BrowserForge](https://github.com/daijro/browserforge) under the hood to generate fingerprints that mimic the statistical distribution of device characteristics in real-world traffic.
+It can generate profile data that keeps related browser, locale, and device settings internally consistent.
 
-In addition, it will also calculate your target geolocation, timezone, and locale to avoid proxy protection ([see demo](https://i.imgur.com/UhSHfaV.png)).
+In addition, it can calculate target geolocation, timezone, and locale values so network location and browser profile settings stay aligned.
 
 ---
 
