@@ -90,4 +90,52 @@ describe('Logs page', () => {
 
     expect(calls).toHaveBeenCalledTimes(1)
   })
+
+  it('ingests every runtime audit event appended in one websocket batch', async () => {
+    const calls = vi.fn(async (method) => {
+      if (method === 'runtime.list') return { events: [], settings: { retention: 200 } }
+      return {}
+    })
+    const { rerender } = render(<Logs ws={{ connected: true, call: calls, events: [] }} />)
+
+    await waitFor(() => {
+      expect(calls).toHaveBeenCalledTimes(1)
+    })
+
+    rerender(
+      <Logs
+        ws={{
+          connected: true,
+          call: calls,
+          events: [
+            {
+              method: 'Vulpine.runtimeEvent',
+              params: {
+                id: 'evt-1',
+                component: 'gateway',
+                event: 'started',
+                level: 'info',
+                message: 'Gateway started',
+                timestamp: '2026-04-22T11:00:00Z',
+              },
+            },
+            {
+              method: 'Vulpine.runtimeEvent',
+              params: {
+                id: 'evt-2',
+                component: 'gateway',
+                event: 'profile_repair_failed',
+                level: 'warn',
+                message: 'Profile repair failed',
+                timestamp: '2026-04-22T11:02:00Z',
+              },
+            },
+          ],
+        }}
+      />,
+    )
+
+    expect(await screen.findByText('gateway.profile_repair_failed')).toBeInTheDocument()
+    expect(screen.getByText('gateway.started')).toBeInTheDocument()
+  })
 })

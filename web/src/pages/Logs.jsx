@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { redactSensitiveText } from '../utils/redact'
 
 export default function Logs({ ws }) {
@@ -7,6 +7,7 @@ export default function Logs({ ws }) {
   const [runtimeSettings, setRuntimeSettings] = useState({ retention: 200 })
   const [runtimeFilter, setRuntimeFilter] = useState({ query: '', component: '', level: '', event: '', limit: 50 })
   const [retentionInput, setRetentionInput] = useState('200')
+  const processedEventCount = useRef(0)
   const { connected, call } = ws
   const events = ws.events || []
 
@@ -26,22 +27,49 @@ export default function Logs({ ws }) {
   }, [call, connected, runtimeFilter])
 
   useEffect(() => {
-    const latest = events[events.length - 1]
-    if (!latest || latest.method !== 'Vulpine.runtimeEvent' || !latest.params) return
+    if (events.length < processedEventCount.current) {
+      processedEventCount.current = 0
+    }
+    const appended = events.slice(processedEventCount.current)
+    processedEventCount.current = events.length
+    const incoming = appended
+      .filter(event => event.method === 'Vulpine.runtimeEvent' && event.params)
+      .map(event => event.params)
+    if (incoming.length === 0) return
+
     const query = runtimeFilter.query.trim().toLowerCase()
-    const haystack = [
-      latest.params.component,
-      latest.params.event,
-      latest.params.level,
-      latest.params.message,
-      JSON.stringify(latest.params.metadata || {}),
-    ].join(' ').toLowerCase()
-    if (runtimeFilter.component && latest.params.component !== runtimeFilter.component) return
-    if (runtimeFilter.event && latest.params.event !== runtimeFilter.event) return
-    if (runtimeFilter.level && latest.params.level !== runtimeFilter.level) return
-    if (query && !haystack.includes(query)) return
+    const matchesFilter = event => {
+      const haystack = [
+        event.component,
+        event.event,
+        event.level,
+        event.message,
+        JSON.stringify(event.metadata || {}),
+      ].join(' ').toLowerCase()
+      if (runtimeFilter.component && event.component !== runtimeFilter.component) return false
+      if (runtimeFilter.event && event.event !== runtimeFilter.event) return false
+      if (runtimeFilter.level && event.level !== runtimeFilter.level) return false
+      if (query && !haystack.includes(query)) return false
+      return true
+    }
+    const matching = incoming.filter(matchesFilter)
+    if (matching.length === 0) return
+
     setRuntimeEvents(prev => {
-      const next = [latest.params, ...prev.filter(event => event.id !== latest.params.id)]
+      const seen = new Set()
+      const next = []
+      for (const event of [...matching].reverse()) {
+        const key = event.id || `${event.component}-${event.event}-${event.timestamp}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        next.push(event)
+      }
+      for (const event of prev) {
+        const key = event.id || `${event.component}-${event.event}-${event.timestamp}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        next.push(event)
+      }
       return next.slice(0, runtimeFilter.limit || 50)
     })
   }, [events, runtimeFilter])
