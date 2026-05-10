@@ -1,8 +1,6 @@
 package kernel
 
-import (
-	"testing"
-)
+import "testing"
 
 func TestNewWatchdog(t *testing.T) {
 	k := New()
@@ -93,4 +91,33 @@ func TestWatchdog_OnRestart(t *testing.T) {
 		t.Fatal("restart callback not registered")
 	}
 	w.mu.Unlock()
+}
+
+func TestWatchdogRetriesAfterRestartFailure(t *testing.T) {
+	k := New()
+	w := NewWatchdog(k, true)
+	w.SetConfig(Config{BinaryPath: "/definitely/missing/vulpineos-browser"})
+	w.SetMaxRestarts(2)
+	w.OnRestart(func(*Kernel) error { return nil })
+
+	events := make(chan WatchdogEvent, 8)
+	w.OnEvent(func(event WatchdogEvent) {
+		if event.Type == "restart_failed" {
+			events <- event
+		}
+	})
+	w.check()
+	w.check()
+
+	first := <-events
+	second := <-events
+	if first.Attempt != 1 {
+		t.Fatalf("first attempt = %d, want 1", first.Attempt)
+	}
+	if second.Attempt != 2 {
+		t.Fatalf("second attempt = %d, want 2", second.Attempt)
+	}
+	if first.Err == nil || second.Err == nil {
+		t.Fatalf("expected restart errors, got first=%v second=%v", first.Err, second.Err)
+	}
 }

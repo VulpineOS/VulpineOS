@@ -17,6 +17,7 @@ type Watchdog struct {
 	autoRestart bool
 	maxRestarts int
 	restarts    int
+	attempts    int
 	down        bool
 	mu          sync.Mutex
 	done        chan struct{}
@@ -109,62 +110,74 @@ func (w *Watchdog) monitor() {
 		case <-w.done:
 			return
 		case <-ticker.C:
-			if w.kernel.Running() {
-				w.mu.Lock()
-				w.down = false
-				w.mu.Unlock()
-				continue
-			}
+			w.check()
+		}
+	}
+}
 
+func (w *Watchdog) check() {
+	if w.kernel.Running() {
+		w.mu.Lock()
+		w.down = false
+		w.mu.Unlock()
+		return
+	}
+
+	w.mu.Lock()
+	if w.down {
+		w.mu.Unlock()
+		return
+	}
+	w.down = true
+	cb := w.onCrash
+	eventCb := w.onEvent
+	w.mu.Unlock()
+
+	// Kernel is not running — fire crash callback
+	if cb != nil {
+		cb()
+	}
+	if eventCb != nil {
+		eventCb(WatchdogEvent{Type: "crashed"})
+	}
+
+	// Attempt auto-restart if enabled
+	w.mu.Lock()
+	canRestart := w.autoRestart && w.onRestart != nil && w.attempts < w.maxRestarts
+	skipRestart := w.autoRestart && w.onRestart == nil
+	cfg := w.config
+	attempt := w.attempts + 1
+	eventCb = w.onEvent
+	restartCb := w.onRestart
+	if canRestart {
+		w.attempts++
+	}
+	w.mu.Unlock()
+
+	if skipRestart {
+		if eventCb != nil {
+			eventCb(WatchdogEvent{Type: "restart_skipped", Attempt: attempt, Err: fmt.Errorf("restart handler not configured")})
+		}
+	} else if canRestart {
+		err := w.kernel.Start(cfg)
+		if err == nil && restartCb != nil {
+			err = restartCb(w.kernel)
+		}
+		if err == nil {
 			w.mu.Lock()
-			if w.down {
-				w.mu.Unlock()
-				continue
-			}
-			w.down = true
-			cb := w.onCrash
-			eventCb := w.onEvent
+			w.restarts++
+			w.down = false
 			w.mu.Unlock()
-
-			// Kernel is not running — fire crash callback
-			if cb != nil {
-				cb()
-			}
 			if eventCb != nil {
-				eventCb(WatchdogEvent{Type: "crashed"})
+				eventCb(WatchdogEvent{Type: "restart_success", Attempt: attempt})
 			}
-
-			// Attempt auto-restart if enabled
+		} else {
+			_ = w.kernel.Stop()
 			w.mu.Lock()
-			canRestart := w.autoRestart && w.onRestart != nil && w.restarts < w.maxRestarts
-			skipRestart := w.autoRestart && w.onRestart == nil
-			cfg := w.config
-			attempt := w.restarts + 1
-			eventCb = w.onEvent
-			restartCb := w.onRestart
+			w.down = false
 			w.mu.Unlock()
-
-			if skipRestart {
-				if eventCb != nil {
-					eventCb(WatchdogEvent{Type: "restart_skipped", Attempt: attempt, Err: fmt.Errorf("restart handler not configured")})
-				}
-			} else if canRestart {
-				err := w.kernel.Start(cfg)
-				if err == nil && restartCb != nil {
-					err = restartCb(w.kernel)
-				}
-				if err == nil {
-					w.mu.Lock()
-					w.restarts++
-					w.down = false
-					w.mu.Unlock()
-					if eventCb != nil {
-						eventCb(WatchdogEvent{Type: "restart_success", Attempt: attempt})
-					}
-				} else if eventCb != nil {
-					_ = w.kernel.Stop()
-					eventCb(WatchdogEvent{Type: "restart_failed", Attempt: attempt, Err: err})
-				}
+			if eventCb != nil {
+				eventCb(WatchdogEvent{Type: "restart_failed", Attempt: attempt, Err: err})
 			}
 		}
 	}
