@@ -860,6 +860,33 @@ func TestRemoteControlStatusEventRefreshesSelectedDetail(t *testing.T) {
 	}
 }
 
+func TestAgentStatusMsgShowsLiveContextInSelectedDetail(t *testing.T) {
+	db := openTestVault(t)
+	app := NewApp(nil, nil, nil, db, &config.Config{}, nil)
+
+	agent, err := db.CreateAgent("Local", "Use live browser context", "{}")
+	if err != nil {
+		t.Fatalf("create agent: %v", err)
+	}
+	app.agentList.SetAgents([]vault.Agent{*agent})
+	app.agentList.SelectAgentID(agent.ID)
+	app.selectedAgentID = agent.ID
+	app.updateAgentDetail(agent)
+
+	model, _ := app.Update(shared.AgentStatusMsg{
+		AgentID:   agent.ID,
+		ContextID: "ctx-live-123456",
+		Status:    "active",
+		Tokens:    7,
+	})
+	app = model.(App)
+
+	view := app.agentDetail.View()
+	if !strings.Contains(view, "live ctx-live-123") {
+		t.Fatalf("detail did not show live context from status event:\n%s", view)
+	}
+}
+
 func TestRemoteControlBulkStatusRefreshesSelectedDetail(t *testing.T) {
 	app := NewAppWithControl(nil, nil, nil, nil, nil, nil, &fakeControlClient{})
 	app.agentList.SetAgents([]vault.Agent{{ID: "agent-1", Name: "Remote", Status: "active", TotalTokens: 7}})

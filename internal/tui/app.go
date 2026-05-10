@@ -144,6 +144,7 @@ type App struct {
 	confirmKillAll          bool // true when waiting for bulk kill confirmation
 	resizeMode              bool
 	pendingChatFocusAgentID string
+	liveAgentContexts       map[string]string
 
 	// Text inputs
 	nameInput textinput.Model
@@ -179,29 +180,30 @@ func NewAppWithControl(k *kernel.Kernel, client *juggler.Client, orch *orchestra
 	mon := monitor.New()
 
 	app := App{
-		kernel:       k,
-		client:       client,
-		orch:         orch,
-		vault:        v,
-		cfg:          cfg,
-		monitor:      mon,
-		control:      control,
-		leftWidth:    18,
-		rightWidth:   18,
-		leftSplit:    13, // system info height (includes pool stats now)
-		rightSplit:   10, // agent detail height in right column
-		nameInput:    nameIn,
-		taskInput:    taskIn,
-		systemInfo:   systeminfo.New(),
-		agentList:    agentlist.New(),
-		agentDetail:  agentdetail.New(),
-		conversation: conversation.New(),
-		contextList:  contextlist.New(),
-		settings:     settings.New(),
-		eventCh:      eventCh,
-		eventIn:      eventIn,
-		stopCh:       stopCh,
-		stopOnce:     &sync.Once{},
+		kernel:            k,
+		client:            client,
+		orch:              orch,
+		vault:             v,
+		cfg:               cfg,
+		monitor:           mon,
+		control:           control,
+		leftWidth:         18,
+		rightWidth:        18,
+		leftSplit:         13, // system info height (includes pool stats now)
+		rightSplit:        10, // agent detail height in right column
+		nameInput:         nameIn,
+		taskInput:         taskIn,
+		systemInfo:        systeminfo.New(),
+		agentList:         agentlist.New(),
+		agentDetail:       agentdetail.New(),
+		conversation:      conversation.New(),
+		contextList:       contextlist.New(),
+		settings:          settings.New(),
+		liveAgentContexts: make(map[string]string),
+		eventCh:           eventCh,
+		eventIn:           eventIn,
+		stopCh:            stopCh,
+		stopOnce:          &sync.Once{},
 	}
 	go forwardTUIEvents(stopCh, eventIn, eventCh)
 	if control != nil {
@@ -1103,6 +1105,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.vault.UpdateAgentTokens(msg.AgentID, msg.Tokens)
 			}
 		}
+		a.updateLiveAgentContext(msg)
 		pendingTerminalStatus := a.pendingChatFocusAgentID == msg.AgentID && !isLiveAgentStatus(msg.Status)
 		if pendingTerminalStatus {
 			a.pendingChatFocusAgentID = ""
@@ -2204,11 +2207,25 @@ func (a *App) updateAgentDetail(agent *vault.Agent) {
 		agent.ID, agent.Name, agent.Task, agent.Status,
 		agent.TotalTokens, fpSummary, proxyInfo, agent.CreatedAt,
 	)
-	meta, err := vault.ParseAgentMetadata(agent.Metadata)
-	if err == nil && meta.ContextID != "" {
+	if liveContextID := strings.TrimSpace(a.liveAgentContexts[agent.ID]); liveContextID != "" {
+		a.agentDetail.SetBrowserContext("live " + shortContextID(liveContextID))
+	} else if meta, err := vault.ParseAgentMetadata(agent.Metadata); err == nil && meta.ContextID != "" {
 		a.agentDetail.SetBrowserContext("pinned " + shortContextID(meta.ContextID))
 	} else {
 		a.agentDetail.SetBrowserContext("")
+	}
+}
+
+func (a *App) updateLiveAgentContext(msg shared.AgentStatusMsg) {
+	if a.liveAgentContexts == nil {
+		a.liveAgentContexts = make(map[string]string)
+	}
+	if msg.Status != "" && !isLiveAgentStatus(msg.Status) {
+		delete(a.liveAgentContexts, msg.AgentID)
+		return
+	}
+	if contextID := strings.TrimSpace(msg.ContextID); contextID != "" {
+		a.liveAgentContexts[msg.AgentID] = contextID
 	}
 }
 
