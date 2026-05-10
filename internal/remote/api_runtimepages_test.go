@@ -302,6 +302,24 @@ func TestScriptsRunRejectsUnsafeContextID(t *testing.T) {
 	}
 }
 
+func TestScriptsRunRejectsUnknownContextID(t *testing.T) {
+	transport := newRuntimePageTransport()
+	client := juggler.NewClient(transport)
+	defer client.Close()
+
+	api := &PanelAPI{Client: client, Contexts: NewContextRegistry()}
+	params := json.RawMessage(`{"contextId":"ctx-missing","script":"{\"steps\":[{\"action\":\"wait\",\"ms\":1}]}"}`)
+	_, err := api.HandleMessage("scripts.run", params)
+	if err == nil || !strings.Contains(err.Error(), "not available") {
+		t.Fatalf("error = %v, want unavailable context", err)
+	}
+	for _, call := range transport.getCalls() {
+		if call.Method == "Browser.newPage" {
+			t.Fatal("scripts.run created a page for an unknown context")
+		}
+	}
+}
+
 func TestContextsRemoveRejectsUnsafeBrowserContextID(t *testing.T) {
 	transport := newRuntimePageTransport()
 	client := juggler.NewClient(transport)

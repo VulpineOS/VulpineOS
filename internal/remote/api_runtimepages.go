@@ -151,6 +151,9 @@ func (api *PanelAPI) ensureScriptSession(contextID string) (string, string, stri
 		if err != nil {
 			return "", "", "", err
 		}
+		if err := api.requireKnownContext(contextID); err != nil {
+			return "", "", "", err
+		}
 	}
 	if api.Contexts != nil {
 		if contextID == "" {
