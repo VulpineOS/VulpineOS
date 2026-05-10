@@ -1141,6 +1141,47 @@ func TestPendingStartupReplyRefocusesChatInput(t *testing.T) {
 	}
 }
 
+func TestBackgroundPendingStartupReplyClearsMarkerWithoutStealingFocus(t *testing.T) {
+	db := openTestVault(t)
+	cfg := &config.Config{}
+	app := NewApp(nil, nil, nil, db, cfg, nil)
+	app.conversation.SetSize(80, 20)
+
+	selected, err := db.CreateAgent("Selected", "current task", "{}")
+	if err != nil {
+		t.Fatalf("create selected agent: %v", err)
+	}
+	background, err := db.CreateAgent("Background", "background task", "{}")
+	if err != nil {
+		t.Fatalf("create background agent: %v", err)
+	}
+	app.selectedAgentID = selected.ID
+	app.focus = FocusAgentList
+	app.inputMode = ""
+	app.pendingChatFocusAgentID = background.ID
+	app.conversation.SetAgentID(selected.ID)
+
+	model, cmd := app.Update(shared.ConversationEntryMsg{
+		AgentID: background.ID,
+		Role:    "assistant",
+		Content: "Ready in the background.",
+	})
+	app = model.(App)
+
+	if cmd == nil {
+		t.Fatal("expected wait-for-event command to continue event processing")
+	}
+	if app.pendingChatFocusAgentID != "" {
+		t.Fatalf("pendingChatFocusAgentID = %q, want cleared", app.pendingChatFocusAgentID)
+	}
+	if app.focus != FocusAgentList {
+		t.Fatalf("focus = %d, want agent list", app.focus)
+	}
+	if app.inputMode != "" {
+		t.Fatalf("inputMode = %q, want unchanged empty mode", app.inputMode)
+	}
+}
+
 func TestPendingStartupTerminalStatusRefocusesChatInput(t *testing.T) {
 	for _, status := range []string{"completed", "error", "failed", "interrupted"} {
 		t.Run(status, func(t *testing.T) {
@@ -1184,6 +1225,43 @@ func TestPendingStartupTerminalStatusRefocusesChatInput(t *testing.T) {
 				t.Fatal("conversation should stop thinking on terminal status")
 			}
 		})
+	}
+}
+
+func TestBackgroundPendingStartupTerminalStatusClearsMarkerWithoutStealingFocus(t *testing.T) {
+	db := openTestVault(t)
+	cfg := &config.Config{}
+	app := NewApp(nil, nil, nil, db, cfg, nil)
+	app.conversation.SetSize(80, 20)
+
+	selected, err := db.CreateAgent("Selected", "current task", "{}")
+	if err != nil {
+		t.Fatalf("create selected agent: %v", err)
+	}
+	background, err := db.CreateAgent("Background", "background task", "{}")
+	if err != nil {
+		t.Fatalf("create background agent: %v", err)
+	}
+	app.selectedAgentID = selected.ID
+	app.focus = FocusAgentList
+	app.inputMode = ""
+	app.pendingChatFocusAgentID = background.ID
+	app.conversation.SetAgentID(selected.ID)
+
+	model, _ := app.Update(shared.AgentStatusMsg{
+		AgentID: background.ID,
+		Status:  "completed",
+	})
+	app = model.(App)
+
+	if app.pendingChatFocusAgentID != "" {
+		t.Fatalf("pendingChatFocusAgentID = %q, want cleared", app.pendingChatFocusAgentID)
+	}
+	if app.focus != FocusAgentList {
+		t.Fatalf("focus = %d, want agent list", app.focus)
+	}
+	if app.inputMode != "" {
+		t.Fatalf("inputMode = %q, want unchanged empty mode", app.inputMode)
 	}
 }
 

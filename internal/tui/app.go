@@ -1045,13 +1045,16 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.vault.UpdateAgentTokens(msg.AgentID, msg.Tokens)
 			}
 		}
+		pendingTerminalStatus := a.pendingChatFocusAgentID == msg.AgentID && !isLiveAgentStatus(msg.Status)
+		if pendingTerminalStatus {
+			a.pendingChatFocusAgentID = ""
+		}
 		// Update agent detail if this is the selected agent
 		if msg.AgentID == a.selectedAgentID {
 			if !isLiveAgentStatus(msg.Status) {
 				a.conversation.SetThinking(false)
 			}
-			if a.pendingChatFocusAgentID == msg.AgentID && msg.Status != "starting" && msg.Status != "running" && msg.Status != "active" && msg.Status != "thinking" {
-				a.pendingChatFocusAgentID = ""
+			if pendingTerminalStatus {
 				a.focus = FocusConversation
 				a.inputMode = "chat"
 				a.conversation.SetAwake(true)
@@ -1077,13 +1080,16 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if a.monitor != nil && (msg.Role == "assistant" || msg.Role == "system") {
 			a.monitor.CheckMessage(msg.AgentID, msg.Content)
 		}
+		pendingAssistantReply := msg.Role == "assistant" && a.pendingChatFocusAgentID == msg.AgentID
+		if pendingAssistantReply {
+			a.pendingChatFocusAgentID = ""
+		}
 		// If matches selected agent, add to conversation panel + clear thinking
 		if msg.AgentID == a.selectedAgentID {
 			a.conversation.SetThinking(false)
 			a.conversation.AddEntry(msg.Role, msg.Content)
 			a.agentList.ClearUnread(msg.AgentID)
-			if msg.Role == "assistant" && a.pendingChatFocusAgentID == msg.AgentID {
-				a.pendingChatFocusAgentID = ""
+			if pendingAssistantReply {
 				a.focus = FocusConversation
 				a.inputMode = "chat"
 				a.conversation.SetAwake(true)
