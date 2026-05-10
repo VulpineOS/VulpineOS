@@ -663,23 +663,23 @@ func TestArrowKeysNavigateAgentsWhenResizeModeDisabled(t *testing.T) {
 	}
 }
 
-func TestStatusBarShowsResizeModeWhenEnabled(t *testing.T) {
+func TestStatusBarStartsNavigateWhenLegacyResizeDefaultSet(t *testing.T) {
 	db := openTestVault(t)
 	cfg := &config.Config{ResizePanelsWithArrows: true}
 	app := NewApp(nil, nil, nil, db, cfg, nil)
 	app.width = 180
 
-	if !strings.Contains(app.renderStatusBar(), "mode:resize") {
-		t.Fatalf("status bar missing resize mode: %s", app.renderStatusBar())
+	if !strings.Contains(app.renderStatusBar(), "mode:navigate") {
+		t.Fatalf("status bar should start in navigate mode: %s", app.renderStatusBar())
 	}
 }
 
 func TestResizeModeKeepsVerticalSplitsUsableAfterTerminalShrink(t *testing.T) {
-	cfg := &config.Config{ResizePanelsWithArrows: true}
-	app := NewApp(nil, nil, nil, nil, cfg, nil)
+	app := NewApp(nil, nil, nil, nil, &config.Config{}, nil)
 	app.width = 80
 	app.height = 16
 	app.focus = FocusAgentList
+	app.resizeMode = true
 	app.leftSplit = 30
 	app.rightSplit = 30
 

@@ -220,10 +220,6 @@ func NewAppWithControl(k *kernel.Kernel, client *juggler.Client, orch *orchestra
 		app.agentDetail.SetRemote(true)
 	}
 	emitEvent := app.emitEvent
-	if cfg != nil {
-		app.resizeMode = cfg.ResizePanelsWithArrows
-	}
-
 	if audit != nil {
 		if events, err := audit.List(vault.RuntimeEventFilter{Limit: 3}); err == nil {
 			seed := make([]shared.RuntimeEventMsg, 0, len(events))
@@ -1395,20 +1391,6 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.notice = "Skill " + msg.Name + " " + state
 			a.noticeTTL = 3
 		}
-
-	case shared.ResizeModeToggleMsg:
-		a.resizeMode = msg.Enabled
-		if a.cfg != nil {
-			a.cfg.ResizePanelsWithArrows = msg.Enabled
-			_ = a.cfg.Save()
-			a.settings.SetConfig(a.cfg)
-		}
-		if msg.Enabled {
-			a.notice = "Resize mode enabled — arrow keys resize panels"
-		} else {
-			a.notice = "Resize mode disabled — arrow keys navigate and scroll"
-		}
-		a.noticeTTL = 3
 
 	case shared.ProxyTestRequestMsg:
 		cmds = append(cmds, a.testProxy(msg.ProxyID, msg.Config))

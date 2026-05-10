@@ -99,6 +99,37 @@ func TestMediumHeightAboveCompactShowsFocusedSection(t *testing.T) {
 	}
 }
 
+func TestGeneralSettingsOnlyAdvertisesModeHotkeyForResize(t *testing.T) {
+	m := New()
+	m.SetActive(true)
+	m.SetSize(80, 20)
+
+	view := m.View()
+
+	if strings.Contains(view, "Arrow Keys Resize Panels") {
+		t.Fatalf("settings should not render saved resize default:\n%s", view)
+	}
+	if strings.Contains(view, "toggle saved default") {
+		t.Fatalf("settings should not advertise saved resize default toggle:\n%s", view)
+	}
+	if !strings.Contains(view, "Press 'm'") {
+		t.Fatalf("settings should direct resize mode to the m hotkey:\n%s", view)
+	}
+}
+
+func TestGeneralSettingsSpaceDoesNotToggleResizeDefault(t *testing.T) {
+	m := New()
+	m.SetActive(true)
+
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeySpace})
+	if cmd != nil {
+		t.Fatalf("space in general settings returned command: %#v", cmd())
+	}
+	if updated.section != SectionGeneral || updated.importing || updated.active != m.active {
+		t.Fatalf("space in general settings mutated navigation state: before=%#v after=%#v", m, updated)
+	}
+}
+
 func TestProxyTestedMsgUpdatesLatencyAndCountry(t *testing.T) {
 	m := New()
 	m.SetActive(true)

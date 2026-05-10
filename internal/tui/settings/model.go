@@ -49,10 +49,9 @@ type Model struct {
 	scroll  int // scroll offset for the full page
 
 	// General
-	provider               string
-	model                  string
-	apiKeySet              bool // don't show the actual key, just whether it's set
-	resizePanelsWithArrows bool
+	provider  string
+	model     string
+	apiKeySet bool // don't show the actual key, just whether it's set
 
 	// Proxies
 	proxies     []ProxyItem
@@ -105,7 +104,6 @@ func (m *Model) SetConfig(cfg *config.Config) {
 	m.provider = cfg.Provider
 	m.model = cfg.Model
 	m.apiKeySet = cfg.APIKey != ""
-	m.resizePanelsWithArrows = cfg.ResizePanelsWithArrows
 
 	// Load skills from config
 	m.skills = nil
@@ -232,12 +230,6 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			return m, func() tea.Msg { return shared.ReconfigureRequestedMsg{} }
 
 		case " ":
-			if m.section == SectionGeneral {
-				m.resizePanelsWithArrows = !m.resizePanelsWithArrows
-				return m, func() tea.Msg {
-					return shared.ResizeModeToggleMsg{Enabled: m.resizePanelsWithArrows}
-				}
-			}
 			if m.section == SectionSkills && len(m.skills) > 0 {
 				m.skills[m.skillIdx].Enabled = !m.skills[m.skillIdx].Enabled
 				s := m.skills[m.skillIdx]
@@ -381,21 +373,8 @@ func (m Model) viewGeneral() string {
 	b.WriteString(keyStatus)
 	b.WriteString("\n\n")
 
-	cursor := "  "
-	line := "Arrow Keys Resize Panels: off"
-	if m.resizePanelsWithArrows {
-		line = "Arrow Keys Resize Panels: on"
-	}
 	if m.section == SectionGeneral {
-		cursor = shared.RunningStyle.Render("| ")
-		line = shared.SelectedStyle.Render(cursor + line)
-	} else {
-		line = cursor + line
-	}
-	b.WriteString(line)
-	b.WriteString("\n\n")
-	if m.section == SectionGeneral {
-		b.WriteString(shared.MutedStyle.Render(clipText("[space] toggle saved default  [c] reconfigure provider/model", m.contentWidth())))
+		b.WriteString(shared.MutedStyle.Render(clipText("[c] reconfigure provider/model", m.contentWidth())))
 	} else {
 		b.WriteString(shared.MutedStyle.Render(clipText("Press 'c' to reconfigure provider/model", m.contentWidth())))
 	}
