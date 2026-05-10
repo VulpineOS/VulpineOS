@@ -37,6 +37,9 @@ exclude_specs=(
 )
 
 findings=0
+local_denylist_file="${VULPINE_PUBLIC_AUDIT_DENYLIST:-${repo_root}/.public-boundary-denylist.local}"
+local_denylist_descriptions=()
+local_denylist_patterns=()
 
 fail() {
   findings=$((findings + 1))
@@ -45,6 +48,29 @@ fail() {
 
 info() {
   printf 'INFO: %s\n' "$1"
+}
+
+load_local_denylist() {
+  local line description pattern
+
+  [[ -f "$local_denylist_file" ]] || return 0
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -n "${line//[[:space:]]/}" ]] || continue
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+
+    if [[ "$line" == *$'\t'* ]]; then
+      description="${line%%$'\t'*}"
+      pattern="${line#*$'\t'}"
+    else
+      description="local denylist pattern"
+      pattern="$line"
+    fi
+
+    [[ -n "$pattern" ]] || continue
+    local_denylist_descriptions+=("$description")
+    local_denylist_patterns+=("$pattern")
+  done < "$local_denylist_file"
 }
 
 check_origin_remote() {
@@ -138,8 +164,10 @@ check_repo() {
   check_origin_remote "$repo" "$expected_name"
   check_upstream_push_blocked "$repo" "$expected_name"
 
-  check_pattern "$repo" "$expected_name" "tracked reference to private plan docs" '\.claude/private-docs(?:/|\\)'
-  check_pattern "$repo" "$expected_name" "tracked reference to private repos" 'github\.com/VulpineOS/(vulpine-private|vulpine-api)(?:\b|/)'
+  for i in "${!local_denylist_patterns[@]}"; do
+    check_pattern "$repo" "$expected_name" "tracked local denylist match (${local_denylist_descriptions[$i]})" "${local_denylist_patterns[$i]}"
+  done
+
   check_pattern "$repo" "$expected_name" "tracked macOS absolute path" '(^|[^A-Za-z0-9_])/Users/(?!<user>|<username>|example/|name/|runner/)[A-Za-z0-9._-]+/'
   check_pattern "$repo" "$expected_name" "tracked Linux absolute path" '(^|[^A-Za-z0-9_])/home/(?!<user>|<username>|example/|name/|appveyor/|runner/|runneradmin/|ubuntu/|vsts/)[A-Za-z0-9._-]+/'
   check_pattern "$repo" "$expected_name" "tracked Windows absolute path" '(^|[^A-Za-z0-9_])[A-Za-z]:\\\\Users\\\\(?!<user>|<username>|example\\\\|name\\\\)[^\\\\\\s]+\\\\'
@@ -149,6 +177,8 @@ check_repo() {
     check_vulpineos_public_polish "$repo"
   fi
 }
+
+load_local_denylist
 
 for i in "${!public_repo_paths[@]}"; do
   check_repo "${public_repo_paths[$i]}" "${public_repo_names[$i]}"

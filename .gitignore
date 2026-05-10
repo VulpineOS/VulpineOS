@@ -11,6 +11,7 @@ launch.exe
 # Internal testing
 /extra-docs
 docs/superpowers/
+/.public-boundary-denylist.local
 pythonlib/test*
 jsonvv/test*
 /.vscode

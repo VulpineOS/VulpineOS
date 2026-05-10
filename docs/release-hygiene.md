@@ -21,13 +21,14 @@ The audit scans the tracked files in these public repos:
 
 It checks for:
 
-- references to `.claude/private-docs`
-- references to private repos (`vulpine-private`, `vulpine-api`)
+- locally configured sensitive references
 - real local absolute paths
 - high-confidence secret tokens
 - unsafe `upstream` push configuration
 
 It intentionally skips generated and vendored paths such as `node_modules`, build output, `go.sum`, and public LLM text exports. Placeholder examples like `/home/name` or `C:\Users\<user>` are not treated as leaks.
+
+The boundary and history audits also load optional local denylist patterns from `.public-boundary-denylist.local`, or from the file pointed at by `VULPINE_PUBLIC_AUDIT_DENYLIST`. This file is intentionally untracked. Each non-comment line may be either a regex pattern or `description<TAB>regex pattern`.
 
 The history audit scans all reachable commits in the same public repos. It checks commit messages, historical file paths, and text diffs for the same leak patterns before a release tag or release candidate.
 
