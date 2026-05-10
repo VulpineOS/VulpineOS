@@ -43,6 +43,7 @@ jobs:
 
       - name: Unit tests with race detector
         run: |
+          set -o pipefail
           go test -race -v -count=1 ./cmd/... ./internal/... 2>&1 | tee test-output.txt
 
       - name: Validate test count

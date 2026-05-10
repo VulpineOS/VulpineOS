@@ -470,7 +470,7 @@ VulpineOS exposes 36 tools via Model Context Protocol:
 | Core browser controls | Navigate, snapshot, click, type, screenshot, scroll, context lifecycle, and accessibility-tree access |
 | Ref-based interactions | Click, type, and hover by `@ref` from optimized DOM snapshots. Snapshot profiles support compact and larger retry paths for pages that need more context. |
 | Reliability tools | Wait, find, verify, screenshot diff, page-settled checks, select options, fill forms, page info, key press, clear input, form errors |
-| Human-realism tools | Human-like click, scroll, and type timing |
+| Interaction timing tools | Click, scroll, and type helpers with configurable timing |
 | Annotated interaction | Annotated screenshots and click-by-label with `@N` labels |
 | Extension surfaces | Credential metadata/autofill, audio capture, optional provider signals, and mobile bridge hooks. The stock public build returns unavailable unless an extension provider is attached; credential URL metadata/errors are redacted at the MCP boundary. |
 | Mobile bridge | List Android devices, start a local CDP bridge, and disconnect bridge sessions when the public mobile bridge provider is installed |
@@ -513,7 +513,7 @@ VulpineOS stands on the shoulders of excellent open-source work:
 - **[Clover Labs](https://cloverlabs.ai)** — Primary maintainers of Camoufox.
 - **[BrowserForge](https://github.com/daijro/browserforge)** — Browser identity profile data generation library used by Camoufox.
 - **[LibreWolf](https://gitlab.com/librewolf-community/browser/source)** — Build system inspiration and debloat patches.
-- **[riflosnake/HumanCursor](https://github.com/riflosnake/HumanCursor)** — Original human-like cursor algorithm, ported to C++.
+- **[riflosnake/HumanCursor](https://github.com/riflosnake/HumanCursor)** — Cursor-path reference implementation.
 
 ---
 

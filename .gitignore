@@ -11,6 +11,7 @@ launch.exe
 # Internal testing
 /extra-docs
 docs/superpowers/
+/.public-boundary-repos.local
 /.public-boundary-denylist.local
 /benchmarks/token-optimization/results/*.json
 pythonlib/test*

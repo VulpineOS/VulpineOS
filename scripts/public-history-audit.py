@@ -30,7 +30,6 @@ def configured_public_repos() -> list[tuple[str, Path]]:
 PUBLIC_REPOS = configured_public_repos()
 
 EXCLUDE_SPECS = [
-    ":(exclude)go.sum",
     ":(exclude)scripts/public-boundary-audit.sh",
     ":(exclude)scripts/public-history-audit.py",
     ":(glob,exclude)**/node_modules/**",

@@ -25,7 +25,6 @@ if [[ -f "${repo_list_file}" ]]; then
 fi
 
 exclude_specs=(
-  ":(exclude)go.sum"
   ":(glob,exclude)**/node_modules/**"
   ":(glob,exclude)**/dist/**"
   ":(glob,exclude)**/build/**"
