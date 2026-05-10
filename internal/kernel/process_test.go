@@ -35,6 +35,18 @@ func camoufoxBinary() string {
 	return ""
 }
 
+func requireLiveKernelBinary(t *testing.T) string {
+	t.Helper()
+	if os.Getenv("VULPINEOS_RUN_LIVE") != "1" {
+		t.Skip("set VULPINEOS_RUN_LIVE=1 to run live kernel tests")
+	}
+	bin := camoufoxBinary()
+	if bin == "" {
+		t.Skip("camoufox binary not found")
+	}
+	return bin
+}
+
 func liveKernelCall(t *testing.T, client *juggler.Client, sessionID, method string, params interface{}) json.RawMessage {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
@@ -332,10 +344,7 @@ func tempProfileDirs(t *testing.T) map[string]bool {
 }
 
 func TestKernelStartStop(t *testing.T) {
-	bin := camoufoxBinary()
-	if bin == "" {
-		t.Skip("camoufox binary not found")
-	}
+	bin := requireLiveKernelBinary(t)
 
 	k := New()
 	if k.Running() {
@@ -369,10 +378,7 @@ func TestKernelStartStop(t *testing.T) {
 }
 
 func TestKernelBrowserEnable(t *testing.T) {
-	bin := camoufoxBinary()
-	if bin == "" {
-		t.Skip("camoufox binary not found")
-	}
+	bin := requireLiveKernelBinary(t)
 
 	k := New()
 	if err := k.Start(Config{BinaryPath: bin, Headless: true}); err != nil {
@@ -396,10 +402,7 @@ func TestKernelBrowserEnable(t *testing.T) {
 }
 
 func TestKernelNewPageAndNavigate(t *testing.T) {
-	bin := camoufoxBinary()
-	if bin == "" {
-		t.Skip("camoufox binary not found")
-	}
+	bin := requireLiveKernelBinary(t)
 
 	k := New()
 	if err := k.Start(Config{BinaryPath: bin, Headless: true}); err != nil {
@@ -426,10 +429,7 @@ func TestKernelNewPageAndNavigate(t *testing.T) {
 }
 
 func TestKernelCreateBrowserContext(t *testing.T) {
-	bin := camoufoxBinary()
-	if bin == "" {
-		t.Skip("camoufox binary not found")
-	}
+	bin := requireLiveKernelBinary(t)
 
 	k := New()
 	if err := k.Start(Config{BinaryPath: bin, Headless: true}); err != nil {
@@ -454,10 +454,7 @@ func TestKernelCreateBrowserContext(t *testing.T) {
 }
 
 func TestKernelDoubleStart(t *testing.T) {
-	bin := camoufoxBinary()
-	if bin == "" {
-		t.Skip("camoufox binary not found")
-	}
+	bin := requireLiveKernelBinary(t)
 
 	k := New()
 	if err := k.Start(Config{BinaryPath: bin, Headless: true}); err != nil {
@@ -473,10 +470,7 @@ func TestKernelDoubleStart(t *testing.T) {
 }
 
 func TestKernelStopIdempotent(t *testing.T) {
-	bin := camoufoxBinary()
-	if bin == "" {
-		t.Skip("camoufox binary not found")
-	}
+	bin := requireLiveKernelBinary(t)
 
 	k := New()
 	if err := k.Start(Config{BinaryPath: bin, Headless: true}); err != nil {
