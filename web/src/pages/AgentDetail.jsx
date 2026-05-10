@@ -38,6 +38,7 @@ export default function AgentDetail({ ws }) {
   const [messageMeta, setMessageMeta] = useState({ truncated: false, limit: 0 })
   const [sessionLog, setSessionLog] = useState('')
   const [sessionLogMeta, setSessionLogMeta] = useState({ truncated: false, bytes: 0, totalBytes: 0 })
+  const [sessionLogError, setSessionLogError] = useState('')
   const [input, setInput] = useState('')
   const [tab, setTab] = useState('conversation')
   const [budgetCost, setBudgetCost] = useState('0')
@@ -101,7 +102,7 @@ export default function AgentDetail({ ws }) {
     }).catch(() => {})
   }
 
-  const loadSessionLog = async () => {
+  const loadSessionLog = async ({ notifyOnError = false } = {}) => {
     const agentID = id
     const requestID = ++sessionLogRequestRef.current
     try {
@@ -113,9 +114,12 @@ export default function AgentDetail({ ws }) {
         bytes: Number(result?.bytes || 0),
         totalBytes: Number(result?.totalBytes || 0),
       })
+      setSessionLogError('')
     } catch (e) {
       if (activeAgentIdRef.current !== agentID || sessionLogRequestRef.current !== requestID) return
-      ws.notify?.(e.message)
+      const message = e.message || 'Raw session log unavailable'
+      setSessionLogError(message)
+      if (notifyOnError) ws.notify?.(message)
     }
   }
 
@@ -422,9 +426,14 @@ export default function AgentDetail({ ws }) {
             <h3 style={{ margin: 0 }}>Raw Session Log</h3>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <span style={{ fontSize: 11, color: '#666' }}>Auto-refreshing</span>
-              <button className="btn btn-ghost" onClick={loadSessionLog}>Refresh</button>
+              <button className="btn btn-ghost" onClick={() => loadSessionLog({ notifyOnError: true })}>Refresh</button>
             </div>
           </div>
+          {sessionLogError && (
+            <div className="panel-banner panel-banner-yellow" style={{ marginBottom: 12 }}>
+              {sessionLogError}
+            </div>
+          )}
           {sessionLog === '' ? (
             <p style={{ color: '#666' }}>No raw session log loaded yet.</p>
           ) : (

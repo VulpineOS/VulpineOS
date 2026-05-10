@@ -330,6 +330,34 @@ describe('AgentDetail page', () => {
     expect(notify).not.toHaveBeenCalled()
   })
 
+  it('keeps raw auto-refresh failures local and only notifies manual refresh failures', async () => {
+    const notify = vi.fn()
+    const call = vi.fn(async (method) => {
+      if (method === 'agents.list') {
+        return { agents: [{ id: 'agent-1', name: 'Agent One', status: 'paused', contextId: '', totalTokens: 0 }] }
+      }
+      if (method === 'agents.getMessages') return { messages: [] }
+      if (method === 'recording.getTimeline') return { actions: [] }
+      if (method === 'fingerprints.get') return {}
+      if (method === 'agents.getSessionLog') {
+        throw new Error('session log not found')
+      }
+      return { status: 'ok' }
+    })
+
+    renderDetail({ connected: true, events: [], call, notify })
+
+    expect(await screen.findByText('Agent agent-1')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Raw'))
+    expect(await screen.findByText('session log not found')).toBeInTheDocument()
+    expect(notify).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getAllByText('Refresh').at(-1))
+    await waitFor(() => {
+      expect(notify).toHaveBeenCalledWith('session log not found')
+    })
+  })
+
   it('uses inline confirmation before killing an agent', async () => {
     const call = vi.fn(async (method) => {
       if (method === 'agents.list') {
