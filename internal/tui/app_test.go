@@ -441,6 +441,42 @@ func TestSettingsAllowsGlobalQuitShortcut(t *testing.T) {
 	}
 }
 
+func TestSettingsProxyImportAcceptsLifecycleKeyCharacters(t *testing.T) {
+	app := NewApp(nil, nil, nil, nil, &config.Config{}, nil)
+	app.focus = FocusSettings
+	app.settings.SetActive(true)
+
+	var cmd tea.Cmd
+	model, cmd := app.Update(tea.KeyMsg{Type: tea.KeyTab})
+	app = model.(App)
+	if cmd != nil {
+		t.Fatalf("unexpected command after tab: %#v", cmd())
+	}
+	model, cmd = app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	app = model.(App)
+	if cmd == nil {
+		t.Fatal("proxy import did not start text input blink command")
+	}
+
+	url := "socks5://user:pass@proxy.example:1080"
+	for _, r := range url {
+		model, _ = app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		app = model.(App)
+	}
+	model, cmd = app.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	app = model.(App)
+	if cmd == nil {
+		t.Fatal("proxy import enter returned no command")
+	}
+	msg, ok := cmd().(shared.ProxyAddMsg)
+	if !ok {
+		t.Fatalf("command returned %T, want ProxyAddMsg", cmd())
+	}
+	if msg.URL != url {
+		t.Fatalf("proxy URL = %q, want %q", msg.URL, url)
+	}
+}
+
 func TestAgentCreatedSelectsNewAgentListRow(t *testing.T) {
 	db := openTestVault(t)
 	oldAgent, err := db.CreateAgent("Old", "old task", "{}")

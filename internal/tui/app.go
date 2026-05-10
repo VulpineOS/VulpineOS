@@ -708,8 +708,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		// Route to settings panel when active
-		if a.focus == FocusSettings && !isGlobalLifecycleKey(msg) {
+		// Route to settings panel when active. Text capture owns printable keys
+		// that overlap global lifecycle shortcuts, such as proxy URLs with p/r.
+		if a.focus == FocusSettings && msg.String() != "ctrl+c" && (a.settings.CapturingText() || !isGlobalLifecycleKey(msg)) {
 			var cmd tea.Cmd
 			a.settings, cmd = a.settings.Update(msg)
 			// If settings closed itself (via Esc or Tab cycling out)

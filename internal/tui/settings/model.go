@@ -92,6 +92,11 @@ func (m *Model) IsActive() bool {
 	return m.active
 }
 
+// CapturingText returns true when settings owns raw key input.
+func (m *Model) CapturingText() bool {
+	return m.active && m.importing
+}
+
 // SetConfig loads current config values into the settings panel.
 func (m *Model) SetConfig(cfg *config.Config) {
 	if cfg == nil {
