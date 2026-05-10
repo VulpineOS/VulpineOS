@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -95,6 +96,43 @@ func TestCloseContextCleansTrackedSessionState(t *testing.T) {
 	}
 
 	waitForSessionCleanup(t, server.screenshots, "session-close")
+}
+
+func TestContextTrackerResolveReturnsAXProbeError(t *testing.T) {
+	transport := testutil.NewFakeJugglerTransport(t)
+	transport.RespondError("Accessibility.getFullAXTree", "target detached")
+	client := juggler.NewClient(transport)
+	t.Cleanup(func() { _ = client.Close() })
+
+	tracker := NewContextTracker(client)
+	t.Cleanup(tracker.Close)
+
+	started := time.Now()
+	_, err := tracker.Resolve("session-missing")
+	if err == nil || !strings.Contains(err.Error(), "target detached") {
+		t.Fatalf("Resolve error = %v, want AX probe error", err)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("Resolve took %s after AX probe error", elapsed)
+	}
+}
+
+func TestContextTrackerResolveRequiresFrameID(t *testing.T) {
+	transport := testutil.NewFakeJugglerTransport(t)
+	transport.RespondJSON("Accessibility.getFullAXTree", map[string]any{})
+	client := juggler.NewClient(transport)
+	t.Cleanup(func() { _ = client.Close() })
+
+	tracker := NewContextTracker(client)
+	t.Cleanup(tracker.Close)
+	tracker.mu.Lock()
+	tracker.contexts["session-no-frame"] = &SessionContext{ExecutionContextID: "exec-1"}
+	tracker.mu.Unlock()
+
+	_, err := tracker.Resolve("session-no-frame")
+	if err == nil || !strings.Contains(err.Error(), "could not discover") {
+		t.Fatalf("Resolve error = %v, want missing frame timeout", err)
+	}
 }
 
 func waitForContext(t *testing.T, tracker *ContextTracker, sessionID string, wantPresent bool) {

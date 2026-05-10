@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -205,8 +206,13 @@ func (ct *ContextTracker) Resolve(sessionID string) (*SessionContext, error) {
 		return ctx, nil
 	}
 
-	// Trigger content process init via AX tree probe
-	ct.client.Call(sessionID, "Accessibility.getFullAXTree", mustJSONMap(map[string]interface{}{}))
+	// Trigger content process init via AX tree probe.
+	probeCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	_, err := ct.client.CallWithContext(probeCtx, sessionID, "Accessibility.getFullAXTree", mustJSONMap(map[string]interface{}{}))
+	cancel()
+	if err != nil {
+		return nil, fmt.Errorf("probe accessibility tree for session %s: %w", sessionID, err)
+	}
 
 	// Wait for the context to appear
 	for i := 0; i < 20; i++ {
@@ -214,7 +220,7 @@ func (ct *ContextTracker) Resolve(sessionID string) (*SessionContext, error) {
 		ct.mu.RLock()
 		ctx = cloneSessionContext(ct.contexts[sessionID])
 		ct.mu.RUnlock()
-		if ctx != nil && ctx.ExecutionContextID != "" {
+		if ctx != nil && ctx.ExecutionContextID != "" && ctx.FrameID != "" {
 			return ctx, nil
 		}
 	}
