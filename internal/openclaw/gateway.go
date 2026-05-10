@@ -10,6 +10,11 @@ import (
 	"time"
 )
 
+var (
+	gatewayStopCommandTimeout = 5 * time.Second
+	gatewayProcessStopTimeout = 5 * time.Second
+)
+
 // Gateway manages the OpenClaw gateway daemon process.
 type Gateway struct {
 	cmd           *exec.Cmd
@@ -45,9 +50,16 @@ func (g *Gateway) Start() error {
 		return fmt.Errorf("OpenClaw binary not found")
 	}
 
-	// Kill any stale gateway from a previous VulpineOS session
-	stopCmd := exec.Command(openclawBin, "--profile", "vulpine", "gateway", "stop")
-	stopCmd.Run() // ignore errors — may not be running
+	// Kill any stale gateway from a previous VulpineOS session.
+	stopCtx, stopCancel := context.WithTimeout(context.Background(), gatewayStopCommandTimeout)
+	stopCmd := exec.CommandContext(stopCtx, openclawBin, "--profile", "vulpine", "gateway", "stop")
+	configureAgentProcess(stopCmd)
+	if err := stopCmd.Run(); stopCtx.Err() == context.DeadlineExceeded {
+		_ = killAgentProcess(stopCmd)
+	} else if err != nil {
+		// Ignore errors — the gateway may not be running yet.
+	}
+	stopCancel()
 	time.Sleep(500 * time.Millisecond)
 
 	args := []string{
@@ -59,6 +71,7 @@ func (g *Gateway) Start() error {
 	}
 
 	cmd := exec.Command(openclawBin, args...)
+	configureAgentProcess(cmd)
 
 	logPath := os.TempDir() + "/vulpineos-gateway.log"
 	if logFile, err := os.Create(logPath); err == nil {
@@ -114,10 +127,14 @@ func (g *Gateway) Stop() {
 
 	if cmd != nil && cmd.Process != nil {
 		if !exited {
-			_ = cmd.Process.Kill()
+			_ = killAgentProcess(cmd)
 		}
 		if exitCh != nil {
-			<-exitCh
+			select {
+			case <-exitCh:
+			case <-time.After(gatewayProcessStopTimeout):
+				log.Printf("OpenClaw gateway stop timed out")
+			}
 		}
 		g.mu.Lock()
 		if g.cmd == cmd {
