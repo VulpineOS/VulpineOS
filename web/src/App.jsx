@@ -103,6 +103,13 @@ export default function App() {
   const location = useLocation()
   const conn = connectionMeta(ws)
 
+  const rejectAccessKey = useCallback(() => {
+    sessionStorage.removeItem('vulpine_key')
+    setApiKey('')
+    setShellStatus(null)
+    setNotice({ id: Date.now(), message: 'Access key rejected by panel server', level: 'error' })
+  }, [])
+
   const notify = useCallback((message, level = 'error') => {
     if (!message) return
     setNotice({ id: Date.now(), message, level })
@@ -121,17 +128,14 @@ export default function App() {
       .then((result) => {
         if (cancelled || result.ok) return
         if (result.status === 401) {
-          sessionStorage.removeItem('vulpine_key')
-          setApiKey('')
-          setShellStatus(null)
-          setNotice({ id: Date.now(), message: 'Access key rejected by panel server', level: 'error' })
+          rejectAccessKey()
         }
       })
       .catch(() => {})
     return () => {
       cancelled = true
     }
-  }, [apiKey])
+  }, [apiKey, rejectAccessKey])
 
   useEffect(() => {
     if (!apiKey || !ws.connected) return undefined
@@ -152,13 +156,20 @@ export default function App() {
   }, [apiKey, ws.connected])
 
   useEffect(() => {
-    if (!apiKey || ws.connectionState !== 'failed') return
-    if (!String(ws.lastError || '').toLowerCase().includes('access key rejected')) return
-    sessionStorage.removeItem('vulpine_key')
-    setApiKey('')
-    setShellStatus(null)
-    setNotice({ id: Date.now(), message: 'Access key rejected by panel server', level: 'error' })
-  }, [apiKey, ws.connectionState, ws.lastError])
+    if (!apiKey || (ws.connectionState !== 'failed' && ws.connectionState !== 'reconnecting')) return
+    let cancelled = false
+    fetch('/auth/check', { headers: { Authorization: `Bearer ${apiKey}` } })
+      .then((result) => {
+        if (cancelled) return
+        if (result.status === 401 || String(ws.lastError || '').toLowerCase().includes('access key rejected')) {
+          rejectAccessKey()
+        }
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [apiKey, rejectAccessKey, ws.connectionState, ws.lastError])
 
   const clearSession = useCallback(() => {
     sessionStorage.removeItem('vulpine_key')

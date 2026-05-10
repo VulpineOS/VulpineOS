@@ -7,6 +7,7 @@ export default function Logs({ ws }) {
   const [runtimeSettings, setRuntimeSettings] = useState({ retention: 200 })
   const [runtimeFilter, setRuntimeFilter] = useState({ query: '', component: '', level: '', event: '', limit: 50 })
   const [retentionInput, setRetentionInput] = useState('200')
+  const { connected, call } = ws
   const events = ws.events || []
 
   const filtered = filter
@@ -14,15 +15,15 @@ export default function Logs({ ws }) {
     : events
 
   useEffect(() => {
-    if (!ws.connected) return
-    ws.call('runtime.list', runtimeFilter)
+    if (!connected) return
+    call('runtime.list', runtimeFilter)
       .then(result => {
         setRuntimeEvents(result?.events || [])
         setRuntimeSettings(result?.settings || { retention: 200 })
         setRetentionInput(String(result?.settings?.retention || 200))
       })
       .catch(() => {})
-  }, [runtimeFilter, ws, ws.connected])
+  }, [call, connected, runtimeFilter])
 
   useEffect(() => {
     const latest = events[events.length - 1]
@@ -56,14 +57,14 @@ export default function Logs({ ws }) {
   async function saveRetention() {
     const retention = Number(retentionInput)
     if (!Number.isFinite(retention) || retention <= 0) return
-    const result = await ws.call('runtime.setRetention', { retention })
+    const result = await call('runtime.setRetention', { retention })
     setRuntimeSettings(result?.settings || { retention })
     setRetentionInput(String(result?.settings?.retention || retention))
     setRuntimeFilter(current => ({ ...current }))
   }
 
   async function downloadRuntimeExport(format) {
-    const result = await ws.call('runtime.export', { ...runtimeFilter, format })
+    const result = await call('runtime.export', { ...runtimeFilter, format })
     const blob = new Blob([result?.content || ''], { type: result?.contentType || 'application/json' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')

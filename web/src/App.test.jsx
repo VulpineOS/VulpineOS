@@ -7,12 +7,13 @@ import App from './App'
 class FakeWebSocket {
   static instances = []
   static controlResults = {}
+  static autoOpen = true
 
   constructor(url) {
     this.url = url
     this.readyState = 0
     FakeWebSocket.instances.push(this)
-    setTimeout(() => this.triggerOpen(), 0)
+    if (FakeWebSocket.autoOpen) setTimeout(() => this.triggerOpen(), 0)
   }
 
   send = vi.fn((raw) => {
@@ -58,6 +59,7 @@ describe('App shell', () => {
     vi.unstubAllGlobals()
     FakeWebSocket.instances = []
     FakeWebSocket.controlResults = {}
+    FakeWebSocket.autoOpen = true
     sessionStorage.clear()
     window.history.replaceState({}, '', '/')
   })
@@ -168,5 +170,35 @@ describe('App shell', () => {
 
     expect(await screen.findByPlaceholderText('Access Key')).toBeInTheDocument()
     expect(sessionStorage.getItem('vulpine_key')).toBeNull()
+  })
+
+  it('revalidates the access key after websocket handshake failure', async () => {
+    sessionStorage.setItem('vulpine_key', 'stale')
+    FakeWebSocket.autoOpen = false
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: true, status: 200 })
+      .mockResolvedValueOnce({ ok: false, status: 401 })
+    vi.stubGlobal('fetch', fetchMock)
+    vi.stubGlobal('WebSocket', FakeWebSocket)
+
+    render(
+      <MemoryRouter>
+        <App />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => {
+      expect(FakeWebSocket.instances).toHaveLength(1)
+    })
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+    FakeWebSocket.instances[0].triggerClose({ code: 1006, reason: '' })
+
+    expect(await screen.findByPlaceholderText('Access Key')).toBeInTheDocument()
+    expect(sessionStorage.getItem('vulpine_key')).toBeNull()
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+    })
   })
 })

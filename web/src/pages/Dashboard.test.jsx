@@ -118,4 +118,35 @@ describe('Dashboard page', () => {
     expect(await screen.findByText('CAMOUFOX')).toBeInTheDocument()
     expect(screen.getByText('RUNNING')).toBeInTheDocument()
   })
+
+  it('renders status when optional dashboard calls fail', async () => {
+    const ws = {
+      connected: true,
+      connectionState: 'connected',
+      telemetry: { memoryMB: 256 },
+      events: [],
+      call: vi.fn(async (method) => {
+        if (method === 'status.get') {
+          return {
+            kernel_running: true,
+            browser_route: 'camoufox',
+            browser_route_source: 'runtime',
+            browser_window: 'visible',
+            kernel_headless: true,
+          }
+        }
+        throw new Error(`${method} unavailable`)
+      }),
+    }
+
+    render(
+      <MemoryRouter>
+        <Dashboard ws={ws} />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText('CAMOUFOX')).toBeInTheDocument()
+    expect(screen.getByText('runtime source · HEADLESS · 256MB')).toBeInTheDocument()
+    expect(screen.getAllByText('VISIBLE').length).toBeGreaterThan(0)
+  })
 })

@@ -73,4 +73,21 @@ describe('Logs page', () => {
     expect(window.URL.createObjectURL).toHaveBeenCalled()
     expect(HTMLAnchorElement.prototype.click).toHaveBeenCalled()
   })
+
+  it('does not refetch runtime audit only because the ws object identity changed', async () => {
+    const calls = vi.fn(async (method) => {
+      if (method === 'runtime.list') return { events: [], settings: { retention: 200 } }
+      return {}
+    })
+    const { rerender } = render(<Logs ws={{ connected: true, call: calls, events: [] }} />)
+
+    await waitFor(() => {
+      expect(calls).toHaveBeenCalledTimes(1)
+    })
+
+    rerender(<Logs ws={{ connected: true, call: calls, events: [{ method: 'Browser.telemetryUpdate', params: {} }] }} />)
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(calls).toHaveBeenCalledTimes(1)
+  })
 })

@@ -32,34 +32,36 @@ export default function Dashboard({ ws }) {
     if (!ws.connected) return undefined
     let cancelled = false
     const refresh = async () => {
-      try {
-        const [nextStatus, nextAgents, nextRuntime, nextTotal, nextCosts] = await Promise.all([
-          ws.call('status.get'),
-          ws.call('agents.list'),
-          ws.call('runtime.list', { limit: 12 }),
-          ws.call('costs.total'),
-          ws.call('costs.getAll'),
-        ])
-        if (cancelled) return
-        const agentList = nextAgents?.agents || []
-        const usage = nextCosts?.usage || []
-        const defaults = nextCosts?.defaults || {}
-        setStatus(nextStatus || {})
-        setAgents(agentList)
-        setRuntimeEvents(nextRuntime?.events || [])
-        setCostSummary({
-          totalCostUsd: nextTotal?.totalCostUsd ?? nextStatus?.total_cost_usd ?? 0,
-          totalTokens: usage.reduce((sum, entry) => sum + (entry.totalTokens || 0), 0),
-          trackedUsage: usage.length,
-          overrideCount: agentList.filter(agent => agent.budgetSource === 'agent').length,
-          defaultMaxCostUsd: defaults.maxCostUsd ?? 0,
-          defaultMaxTokens: defaults.maxTokens ?? 0,
-        })
-      } catch {
-        if (!cancelled) {
-          setStatus(current => current || {})
-        }
-      }
+      const [statusResult, agentsResult, runtimeResult, totalResult, costsResult] = await Promise.allSettled([
+        ws.call('status.get'),
+        ws.call('agents.list'),
+        ws.call('runtime.list', { limit: 12 }),
+        ws.call('costs.total'),
+        ws.call('costs.getAll'),
+      ])
+      if (cancelled) return
+
+      const nextStatus = statusResult.status === 'fulfilled' ? (statusResult.value || {}) : null
+      const nextAgents = agentsResult.status === 'fulfilled' ? (agentsResult.value || {}) : null
+      const nextRuntime = runtimeResult.status === 'fulfilled' ? (runtimeResult.value || {}) : null
+      const nextTotal = totalResult.status === 'fulfilled' ? (totalResult.value || {}) : null
+      const nextCosts = costsResult.status === 'fulfilled' ? (costsResult.value || {}) : null
+      const agentList = nextAgents?.agents || []
+      const usage = nextCosts?.usage || []
+      const defaults = nextCosts?.defaults || {}
+
+      if (nextStatus) setStatus(nextStatus)
+      else setStatus(current => current || {})
+      if (nextAgents) setAgents(agentList)
+      if (nextRuntime) setRuntimeEvents(nextRuntime?.events || [])
+      setCostSummary({
+        totalCostUsd: nextTotal?.totalCostUsd ?? nextStatus?.total_cost_usd ?? 0,
+        totalTokens: usage.reduce((sum, entry) => sum + (entry.totalTokens || 0), 0),
+        trackedUsage: usage.length,
+        overrideCount: agentList.filter(agent => agent.budgetSource === 'agent').length,
+        defaultMaxCostUsd: defaults.maxCostUsd ?? 0,
+        defaultMaxTokens: defaults.maxTokens ?? 0,
+      })
     }
     refresh()
     const interval = setInterval(refresh, 5000)
