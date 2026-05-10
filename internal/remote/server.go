@@ -15,6 +15,7 @@ import (
 )
 
 const maxWebSocketMessageBytes int64 = 2 << 20
+const maxBroadcastQueue = 256
 
 // Server exposes the VulpineOS kernel over WebSocket for remote TUI clients.
 type Server struct {
@@ -31,9 +32,27 @@ type Server struct {
 }
 
 type wsClient struct {
-	conn    *websocket.Conn
-	ctx     context.Context
-	writeMu sync.Mutex
+	conn      *websocket.Conn
+	ctx       context.Context
+	writeMu   sync.Mutex
+	events    chan []byte
+	enqueueMu sync.Mutex
+	closed    bool
+	once      sync.Once
+}
+
+func (c *wsClient) enqueueEvent(data []byte) bool {
+	c.enqueueMu.Lock()
+	defer c.enqueueMu.Unlock()
+	if c.closed || c.events == nil {
+		return false
+	}
+	select {
+	case c.events <- data:
+		return true
+	default:
+		return false
+	}
 }
 
 func (c *wsClient) write(ctx context.Context, typ websocket.MessageType, data []byte) error {
@@ -46,6 +65,14 @@ func (c *wsClient) write(ctx context.Context, typ websocket.MessageType, data []
 }
 
 func (c *wsClient) close(status websocket.StatusCode, reason string) error {
+	c.once.Do(func() {
+		c.enqueueMu.Lock()
+		defer c.enqueueMu.Unlock()
+		c.closed = true
+		if c.events != nil {
+			close(c.events)
+		}
+	})
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
 	if c.conn == nil {
@@ -146,21 +173,16 @@ func (s *Server) BroadcastEvent(method, sessionID string, params json.RawMessage
 		return
 	}
 
-	clients := s.snapshotClients()
+	s.enqueueBroadcast(env)
+}
+
+func (s *Server) enqueueBroadcast(env []byte) {
 	dead := make([]*wsClient, 0)
-	for _, c := range clients {
-		baseCtx := c.ctx
-		if baseCtx == nil {
-			baseCtx = context.Background()
-		}
-		ctx, cancel := context.WithTimeout(baseCtx, s.writeTimeout)
-		err := c.write(ctx, websocket.MessageText, env)
-		cancel()
-		if err != nil {
+	for _, c := range s.snapshotClients() {
+		if !c.enqueueEvent(env) {
 			dead = append(dead, c)
 		}
 	}
-
 	s.removeClients(dead)
 }
 
@@ -179,11 +201,13 @@ func (s *Server) removeClients(dead []*wsClient) {
 		s.clientsMu.Lock()
 		for _, c := range dead {
 			delete(s.clients, c)
-			if c.conn != nil {
-				c.conn.Close(websocket.StatusGoingAway, "write error")
-			}
 		}
 		s.clientsMu.Unlock()
+		for _, c := range dead {
+			go func(client *wsClient) {
+				_ = client.close(websocket.StatusGoingAway, "write error")
+			}(c)
+		}
 	}
 }
 
@@ -211,7 +235,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	conn.SetReadLimit(maxWebSocketMessageBytes)
 
 	ctx := r.Context()
-	wsc := &wsClient{conn: conn, ctx: ctx}
+	wsc := &wsClient{conn: conn, ctx: ctx, events: make(chan []byte, maxBroadcastQueue)}
 
 	s.clientsMu.Lock()
 	s.clients[wsc] = struct{}{}
@@ -225,6 +249,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	log.Printf("Remote client connected from %s", r.RemoteAddr)
+	go s.writeBroadcasts(wsc)
 
 	// Read messages from client and forward to Juggler
 	for {
@@ -270,6 +295,16 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		case "control":
 			// Handle control commands (restart, spawn, etc.)
 			s.handleControl(wsc, env.Payload)
+		}
+	}
+}
+
+func (s *Server) writeBroadcasts(wsc *wsClient) {
+	for env := range wsc.events {
+		if err := s.writeClient(wsc, env); err != nil {
+			log.Printf("remote event write error: %v", err)
+			s.removeClients([]*wsClient{wsc})
+			return
 		}
 	}
 }
