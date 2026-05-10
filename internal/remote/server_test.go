@@ -4,14 +4,56 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"nhooyr.io/websocket"
+
+	"vulpineos/internal/juggler"
 )
+
+type remoteTestTransport struct {
+	incoming chan *juggler.Message
+	outgoing chan *juggler.Message
+	closed   chan struct{}
+	once     sync.Once
+}
+
+func newRemoteTestTransport() *remoteTestTransport {
+	return &remoteTestTransport{
+		incoming: make(chan *juggler.Message, 64),
+		outgoing: make(chan *juggler.Message, 64),
+		closed:   make(chan struct{}),
+	}
+}
+
+func (t *remoteTestTransport) Send(msg *juggler.Message) error {
+	select {
+	case <-t.closed:
+		return fmt.Errorf("transport closed")
+	case t.outgoing <- msg:
+		return nil
+	}
+}
+
+func (t *remoteTestTransport) Receive() (*juggler.Message, error) {
+	select {
+	case <-t.closed:
+		return nil, fmt.Errorf("transport closed")
+	case msg := <-t.incoming:
+		return msg, nil
+	}
+}
+
+func (t *remoteTestTransport) Close() error {
+	t.once.Do(func() { close(t.closed) })
+	return nil
+}
 
 func TestBroadcastEventPreservesSessionID(t *testing.T) {
 	server := NewServer(":0", "secret", nil)
@@ -221,6 +263,81 @@ func TestHandleWSJugglerWithoutKernelReturnsError(t *testing.T) {
 	}
 	if msg.Error == nil || msg.Error.Message != "browser unavailable: server started without a kernel" {
 		t.Fatalf("error = %#v, want browser unavailable", msg.Error)
+	}
+}
+
+func TestHandleWSCleansRemoteCreatedContextsOnDisconnect(t *testing.T) {
+	transport := newRemoteTestTransport()
+	client := juggler.NewClient(transport)
+	defer client.Close()
+
+	removed := make(chan string, 1)
+	go func() {
+		for {
+			select {
+			case <-transport.closed:
+				return
+			case req := <-transport.outgoing:
+				switch req.Method {
+				case "Browser.createBrowserContext":
+					transport.incoming <- &juggler.Message{
+						ID:     req.ID,
+						Result: json.RawMessage(`{"browserContextId":"ctx-remote"}`),
+					}
+				case "Browser.removeBrowserContext":
+					var params struct {
+						BrowserContextID string `json:"browserContextId"`
+					}
+					_ = json.Unmarshal(req.Params, &params)
+					removed <- params.BrowserContextID
+					transport.incoming <- &juggler.Message{ID: req.ID, Result: json.RawMessage(`{}`)}
+				default:
+					transport.incoming <- &juggler.Message{ID: req.ID, Result: json.RawMessage(`{}`)}
+				}
+			}
+		}
+	}()
+
+	server := NewServer(":0", "secret", client)
+	httpServer := httptest.NewServer(server.Mux())
+	defer httpServer.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(httpServer.URL, "http") + "/ws?token=secret"
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("dial websocket: %v", err)
+	}
+
+	payload, err := json.Marshal(map[string]interface{}{
+		"id":     1,
+		"method": "Browser.createBrowserContext",
+		"params": map[string]interface{}{"removeOnDetach": true},
+	})
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+	env, err := NewJugglerEnvelope(payload)
+	if err != nil {
+		t.Fatalf("NewJugglerEnvelope: %v", err)
+	}
+	if err := conn.Write(ctx, websocket.MessageText, env); err != nil {
+		t.Fatalf("write websocket: %v", err)
+	}
+	if _, _, err := conn.Read(ctx); err != nil {
+		t.Fatalf("read create response: %v", err)
+	}
+	_ = conn.Close(websocket.StatusNormalClosure, "")
+
+	select {
+	case contextID := <-removed:
+		if contextID != "ctx-remote" {
+			t.Fatalf("removed context = %q, want ctx-remote", contextID)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("remote-created context was not removed on websocket disconnect")
 	}
 }
 

@@ -32,13 +32,15 @@ type Server struct {
 }
 
 type wsClient struct {
-	conn      *websocket.Conn
-	ctx       context.Context
-	writeMu   sync.Mutex
-	events    chan []byte
-	enqueueMu sync.Mutex
-	closed    bool
-	once      sync.Once
+	conn           *websocket.Conn
+	ctx            context.Context
+	writeMu        sync.Mutex
+	events         chan []byte
+	enqueueMu      sync.Mutex
+	closed         bool
+	remoteContexts map[string]struct{}
+	contextMu      sync.Mutex
+	once           sync.Once
 }
 
 func (c *wsClient) enqueueEvent(data []byte) bool {
@@ -79,6 +81,38 @@ func (c *wsClient) close(status websocket.StatusCode, reason string) error {
 		return nil
 	}
 	return c.conn.Close(status, reason)
+}
+
+func (c *wsClient) trackRemoteContext(contextID string) {
+	if contextID == "" {
+		return
+	}
+	c.contextMu.Lock()
+	defer c.contextMu.Unlock()
+	if c.remoteContexts == nil {
+		c.remoteContexts = make(map[string]struct{})
+	}
+	c.remoteContexts[contextID] = struct{}{}
+}
+
+func (c *wsClient) untrackRemoteContext(contextID string) {
+	if contextID == "" {
+		return
+	}
+	c.contextMu.Lock()
+	defer c.contextMu.Unlock()
+	delete(c.remoteContexts, contextID)
+}
+
+func (c *wsClient) drainRemoteContexts() []string {
+	c.contextMu.Lock()
+	defer c.contextMu.Unlock()
+	contextIDs := make([]string, 0, len(c.remoteContexts))
+	for contextID := range c.remoteContexts {
+		contextIDs = append(contextIDs, contextID)
+	}
+	c.remoteContexts = make(map[string]struct{})
+	return contextIDs
 }
 
 // NewServer creates a remote access server.
@@ -242,6 +276,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	s.clientsMu.Unlock()
 
 	defer func() {
+		s.cleanupRemoteContexts(wsc)
 		s.clientsMu.Lock()
 		delete(s.clients, wsc)
 		s.clientsMu.Unlock()
@@ -277,6 +312,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 				err = fmt.Errorf("browser unavailable: server started without a kernel")
 			} else {
 				result, err = s.client.Call(msg.SessionID, msg.Method, msg.Params)
+				s.trackRemoteJugglerCall(wsc, &msg, result, err)
 			}
 			// Send response back
 			resp := &juggler.Message{ID: msg.ID, SessionID: msg.SessionID}
@@ -295,6 +331,50 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		case "control":
 			// Handle control commands (restart, spawn, etc.)
 			s.handleControl(wsc, env.Payload)
+		}
+	}
+}
+
+func (s *Server) trackRemoteJugglerCall(wsc *wsClient, msg *juggler.Message, result json.RawMessage, callErr error) {
+	if wsc == nil || msg == nil || callErr != nil {
+		return
+	}
+	switch msg.Method {
+	case "Browser.createBrowserContext":
+		var params struct {
+			RemoveOnDetach bool `json:"removeOnDetach"`
+		}
+		if err := json.Unmarshal(msg.Params, &params); err != nil || !params.RemoveOnDetach {
+			return
+		}
+		var out struct {
+			BrowserContextID string `json:"browserContextId"`
+		}
+		if err := json.Unmarshal(result, &out); err == nil {
+			wsc.trackRemoteContext(out.BrowserContextID)
+		}
+	case "Browser.removeBrowserContext":
+		var params struct {
+			BrowserContextID string `json:"browserContextId"`
+		}
+		if err := json.Unmarshal(msg.Params, &params); err == nil {
+			wsc.untrackRemoteContext(params.BrowserContextID)
+		}
+	}
+}
+
+func (s *Server) cleanupRemoteContexts(wsc *wsClient) {
+	if wsc == nil || s.client == nil {
+		return
+	}
+	for _, contextID := range wsc.drainRemoteContexts() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		_, err := s.client.CallWithContext(ctx, "", "Browser.removeBrowserContext", map[string]interface{}{
+			"browserContextId": contextID,
+		})
+		cancel()
+		if err != nil {
+			log.Printf("remote context cleanup failed for %s: %v", contextID, err)
 		}
 	}
 }
