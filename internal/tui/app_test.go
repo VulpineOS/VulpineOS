@@ -2286,6 +2286,44 @@ func TestEventNoticeRearmsEventPump(t *testing.T) {
 	}
 }
 
+func TestTrustWarmMsgShowsNoticeAndRearmsEventPump(t *testing.T) {
+	app := NewApp(nil, nil, nil, nil, nil, nil)
+	defer app.stopForwarders()
+	app.eventCh <- shared.TickMsg{}
+
+	model, cmd := app.Update(shared.TrustWarmMsg{State: "warming", CurrentSite: "example.com"})
+	app = model.(App)
+
+	if app.notice != "Trust warming WARMING: example.com" {
+		t.Fatalf("notice = %q, want trust warming status", app.notice)
+	}
+	if cmd == nil {
+		t.Fatal("trust warm message did not return a wait command")
+	}
+	if _, ok := cmd().(shared.TickMsg); !ok {
+		t.Fatal("trust warm wait command did not read the next event")
+	}
+}
+
+func TestAlertMsgShowsNoticeAndRearmsEventPump(t *testing.T) {
+	app := NewApp(nil, nil, nil, nil, nil, nil)
+	defer app.stopForwarders()
+	app.eventCh <- shared.TickMsg{}
+
+	model, cmd := app.Update(shared.AlertMsg{Type: "hidden_text", Details: "filtered invisible prompt", Blocked: true})
+	app = model.(App)
+
+	if app.notice != "WARNING hidden_text blocked: filtered invisible prompt" {
+		t.Fatalf("notice = %q, want injection warning", app.notice)
+	}
+	if cmd == nil {
+		t.Fatal("alert message did not return a wait command")
+	}
+	if _, ok := cmd().(shared.TickMsg); !ok {
+		t.Fatal("alert wait command did not read the next event")
+	}
+}
+
 func TestRemoteStatusUpdatesSystemPanel(t *testing.T) {
 	control := &fakeControlClient{responses: map[string]any{
 		"status.get": map[string]any{

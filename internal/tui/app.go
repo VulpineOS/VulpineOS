@@ -1057,8 +1057,36 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.systemInfo, _ = a.systemInfo.Update(msg)
 		cmds = append(cmds, a.waitForEvent())
 	case shared.TrustWarmMsg:
+		state := strings.ToUpper(strings.TrimSpace(msg.State))
+		if state == "" {
+			state = "UNKNOWN"
+		}
+		site := strings.TrimSpace(msg.CurrentSite)
+		if site != "" {
+			a.notice = fmt.Sprintf("Trust warming %s: %s", state, site)
+		} else {
+			a.notice = "Trust warming " + state
+		}
+		a.noticeTTL = 3
 		cmds = append(cmds, a.waitForEvent())
 	case shared.AlertMsg:
+		alertType := strings.TrimSpace(msg.Type)
+		if alertType == "" {
+			alertType = "alert"
+		}
+		details := strings.TrimSpace(msg.Details)
+		if details == "" {
+			details = strings.TrimSpace(msg.URL)
+		}
+		if details == "" {
+			details = "injection attempt detected"
+		}
+		if msg.Blocked {
+			a.notice = fmt.Sprintf("WARNING %s blocked: %s", alertType, details)
+		} else {
+			a.notice = fmt.Sprintf("WARNING %s: %s", alertType, details)
+		}
+		a.noticeTTL = 5
 		cmds = append(cmds, a.waitForEvent())
 
 	case eventNotice:
