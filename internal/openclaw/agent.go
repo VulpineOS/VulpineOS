@@ -75,6 +75,8 @@ type Agent struct {
 	statusCh       chan AgentStatus
 	conversationCh chan ConversationMsg
 	doneCh         chan struct{}
+	stopCh         chan struct{}
+	stopOnce       sync.Once
 	mu             sync.Mutex
 	status         AgentStatus
 	startedAt      time.Time
@@ -110,6 +112,7 @@ func newAgent(id, contextID string, statusCh chan AgentStatus) *Agent {
 		statusCh:       statusCh,
 		conversationCh: make(chan ConversationMsg, 64),
 		doneCh:         make(chan struct{}),
+		stopCh:         make(chan struct{}),
 		pendingTools:   make(map[string]toolCallInfo),
 		status: AgentStatus{
 			AgentID:   id,
@@ -1112,6 +1115,9 @@ func (a *Agent) stopWithStatus(status string) error {
 	}
 	a.stopStatus = status
 	a.status.Status = status
+	a.stopOnce.Do(func() {
+		close(a.stopCh)
+	})
 	a.mu.Unlock()
 
 	// Try to tell OpenClaw to save state before killing
@@ -1160,6 +1166,10 @@ func (a *Agent) StopRequested() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.stopStatus != ""
+}
+
+func (a *Agent) StopRequestedChan() <-chan struct{} {
+	return a.stopCh
 }
 
 // ExitCode returns the process exit code, or -1 if still running or not started.

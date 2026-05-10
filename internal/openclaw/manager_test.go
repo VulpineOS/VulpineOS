@@ -102,6 +102,30 @@ func TestKillMarksAgentInterrupted(t *testing.T) {
 	}
 }
 
+func TestRestartBackoffStopsWhenAgentIsInterrupted(t *testing.T) {
+	m := NewManager("test")
+	agent := newAgent("agent-1", "ctx-1", m.statusSource)
+	done := make(chan bool, 1)
+
+	go func() {
+		done <- waitAgentRestartBackoff(agent, time.Second)
+	}()
+	time.Sleep(10 * time.Millisecond)
+
+	if err := agent.stopWithStatus("interrupted"); err != nil {
+		t.Fatalf("stop agent: %v", err)
+	}
+
+	select {
+	case shouldRestart := <-done:
+		if shouldRestart {
+			t.Fatal("restart backoff should abort after interruption")
+		}
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("restart backoff did not observe interruption")
+	}
+}
+
 func TestPauseNonexistent(t *testing.T) {
 	m := NewManager("test")
 	err := m.PauseAgent("nonexistent-id")

@@ -477,7 +477,12 @@ func (m *Manager) startManagedAgent(agentID, contextID, openclawBin string, args
 					"attempt":   fmt.Sprintf("%d", agent.RestartCount),
 				})
 				log.Printf("openclaw: agent %s crashed (exit %d), restarting (attempt %d/3)", agentID, exitCode, agent.RestartCount)
-				time.Sleep(time.Duration(agent.RestartCount) * time.Second)
+				if !waitAgentRestartBackoff(agent, time.Duration(agent.RestartCount)*time.Second) {
+					break
+				}
+				if agent.StopRequested() {
+					break
+				}
 				if err := agent.restart(); err != nil {
 					m.logRuntimeEvent("error", "restart_failed", "OpenClaw agent restart failed", map[string]string{
 						"agent_id": agentID,
@@ -512,6 +517,17 @@ func (m *Manager) startManagedAgent(agentID, contextID, openclawBin string, args
 	}()
 
 	return agentID, nil
+}
+
+func waitAgentRestartBackoff(agent *Agent, duration time.Duration) bool {
+	timer := time.NewTimer(duration)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return true
+	case <-agent.StopRequestedChan():
+		return false
+	}
 }
 
 func safeSessionName(agentID, sessionName string) (string, error) {
