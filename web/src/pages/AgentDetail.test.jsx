@@ -474,4 +474,28 @@ describe('AgentDetail page', () => {
     })
     expect(call).not.toHaveBeenCalledWith('agents.resume', { agentId: 'agent-1', message: 'continue' })
   })
+
+  it('allows follow-up messages for terminal agents', async () => {
+    const notify = vi.fn()
+    const call = vi.fn(async (method) => {
+      if (method === 'agents.list') {
+        return { agents: [{ id: 'agent-1', name: 'Agent One', status: 'completed', contextId: '', totalTokens: 0 }] }
+      }
+      if (method === 'agents.getMessages') return { messages: [{ role: 'assistant', content: 'done' }] }
+      if (method === 'recording.getTimeline') return { actions: [] }
+      if (method === 'fingerprints.get') return {}
+      return { status: 'ok' }
+    })
+
+    renderDetail({ connected: true, events: [], call, notify })
+
+    expect(await screen.findByText('completed')).toBeInTheDocument()
+    fireEvent.change(screen.getByPlaceholderText('Send message to agent...'), { target: { value: 'continue' } })
+    fireEvent.click(screen.getByText('Send'))
+
+    await waitFor(() => {
+      expect(call).toHaveBeenCalledWith('agents.resume', { agentId: 'agent-1', message: 'continue' })
+    })
+    expect(notify).not.toHaveBeenCalledWith('Pause the agent before sending a follow-up message')
+  })
 })

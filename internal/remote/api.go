@@ -876,10 +876,12 @@ func (api *PanelAPI) configSet(params json.RawMessage) (json.RawMessage, error) 
 	}
 	if api.Config.SetupComplete {
 		exe, _ := os.Executable()
+		activeCDPURL := api.activeFoxbridgeCDPURL()
+		api.Config.FoxbridgeCDPURL = activeCDPURL
 		if err := api.Config.GenerateOpenClawConfig(exe, api.Config.BinaryPath); err != nil {
 			return nil, fmt.Errorf("generate openclaw config: %w", err)
 		}
-		if err := config.RepairOpenClawProfile(api.Config.FoxbridgeCDPURL); err != nil {
+		if err := config.RepairOpenClawProfile(activeCDPURL); err != nil {
 			return nil, fmt.Errorf("repair openclaw profile: %w", err)
 		}
 	}

@@ -349,8 +349,8 @@ func (c *Config) HydrateFromOpenClawProfile() bool {
 			changed = true
 		}
 	}
-	if strings.TrimSpace(c.Provider) == "" {
-		if providerID := providerIDFromModel(c.Model); providerID != "" {
+	if providerID := providerIDFromModel(c.Model); providerID != "" {
+		if strings.TrimSpace(c.Provider) == "" || strings.TrimSpace(c.APIKey) == "" {
 			c.Provider = providerID
 			changed = true
 		}

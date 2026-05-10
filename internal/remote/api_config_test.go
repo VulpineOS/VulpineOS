@@ -60,6 +60,30 @@ func TestConfigSetMarksSetupCompleteAndRegeneratesProfile(t *testing.T) {
 	}
 }
 
+func TestConfigSetClearsStoppedFoxbridgeRouteFromProfile(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	api := &PanelAPI{
+		Config: &config.Config{FoxbridgeCDPURL: "ws://127.0.0.1:9222"},
+		FoxbridgeRunning: func() bool {
+			return false
+		},
+	}
+
+	params := json.RawMessage(`{"provider":"zai","model":"zai/glm-4.7","apiKey":"zai-test-key"}`)
+	if _, err := api.HandleMessage("config.set", params); err != nil {
+		t.Fatalf("HandleMessage: %v", err)
+	}
+
+	data, err := os.ReadFile(config.OpenClawConfigPath())
+	if err != nil {
+		t.Fatalf("read openclaw profile: %v", err)
+	}
+	if strings.Contains(string(data), "cdpUrl") {
+		t.Fatalf("config.set kept stopped foxbridge cdpUrl: %s", data)
+	}
+}
+
 func TestConfigSetClearsStoredKeyWhenProviderChangesWithoutNewKey(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 

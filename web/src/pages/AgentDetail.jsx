@@ -58,6 +58,7 @@ export default function AgentDetail({ ws }) {
   const traceMessages = messages.filter(m => m.role === 'system')
   const canPauseAgent = agent && isLiveAgentStatus(agent.status)
   const canResumeAgent = agent && isPausedAgentStatus(agent.status)
+  const canSendFollowUp = agent && (isPausedAgentStatus(agent.status) || isTerminalAgentStatus(agent.status))
 
   function traceMeta(content) {
     if (!content) return { label: 'TRACE', tone: '#9ca3af', bg: '#111827' }
@@ -246,7 +247,7 @@ export default function AgentDetail({ ws }) {
   const sendMessage = async () => {
     const text = input.trim()
     if (!text) return
-    if (!canResumeAgent) {
+    if (!canSendFollowUp) {
       ws.notify?.('Pause the agent before sending a follow-up message')
       return
     }
@@ -387,7 +388,7 @@ export default function AgentDetail({ ws }) {
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <input className="input" value={input} onChange={e => setInput(e.target.value)}
-              placeholder={canResumeAgent ? 'Send message to agent...' : 'Pause agent before sending a message...'} onKeyDown={e => e.key === 'Enter' && sendMessage()} />
+              placeholder={canSendFollowUp ? 'Send message to agent...' : 'Pause agent before sending a message...'} onKeyDown={e => e.key === 'Enter' && sendMessage()} />
             <button className="btn btn-primary" onClick={sendMessage}>Send</button>
           </div>
         </div>
