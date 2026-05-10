@@ -215,6 +215,34 @@ func TestClient_EventHandlerDoesNotBlockResponses(t *testing.T) {
 	}
 }
 
+func TestClient_QueueEventBackpressuresWhenBufferFull(t *testing.T) {
+	c := &Client{
+		events:   make(chan *Message, 1),
+		done:     make(chan struct{}),
+		handlers: make(map[string][]eventSubscription),
+	}
+	c.events <- &Message{Method: "Page.first"}
+
+	queued := make(chan struct{})
+	go func() {
+		c.queueEvent(&Message{Method: "Page.second"})
+		close(queued)
+	}()
+
+	select {
+	case <-queued:
+		t.Fatal("queueEvent returned while event buffer was full")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	<-c.events
+	select {
+	case <-queued:
+	case <-time.After(time.Second):
+		t.Fatal("queueEvent did not unblock after buffer space was available")
+	}
+}
+
 func TestClient_CallWithContext_TimesOut(t *testing.T) {
 	mt := newMemTransport()
 	// Don't respond — let it hang

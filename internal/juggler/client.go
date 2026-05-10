@@ -195,8 +195,6 @@ func (c *Client) queueEvent(msg *Message) {
 	select {
 	case c.events <- msg:
 	case <-c.done:
-	default:
-		go c.dispatchEvent(msg)
 	}
 }
 
