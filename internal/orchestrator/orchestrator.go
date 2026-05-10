@@ -298,9 +298,6 @@ func (o *Orchestrator) Status() Status {
 func (o *Orchestrator) Close() {
 	o.Agents.Dispose()
 	o.Pool.Close()
-	if o.Client != nil {
-		o.Client.Close()
-	}
 	o.Vault.Close()
 	// Clean up optional subsystems (nil-safe)
 	// AgentBus, Costs, Webhooks, Recording, PageCache have no Close methods

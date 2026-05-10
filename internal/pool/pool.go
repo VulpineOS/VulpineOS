@@ -44,6 +44,7 @@ type Pool struct {
 	total     int
 	done      chan struct{}
 	closeOnce sync.Once
+	closed    bool
 }
 
 // New creates a context pool. Call Start() to pre-warm.
@@ -85,6 +86,12 @@ func (p *Pool) Start() error {
 
 // Acquire gets a context slot, creating one if needed. Blocks if at max capacity.
 func (p *Pool) Acquire() (*ContextSlot, error) {
+	select {
+	case <-p.done:
+		return nil, fmt.Errorf("pool closed")
+	default:
+	}
+
 	// Try to get an available slot without blocking
 	select {
 	case slot := <-p.available:
@@ -131,8 +138,19 @@ func (p *Pool) Acquire() (*ContextSlot, error) {
 // If the slot has exceeded max uses, it's destroyed and a new one is created.
 func (p *Pool) Release(slot *ContextSlot) {
 	p.mu.Lock()
-	delete(p.active, slot.ContextID)
+	_, wasActive := p.active[slot.ContextID]
+	if wasActive {
+		delete(p.active, slot.ContextID)
+	}
+	closed := p.closed
 	p.mu.Unlock()
+
+	if closed {
+		if wasActive {
+			p.destroySlot(slot)
+		}
+		return
+	}
 
 	slot.UseCount++
 
@@ -163,8 +181,18 @@ func (p *Pool) Stats() (available, active, total int) {
 
 // Close destroys all contexts and shuts down the pool.
 func (p *Pool) Close() {
+	var activeSlots []*ContextSlot
 	p.closeOnce.Do(func() {
 		close(p.done)
+		p.mu.Lock()
+		p.closed = true
+		activeSlots = make([]*ContextSlot, 0, len(p.active))
+		for contextID, slot := range p.active {
+			activeSlots = append(activeSlots, slot)
+			delete(p.active, contextID)
+		}
+		p.total = 0
+		p.mu.Unlock()
 	})
 
 	// Drain available slots
@@ -173,6 +201,9 @@ func (p *Pool) Close() {
 		case slot := <-p.available:
 			p.destroySlot(slot)
 		default:
+			for _, slot := range activeSlots {
+				p.destroySlot(slot)
+			}
 			return
 		}
 	}
