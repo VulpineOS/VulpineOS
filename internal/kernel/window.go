@@ -40,7 +40,8 @@ func (w *WindowController) IsVisible() bool {
 func (w *WindowController) Status() (bool, bool) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	return w.visible, w.refreshVisibleLocked()
+	found := w.refreshVisibleLocked()
+	return w.visible, found
 }
 
 // Toggle shows the window if hidden, hides if shown.
