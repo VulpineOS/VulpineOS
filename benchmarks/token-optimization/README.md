@@ -19,15 +19,15 @@ Optional:
 
 ```bash
 CHROME_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" npm run benchmark:tokens
-npm run benchmark:tokens -- --output benchmarks/token-optimization/results/latest.json
+npm run benchmark:tokens -- --output /tmp/vulpine-token-benchmark.json
 ```
 
-The fixture pages are synthetic but deterministic, so published numbers can be reproduced without scraping live ecommerce sites or depending on third-party pages changing underneath us.
-The generated JSON normalizes local runner metadata so committed results do not expose a developer machine's OS, Node version, or executable path.
+The fixture pages are synthetic but deterministic, so local release checks can be reproduced without scraping live ecommerce sites or depending on third-party pages changing underneath us.
+The generated JSON normalizes local runner metadata so saved results do not expose a developer machine's OS, Node version, or executable path.
 
-## Published Results
+## Release Validation
 
-Use the generated JSON output as the source of truth for any public claim. Do not hand-copy local numbers into docs; regenerate the artifact and review it with the release diff.
+Use the generated JSON output as local validation evidence. Do not commit exact local result artifacts or hand-copy local numbers into public docs.
 
 The benchmark fails by default if the optimized export drops required semantic strings or falls below the fixture coverage checks. Use `--no-fail-on-quality` only when exploring non-release profiles.
 

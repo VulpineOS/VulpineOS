@@ -12,6 +12,7 @@ launch.exe
 /extra-docs
 docs/superpowers/
 /.public-boundary-denylist.local
+/benchmarks/token-optimization/results/*.json
 pythonlib/test*
 jsonvv/test*
 /.vscode
