@@ -182,9 +182,6 @@ func (m Model) View() string {
 	b.WriteString(shared.MutedStyle.Render(fmt.Sprintf("Ctx: %d Pg: %d", m.activeContexts, m.activePages)))
 	b.WriteString("\n")
 
-	b.WriteString(fmt.Sprintf("MEM %s\n", meterBar(m.memoryMB, 1024, fmt.Sprintf("%.0f", m.memoryMB))))
-	b.WriteString(fmt.Sprintf("LAG %s\n", meterBar(m.eventLoopLag, 100, fmt.Sprintf("%.0fms", m.eventLoopLag))))
-	b.WriteString(fmt.Sprintf("RISK %s", meterBar(m.detectionRisk, 100, fmt.Sprintf("%.0f", m.detectionRisk))))
 	if len(m.runtimeEvents) > 0 {
 		b.WriteString("\n\n")
 		b.WriteString(shared.MutedStyle.Render("Runtime"))
@@ -192,7 +189,11 @@ func (m Model) View() string {
 			b.WriteString("\n")
 			b.WriteString(shared.MutedStyle.Render(formatRuntimeEvent(event)))
 		}
+		b.WriteString("\n")
 	}
+	b.WriteString(fmt.Sprintf("MEM %s\n", meterBar(m.memoryMB, 1024, fmt.Sprintf("%.0f", m.memoryMB))))
+	b.WriteString(fmt.Sprintf("LAG %s\n", meterBar(m.eventLoopLag, 100, fmt.Sprintf("%.0fms", m.eventLoopLag))))
+	b.WriteString(fmt.Sprintf("RISK %s", meterBar(m.detectionRisk, 100, fmt.Sprintf("%.0f", m.detectionRisk))))
 
 	// Truncate to allocated height so the panel never overflows
 	result := b.String()

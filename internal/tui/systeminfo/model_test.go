@@ -78,3 +78,29 @@ func TestDefaultHeightShowsPoolAndContextStats(t *testing.T) {
 		t.Fatalf("default-height system panel missing context stats:\n%s", view)
 	}
 }
+
+func TestDefaultHeightShowsRecentRuntimeEvent(t *testing.T) {
+	model := New()
+	model.SetHeight(13)
+
+	updated, _ := model.Update(shared.KernelStatusMsg{
+		Running:       true,
+		PID:           1234,
+		Uptime:        2 * time.Minute,
+		Headless:      false,
+		BrowserRoute:  "CAMOUFOX",
+		BrowserWindow: "VISIBLE",
+	})
+	updated, _ = updated.Update(shared.PoolStatsMsg{Available: 3, Active: 2, Total: 5})
+	updated, _ = updated.Update(shared.TelemetryMsg{ActiveContexts: 4, ActivePages: 7})
+	updated, _ = updated.Update(shared.RuntimeEventMsg{Event: vault.RuntimeEvent{
+		Component: "gateway",
+		Event:     "start_failed",
+		Timestamp: time.Date(2026, 5, 10, 12, 34, 0, 0, time.UTC),
+	}})
+
+	view := updated.View()
+	if !strings.Contains(view, "Runtime") || !strings.Contains(view, "GATE") {
+		t.Fatalf("default-height system panel missing runtime event:\n%s", view)
+	}
+}
