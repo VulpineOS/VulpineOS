@@ -1,6 +1,10 @@
 package openclaw
 
-import "testing"
+import (
+	"os"
+	"testing"
+	"time"
+)
 
 func TestSummarizeToolCall(t *testing.T) {
 	got := summarizeToolCall("browser", map[string]interface{}{
@@ -232,6 +236,69 @@ func TestHandleSessionLogLine_EmitsAssistantText(t *testing.T) {
 		}
 	default:
 		t.Fatal("expected assistant text to be emitted from session log")
+	}
+}
+
+func TestAssistantTextDedupesAcrossStdoutAndSessionLog(t *testing.T) {
+	agent := newAgent("agent-1", "ctx-1", make(chan AgentStatus, 1))
+
+	agent.handleOutput(AgentOutput{
+		Payloads: []struct {
+			Text string `json:"text"`
+		}{{Text: "Done"}},
+	})
+	agent.handleSessionLogLine(`{"type":"message","message":{"role":"assistant","content":[{"type":"text","text":"Done"}]}}`)
+
+	msg := <-agent.conversationCh
+	if msg.Role != "assistant" || msg.Content != "Done" {
+		t.Fatalf("first message = %#v", msg)
+	}
+	select {
+	case extra := <-agent.conversationCh:
+		t.Fatalf("unexpected duplicate assistant message: %#v", extra)
+	default:
+	}
+}
+
+func TestStreamSessionEventsStartsFromCapturedOffset(t *testing.T) {
+	path := t.TempDir() + "/session.jsonl"
+	oldLine := `{"type":"message","message":{"role":"assistant","content":[{"type":"text","text":"old"}]}}` + "\n"
+	if err := os.WriteFile(path, []byte(oldLine), 0600); err != nil {
+		t.Fatalf("write old line: %v", err)
+	}
+
+	agent := newAgent("agent-1", "ctx-1", make(chan AgentStatus, 1))
+	agent.sessionLogPath = path
+	agent.captureSessionLogStartOffset()
+
+	newLine := `{"type":"message","message":{"role":"assistant","content":[{"type":"text","text":"new"}]}}` + "\n"
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0600)
+	if err != nil {
+		t.Fatalf("open append: %v", err)
+	}
+	if _, err := f.WriteString(newLine); err != nil {
+		_ = f.Close()
+		t.Fatalf("append new line: %v", err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatalf("close session log: %v", err)
+	}
+
+	go agent.streamSessionEvents()
+	defer close(agent.doneCh)
+
+	select {
+	case msg := <-agent.conversationCh:
+		if msg.Role != "assistant" || msg.Content != "new" {
+			t.Fatalf("message = %#v, want new assistant text", msg)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for new session log message")
+	}
+	select {
+	case extra := <-agent.conversationCh:
+		t.Fatalf("unexpected old session log message: %#v", extra)
+	default:
 	}
 }
 

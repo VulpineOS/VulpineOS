@@ -67,31 +67,34 @@ type AgentOutput struct {
 
 // Agent manages a single OpenClaw subprocess.
 type Agent struct {
-	ID             string
-	ContextID      string
-	cmd            *exec.Cmd
-	stdinPipe      io.WriteCloser
-	stderrBuf      *bytes.Buffer // captures stderr for error reporting
-	statusCh       chan AgentStatus
-	conversationCh chan ConversationMsg
-	doneCh         chan struct{}
-	stopCh         chan struct{}
-	stopOnce       sync.Once
-	mu             sync.Mutex
-	status         AgentStatus
-	startedAt      time.Time
-	env            map[string]string // extra environment variables for the subprocess
-	RestartCount   int               // number of automatic restarts after crashes
-	binary         string            // binary path used to start this agent
-	args           []string          // args used to start this agent
-	waitState      *agentWaitState
-	stopStatus     string
-	sessionLogPath string
-	lastToolName   string
-	lastToolFailed bool
-	lastToolStatus string
-	lastToolError  string
-	pendingTools   map[string]toolCallInfo
+	ID               string
+	ContextID        string
+	cmd              *exec.Cmd
+	stdinPipe        io.WriteCloser
+	stderrBuf        *bytes.Buffer // captures stderr for error reporting
+	statusCh         chan AgentStatus
+	conversationCh   chan ConversationMsg
+	doneCh           chan struct{}
+	stopCh           chan struct{}
+	stopOnce         sync.Once
+	mu               sync.Mutex
+	conversationMu   sync.Mutex
+	status           AgentStatus
+	startedAt        time.Time
+	env              map[string]string // extra environment variables for the subprocess
+	RestartCount     int               // number of automatic restarts after crashes
+	binary           string            // binary path used to start this agent
+	args             []string          // args used to start this agent
+	waitState        *agentWaitState
+	stopStatus       string
+	sessionLogPath   string
+	sessionLogOffset int64
+	lastToolName     string
+	lastToolFailed   bool
+	lastToolStatus   string
+	lastToolError    string
+	pendingTools     map[string]toolCallInfo
+	emittedAssistant map[string]struct{}
 }
 
 type toolCallInfo struct {
@@ -107,13 +110,14 @@ type agentWaitState struct {
 // newAgent creates a new agent instance (not yet started).
 func newAgent(id, contextID string, statusCh chan AgentStatus) *Agent {
 	return &Agent{
-		ID:             id,
-		ContextID:      contextID,
-		statusCh:       statusCh,
-		conversationCh: make(chan ConversationMsg, 64),
-		doneCh:         make(chan struct{}),
-		stopCh:         make(chan struct{}),
-		pendingTools:   make(map[string]toolCallInfo),
+		ID:               id,
+		ContextID:        contextID,
+		statusCh:         statusCh,
+		conversationCh:   make(chan ConversationMsg, 64),
+		doneCh:           make(chan struct{}),
+		stopCh:           make(chan struct{}),
+		pendingTools:     make(map[string]toolCallInfo),
+		emittedAssistant: make(map[string]struct{}),
 		status: AgentStatus{
 			AgentID:   id,
 			ContextID: contextID,
@@ -157,6 +161,7 @@ func (a *Agent) start(binary string, args []string) error {
 	a.stderrBuf = &bytes.Buffer{}
 	a.cmd.Stderr = a.stderrBuf
 
+	a.captureSessionLogStartOffset()
 	if err := a.cmd.Start(); err != nil {
 		return fmt.Errorf("start agent process: %w", err)
 	}
@@ -385,12 +390,7 @@ type sessionLogLine struct {
 
 func (a *Agent) streamSessionEvents() {
 	path := a.sessionLogPath
-	offset := int64(0)
-	if info, err := os.Stat(path); err == nil {
-		offset = info.Size()
-	} else if !os.IsNotExist(err) {
-		return
-	}
+	offset := a.sessionLogOffset
 
 	var pending string
 	ticker := time.NewTicker(250 * time.Millisecond)
@@ -424,6 +424,16 @@ func (a *Agent) streamSessionEvents() {
 				a.handleSessionLogLine(line)
 			}
 		}
+	}
+}
+
+func (a *Agent) captureSessionLogStartOffset() {
+	a.sessionLogOffset = 0
+	if a.sessionLogPath == "" {
+		return
+	}
+	if info, err := os.Stat(a.sessionLogPath); err == nil {
+		a.sessionLogOffset = info.Size()
 	}
 }
 
@@ -1095,6 +1105,22 @@ func (a *Agent) emitConversation(msg ConversationMsg) {
 	defer func() {
 		_ = recover()
 	}()
+	if msg.Role == "assistant" {
+		content := strings.TrimSpace(msg.Content)
+		if content == "" {
+			return
+		}
+		a.conversationMu.Lock()
+		if a.emittedAssistant == nil {
+			a.emittedAssistant = make(map[string]struct{})
+		}
+		if _, ok := a.emittedAssistant[content]; ok {
+			a.conversationMu.Unlock()
+			return
+		}
+		a.emittedAssistant[content] = struct{}{}
+		a.conversationMu.Unlock()
+	}
 	select {
 	case a.conversationCh <- msg:
 	default:
@@ -1196,6 +1222,9 @@ func (a *Agent) restart() error {
 	// Reset channels for the new process
 	a.conversationCh = make(chan ConversationMsg, 64)
 	a.doneCh = make(chan struct{})
+	a.conversationMu.Lock()
+	a.emittedAssistant = make(map[string]struct{})
+	a.conversationMu.Unlock()
 	return a.start(a.binary, a.args)
 }
 
