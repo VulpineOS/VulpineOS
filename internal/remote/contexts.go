@@ -102,6 +102,26 @@ func (r *ContextRegistry) FrameAttached(sessionID, frameID, parentFrameID string
 	r.sessionMainFrame[sessionID] = frameID
 }
 
+// Navigated records the latest main-frame URL for a tracked session.
+func (r *ContextRegistry) Navigated(sessionID, frameID, url string) {
+	if sessionID == "" || url == "" {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	contextID, ok := r.sessionToContext[sessionID]
+	if !ok {
+		return
+	}
+	if mainFrameID := r.sessionMainFrame[sessionID]; mainFrameID != "" && frameID != "" && frameID != mainFrameID {
+		return
+	}
+	if ctx := r.contexts[contextID]; ctx != nil {
+		ctx.LastURL = url
+	}
+}
+
 // Detached removes an attached session from its context page count.
 func (r *ContextRegistry) Detached(sessionID string) {
 	if sessionID == "" {
@@ -141,6 +161,17 @@ func (r *ContextRegistry) List() []ContextInfo {
 		}
 	})
 	return out
+}
+
+// Exists returns true when a browser context is currently tracked.
+func (r *ContextRegistry) Exists(contextID string) bool {
+	if contextID == "" {
+		return false
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	_, ok := r.contexts[contextID]
+	return ok
 }
 
 // SessionForContext returns one attached session ID for the given browser context.

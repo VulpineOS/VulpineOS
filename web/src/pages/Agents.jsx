@@ -15,6 +15,7 @@ export default function Agents({ ws }) {
   const [totalCost, setTotalCost] = useState(0)
   const [defaultBudget, setDefaultBudget] = useState({ maxCostUsd: 0, maxTokens: 0 })
   const [contexts, setContexts] = useState([])
+  const [contextsLoaded, setContextsLoaded] = useState(false)
   const [selectedContext, setSelectedContext] = useState(localStorage.getItem('vulpine_context_id') || '')
   const [notice, setNotice] = useState('')
   const [pendingKill, setPendingKill] = useState(null)
@@ -29,10 +30,21 @@ export default function Agents({ ws }) {
       setDefaultBudget(r?.defaults || { maxCostUsd: 0, maxTokens: 0 })
     }).catch(() => {})
     ws.call('costs.total').then(r => setTotalCost(r?.totalCostUsd || 0)).catch(() => {})
-    ws.call('contexts.list').then(r => setContexts(r?.contexts || [])).catch(() => {})
+    ws.call('contexts.list').then(r => {
+      setContexts(r?.contexts || [])
+      setContextsLoaded(true)
+    }).catch(() => {})
   }
 
   useEffect(() => { if (ws.connected) refresh() }, [ws.connected])
+  useEffect(() => {
+    if (!contextsLoaded || !selectedContext) return
+    if (!contexts.some(context => context.id === selectedContext)) {
+      localStorage.removeItem('vulpine_context_id')
+      setSelectedContext('')
+    }
+  }, [contexts, contextsLoaded, selectedContext])
+
   useEffect(() => {
     const events = ws.events || []
     const sequencedEvents = events.filter(event => Number.isFinite(event.seq))

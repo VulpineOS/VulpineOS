@@ -289,6 +289,9 @@ func (api *PanelAPI) agentsSpawn(params json.RawMessage) (json.RawMessage, error
 		if err != nil {
 			return nil, err
 		}
+		if err := api.requireKnownContext(contextID); err != nil {
+			return nil, err
+		}
 	}
 	fp, err := vault.GenerateFingerprint(name)
 	if err != nil {
@@ -2288,10 +2291,23 @@ func (api *PanelAPI) agentRuntimeConfig(agent *vault.Agent) (string, func(), err
 	if meta.ContextID == "" {
 		return openclaw.PrepareRuntimeConfig(config.OpenClawConfigPath())
 	}
+	if err := api.requireKnownContext(meta.ContextID); err != nil {
+		return "", nil, err
+	}
 	if api.Orchestrator == nil {
 		return "", nil, fmt.Errorf("orchestrator not available")
 	}
 	return api.Orchestrator.PrepareScopedOpenClawConfig(meta.ContextID)
+}
+
+func (api *PanelAPI) requireKnownContext(contextID string) error {
+	if contextID == "" {
+		return nil
+	}
+	if api.Contexts == nil || !api.Contexts.Exists(contextID) {
+		return fmt.Errorf("browser context %s is not available", contextID)
+	}
+	return nil
 }
 
 func (api *PanelAPI) contextsList() (json.RawMessage, error) {
