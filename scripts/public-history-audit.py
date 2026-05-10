@@ -44,7 +44,7 @@ EXCLUDE_SPECS = [
     ":(glob,exclude)**/docs/public/llms-full.txt",
 ]
 
-PUBLIC_REVSET = ["--remotes=origin", "--tags"]
+PUBLIC_REVSET = ["HEAD", "--remotes=origin", "--tags"]
 LOCAL_DENYLIST_FILE = Path(
     os.environ.get("VULPINE_PUBLIC_AUDIT_DENYLIST", REPO_ROOT / ".public-boundary-denylist.local")
 )

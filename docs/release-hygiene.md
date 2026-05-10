@@ -20,7 +20,7 @@ It checks for:
 - high-confidence secret tokens
 - unsafe `upstream` push configuration
 
-It intentionally skips generated and vendored paths such as `node_modules`, build output, `go.sum`, and public LLM text exports. Placeholder examples like `/home/name` or `C:\Users\<user>` are not treated as leaks.
+It intentionally skips generated and vendored paths such as `node_modules`, build output, and public LLM text exports. Placeholder examples like `/home/name` or `C:\Users\<user>` are not treated as leaks.
 
 The boundary and history audits also load optional local denylist patterns from `.public-boundary-denylist.local`, or from the file pointed at by `VULPINE_PUBLIC_AUDIT_DENYLIST`. This file is intentionally untracked. Each non-comment line may be either a regex pattern or `description<TAB>regex pattern`.
 

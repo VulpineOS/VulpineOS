@@ -23,6 +23,10 @@ if [[ -f "${repo_list_file}" ]]; then
     public_repo_paths+=("${repo_path}")
   done < "${repo_list_file}"
 fi
+if ((${#public_repo_paths[@]} == 0)); then
+  public_repo_names=("$(basename "${repo_root}")")
+  public_repo_paths=("${repo_root}")
+fi
 
 exclude_specs=(
   ":(glob,exclude)**/node_modules/**"
@@ -119,6 +123,13 @@ scan_files() {
   git -C "$repo" grep -nI --color=never --perl-regexp "${pattern_args[@]}" -- . "${exclude_specs[@]}"
 }
 
+scan_all_files() {
+  local repo="$1"
+  shift
+  local pattern_args=("$@")
+  git -C "$repo" grep -na --color=never --perl-regexp "${pattern_args[@]}" -- . "${exclude_specs[@]}"
+}
+
 check_pattern() {
   local repo="$1"
   local expected_name="$2"
@@ -127,6 +138,20 @@ check_pattern() {
   local matches
 
   matches="$(scan_files "$repo" -e "$pattern" || true)"
+  if [[ -n "$matches" ]]; then
+    fail "${expected_name}: ${description}"
+    printf '%s\n' "$matches"
+  fi
+}
+
+check_pattern_all() {
+  local repo="$1"
+  local expected_name="$2"
+  local description="$3"
+  local pattern="$4"
+  local matches
+
+  matches="$(scan_all_files "$repo" -e "$pattern" || true)"
   if [[ -n "$matches" ]]; then
     fail "${expected_name}: ${description}"
     printf '%s\n' "$matches"
@@ -176,9 +201,9 @@ check_repo() {
     check_pattern "$repo" "$expected_name" "tracked local denylist match (${local_denylist_descriptions[$i]})" "${local_denylist_patterns[$i]}"
   done
 
-  check_pattern "$repo" "$expected_name" "tracked macOS absolute path" '(^|[^A-Za-z0-9_])/Users/(?!<user>|<username>|example/|name/|runner/)[A-Za-z0-9._-]+/'
-  check_pattern "$repo" "$expected_name" "tracked Linux absolute path" '(^|[^A-Za-z0-9_])/home/(?!<user>|<username>|example/|name/|appveyor/|runner/|runneradmin/|ubuntu/|vsts/)[A-Za-z0-9._-]+/'
-  check_pattern "$repo" "$expected_name" "tracked Windows absolute path" '(^|[^A-Za-z0-9_])[A-Za-z]:\\\\Users\\\\(?!<user>|<username>|example\\\\|name\\\\)[^\\\\\\s]+\\\\'
+  check_pattern_all "$repo" "$expected_name" "tracked macOS absolute path" '(^|[^A-Za-z0-9_])/Users/(?!<user>|<username>|example/|name/|runner/)[A-Za-z0-9._-]+/'
+  check_pattern_all "$repo" "$expected_name" "tracked Linux absolute path" '(^|[^A-Za-z0-9_])/home/(?!<user>|<username>|example/|name/|appveyor/|runner/|runneradmin/|ubuntu/|vsts/)[A-Za-z0-9._-]+/'
+  check_pattern_all "$repo" "$expected_name" "tracked Windows absolute path" '(^|[^A-Za-z0-9_])[A-Za-z]:\\\\Users\\\\(?!<user>|<username>|example\\\\|name\\\\)[^\\\\\\s]+\\\\'
   check_pattern "$repo" "$expected_name" "high-confidence secret token" 'ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{20,}|lin_api_[A-Za-z0-9]{20,}|xox[pbar]-[A-Za-z0-9-]{20,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|sk-(proj-)?[A-Za-z0-9]{20,}'
 
   if [[ "$expected_name" == "VulpineOS" ]]; then
