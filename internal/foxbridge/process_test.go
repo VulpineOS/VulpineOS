@@ -244,3 +244,17 @@ func TestStartEmbeddedModeStopsServerWhenReadinessFails(t *testing.T) {
 		t.Fatalf("embedded server was not stopped after failed startup: %v", err)
 	}
 }
+
+func TestRunningClearsExitedEmbeddedServer(t *testing.T) {
+	done := make(chan struct{})
+	close(done)
+	process := New()
+	process.embedded = &EmbeddedServer{done: done}
+
+	if process.Running() {
+		t.Fatal("Running() = true for exited embedded server")
+	}
+	if process.embedded != nil {
+		t.Fatal("exited embedded server was not cleared")
+	}
+}

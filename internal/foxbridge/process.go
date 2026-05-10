@@ -267,6 +267,14 @@ func (p *Process) Running() bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.embedded != nil {
+		if p.embedded.done != nil {
+			select {
+			case <-p.embedded.done:
+				p.embedded = nil
+				return false
+			default:
+			}
+		}
 		return true
 	}
 	return p.cmd != nil
