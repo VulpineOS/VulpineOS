@@ -36,7 +36,10 @@ type Config struct {
 	ProfileDir     string
 }
 
-var waitForProcessPort = waitForPort
+var (
+	waitForProcessPort = waitForPort
+	findFoxbridgePath  = findFoxbridge
+)
 
 // New creates a new foxbridge process manager.
 func New() *Process {
@@ -57,7 +60,7 @@ func (p *Process) Start(cfg Config) error {
 	}
 	p.mu.Unlock()
 
-	bin := findFoxbridge()
+	bin := findFoxbridgePath()
 	if bin == "" {
 		err := fmt.Errorf("foxbridge binary not found (install with: go install github.com/VulpineOS/foxbridge/cmd/foxbridge@latest)")
 		p.logRuntimeEvent("error", "start_failed", "foxbridge binary not found", nil)

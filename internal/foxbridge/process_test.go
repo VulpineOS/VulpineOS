@@ -26,6 +26,11 @@ func TestStartExternalFailureDoesNotBlockRetry(t *testing.T) {
 	if err := os.WriteFile(foxbridgePath, []byte("#!/bin/sh\nexit 0\n"), 0o644); err != nil {
 		t.Fatalf("write non-executable foxbridge: %v", err)
 	}
+	originalFind := findFoxbridgePath
+	findFoxbridgePath = func() string {
+		return foxbridgePath
+	}
+	t.Cleanup(func() { findFoxbridgePath = originalFind })
 
 	process := New()
 	if err := process.Start(Config{}); err == nil {
@@ -79,6 +84,11 @@ func TestStartExternalReapsExitedProcess(t *testing.T) {
 	if err := os.Chmod(foxbridgePath, 0o755); err != nil {
 		t.Fatalf("chmod foxbridge: %v", err)
 	}
+	originalFind := findFoxbridgePath
+	findFoxbridgePath = func() string {
+		return foxbridgePath
+	}
+	t.Cleanup(func() { findFoxbridgePath = originalFind })
 
 	originalWait := waitForProcessPort
 	waitForProcessPort = func(int, time.Duration) error {
@@ -141,6 +151,11 @@ func TestStopExternalKillsChildProcesses(t *testing.T) {
 	if err := os.Chmod(foxbridgePath, 0o755); err != nil {
 		t.Fatalf("chmod foxbridge: %v", err)
 	}
+	originalFind := findFoxbridgePath
+	findFoxbridgePath = func() string {
+		return foxbridgePath
+	}
+	t.Cleanup(func() { findFoxbridgePath = originalFind })
 
 	originalWait := waitForProcessPort
 	waitForProcessPort = func(int, time.Duration) error {
