@@ -1092,7 +1092,6 @@ var serverForwardedBrowserEvents = []string{
 	"Browser.trustWarmingStateChanged",
 	"Browser.attachedToTarget",
 	"Browser.detachedFromTarget",
-	"Page.browserProbeDetected",
 	"Page.navigationCommitted",
 	"Page.eventFired",
 	"Page.frameAttached",
@@ -1149,11 +1148,6 @@ func wireServerBrowserEvents(client *juggler.Client, contexts *remote.ContextReg
 					if err := json.Unmarshal(params, &payload); err == nil {
 						contexts.Navigated(sessionID, payload.FrameID, payload.URL)
 					}
-				}
-			case "Page.browserProbeDetected":
-				var payload juggler.BrowserProbe
-				if err := json.Unmarshal(params, &payload); err == nil {
-					_ = sentinelcapture.RecordBrowserProbe(context.Background(), sessionID, payload)
 				}
 			case "Browser.trustWarmingStateChanged":
 				var payload juggler.TrustWarmingState

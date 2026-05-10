@@ -295,13 +295,6 @@ func NewAppWithControl(k *kernel.Kernel, client *juggler.Client, orch *orchestra
 				Blocked:   e.Blocked,
 			})
 		})
-		client.Subscribe("Page.browserProbeDetected", func(sid string, params json.RawMessage) {
-			var e juggler.BrowserProbe
-			if err := json.Unmarshal(params, &e); err != nil {
-				return
-			}
-			_ = sentinelcapture.RecordBrowserProbe(context.Background(), sid, e)
-		})
 		client.Subscribe("Page.navigationCommitted", func(sid string, params json.RawMessage) {
 			var e struct {
 				FrameID string `json:"frameId"`

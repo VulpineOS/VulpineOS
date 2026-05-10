@@ -89,33 +89,6 @@ func RecordProxyRotationWithScope(ctx context.Context, event proxy.RotationEvent
 	})
 }
 
-// RecordBrowserProbe writes page-level browser probe evidence into
-// Sentinel when a real provider is available.
-func RecordBrowserProbe(ctx context.Context, sessionID string, probe juggler.BrowserProbe) error {
-	attributes := withExperimentDefaults(ctx, map[string]string{
-		"probe_type": probe.ProbeType,
-		"api":        probe.API,
-		"detail":     probe.Detail,
-		"count":      jsonInt(probe.Count),
-		"frame_id":   probe.FrameID,
-	})
-	payload, _ := json.Marshal(probe)
-	return recordEvent(ctx, extensions.SentinelEvent{
-		Kind:   extensions.SentinelEventKindBrowserProbe,
-		Source: "juggler",
-		Name:   probeName(probe),
-		Scope: extensions.SentinelScope{
-			SessionID: sessionID,
-			Domain:    scrubDomain(probe.URL),
-			URL:       probe.URL,
-			ScriptURL: probe.ScriptURL,
-		},
-		Attributes: attributes,
-		Payload:    payload,
-		Timestamp:  probeTime(probe.Timestamp),
-	})
-}
-
 // RecordTrustActivity writes trust-warming lifecycle activity into
 // Sentinel when a real provider is available.
 func RecordTrustActivity(ctx context.Context, state juggler.TrustWarmingState) error {
@@ -421,20 +394,6 @@ func normalizeAssetDomain(raw string) string {
 		return scrubDomain(raw)
 	}
 	return strings.ToLower(strings.TrimPrefix(raw, "."))
-}
-
-func probeName(probe juggler.BrowserProbe) string {
-	if probe.API == "" {
-		return probe.ProbeType
-	}
-	return probe.ProbeType + "." + probe.API
-}
-
-func probeTime(timestamp float64) time.Time {
-	if timestamp <= 0 {
-		return time.Now().UTC()
-	}
-	return time.UnixMilli(int64(timestamp)).UTC()
 }
 
 func jsonInt(v int) string {

@@ -149,65 +149,6 @@ func TestRecordProxyRotationScrubsCredentials(t *testing.T) {
 	}
 }
 
-func TestRecordBrowserProbeMapsScopeAndPayload(t *testing.T) {
-	original := extensions.Registry.Sentinel()
-	t.Cleanup(func() { extensions.Registry.SetSentinel(original) })
-	fake := &extensionstest.FakeSentinelProvider{
-		AvailableFlag: true,
-		VariantBundles: []extensions.SentinelVariantBundle{
-			{ID: "control", Enabled: true},
-		},
-		TrustRecipes: []extensions.SentinelTrustRecipe{
-			{ID: "baseline-warmup"},
-		},
-	}
-	extensions.Registry.SetSentinel(fake)
-
-	err := RecordBrowserProbe(context.Background(), "session-1", juggler.BrowserProbe{
-		FrameID:   "frame-1",
-		URL:       "https://ticketmaster.example/product/123",
-		ScriptURL: "https://cdn.ticketmaster.example/fp.js",
-		ProbeType: "webgl_probe",
-		API:       "getParameter",
-		Detail:    "37445",
-		Count:     3,
-		Timestamp: float64(time.Unix(1713830400, 0).UnixMilli()),
-	})
-	if err != nil {
-		t.Fatalf("RecordBrowserProbe: %v", err)
-	}
-
-	events := fake.RecordedEvents()
-	if len(events) != 1 {
-		t.Fatalf("events = %+v", events)
-	}
-	event := events[0]
-	if event.Kind != extensions.SentinelEventKindBrowserProbe {
-		t.Fatalf("event.Kind = %q", event.Kind)
-	}
-	if event.Name != "webgl_probe.getParameter" {
-		t.Fatalf("event.Name = %q", event.Name)
-	}
-	if event.Scope.SessionID != "session-1" || event.Scope.Domain != "ticketmaster.example" {
-		t.Fatalf("event.Scope = %+v", event.Scope)
-	}
-	if event.Scope.ScriptURL != "https://cdn.ticketmaster.example/fp.js" {
-		t.Fatalf("event.Scope.ScriptURL = %q", event.Scope.ScriptURL)
-	}
-	if got := event.Attributes["frame_id"]; got != "frame-1" {
-		t.Fatalf("frame_id = %q", got)
-	}
-	if got := event.Attributes["count"]; got != "3" {
-		t.Fatalf("count = %q", got)
-	}
-	if event.Attributes["variant_bundle_id"] != "control" || event.Attributes["trust_recipe_id"] != "baseline-warmup" {
-		t.Fatalf("experiment attrs = %+v", event.Attributes)
-	}
-	if len(event.Payload) == 0 {
-		t.Fatalf("event.Payload is empty")
-	}
-}
-
 func TestRecordTrustActivityMapsStateAndScope(t *testing.T) {
 	original := extensions.Registry.Sentinel()
 	t.Cleanup(func() { extensions.Registry.SetSentinel(original) })
