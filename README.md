@@ -197,8 +197,8 @@ Those bootstrap files also force exact action/result reporting and explicitly fo
 The footer always shows the current arrow-key mode as `mode:navigate` or `mode:resize`.
 The system panel now shows both the browser mode (`GUI` or `HEADLESS`) and the active browser route (`CAMOUFOX` when OpenClaw is attached through foxbridge into Camoufox), so the operator can verify the runtime path without checking logs.
 The TUI also shows the current browser window state (`VISIBLE`, `HIDDEN`, `HEADLESS`, or `N/A`) so `v` no longer feels opaque when the window controller cannot act.
-The web panel now surfaces the same route and mode signal on Dashboard and Settings, including whether that route came from live runtime state or only from the shared OpenClaw profile, plus whether the OpenClaw gateway daemon is currently running.
-Settings now separates `Agent model setup` from `OpenClaw profile`, so a machine can show a valid browser/profile route even when the current model credentials still need attention.
+The web panel now surfaces the same route and mode signal on Dashboard and Settings, including whether that route came from a live runtime or the current kernel, plus whether the OpenClaw gateway daemon is currently running.
+Settings now separates `Agent model setup` from `OpenClaw profile`, so a machine can show profile configuration separately from the currently active browser route.
 If an older machine already has a valid `~/.openclaw-vulpine/openclaw.json` but a stale or blank `~/.vulpineos/config.json`, VulpineOS now backfills the local provider/model/key state from the OpenClaw profile instead of pretending the installation is unconfigured.
 Saving provider settings from the web panel now also marks setup complete and regenerates the shared OpenClaw profile immediately, so panel edits apply to the next agent run without waiting for a separate reconfigure pass.
 The web panel Settings page now loads the live provider registry from the runtime and presents provider/model dropdowns instead of raw free-text IDs, reducing config typos.

@@ -30,19 +30,20 @@ type gatewayStatus interface {
 }
 
 type PanelAPI struct {
-	Orchestrator *orchestrator.Orchestrator
-	Config       *config.Config
-	Vault        *vault.DB
-	AgentBus     *agentbus.Bus
-	Costs        *costtrack.Tracker
-	Webhooks     *webhooks.Manager
-	Recorder     *recording.Recorder
-	Rotator      *proxy.Rotator
-	Kernel       *kernel.Kernel
-	Gateway      gatewayStatus
-	Client       *juggler.Client
-	Contexts     *ContextRegistry
-	RuntimeAudit *runtimeaudit.Manager
+	Orchestrator     *orchestrator.Orchestrator
+	Config           *config.Config
+	Vault            *vault.DB
+	AgentBus         *agentbus.Bus
+	Costs            *costtrack.Tracker
+	Webhooks         *webhooks.Manager
+	Recorder         *recording.Recorder
+	Rotator          *proxy.Rotator
+	Kernel           *kernel.Kernel
+	Gateway          gatewayStatus
+	FoxbridgeRunning func() bool
+	Client           *juggler.Client
+	Contexts         *ContextRegistry
+	RuntimeAudit     *runtimeaudit.Manager
 }
 
 const (
@@ -1734,15 +1735,27 @@ func (api *PanelAPI) browserRoute() (string, string) {
 	switch {
 	case api.Kernel == nil:
 		return "disabled", "server"
-	case api.Config != nil && strings.TrimSpace(api.Config.FoxbridgeCDPURL) != "":
+	case api.activeFoxbridgeCDPURL() != "":
 		return "camoufox", "runtime"
-	case config.OpenClawProfileBrowserRoute() != "":
-		return config.OpenClawProfileBrowserRoute(), "profile"
 	case api.Kernel != nil && api.Kernel.IsHeadless():
 		return "headless", "kernel"
 	default:
 		return "direct", "kernel"
 	}
+}
+
+func (api *PanelAPI) activeFoxbridgeCDPURL() string {
+	if api.Config == nil {
+		return ""
+	}
+	cdpURL := strings.TrimSpace(api.Config.FoxbridgeCDPURL)
+	if cdpURL == "" {
+		return ""
+	}
+	if api.FoxbridgeRunning != nil && !api.FoxbridgeRunning() {
+		return ""
+	}
+	return cdpURL
 }
 
 func (api *PanelAPI) browserWindow() string {
@@ -1925,7 +1938,7 @@ func (api *PanelAPI) agentRuntimeConfig(agent *vault.Agent) (string, func(), err
 		return "", nil, fmt.Errorf("agent not found")
 	}
 	if api.Config != nil {
-		if err := config.RepairOpenClawProfile(api.Config.FoxbridgeCDPURL); err != nil {
+		if err := config.RepairOpenClawProfile(api.activeFoxbridgeCDPURL()); err != nil {
 			return "", nil, fmt.Errorf("repair openclaw profile: %w", err)
 		}
 	}

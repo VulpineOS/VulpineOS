@@ -1272,6 +1272,9 @@ func runServe(binaryPath string, headless bool, profileDir string, host string, 
 		Recorder:     rec,
 		Rotator:      rotator,
 		Kernel:       k,
+		FoxbridgeRunning: func() bool {
+			return false
+		},
 		Client:       client,
 		Contexts:     contexts,
 		RuntimeAudit: audit,
@@ -1374,6 +1377,7 @@ func runServe(binaryPath string, headless bool, profileDir string, host string, 
 		} else {
 			defer fb.Stop()
 			cfg.FoxbridgeCDPURL = fb.CDPURL()
+			panelAPI.FoxbridgeRunning = fb.Running
 			exe, _ := os.Executable()
 			if generated, err := tryGenerateOpenClawConfig(cfg, exe, resolvedBinaryPath); err != nil {
 				log.Printf("Warning: could not generate OpenClaw config: %v", err)
