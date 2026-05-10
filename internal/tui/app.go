@@ -1459,7 +1459,7 @@ func isLiveAgentStatus(status string) bool {
 }
 
 func (a App) conversationInputLocked() bool {
-	return !a.conversation.IsAwake() && a.conversation.IsThinking()
+	return a.conversation.IsThinking()
 }
 
 func isGlobalLifecycleKey(msg tea.KeyMsg) bool {
@@ -1502,7 +1502,7 @@ func (a App) updateDescInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // updateChatInput handles keystrokes in "chat" mode.
 func (a App) updateChatInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if !a.conversation.IsAwake() && a.conversation.IsThinking() {
+	if a.conversationInputLocked() {
 		switch msg.String() {
 		case "ctrl+v":
 			a.handleBrowserToggle()
@@ -1510,6 +1510,9 @@ func (a App) updateChatInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			a.handleOpenSessionLog()
 		case "ctrl+t":
 			a.handleTraceToggle()
+		case "enter":
+			a.notice = "Agent is still working — wait for the current response"
+			a.noticeTTL = 3
 		case "esc":
 			a.conversation.Blur()
 			a.inputMode = ""

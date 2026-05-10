@@ -1478,6 +1478,40 @@ func TestFocusedDraftChatTreatsShortcutLettersAsText(t *testing.T) {
 	}
 }
 
+func TestThinkingChatDoesNotStartSecondTurn(t *testing.T) {
+	db := openTestVault(t)
+	cfg := &config.Config{}
+	app := NewApp(nil, nil, nil, db, cfg, nil)
+	app.conversation.SetSize(80, 20)
+
+	agent, err := db.CreateAgent("Researcher", "Research", "{}")
+	if err != nil {
+		t.Fatalf("create agent: %v", err)
+	}
+	app.selectedAgentID = agent.ID
+	app.focus = FocusConversation
+	app.inputMode = "chat"
+	app.conversation.SetAgentID(agent.ID)
+	app.conversation.SetAgentName(agent.Name)
+	app.conversation.SetAwake(true)
+	app.conversation.SetThinking(true)
+	app.conversation.Focus()
+	app.conversation.TextInput().SetValue("second turn")
+
+	model, cmd := app.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	app = model.(App)
+
+	if cmd != nil {
+		t.Fatal("thinking chat enter returned a command")
+	}
+	if got := app.conversation.TextInput().Value(); got != "second turn" {
+		t.Fatalf("conversation input = %q, want draft preserved", got)
+	}
+	if app.notice == "" {
+		t.Fatal("expected a notice explaining why chat is locked")
+	}
+}
+
 func TestUnfocusedChatAllowsTraceShortcut(t *testing.T) {
 	db := openTestVault(t)
 	cfg := &config.Config{}
