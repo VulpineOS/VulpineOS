@@ -20,11 +20,11 @@ type KernelStatusMsg struct {
 
 // TelemetryMsg carries engine telemetry data.
 type TelemetryMsg struct {
-	MemoryMB           float64
-	EventLoopLagMs     float64
-	DetectionRiskScore float64
-	ActiveContexts     int
-	ActivePages        int
+	MemoryMB         float64
+	EventLoopLagMs   float64
+	RuntimeRiskScore float64
+	ActiveContexts   int
+	ActivePages      int
 }
 
 // ContextInfo describes a browser context.

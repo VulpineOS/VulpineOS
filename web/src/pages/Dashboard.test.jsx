@@ -9,7 +9,7 @@ describe('Dashboard page', () => {
     const ws = {
       connected: true,
       connectionState: 'connected',
-      telemetry: { memoryMB: 512, activePages: 2, activeContexts: 1, detectionRiskScore: 7 },
+      telemetry: { memoryMB: 512, activePages: 2, activeContexts: 1, runtimeRiskScore: 7 },
       events: [],
       call: vi.fn(async (method) => {
         if (method === 'status.get') {
@@ -81,6 +81,8 @@ describe('Dashboard page', () => {
     expect(screen.getByText('1 agent override · $5.00 · 10,000 tok')).toBeInTheDocument()
     expect(screen.getByText('RUNNING')).toBeInTheDocument()
     expect(screen.getAllByText('Gateway profile repair failed').length).toBeGreaterThan(0)
+    expect(screen.getByText('Runtime risk')).toBeInTheDocument()
+    expect(screen.getByText('7%')).toBeInTheDocument()
     expect(screen.getByText('Review agents')).toBeInTheDocument()
   })
 

@@ -252,6 +252,7 @@ const Browser = {
     'telemetryUpdate': {
       memoryMB: t.Number,
       eventLoopLagMs: t.Number,
+      runtimeRiskScore: t.Optional(t.Number),
       detectionRiskScore: t.Number,
       activeContexts: t.Number,
       activePages: t.Number,
@@ -538,6 +539,7 @@ const Browser = {
       returns: {
         memoryMB: t.Number,
         eventLoopLagMs: t.Number,
+        runtimeRiskScore: t.Optional(t.Number),
         detectionRiskScore: t.Number,
         activeContexts: t.Number,
         activePages: t.Number,
@@ -551,6 +553,7 @@ const Browser = {
       returns: {
         pageCount: t.Number,
         trustWarmingState: t.String,
+        securityEvents: t.Optional(t.Number),
         detectionEvents: t.Number,
         currentUrls: t.Array(t.String),
       },

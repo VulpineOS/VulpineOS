@@ -58,7 +58,7 @@ export default function Security({ ws }) {
 
           <h3>Injection Attempts ({injectionEvents.length})</h3>
           <div className="event-log" style={{ maxHeight: 400 }}>
-            {injectionEvents.length === 0 && <p style={{ color: '#666' }}>No injection attempts detected.</p>}
+            {injectionEvents.length === 0 && <p style={{ color: '#666' }}>No injection attempts reported.</p>}
             {injectionEvents.map((ev, i) => (
               <div key={i} className="event">
                 <span className="event-time">{new Date(ev.ts).toLocaleTimeString()} </span>

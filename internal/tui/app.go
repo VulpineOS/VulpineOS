@@ -295,12 +295,16 @@ func NewAppWithControl(k *kernel.Kernel, client *juggler.Client, orch *orchestra
 		client.Subscribe("Browser.telemetryUpdate", func(sid string, params json.RawMessage) {
 			var e juggler.TelemetryUpdate
 			json.Unmarshal(params, &e)
+			riskScore := e.RuntimeRiskScore
+			if riskScore == 0 {
+				riskScore = e.DetectionRiskScore
+			}
 			emitEvent(shared.TelemetryMsg{
-				MemoryMB:           e.MemoryMB,
-				EventLoopLagMs:     e.EventLoopLagMs,
-				DetectionRiskScore: e.DetectionRiskScore,
-				ActiveContexts:     e.ActiveContexts,
-				ActivePages:        e.ActivePages,
+				MemoryMB:         e.MemoryMB,
+				EventLoopLagMs:   e.EventLoopLagMs,
+				RuntimeRiskScore: riskScore,
+				ActiveContexts:   e.ActiveContexts,
+				ActivePages:      e.ActivePages,
 			})
 		})
 		client.Subscribe("Browser.injectionAttemptDetected", func(sid string, params json.RawMessage) {

@@ -227,7 +227,7 @@ export default function Dashboard({ ws }) {
               <div className="detail-row"><span>Gateway</span><strong>{s.gateway_running ? 'RUNNING' : 'STOPPED'}</strong></div>
               <div className="detail-row"><span>Contexts</span><strong>{t.activeContexts || 0}</strong></div>
               <div className="detail-row"><span>Pages</span><strong>{t.activePages || 0}</strong></div>
-              <div className="detail-row"><span>Detection risk</span><strong>{t.detectionRiskScore || 0}%</strong></div>
+              <div className="detail-row"><span>Runtime risk</span><strong>{t.runtimeRiskScore ?? t.detectionRiskScore ?? 0}%</strong></div>
               <div className="detail-row"><span>Pool available</span><strong>{s.pool_available || 0}</strong></div>
               <div className="detail-row"><span>Pool total</span><strong>{s.pool_total || 0}</strong></div>
               <div className="detail-row"><span>Citizens</span><strong>{s.total_citizens || 0}</strong></div>

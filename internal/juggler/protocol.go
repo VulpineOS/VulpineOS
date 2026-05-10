@@ -33,6 +33,7 @@ type DetachedFromTarget struct {
 type TelemetryUpdate struct {
 	MemoryMB           float64 `json:"memoryMB"`
 	EventLoopLagMs     float64 `json:"eventLoopLagMs"`
+	RuntimeRiskScore   float64 `json:"runtimeRiskScore"`
 	DetectionRiskScore float64 `json:"detectionRiskScore"`
 	ActiveContexts     int     `json:"activeContexts"`
 	ActivePages        int     `json:"activePages"`

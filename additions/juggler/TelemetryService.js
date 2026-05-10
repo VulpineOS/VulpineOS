@@ -14,7 +14,7 @@ export class TelemetryService {
     this._session = session;
     this._timer = null;
     this._injectionCount = 0;
-    this._detectionRiskScore = 0;
+    this._runtimeRiskScore = 0;
     // Event loop lag measurement state
     this._lastEventLoopLagMs = 0;
     this._lagSamples = [];
@@ -70,8 +70,7 @@ export class TelemetryService {
 
   reportInjectionAttempt(details) {
     this._injectionCount++;
-    // Increase detection risk when injection attempts are detected
-    this._detectionRiskScore = Math.min(100, this._detectionRiskScore + 5);
+    this._runtimeRiskScore = Math.min(100, this._runtimeRiskScore + 5);
 
     try {
       this._session.emitEvent('Browser.injectionAttemptDetected', {
@@ -111,6 +110,7 @@ export class TelemetryService {
     return {
       pageCount,
       trustWarmingState: 'unknown',
+      securityEvents: this._injectionCount,
       detectionEvents: this._injectionCount,
       currentUrls,
     };
@@ -129,8 +129,7 @@ export class TelemetryService {
       // Session may be disposed
     }
 
-    // Decay detection risk over time
-    this._detectionRiskScore = Math.max(0, this._detectionRiskScore - 0.5);
+    this._runtimeRiskScore = Math.max(0, this._runtimeRiskScore - 0.5);
 
     this._timer = setTimeout(() => this._tick(), TELEMETRY_INTERVAL_MS);
   }
@@ -169,10 +168,13 @@ export class TelemetryService {
     }
     activeContexts = seenContexts.size;
 
+    const runtimeRiskScore = Math.round(this._runtimeRiskScore * 10) / 10;
+
     return {
       memoryMB: Math.round(memoryMB * 10) / 10,
       eventLoopLagMs: Math.round(eventLoopLagMs * 100) / 100,
-      detectionRiskScore: Math.round(this._detectionRiskScore * 10) / 10,
+      runtimeRiskScore,
+      detectionRiskScore: runtimeRiskScore,
       activeContexts,
       activePages,
       timestamp: Date.now(),

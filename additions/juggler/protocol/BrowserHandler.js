@@ -439,13 +439,13 @@ export class BrowserHandler {
 
   async ['Browser.getTelemetry']() {
     if (!this._telemetryService)
-      return {memoryMB: 0, cpuPercent: 0, detectionRiskScore: 0, activeContexts: 0, activePages: 0, timestamp: Date.now()};
+      return {memoryMB: 0, cpuPercent: 0, runtimeRiskScore: 0, detectionRiskScore: 0, activeContexts: 0, activePages: 0, timestamp: Date.now()};
     return this._telemetryService.getTelemetry();
   }
 
   async ['Browser.getContextTelemetry']({browserContextId}) {
     if (!this._telemetryService)
-      return {pageCount: 0, trustWarmingState: 'unknown', detectionEvents: 0, currentUrls: []};
+      return {pageCount: 0, trustWarmingState: 'unknown', securityEvents: 0, detectionEvents: 0, currentUrls: []};
     return this._telemetryService.getContextTelemetry(browserContextId);
   }
 }

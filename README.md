@@ -155,7 +155,7 @@ Beyond the four core phases, VulpineOS includes hardened runtime security:
 | **Cost Tracking** | Per-agent token usage and API cost tracking with budget limits. Built-in pricing for Claude, GPT-4o, Gemini. Alerts at configurable thresholds. |
 | **Session Recording** | Record browser actions as timestamped timelines with a bounded per-agent in-memory window and sensitive action-data redaction. Export to JSON. Terminal-based replay at real speed. |
 | **Proxy Rotation** | Auto-rotate proxies based on configured runtime policies and profile metadata. |
-| **Webhook Notifications** | HTTP webhooks for agent.completed/failed/paused/interrupted, rate_limit.detected, injection.detected, budget.alert/exceeded. Async delivery with secret verification and redacted delivery logs. |
+| **Webhook Notifications** | HTTP webhooks for agent lifecycle, runtime alerts, and budget events. Async delivery with secret verification and redacted delivery logs. |
 | **Scripting DSL** | JSON scripting language for repetitive tasks without LLM calls. 8 actions: navigate, click, type, wait, extract, screenshot, set, if. Variable expansion with bounded script payloads, capped waits, and redacted operator-facing results. |
 | **Kernel Watchdog** | Monitors Camoufox every 2s. On crash: fires callback, auto-restarts (up to 3 attempts), re-establishes Juggler connection. |
 | **Token Optimization** | Viewport-aware DOM pruning, persistent page cache, delta encoding between snapshots, batch operations. |

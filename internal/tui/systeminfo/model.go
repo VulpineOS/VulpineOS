@@ -21,7 +21,7 @@ type Model struct {
 	browserWindow  string
 	memoryMB       float64
 	eventLoopLag   float64
-	detectionRisk  float64
+	runtimeRisk    float64
 	activeContexts int
 	activePages    int
 	poolAvailable  int
@@ -74,7 +74,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	case shared.TelemetryMsg:
 		m.memoryMB = msg.MemoryMB
 		m.eventLoopLag = msg.EventLoopLagMs
-		m.detectionRisk = msg.DetectionRiskScore
+		m.runtimeRisk = msg.RuntimeRiskScore
 		m.activeContexts = msg.ActiveContexts
 		m.activePages = msg.ActivePages
 	case shared.PoolStatsMsg:
@@ -193,7 +193,7 @@ func (m Model) View() string {
 	}
 	b.WriteString(fmt.Sprintf("MEM %s\n", meterBar(m.memoryMB, 1024, fmt.Sprintf("%.0f", m.memoryMB))))
 	b.WriteString(fmt.Sprintf("LAG %s\n", meterBar(m.eventLoopLag, 100, fmt.Sprintf("%.0fms", m.eventLoopLag))))
-	b.WriteString(fmt.Sprintf("RISK %s", meterBar(m.detectionRisk, 100, fmt.Sprintf("%.0f", m.detectionRisk))))
+	b.WriteString(fmt.Sprintf("RISK %s", meterBar(m.runtimeRisk, 100, fmt.Sprintf("%.0f", m.runtimeRisk))))
 
 	// Truncate to allocated height so the panel never overflows
 	result := b.String()
