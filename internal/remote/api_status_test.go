@@ -146,8 +146,8 @@ func TestStatusGetIncludesSentinelStatus(t *testing.T) {
 	fake := &extensionstest.FakeSentinelProvider{
 		AvailableFlag: true,
 		StatusValue: extensions.SentinelStatus{
-			Provider:        "sentinel-private",
-			Mode:            "private_scaffold",
+			Provider:        "extension-provider",
+			Mode:            "scaffold",
 			EventSink:       "memory",
 			OutcomeSink:     "memory",
 			VariantSource:   "memory",
@@ -173,11 +173,11 @@ func TestStatusGetIncludesSentinelStatus(t *testing.T) {
 	if got := result["sentinel_available"]; got != true {
 		t.Fatalf("sentinel_available = %v, want true", got)
 	}
-	if got := result["sentinel_provider"]; got != "sentinel-private" {
-		t.Fatalf("sentinel_provider = %v, want sentinel-private", got)
+	if got := result["sentinel_provider"]; got != "extension-provider" {
+		t.Fatalf("sentinel_provider = %v, want extension-provider", got)
 	}
-	if got := result["sentinel_mode"]; got != "private_scaffold" {
-		t.Fatalf("sentinel_mode = %v, want private_scaffold", got)
+	if got := result["sentinel_mode"]; got != "scaffold" {
+		t.Fatalf("sentinel_mode = %v, want scaffold", got)
 	}
 	if got := result["sentinel_variant_bundles"]; got != float64(2) {
 		t.Fatalf("sentinel_variant_bundles = %v, want 2", got)
@@ -199,8 +199,8 @@ func TestSentinelGetReturnsLabData(t *testing.T) {
 	fake := &extensionstest.FakeSentinelProvider{
 		AvailableFlag: true,
 		StatusValue: extensions.SentinelStatus{
-			Provider:        "sentinel-private",
-			Mode:            "private_scaffold",
+			Provider:        "extension-provider",
+			Mode:            "scaffold",
 			EventSink:       "https://ops.example/events?token=status-token",
 			OutcomeSink:     "https://ops.example/outcomes?api_key=outcome-key",
 			VariantSource:   "https://user:pass@ops.example/variants",

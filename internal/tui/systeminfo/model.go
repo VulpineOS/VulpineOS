@@ -268,7 +268,7 @@ func sentinelModeLabel(mode string) string {
 	if value == "" {
 		return "ON"
 	}
-	if value == strings.ToUpper("private_scaffold") {
+	if value == "SCAFFOLD" {
 		return "SCFLD"
 	}
 	if len(value) > 6 {

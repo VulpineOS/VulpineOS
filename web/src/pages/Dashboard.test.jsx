@@ -21,7 +21,7 @@ describe('Dashboard page', () => {
             browser_window: 'hidden',
             gateway_running: true,
             sentinel_available: true,
-            sentinel_mode: 'private_scaffold',
+            sentinel_mode: 'scaffold',
             sentinel_trust_recipes: 1,
             sentinel_maturity_metrics: 5,
             sentinel_assignment_rules: 3,
@@ -85,7 +85,7 @@ describe('Dashboard page', () => {
     expect(screen.getByText('4,200 tokens · 1 tracked usage records')).toBeInTheDocument()
     expect(screen.getByText('1 agent override · $5.00 · 10,000 tok')).toBeInTheDocument()
     expect(screen.getByText('RUNNING')).toBeInTheDocument()
-    expect(screen.getByText('PRIVATE_SCAFFOLD')).toBeInTheDocument()
+    expect(screen.getByText('SCAFFOLD')).toBeInTheDocument()
     expect(screen.getByText('Maturity metrics')).toBeInTheDocument()
     expect(screen.getByText('Assignment rules')).toBeInTheDocument()
     expect(screen.getAllByText('Gateway profile repair failed').length).toBeGreaterThan(0)

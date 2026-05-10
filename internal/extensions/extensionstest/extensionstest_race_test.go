@@ -37,7 +37,7 @@ func TestFakesNoRaceUnderConcurrentSet(t *testing.T) {
 	sentinel := &FakeSentinelProvider{
 		AvailableFlag: true,
 		StatusValue: extensions.SentinelStatus{
-			Provider: "sentinel-private",
+			Provider: "extension-provider",
 			Mode:     "scaffold",
 		},
 		VariantBundles: []extensions.SentinelVariantBundle{
@@ -113,7 +113,7 @@ func TestFakesNoRaceUnderConcurrentSet(t *testing.T) {
 			defer wg.Done()
 			sentinel.SetAvailable(i%2 == 0)
 			sentinel.SetStatus(extensions.SentinelStatus{
-				Provider: "sentinel-private",
+				Provider: "extension-provider",
 				Mode:     "scaffold",
 			})
 			sentinel.SetVariantBundles([]extensions.SentinelVariantBundle{

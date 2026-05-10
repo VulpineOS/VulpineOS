@@ -47,7 +47,7 @@ func TestRecordRuntimeSignal(t *testing.T) {
 	}
 	extensions.Registry.SetSentinel(fake)
 
-	if err := RecordRuntimeSignal(context.Background(), "provider_ready", map[string]string{"mode": "private_scaffold"}); err != nil {
+	if err := RecordRuntimeSignal(context.Background(), "provider_ready", map[string]string{"mode": "scaffold"}); err != nil {
 		t.Fatalf("RecordRuntimeSignal: %v", err)
 	}
 
