@@ -1969,7 +1969,7 @@ func (a *App) updatePanelSizes() {
 	a.agentList.SetHeight(leftBottom)
 	a.agentDetail.SetSize(rightContentWidth, rightTop)
 	a.conversation.SetSize(centerContentWidth, convHeight)
-	a.settings.SetSize(centerContentWidth, bodyHeight)
+	a.settings.SetSize(centerContentWidth, max(1, bodyHeight-2))
 	a.contextList.SetWidth(rightContentWidth)
 	a.contextList.SetHeight(rightBottom)
 
