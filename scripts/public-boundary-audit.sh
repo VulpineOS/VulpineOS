@@ -79,6 +79,7 @@ check_origin_remote() {
   local repo="$1"
   local expected_name="$2"
   local origin_url
+  local origin_pushurl
 
   origin_url="$(git -C "$repo" remote get-url origin 2>/dev/null || true)"
   if [[ -z "$origin_url" ]]; then
@@ -86,8 +87,14 @@ check_origin_remote() {
     return
   fi
 
-  if [[ ! "$origin_url" =~ ^(https://github\.com/|git@github\.com:)VulpineOS/${expected_name}(\.git)?$ ]]; then
-    fail "${expected_name}: origin remote is not VulpineOS/${expected_name} (${origin_url})"
+  if [[ ! "$origin_url" =~ ^(https://github\.com/|git@github\.com:)(VulpineOS|PopcornDev1)/${expected_name}(\.git)?$ ]]; then
+    fail "${expected_name}: origin remote is not an approved public repo (${origin_url})"
+  fi
+
+  origin_pushurl="$(git -C "$repo" config --get remote.origin.pushurl || true)"
+  [[ -n "$origin_pushurl" ]] || origin_pushurl="$origin_url"
+  if [[ "$origin_pushurl" != "DISABLED" && ! "$origin_pushurl" =~ ^(https://github\.com/|git@github\.com:)PopcornDev1/${expected_name}(\.git)?$ ]]; then
+    fail "${expected_name}: origin push target must be DISABLED or PopcornDev1/${expected_name} (found: ${origin_pushurl})"
   fi
 }
 
