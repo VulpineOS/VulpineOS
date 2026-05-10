@@ -96,8 +96,8 @@ check_origin_remote() {
 
   origin_pushurl="$(git -C "$repo" config --get remote.origin.pushurl || true)"
   [[ -n "$origin_pushurl" ]] || origin_pushurl="$origin_url"
-  if [[ "$origin_pushurl" != "DISABLED" && ! "$origin_pushurl" =~ ^(https://github\.com/|git@github\.com:)PopcornDev1/${expected_name}(\.git)?$ ]]; then
-    fail "${expected_name}: origin push target must be DISABLED or PopcornDev1/${expected_name} (found: ${origin_pushurl})"
+  if [[ "$origin_pushurl" != "DISABLED" && ! "$origin_pushurl" =~ ^(https://github\.com/|git@github\.com:)VulpineOS/${expected_name}(\.git)?$ ]]; then
+    fail "${expected_name}: origin push target must be DISABLED or VulpineOS/${expected_name} (found: ${origin_pushurl})"
   fi
 }
 
