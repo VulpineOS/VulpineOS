@@ -28,6 +28,7 @@ type Client struct {
 	handlers      map[string][]eventSubscription
 	handlerMu     sync.RWMutex
 	events        chan *Message
+	droppedEvents atomic.Uint64
 	done          chan struct{}
 	closeOnce     sync.Once
 }
@@ -153,6 +154,11 @@ func (c *Client) SubscribeWithCancel(event string, handler EventHandler) func() 
 	}
 }
 
+// DroppedEvents returns the number of events dropped because the dispatch queue was full.
+func (c *Client) DroppedEvents() uint64 {
+	return c.droppedEvents.Load()
+}
+
 // Close shuts down the client and transport.
 func (c *Client) Close() error {
 	c.closeOnce.Do(func() {
@@ -195,6 +201,8 @@ func (c *Client) queueEvent(msg *Message) {
 	select {
 	case c.events <- msg:
 	case <-c.done:
+	default:
+		c.droppedEvents.Add(1)
 	}
 }
 

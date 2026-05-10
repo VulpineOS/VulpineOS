@@ -215,31 +215,31 @@ func TestClient_EventHandlerDoesNotBlockResponses(t *testing.T) {
 	}
 }
 
-func TestClient_QueueEventBackpressuresWhenBufferFull(t *testing.T) {
+func TestClient_QueueEventDropsWhenBufferFull(t *testing.T) {
 	c := &Client{
 		events:   make(chan *Message, 1),
 		done:     make(chan struct{}),
 		handlers: make(map[string][]eventSubscription),
 	}
-	c.events <- &Message{Method: "Page.first"}
+	first := &Message{Method: "Page.first"}
+	c.events <- first
 
 	queued := make(chan struct{})
 	go func() {
 		c.queueEvent(&Message{Method: "Page.second"})
 		close(queued)
 	}()
-
 	select {
 	case <-queued:
-		t.Fatal("queueEvent returned while event buffer was full")
 	case <-time.After(50 * time.Millisecond):
+		t.Fatal("queueEvent blocked while event buffer was full")
 	}
 
-	<-c.events
-	select {
-	case <-queued:
-	case <-time.After(time.Second):
-		t.Fatal("queueEvent did not unblock after buffer space was available")
+	if c.DroppedEvents() != 1 {
+		t.Fatalf("DroppedEvents() = %d, want 1", c.DroppedEvents())
+	}
+	if got := <-c.events; got != first {
+		t.Fatalf("queued event = %v, want original event preserved", got)
 	}
 }
 
