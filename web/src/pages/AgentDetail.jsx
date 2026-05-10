@@ -39,6 +39,7 @@ export default function AgentDetail({ ws }) {
   const [sessionLog, setSessionLog] = useState('')
   const [sessionLogMeta, setSessionLogMeta] = useState({ truncated: false, bytes: 0, totalBytes: 0 })
   const [sessionLogError, setSessionLogError] = useState('')
+  const [sessionLogLoaded, setSessionLogLoaded] = useState(false)
   const [input, setInput] = useState('')
   const [tab, setTab] = useState('conversation')
   const [budgetCost, setBudgetCost] = useState('0')
@@ -115,10 +116,14 @@ export default function AgentDetail({ ws }) {
         totalBytes: Number(result?.totalBytes || 0),
       })
       setSessionLogError('')
+      setSessionLogLoaded(true)
     } catch (e) {
       if (activeAgentIdRef.current !== agentID || sessionLogRequestRef.current !== requestID) return
       const message = e.message || 'Raw session log unavailable'
+      setSessionLog('')
+      setSessionLogMeta({ truncated: false, bytes: 0, totalBytes: 0 })
       setSessionLogError(message)
+      setSessionLogLoaded(true)
       if (notifyOnError) ws.notify?.(message)
     }
   }
@@ -127,6 +132,10 @@ export default function AgentDetail({ ws }) {
     activeAgentIdRef.current = id
     refreshRequestRef.current++
     sessionLogRequestRef.current++
+    setSessionLog('')
+    setSessionLogMeta({ truncated: false, bytes: 0, totalBytes: 0 })
+    setSessionLogError('')
+    setSessionLogLoaded(false)
     refresh()
   }, [ws.connected, id])
 
@@ -435,7 +444,13 @@ export default function AgentDetail({ ws }) {
             </div>
           )}
           {sessionLog === '' ? (
-            <p style={{ color: '#666' }}>No raw session log loaded yet.</p>
+            <p style={{ color: '#666' }}>
+              {!sessionLogLoaded && !sessionLogError
+                ? 'No raw session log loaded yet.'
+                : sessionLogError
+                  ? 'Raw session log unavailable.'
+                  : 'Raw session log is empty.'}
+            </p>
           ) : (
             <>
               {sessionLogMeta.truncated && (

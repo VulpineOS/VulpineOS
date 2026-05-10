@@ -330,6 +330,69 @@ describe('AgentDetail page', () => {
     expect(notify).not.toHaveBeenCalled()
   })
 
+  it('clears raw session log content when switching agents and the next load fails', async () => {
+    const call = vi.fn(async (method, params) => {
+      if (method === 'agents.list') {
+        return {
+          agents: [
+            { id: 'agent-1', name: 'Agent One', status: 'paused', contextId: '', totalTokens: 0 },
+            { id: 'agent-2', name: 'Agent Two', status: 'paused', contextId: '', totalTokens: 0 },
+          ],
+        }
+      }
+      if (method === 'agents.getMessages') return { messages: [] }
+      if (method === 'recording.getTimeline') return { actions: [] }
+      if (method === 'fingerprints.get') return {}
+      if (method === 'agents.getSessionLog' && params?.agentId === 'agent-1') {
+        return { content: 'agent one raw log', truncated: false, bytes: 17, totalBytes: 17 }
+      }
+      if (method === 'agents.getSessionLog') {
+        throw new Error('agent two log missing')
+      }
+      return { status: 'ok' }
+    })
+
+    render(
+      <MemoryRouter initialEntries={['/agents/agent-1']}>
+        <Link to="/agents/agent-2">Switch Agent</Link>
+        <Routes>
+          <Route path="/agents/:id" element={<AgentDetail ws={{ connected: true, events: [], call }} />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText('Agent agent-1')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Raw'))
+    expect(await screen.findByText('agent one raw log')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Switch Agent'))
+    expect(await screen.findByText('Agent agent-2')).toBeInTheDocument()
+    expect(await screen.findByText('agent two log missing')).toBeInTheDocument()
+    expect(screen.queryByText('agent one raw log')).not.toBeInTheDocument()
+  })
+
+  it('distinguishes successfully loaded empty raw session logs from unloaded logs', async () => {
+    const call = vi.fn(async (method) => {
+      if (method === 'agents.list') {
+        return { agents: [{ id: 'agent-1', name: 'Agent One', status: 'paused', contextId: '', totalTokens: 0 }] }
+      }
+      if (method === 'agents.getMessages') return { messages: [] }
+      if (method === 'recording.getTimeline') return { actions: [] }
+      if (method === 'fingerprints.get') return {}
+      if (method === 'agents.getSessionLog') {
+        return { content: '', truncated: false, bytes: 0, totalBytes: 0 }
+      }
+      return { status: 'ok' }
+    })
+
+    renderDetail({ connected: true, events: [], call })
+
+    expect(await screen.findByText('Agent agent-1')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Raw'))
+    expect(await screen.findByText('Raw session log is empty.')).toBeInTheDocument()
+    expect(screen.queryByText('No raw session log loaded yet.')).not.toBeInTheDocument()
+  })
+
   it('keeps raw auto-refresh failures local and only notifies manual refresh failures', async () => {
     const notify = vi.fn()
     const call = vi.fn(async (method) => {
