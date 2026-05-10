@@ -764,8 +764,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.noticeTTL = 5
 			}
 		case "tab":
-			// Cycle: AgentList → Conversation → AgentDetail → ContextList → AgentList
-			a.focus = (a.focus + 1) % FocusNormalCount
+			a.cycleFocus()
 		case "m":
 			enabled := !a.resizeModeEnabled()
 			a.resizeMode = enabled
@@ -1505,6 +1504,10 @@ func (a App) updateDescInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (a App) updateChatInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if a.conversationInputLocked() {
 		switch msg.String() {
+		case "ctrl+c":
+			return a, a.shutdown()
+		case "tab":
+			a.cycleFocus()
 		case "ctrl+v":
 			a.handleBrowserToggle()
 		case "ctrl+o":
@@ -1523,6 +1526,11 @@ func (a App) updateChatInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg.String() {
+	case "ctrl+c":
+		return a, a.shutdown()
+	case "tab":
+		a.cycleFocus()
+		return a, nil
 	case "ctrl+v":
 		a.handleBrowserToggle()
 		return a, nil
@@ -1567,6 +1575,15 @@ func (a App) updateChatInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		*ti, cmd = ti.Update(msg)
 		return a, cmd
 	}
+}
+
+func (a *App) cycleFocus() {
+	if a.focus == FocusConversation {
+		a.conversation.Blur()
+		a.inputMode = ""
+	}
+	// Cycle: AgentList -> Conversation -> AgentDetail -> ContextList -> AgentList
+	a.focus = (a.focus + 1) % FocusNormalCount
 }
 
 func (a App) allowFocusedChatShortcut(msg tea.KeyMsg) bool {

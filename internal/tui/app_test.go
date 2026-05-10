@@ -427,6 +427,50 @@ func TestStartupLockedChatAllowsQuitShortcut(t *testing.T) {
 	}
 }
 
+func TestFocusedChatAllowsQuitShortcut(t *testing.T) {
+	app := NewApp(nil, nil, nil, nil, &config.Config{}, nil)
+	app.selectedAgentID = "agent-1"
+	app.focus = FocusConversation
+	app.inputMode = "chat"
+	app.conversation.SetAgentID("agent-1")
+	app.conversation.SetAwake(true)
+	app.conversation.Focus()
+
+	model, cmd := app.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	app = model.(App)
+	if cmd == nil {
+		t.Fatal("focused chat quit returned no command")
+	}
+	if _, ok := cmd().(tea.QuitMsg); !ok {
+		t.Fatal("focused chat quit did not return tea.QuitMsg")
+	}
+	if app.conversation.TextInput().Value() != "" {
+		t.Fatal("focused chat quit should not type into chat")
+	}
+}
+
+func TestFocusedChatAllowsTabFocusCycle(t *testing.T) {
+	app := NewApp(nil, nil, nil, nil, &config.Config{}, nil)
+	app.selectedAgentID = "agent-1"
+	app.focus = FocusConversation
+	app.inputMode = "chat"
+	app.conversation.SetAgentID("agent-1")
+	app.conversation.SetAwake(true)
+	app.conversation.Focus()
+
+	model, _ := app.Update(tea.KeyMsg{Type: tea.KeyTab})
+	app = model.(App)
+	if app.focus != FocusAgentDetail {
+		t.Fatalf("focus = %d, want agent detail after tab from focused chat", app.focus)
+	}
+	if app.inputMode != "" {
+		t.Fatalf("inputMode = %q, want empty after tab focus cycle", app.inputMode)
+	}
+	if app.conversation.Focused() {
+		t.Fatal("conversation should blur after tab focus cycle")
+	}
+}
+
 func TestSettingsAllowsGlobalQuitShortcut(t *testing.T) {
 	app := NewApp(nil, nil, nil, nil, &config.Config{}, nil)
 	app.focus = FocusSettings
