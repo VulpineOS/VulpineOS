@@ -230,7 +230,7 @@ On quit, VulpineOS pauses active agents before exiting so the next launch can re
 
 Local TUI startup and runtime logs are written to `~/.vulpineos/logs/local-tui.log` so the terminal UI stays clean while the kernel, foxbridge, and OpenClaw subsystems initialize.
 
-Pressing `c` now queues the setup wizard for the next launch without clearing the active config first, so cancelling reconfigure no longer leaves the machine stuck in an unconfigured state.
+Pressing `c` now opens the setup wizard in-place inside the TUI without clearing the active config first, so cancelling reconfigure no longer leaves the machine stuck in an unconfigured state or drops back to the terminal.
 
 OpenClaw session log streaming is used as a fallback conversation source, so final assistant replies still reach the TUI and tests even when the CLI omits the final `--json` payload on stdout.
 New agents now start by working on the assigned task immediately instead of spending the first turn on a canned self-introduction, and exact-output tasks are passed through as direct task instructions.

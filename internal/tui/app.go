@@ -29,6 +29,7 @@ import (
 	"vulpineos/internal/tui/contextlist"
 	"vulpineos/internal/tui/conversation"
 	"vulpineos/internal/tui/settings"
+	"vulpineos/internal/tui/setup"
 	"vulpineos/internal/tui/shared"
 	"vulpineos/internal/tui/systeminfo"
 	"vulpineos/internal/vault"
@@ -133,6 +134,8 @@ type App struct {
 	conversation conversation.Model
 	contextList  contextlist.Model
 	settings     settings.Model
+	setupWizard  setup.Model
+	setupActive  bool
 
 	// State
 	selectedAgentID         string
@@ -695,6 +698,13 @@ func (a *App) shutdown() tea.Cmd {
 func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
+	if a.setupActive {
+		switch msg.(type) {
+		case tea.KeyMsg, tea.WindowSizeMsg:
+			return a.updateEmbeddedSetup(msg)
+		}
+	}
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		// Handle input modes first
@@ -1008,8 +1018,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.noticeTTL = 3
 				return a, nil
 			}
-			// Request the setup wizard on next launch without mutating the active config first.
-			return a, a.requestReconfigure()
+			return a, a.startEmbeddedReconfigure()
 		}
 
 	case tea.WindowSizeMsg:
@@ -1338,7 +1347,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.noticeTTL = 3
 			break
 		}
-		return a, a.requestReconfigure()
+		return a, a.startEmbeddedReconfigure()
 
 	case shared.ProxyAddMsg:
 		if a.vault == nil {
@@ -1784,6 +1793,14 @@ func (a App) View() string {
 	if a.height <= 0 {
 		return ""
 	}
+	if a.setupActive {
+		wizard := a.setupWizard
+		model, _ := wizard.Update(tea.WindowSizeMsg{Width: a.width, Height: a.height})
+		if updated, ok := model.(setup.Model); ok {
+			wizard = updated
+		}
+		return fitTerminalBlock(wizard.View(), a.width, a.height)
+	}
 	if a.height < 4 {
 		if a.notice != "" {
 			return fitTerminalLine(shared.WarmingStyle.Render("  "+a.notice), a.width)
@@ -2191,13 +2208,110 @@ func (a *App) resizeModeEnabled() bool {
 	return a.resizeMode
 }
 
-func (a *App) requestReconfigure() tea.Cmd {
-	if err := config.RequestReconfigure(); err != nil {
-		a.notice = "Failed to queue reconfigure: " + err.Error()
-		a.noticeTTL = 4
-		return nil
+func (a *App) startEmbeddedReconfigure() tea.Cmd {
+	cfg := a.cfg
+	if cfg == nil {
+		cfg = &config.Config{}
+		a.cfg = cfg
 	}
-	return a.shutdown()
+	a.setupWizard = setup.NewWithConfig(cfg)
+	a.setupActive = true
+	a.focus = FocusSettings
+	if a.width > 0 && a.height > 0 {
+		model, _ := a.setupWizard.Update(tea.WindowSizeMsg{Width: a.width, Height: a.height})
+		if wizard, ok := model.(setup.Model); ok {
+			a.setupWizard = wizard
+		}
+	}
+	return nil
+}
+
+func (a App) updateEmbeddedSetup(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		a.width = msg.Width
+		a.height = msg.Height
+		a.updatePanelSizes()
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "q", "ctrl+c":
+			a.cancelEmbeddedReconfigure()
+			return a, nil
+		}
+	}
+
+	model, cmd := a.setupWizard.Update(msg)
+	if wizard, ok := model.(setup.Model); ok {
+		a.setupWizard = wizard
+	}
+	if a.setupWizard.Done() {
+		a.completeEmbeddedReconfigure()
+		return a, nil
+	}
+	return a, cmd
+}
+
+func (a *App) cancelEmbeddedReconfigure() {
+	a.setupActive = false
+	a.focus = FocusSettings
+	a.settings.SetActive(true)
+	if a.cfg != nil {
+		a.settings.SetConfig(a.cfg)
+	}
+	a.notice = "Reconfigure cancelled"
+	a.noticeTTL = 3
+}
+
+func (a *App) completeEmbeddedReconfigure() {
+	if err := a.applySetupConfig(a.setupWizard.Config()); err != nil {
+		a.notice = "Failed to save configuration: " + err.Error()
+		a.noticeTTL = 4
+		a.setupActive = false
+		a.focus = FocusSettings
+		a.settings.SetActive(true)
+		return
+	}
+	_ = config.ClearReconfigureRequest()
+	a.setupActive = false
+	a.focus = FocusSettings
+	a.settings.SetActive(true)
+	a.settings.SetConfig(a.cfg)
+	if a.cfg != nil && a.cfg.SetupComplete {
+		exe, _ := os.Executable()
+		if err := a.cfg.GenerateOpenClawConfig(exe, a.cfg.BinaryPath); err != nil {
+			a.notice = "Configuration saved; OpenClaw update failed: " + err.Error()
+			a.noticeTTL = 4
+			return
+		}
+	}
+	a.notice = "Configuration updated"
+	a.noticeTTL = 3
+}
+
+func (a *App) applySetupConfig(updated *config.Config) error {
+	if updated == nil {
+		return fmt.Errorf("setup returned no configuration")
+	}
+	if a.cfg == nil {
+		a.cfg = updated
+		return a.cfg.Save()
+	}
+	a.cfg.Provider = updated.Provider
+	a.cfg.APIKey = updated.APIKey
+	a.cfg.Model = updated.Model
+	a.cfg.SetupComplete = updated.SetupComplete
+	a.cfg.BinaryPath = updated.BinaryPath
+	a.cfg.ResizePanelsWithArrows = updated.ResizePanelsWithArrows
+	a.cfg.GlobalSkills = append([]config.SkillEntry(nil), updated.GlobalSkills...)
+	if len(updated.AgentSkills) > 0 {
+		a.cfg.AgentSkills = make(map[string][]config.SkillEntry, len(updated.AgentSkills))
+		for agentID, skills := range updated.AgentSkills {
+			a.cfg.AgentSkills[agentID] = append([]config.SkillEntry(nil), skills...)
+		}
+	} else {
+		a.cfg.AgentSkills = nil
+	}
+	return a.cfg.Save()
 }
 
 func (a *App) browserRouteLabel() string {

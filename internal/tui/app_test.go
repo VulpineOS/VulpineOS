@@ -1739,6 +1739,8 @@ func TestFocusedEmptyChatAllowsReconfigureShortcut(t *testing.T) {
 	db := openTestVault(t)
 	cfg := &config.Config{SetupComplete: true}
 	app := NewApp(nil, nil, nil, db, cfg, nil)
+	app.width = 100
+	app.height = 30
 	app.conversation.SetSize(80, 20)
 
 	agent, err := db.CreateAgent("Scraper", "Scrape prices", "{}")
@@ -1756,8 +1758,12 @@ func TestFocusedEmptyChatAllowsReconfigureShortcut(t *testing.T) {
 	model, cmd := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
 	app = model.(App)
 
-	if cmd == nil {
-		t.Fatal("reconfigure shortcut returned no command from empty focused chat")
+	if cmd != nil {
+		if msg := cmd(); msg != nil {
+			if _, ok := msg.(tea.QuitMsg); ok {
+				t.Fatal("reconfigure shortcut should stay in the TUI instead of quitting")
+			}
+		}
 	}
 	if got := app.conversation.TextInput().Value(); got != "" {
 		t.Fatalf("conversation input = %q, want empty when reconfigure shortcut is used from empty focused chat", got)
@@ -1765,8 +1771,11 @@ func TestFocusedEmptyChatAllowsReconfigureShortcut(t *testing.T) {
 	if !cfg.SetupComplete {
 		t.Fatal("reconfigure shortcut should not clear setupComplete on the active config")
 	}
-	if !config.ReconfigureRequested() {
-		t.Fatal("reconfigure shortcut should queue the setup wizard")
+	if config.ReconfigureRequested() {
+		t.Fatal("reconfigure shortcut should not queue a next-launch setup marker")
+	}
+	if !strings.Contains(app.View(), "First Time Setup") {
+		t.Fatalf("reconfigure shortcut should show setup in the current TUI:\n%s", app.View())
 	}
 }
 
@@ -1894,7 +1903,7 @@ func TestFocusedEmptyChatAllowsTraceShortcut(t *testing.T) {
 	}
 }
 
-func TestReconfigureShortcutQueuesWizardWithoutClearingConfig(t *testing.T) {
+func TestReconfigureShortcutStartsSetupInPlaceWithoutClearingConfig(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
@@ -1905,22 +1914,31 @@ func TestReconfigureShortcutQueuesWizardWithoutClearingConfig(t *testing.T) {
 		SetupComplete: true,
 	}
 	app := NewApp(nil, nil, nil, nil, cfg, nil)
+	app.width = 100
+	app.height = 30
 
-	model, _ := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	model, cmd := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
 	updated := model.(App)
 
+	if cmd != nil {
+		if msg := cmd(); msg != nil {
+			if _, ok := msg.(tea.QuitMsg); ok {
+				t.Fatal("reconfigure shortcut should stay in the TUI instead of quitting")
+			}
+		}
+	}
 	if !cfg.SetupComplete {
 		t.Fatal("reconfigure shortcut should not clear setupComplete on the active config")
 	}
-	if !config.ReconfigureRequested() {
-		t.Fatal("reconfigure shortcut should queue the setup wizard for next launch")
+	if config.ReconfigureRequested() {
+		t.Fatal("reconfigure shortcut should not queue the setup wizard for next launch")
 	}
-	if updated.notice != "" {
-		t.Fatalf("unexpected notice after queuing reconfigure: %q", updated.notice)
+	if !strings.Contains(updated.View(), "First Time Setup") {
+		t.Fatalf("reconfigure shortcut should show setup in the current TUI:\n%s", updated.View())
 	}
 }
 
-func TestSettingsReconfigureShortcutQueuesWizard(t *testing.T) {
+func TestSettingsReconfigureShortcutStartsSetupInPlace(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
@@ -1931,25 +1949,89 @@ func TestSettingsReconfigureShortcutQueuesWizard(t *testing.T) {
 		SetupComplete: true,
 	}
 	app := NewApp(nil, nil, nil, nil, cfg, nil)
+	app.width = 100
+	app.height = 30
 
 	model, _ := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'S'}})
 	app = model.(App)
 	model, cmd := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
 	app = model.(App)
 	if cmd == nil {
-		t.Fatal("settings reconfigure shortcut returned no command")
+		t.Fatal("settings reconfigure shortcut should emit a reconfigure message")
 	}
-	model, _ = app.Update(cmd())
+	model, cmd = app.Update(cmd())
 	updated := model.(App)
 
-	if !config.ReconfigureRequested() {
-		t.Fatal("settings reconfigure shortcut should queue the setup wizard")
+	if cmd != nil {
+		if msg := cmd(); msg != nil {
+			if _, ok := msg.(tea.QuitMsg); ok {
+				t.Fatal("settings reconfigure shortcut should stay in the TUI instead of quitting")
+			}
+		}
+	}
+	if config.ReconfigureRequested() {
+		t.Fatal("settings reconfigure shortcut should not queue the setup wizard")
 	}
 	if !cfg.SetupComplete {
 		t.Fatal("settings reconfigure shortcut should not clear setupComplete")
 	}
-	if updated.focus != FocusSettings {
-		t.Fatalf("focus = %d, want settings until shutdown command quits", updated.focus)
+	if !strings.Contains(updated.View(), "First Time Setup") {
+		t.Fatalf("settings reconfigure shortcut should show setup in the current TUI:\n%s", updated.View())
+	}
+}
+
+func TestEmbeddedReconfigureCompletionSavesConfigWithoutQuitting(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	cfg := &config.Config{
+		Provider:        "anthropic",
+		APIKey:          "sk-test",
+		Model:           "anthropic/claude-sonnet-4-6",
+		SetupComplete:   true,
+		FoxbridgeCDPURL: "ws://127.0.0.1:9222",
+	}
+	app := NewApp(nil, nil, nil, nil, cfg, nil)
+	app.width = 100
+	app.height = 30
+
+	model, cmd := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	app = model.(App)
+	if cmd != nil {
+		_ = cmd()
+	}
+
+	for i := 0; i < 3; i++ {
+		model, cmd = app.Update(tea.KeyMsg{Type: tea.KeyEnter})
+		app = model.(App)
+		if cmd == nil {
+			continue
+		}
+		if msg := cmd(); msg != nil {
+			if _, ok := msg.(tea.QuitMsg); ok {
+				t.Fatal("embedded setup completion should not quit the workbench")
+			}
+		}
+	}
+
+	loaded, err := config.Load()
+	if err != nil {
+		t.Fatalf("load saved config: %v", err)
+	}
+	if !loaded.SetupComplete {
+		t.Fatal("saved config should remain setup complete")
+	}
+	if loaded.Provider != "anthropic" || loaded.Model != "anthropic/claude-sonnet-4-6" || loaded.APIKey != "sk-test" {
+		t.Fatalf("saved config changed unexpectedly: provider=%q model=%q key=%q", loaded.Provider, loaded.Model, loaded.APIKey)
+	}
+	if app.cfg == nil || app.cfg.FoxbridgeCDPURL != "ws://127.0.0.1:9222" {
+		t.Fatalf("runtime foxbridge route was not preserved: %#v", app.cfg)
+	}
+	if app.focus != FocusSettings || !app.settings.IsActive() {
+		t.Fatalf("focus/settings = %d/%t, want settings active after setup", app.focus, app.settings.IsActive())
+	}
+	if !strings.Contains(app.notice, "Configuration updated") {
+		t.Fatalf("notice = %q, want configuration updated", app.notice)
 	}
 }
 
