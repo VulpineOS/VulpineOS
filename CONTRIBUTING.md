@@ -39,53 +39,10 @@ npm --prefix web test -- --run
 npm --prefix web run build
 ```
 
-The browser-layer validation suites below are required when you change Firefox/Camoufox patches, browser behavior, or Python package integration. They test different layers of the browser stack and catch different classes of bugs.
-
-### build-tester
-
-Tests the **raw binary** in isolation without using the Python package. It validates the browser build against the project compatibility checks.
-
-**Run this when you change:** browser patches, Firefox source modifications, or anything in the C++/JS browser layer.
-
-```bash
-cd build-tester
-npm install          # first time only
-pip install -r requirements.txt
-python scripts/run_tests.py /path/to/camoufox-binary
-```
-
-See [`build-tester/README.md`](build-tester/README.md) for full details.
-
----
-
-### service-tester
-
-Tests the **full stack** — the binary and the Python package together — using only the public `AsyncNewContext` API. Real proxies are required for the network-routing cases.
-
-**Run this when you change:** `pythonlib/`, proxy handling, context creation, or any behaviour that affects how the Python package interacts with the binary.
-
-```bash
-cd service-tester
-# Add proxies (one per line, format: user:pass@domain:port)
-cp proxies.txt.example proxies.txt   # or create manually
-./run_tests.sh
-```
-
-See [`service-tester/README.md`](service-tester/README.md) for full details.
-
----
-
-### Key differences
-
-| | build-tester | service-tester |
-|---|---|---|
-| Entry point | Raw browser binary path | local Python package install |
-| Profile setup | Manual | Via `AsyncNewContext` API |
-| Global mode (`CAMOU_CONFIG`) | yes | no |
-| Match result validation | yes | no |
-| Proxy required | no | yes |
-| Profiles | 8 (6 per-context + 2 global) | 6 (per-context) |
-| Fix target on failure | Browser source | Python package |
+Browser-layer and service-level validation gates are maintained outside this
+public repository. Public contributors should open an issue before proposing
+Firefox/Camoufox patch, browser behavior, or Python package integration changes
+so maintainers can confirm scope and run the appropriate private gates.
 
 ## Reporting Issues
 
