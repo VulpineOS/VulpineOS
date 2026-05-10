@@ -1881,6 +1881,33 @@ func TestBulkAgentStatusMsgMarksAgentsInterrupted(t *testing.T) {
 	}
 }
 
+func TestBulkAgentStatusMsgKeepsSelectedLiveAgentThinking(t *testing.T) {
+	db := openTestVault(t)
+
+	agent, err := db.CreateAgent("live-agent", "task", "{}")
+	if err != nil {
+		t.Fatalf("create agent: %v", err)
+	}
+
+	app := NewApp(nil, nil, nil, db, nil, nil)
+	app.selectedAgentID = agent.ID
+	app.conversation.SetAgentID(agent.ID)
+
+	model, cmd := app.Update(shared.BulkAgentStatusMsg{
+		AgentIDs: []string{agent.ID},
+		Status:   "active",
+		Notice:   "Agent running",
+	})
+	app = model.(App)
+
+	if !app.conversation.IsThinking() {
+		t.Fatal("selected live agent should keep conversation in thinking state")
+	}
+	if cmd == nil {
+		t.Fatal("expected live bulk status to start thinking animation")
+	}
+}
+
 func TestBulkAgentStatusMsgMarksAgentsPaused(t *testing.T) {
 	db := openTestVault(t)
 

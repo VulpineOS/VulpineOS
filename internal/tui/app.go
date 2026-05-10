@@ -1198,7 +1198,12 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.vault.UpdateAgentStatus(agentID, msg.Status)
 			}
 			if agentID == a.selectedAgentID {
-				a.conversation.SetThinking(false)
+				if isLiveAgentStatus(msg.Status) {
+					a.conversation.SetThinking(true)
+					cmds = append(cmds, conversation.ThinkingTick())
+				} else {
+					a.conversation.SetThinking(false)
+				}
 				if a.control != nil && a.vault == nil {
 					a.updateRemoteAgentDetailFromList(agentID)
 				} else {
