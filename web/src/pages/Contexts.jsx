@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 
 export default function Contexts({ ws }) {
   const [contexts, setContexts] = useState([])
   const [selectedContext, setSelectedContext] = useState(localStorage.getItem('vulpine_context_id') || '')
+  const lastEventSeqRef = useRef(0)
+  const lastEventIndexRef = useRef(0)
 
   const refresh = () => {
     ws.call('contexts.list').then(r => setContexts(r?.contexts || [])).catch(() => {})
@@ -14,9 +16,22 @@ export default function Contexts({ ws }) {
 
   useEffect(() => {
     if (!ws.connected) return
-    const latest = ws.events?.[ws.events.length - 1]
-    if (!latest) return
-    if (latest.method === 'Browser.attachedToTarget' || latest.method === 'Browser.detachedFromTarget') {
+    const events = ws.events || []
+    const sequencedEvents = events.filter(event => Number.isFinite(event.seq))
+    let nextEvents
+    if (sequencedEvents.length > 0) {
+      nextEvents = sequencedEvents.filter(event => event.seq > lastEventSeqRef.current)
+      if (nextEvents.length > 0) {
+        lastEventSeqRef.current = Math.max(...nextEvents.map(event => event.seq))
+      }
+    } else {
+      if (events.length < lastEventIndexRef.current) {
+        lastEventIndexRef.current = 0
+      }
+      nextEvents = events.slice(lastEventIndexRef.current)
+      lastEventIndexRef.current = events.length
+    }
+    if (nextEvents.some(event => event.method === 'Browser.attachedToTarget' || event.method === 'Browser.detachedFromTarget')) {
       refresh()
     }
   }, [ws.connected, ws.events])

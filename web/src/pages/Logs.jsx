@@ -7,7 +7,8 @@ export default function Logs({ ws }) {
   const [runtimeSettings, setRuntimeSettings] = useState({ retention: 200 })
   const [runtimeFilter, setRuntimeFilter] = useState({ query: '', component: '', level: '', event: '', limit: 50 })
   const [retentionInput, setRetentionInput] = useState('200')
-  const processedEventCount = useRef(0)
+  const lastEventSeqRef = useRef(0)
+  const lastEventIndexRef = useRef(0)
   const { connected, call } = ws
   const events = ws.events || []
 
@@ -27,11 +28,20 @@ export default function Logs({ ws }) {
   }, [call, connected, runtimeFilter])
 
   useEffect(() => {
-    if (events.length < processedEventCount.current) {
-      processedEventCount.current = 0
+    const sequencedEvents = events.filter(event => Number.isFinite(event.seq))
+    let appended
+    if (sequencedEvents.length > 0) {
+      appended = sequencedEvents.filter(event => event.seq > lastEventSeqRef.current)
+      if (appended.length > 0) {
+        lastEventSeqRef.current = Math.max(...appended.map(event => event.seq))
+      }
+    } else {
+      if (events.length < lastEventIndexRef.current) {
+        lastEventIndexRef.current = 0
+      }
+      appended = events.slice(lastEventIndexRef.current)
+      lastEventIndexRef.current = events.length
     }
-    const appended = events.slice(processedEventCount.current)
-    processedEventCount.current = events.length
     const incoming = appended
       .filter(event => event.method === 'Vulpine.runtimeEvent' && event.params)
       .map(event => event.params)

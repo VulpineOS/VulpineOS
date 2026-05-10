@@ -138,4 +138,32 @@ describe('Logs page', () => {
     expect(await screen.findByText('gateway.profile_repair_failed')).toBeInTheDocument()
     expect(screen.getByText('gateway.started')).toBeInTheDocument()
   })
+
+  it('continues ingesting runtime audit events after the websocket buffer is capped', async () => {
+    const calls = vi.fn(async (method) => {
+      if (method === 'runtime.list') return { events: [], settings: { retention: 200 } }
+      return {}
+    })
+    const makeEvent = (seq) => ({
+      seq,
+      method: 'Vulpine.runtimeEvent',
+      params: {
+        id: `evt-${seq}`,
+        component: 'gateway',
+        event: `overflow_${seq}`,
+        level: 'info',
+        message: `Runtime event ${seq}`,
+        timestamp: `2026-04-22T11:${String(seq % 60).padStart(2, '0')}:00Z`,
+      },
+    })
+    const initialEvents = Array.from({ length: 200 }, (_, index) => makeEvent(index + 1))
+    const { rerender } = render(<Logs ws={{ connected: false, call: calls, events: initialEvents }} />)
+
+    expect(await screen.findByText('gateway.overflow_200')).toBeInTheDocument()
+
+    const cappedEvents = Array.from({ length: 200 }, (_, index) => makeEvent(index + 2))
+    rerender(<Logs ws={{ connected: false, call: calls, events: cappedEvents }} />)
+
+    expect(await screen.findByText('gateway.overflow_201')).toBeInTheDocument()
+  })
 })
