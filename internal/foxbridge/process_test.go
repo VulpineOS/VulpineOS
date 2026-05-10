@@ -89,25 +89,38 @@ func TestStartExternalReapsExitedProcess(t *testing.T) {
 		t.Fatalf("Start: %v", err)
 	}
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if !process.Running() {
-			process.mu.Lock()
-			cmd := process.cmd
-			logFile := process.logFile
-			process.mu.Unlock()
-			if cmd != nil {
-				t.Fatal("exited foxbridge command was not cleared")
-			}
-			if logFile != nil {
-				t.Fatal("exited foxbridge log file was not cleared")
-			}
-			return
+	process.mu.Lock()
+	waitDone := process.waitDone
+	cmd := process.cmd
+	logFile := process.logFile
+	process.mu.Unlock()
+	if waitDone == nil {
+		if cmd != nil {
+			t.Fatal("exited foxbridge command was not cleared")
 		}
-		time.Sleep(10 * time.Millisecond)
+		if logFile != nil {
+			t.Fatal("exited foxbridge log file was not cleared")
+		}
+		return
 	}
-	process.Stop()
-	t.Fatal("foxbridge still reported running after subprocess exited")
+
+	select {
+	case <-waitDone:
+	case <-time.After(5 * time.Second):
+		process.Stop()
+		t.Fatal("foxbridge subprocess was not reaped")
+	}
+
+	process.mu.Lock()
+	cmd = process.cmd
+	logFile = process.logFile
+	process.mu.Unlock()
+	if cmd != nil {
+		t.Fatal("exited foxbridge command was not cleared")
+	}
+	if logFile != nil {
+		t.Fatal("exited foxbridge log file was not cleared")
+	}
 }
 
 func TestStartEmbeddedModeStopsServerWhenReadinessFails(t *testing.T) {
