@@ -175,7 +175,7 @@ A terminal-based command center for managing AI agents, browser contexts, and id
 | System         | Conversation                 | Agent Detail    |
 | Kernel: running|                              | Name: Scout-1   |
 | Mode: GUI      | you  Find cheap flights to   | Status: active  |
-| Route: CAMOUFOX|      Tokyo in March          | Tokens: 12,847  |
+| Route: CAMOUFOX|      Tokyo in March          | Tokens: tracked |
 | Window: VISIBLE|                              | Proxy: US-West  |
 | Gateway: up    | scout  Thinking...           | Profile: mac-m1 |
 |                |                              |                 |

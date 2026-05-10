@@ -58,16 +58,15 @@ index 0000000000..f47a35b2e3
 +  if (seed == 0 || length == 0 || !data) {
 +    return;
 +  }
-+  // LCG for deterministic transformation - same seed always produces same result
-+  // Uses 0.8% variance (range [0.996, 1.004]) with non-linear polynomial component
-+  // This is more robust than Brave's 0.1-0.2% variance which was bypassed
++  // LCG for deterministic transformation - same seed always produces same result.
++  // Keep the transformation small and deterministic for profile consistency.
 +  uint32_t state = seed;
 +  for (uint32_t i = 0; i < length; ++i) {
 +    state = (state * 1664525u + 1013904223u);
 +    float normalized = static_cast<float>(state) / 4294967295.0f;
-+    // Linear base: 0.8% variance
++    // Linear base with a small bounded variance.
 +    float base = 0.996f + normalized * 0.008f;
-+    // Non-linear polynomial adjustment - makes reverse-engineering harder
++    // Non-linear polynomial adjustment.
 +    float adjustment = (normalized * normalized - 0.5f) * 0.002f;
 +    float multiplier = base + adjustment;
 +    data[i] *= multiplier;
