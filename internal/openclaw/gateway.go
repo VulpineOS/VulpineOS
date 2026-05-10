@@ -74,7 +74,9 @@ func (g *Gateway) Start() error {
 	configureAgentProcess(cmd)
 
 	logPath := os.TempDir() + "/vulpineos-gateway.log"
-	if logFile, err := os.Create(logPath); err == nil {
+	var logFile *os.File
+	if createdLog, err := os.Create(logPath); err == nil {
+		logFile = createdLog
 		cmd.Stdout = logFile
 		cmd.Stderr = logFile
 		g.mu.Lock()
@@ -83,6 +85,14 @@ func (g *Gateway) Start() error {
 	}
 
 	if err := cmd.Start(); err != nil {
+		if logFile != nil {
+			_ = logFile.Close()
+		}
+		g.mu.Lock()
+		if g.logFile == logFile {
+			g.logFile = nil
+		}
+		g.mu.Unlock()
 		return fmt.Errorf("start gateway: %w", err)
 	}
 
@@ -95,11 +105,19 @@ func (g *Gateway) Start() error {
 
 	go func() {
 		err := cmd.Wait()
+		var finishedLog *os.File
 		g.mu.Lock()
 		if g.cmd == cmd {
 			g.exited = true
+			g.cmd = nil
+			g.exitCh = nil
+			finishedLog = g.logFile
+			g.logFile = nil
 		}
 		g.mu.Unlock()
+		if finishedLog != nil {
+			_ = finishedLog.Close()
+		}
 		exitCh <- err
 		close(exitCh)
 	}()
@@ -122,7 +140,6 @@ func (g *Gateway) Stop() {
 	cmd := g.cmd
 	exitCh := g.exitCh
 	exited := g.exited
-	logFile := g.logFile
 	g.mu.Unlock()
 
 	if cmd != nil && cmd.Process != nil {
@@ -144,9 +161,6 @@ func (g *Gateway) Stop() {
 			g.logFile = nil
 		}
 		g.mu.Unlock()
-		if logFile != nil {
-			_ = logFile.Close()
-		}
 		log.Println("OpenClaw gateway stopped")
 	}
 }

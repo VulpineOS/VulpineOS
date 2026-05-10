@@ -42,6 +42,24 @@ exit 0
 	if g.cmd != nil {
 		t.Fatal("gateway command was not cleared after readiness failure")
 	}
+	if g.logFile != nil {
+		t.Fatal("gateway log file was not cleared after readiness failure")
+	}
+}
+
+func TestGatewayStartFailureClearsLogFile(t *testing.T) {
+	bin := filepath.Join(t.TempDir(), "not-executable")
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\nexit 0\n"), 0600); err != nil {
+		t.Fatalf("write gateway test binary: %v", err)
+	}
+	g := NewGateway(bin)
+
+	if err := g.Start(); err == nil {
+		t.Fatal("expected start failure")
+	}
+	if g.logFile != nil {
+		t.Fatal("gateway log file was retained after start failure")
+	}
 }
 
 func TestGatewayRunningTracksExitedProcess(t *testing.T) {
@@ -62,6 +80,12 @@ exit 0
 	}
 	if g.Running() {
 		t.Fatal("gateway still reports running after process exit")
+	}
+	if g.cmd != nil {
+		t.Fatal("gateway command was not cleared after process exit")
+	}
+	if g.logFile != nil {
+		t.Fatal("gateway log file was not cleared after process exit")
 	}
 }
 
