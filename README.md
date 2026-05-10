@@ -55,11 +55,11 @@ VulpineOS builds on Camoufox's battle-tested stealth foundation (Firefox 146.0.1
 │  ├── Phase 1: Injection-Proof Accessibility Filter            │
 │  ├── Phase 2: Deterministic Execution (Action-Lock)           │
 │  ├── Phase 3: Token-Optimized DOM Export                      │
-│  └── Phase 4: Autonomous Trust-Warming                        │
+│  └── Phase 4: Opt-in Profile Maintenance                      │
 │                                                              │
 │  Juggler Protocol (pipe FD 3/4)                               │
 │  ├── Telemetry Service (memory, risk score, 2s interval)      │
-│  └── Trust Warming Service (idle-time profile warming)        │
+│  └── Extension Services (optional provider hooks)             │
 │                                                              │
 │  Go Runtime (41 packages, 500+ tests)                         │
 │  ├── Bubbletea TUI (3-column agent workbench)                 │
@@ -108,7 +108,7 @@ Freezes the page completely while the agent is thinking. No JavaScript, no timer
 
 ### Phase 3: Token-Optimized DOM Export
 
-Compressed semantic JSON snapshot. The public fixture benchmark currently measures 2,942 average tokens for VulpineOS optimized DOM versus 42,832 for compact Chrome AX, a 93.1% reduction, while passing fixture-level semantic and action-coverage checks. Agents can request larger `expanded` or `full` snapshot profiles, or retry a truncated compact snapshot with the next larger profile when a target may have been pruned.
+Compressed semantic JSON snapshot for reducing agent context size while preserving semantic structure and stable element references. The fixture benchmark is reproducible with `npm run benchmark:tokens`; keep published claims tied to generated benchmark output rather than hand-edited numbers.
 
 ```json
 {"v":1,"title":"Example","url":"https://example.com","nodes":[
@@ -122,15 +122,15 @@ Compressed semantic JSON snapshot. The public fixture benchmark currently measur
 ]}
 ```
 
-- 50+ role codes (`heading`→`h2`, `button`→`btn`, `link`→`a`)
+- Compact role codes for common semantic elements
 - Element references (`@0`, `@1`) on interactive elements for click/type by ref
 - Viewport-only mode — only return elements visible on screen
 - Structural wrapper skipping, single-child flattening, text merging
 - Reproducible benchmark: `npm run benchmark:tokens`
 
-### Phase 4: Autonomous Trust-Warming
+### Phase 4: Opt-in Profile Maintenance
 
-Background service that builds organic browsing history on high-authority sites while the agent is idle. Human-like bezier mouse trajectories, Gaussian-randomized dwell times, rate-limited visit scheduling.
+Optional extension point for profile-maintenance workflows supplied by an external provider. The stock public build leaves this disabled unless a provider is registered.
 
 ---
 
@@ -250,9 +250,9 @@ A React SPA served from the Go binary — no separate frontend deployment needed
 
 **12 pages:** Dashboard, Agents, Agent Detail, Bus, Contexts, Proxies, Security, Webhooks, Scripts, Settings, Logs, Login
 
-**46 control messages** covering: agent CRUD plus bulk controls and session-log access; config get/set/providers; cost usage plus persisted per-agent/default budgets; webhooks; proxy management plus rotation get/set; agent bus pending/approve/reject/policies/add/remove; session recording export; fingerprint get/generate-and-apply; runtime-backed script execution; runtime-backed security status; status; optional extension availability and timelines; runtime audit history with retention/export controls; and context create/remove/list.
+**46 control messages** covering: agent CRUD plus bulk controls and session-log access; config get/set/providers; cost usage plus persisted per-agent/default budgets; webhooks; proxy management plus rotation get/set; agent bus pending/approve/reject/policies/add/remove; session recording export; fingerprint get/generate-and-apply; runtime-backed script execution; runtime-backed security status; status; optional extension availability; runtime audit history with retention/export controls; and context create/remove/list.
 
-Credential, audio, mobile, and Sentinel-backed controls are stable public interfaces. The stock open-source build returns unavailable for extension-backed actions unless a provider is registered by an external extension package. When Sentinel data is available, panel/status responses redact sink URLs, probe URLs, proxy endpoints, timeline attributes, and opaque payloads before rendering; timeline requests are capped before calling the provider.
+Credential, audio, mobile, and optional provider-backed controls are stable public interfaces. The stock open-source build returns unavailable for extension-backed actions unless a provider is registered by an external package. Operator-facing extension data is reduced to availability/status in the public panel.
 
 Agent Detail includes separate conversation, action trace, raw session log, recording, and fingerprint views so operator-visible tool activity is inspectable without exposing hidden reasoning or sensitive action values.
 
@@ -470,11 +470,11 @@ VulpineOS exposes 36 tools via Model Context Protocol:
 | Tool | Description |
 |------|-------------|
 | Core browser controls | Navigate, snapshot, click, type, screenshot, scroll, context lifecycle, and accessibility-tree access |
-| Ref-based interactions | Click, type, and hover by `@ref` from optimized DOM snapshots. Snapshot profiles are `compact` (180 nodes/90 chars), `expanded` (360/160), and `full` (800/240); `retry:true` steps up after truncation. |
+| Ref-based interactions | Click, type, and hover by `@ref` from optimized DOM snapshots. Snapshot profiles support compact and larger retry paths for pages that need more context. |
 | Reliability tools | Wait, find, verify, screenshot diff, page-settled checks, select options, fill forms, page info, key press, clear input, form errors |
 | Human-realism tools | Human-like click, scroll, and type timing |
 | Annotated interaction | Annotated screenshots and click-by-label with `@N` labels |
-| Extension surfaces | Credential metadata/autofill, audio capture, Sentinel signals, and mobile bridge hooks. The stock public build returns unavailable unless an extension provider is attached; credential URL metadata/errors are redacted at the MCP boundary. |
+| Extension surfaces | Credential metadata/autofill, audio capture, optional provider signals, and mobile bridge hooks. The stock public build returns unavailable unless an extension provider is attached; credential URL metadata/errors are redacted at the MCP boundary. |
 | Mobile bridge | List Android devices, start a local CDP bridge, and disconnect bridge sessions when the public mobile bridge provider is installed |
 
 ---
