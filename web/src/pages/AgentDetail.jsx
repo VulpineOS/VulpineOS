@@ -48,6 +48,9 @@ export default function AgentDetail({ ws }) {
   const eventStreamInitializedRef = useRef(false)
   const lastEventSeqRef = useRef(0)
   const lastEventIndexRef = useRef(0)
+  const activeAgentIdRef = useRef(id)
+  const refreshRequestRef = useRef(0)
+  const sessionLogRequestRef = useRef(0)
 
   const conversationMessages = messages.filter(m => m.role !== 'system')
   const traceMessages = messages.filter(m => m.role === 'system')
@@ -75,21 +78,35 @@ export default function AgentDetail({ ws }) {
 
   const refresh = () => {
     if (!ws.connected || !id) return
+    const agentID = id
+    const requestID = ++refreshRequestRef.current
+    const commit = (fn) => {
+      if (activeAgentIdRef.current === agentID && refreshRequestRef.current === requestID) fn()
+    }
     ws.call('agents.list').then(r => {
-      const nextAgent = (r?.agents || []).find(a => a.id === id) || null
-      setAgent(nextAgent)
+      const nextAgent = (r?.agents || []).find(a => a.id === agentID) || null
+      commit(() => setAgent(nextAgent))
     }).catch(() => {})
     ws.call('agents.getMessages', { agentId: id }).then(r => {
-      setMessages(r?.messages || [])
-      setMessageMeta({ truncated: Boolean(r?.truncated), limit: Number(r?.limit || 0) })
+      commit(() => {
+        setMessages(r?.messages || [])
+        setMessageMeta({ truncated: Boolean(r?.truncated), limit: Number(r?.limit || 0) })
+      })
     }).catch(() => {})
-    ws.call('recording.getTimeline', { agentId: id }).then(r => setTimeline(r?.actions || [])).catch(() => {})
-    ws.call('fingerprints.get', { agentId: id }).then(r => setFingerprint(r)).catch(() => {})
+    ws.call('recording.getTimeline', { agentId: id }).then(r => {
+      commit(() => setTimeline(r?.actions || []))
+    }).catch(() => {})
+    ws.call('fingerprints.get', { agentId: id }).then(r => {
+      commit(() => setFingerprint(r))
+    }).catch(() => {})
   }
 
   const loadSessionLog = async () => {
+    const agentID = id
+    const requestID = ++sessionLogRequestRef.current
     try {
-      const result = await ws.call('agents.getSessionLog', { agentId: id })
+      const result = await ws.call('agents.getSessionLog', { agentId: agentID })
+      if (activeAgentIdRef.current !== agentID || sessionLogRequestRef.current !== requestID) return
       setSessionLog(result?.content || '')
       setSessionLogMeta({
         truncated: Boolean(result?.truncated),
@@ -102,6 +119,9 @@ export default function AgentDetail({ ws }) {
   }
 
   useEffect(() => {
+    activeAgentIdRef.current = id
+    refreshRequestRef.current++
+    sessionLogRequestRef.current++
     refresh()
   }, [ws.connected, id])
 
