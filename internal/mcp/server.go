@@ -24,13 +24,14 @@ type Server struct {
 	tracker     *ContextTracker
 	screenshots *ScreenshotTracker
 	loops       *LoopDetector
+	cancels     []func()
 	reader      *bufio.Reader
 	writer      io.Writer
 }
 
 // NewServer creates an MCP server connected to the given Juggler client.
 func NewServer(client *juggler.Client) *Server {
-	return &Server{
+	s := &Server{
 		client:      client,
 		tracker:     NewContextTracker(client),
 		screenshots: NewScreenshotTracker(),
@@ -38,12 +39,41 @@ func NewServer(client *juggler.Client) *Server {
 		reader:      bufio.NewReader(os.Stdin),
 		writer:      os.Stdout,
 	}
+	s.cancels = append(s.cancels, client.SubscribeWithCancel("Browser.detachedFromTarget", func(_ string, params json.RawMessage) {
+		var ev struct {
+			SessionID string `json:"sessionId"`
+		}
+		if err := json.Unmarshal(params, &ev); err == nil && ev.SessionID != "" {
+			s.cleanupSession(ev.SessionID)
+		}
+	}))
+	return s
+}
+
+func (s *Server) Close() {
+	for _, cancel := range s.cancels {
+		cancel()
+	}
+	s.cancels = nil
+	if s.tracker != nil {
+		s.tracker.Close()
+	}
+}
+
+func (s *Server) cleanupSession(sessionID string) {
+	if s.screenshots != nil {
+		s.screenshots.Delete(sessionID)
+	}
+	resetSnapshotProfile(sessionID)
+	if s.tracker != nil {
+		s.tracker.RemoveSession(sessionID)
+	}
 }
 
 // Run starts the MCP server loop, reading from stdin and writing to stdout.
 func (s *Server) Run() error {
 	log.SetOutput(os.Stderr) // Keep logs on stderr, MCP uses stdout
-	defer s.tracker.Close()
+	defer s.Close()
 
 	for {
 		line, err := s.reader.ReadBytes('\n')

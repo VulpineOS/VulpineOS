@@ -408,7 +408,7 @@ func handleToolCallFull(ctx context.Context, client *juggler.Client, tracker *Co
 	case "vulpine_new_context":
 		return handleNewContext(client, args)
 	case "vulpine_close_context":
-		return handleCloseContext(client, args)
+		return handleCloseContext(client, tracker, screenshots, args)
 	case "vulpine_get_ax_tree":
 		return handleGetAXTree(client, args)
 	case "vulpine_click_ref":
@@ -767,7 +767,7 @@ func cleanupBrowserContext(client *juggler.Client, contextID string) {
 	})
 }
 
-func handleCloseContext(client *juggler.Client, args json.RawMessage) (*ToolCallResult, error) {
+func handleCloseContext(client *juggler.Client, tracker *ContextTracker, screenshots *ScreenshotTracker, args json.RawMessage) (*ToolCallResult, error) {
 	var p struct {
 		ContextID string `json:"contextId"`
 	}
@@ -780,6 +780,16 @@ func handleCloseContext(client *juggler.Client, args json.RawMessage) (*ToolCall
 	})
 	if err != nil {
 		return errorResult(err), nil
+	}
+
+	if tracker != nil {
+		for _, sessionID := range tracker.SessionsForContext(p.ContextID) {
+			tracker.RemoveSession(sessionID)
+			resetSnapshotProfile(sessionID)
+			if screenshots != nil {
+				screenshots.Delete(sessionID)
+			}
+		}
 	}
 
 	return textResult("Context closed"), nil

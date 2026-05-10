@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"vulpineos/internal/juggler"
@@ -902,6 +903,7 @@ func truncate(s string, max int) string {
 
 // ScreenshotTracker stores the last screenshot per session for diff comparison.
 type ScreenshotTracker struct {
+	mu          sync.RWMutex
 	screenshots map[string]string
 }
 
@@ -910,9 +912,19 @@ func NewScreenshotTracker() *ScreenshotTracker {
 }
 
 func (t *ScreenshotTracker) Get(sessionID string) string {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 	return t.screenshots[sessionID]
 }
 
 func (t *ScreenshotTracker) Set(sessionID, data string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	t.screenshots[sessionID] = data
+}
+
+func (t *ScreenshotTracker) Delete(sessionID string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	delete(t.screenshots, sessionID)
 }

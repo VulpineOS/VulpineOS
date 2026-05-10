@@ -13,6 +13,7 @@ import (
 type SessionContext struct {
 	ExecutionContextID string
 	FrameID            string
+	BrowserContextID   string
 }
 
 // ContextTracker subscribes to Juggler events and tracks execution contexts
@@ -102,13 +103,21 @@ func NewContextTracker(client *juggler.Client) *ContextTracker {
 
 	ct.subscribe("Browser.attachedToTarget", func(_ string, params json.RawMessage) {
 		var ev struct {
-			SessionID string `json:"sessionId"`
+			SessionID  string `json:"sessionId"`
+			TargetInfo struct {
+				BrowserContextID string `json:"browserContextId"`
+			} `json:"targetInfo"`
 		}
 		json.Unmarshal(params, &ev)
 		if ev.SessionID != "" {
 			ct.mu.Lock()
-			if _, ok := ct.contexts[ev.SessionID]; !ok {
-				ct.contexts[ev.SessionID] = &SessionContext{}
+			ctx, ok := ct.contexts[ev.SessionID]
+			if !ok {
+				ctx = &SessionContext{}
+				ct.contexts[ev.SessionID] = ctx
+			}
+			if ev.TargetInfo.BrowserContextID != "" {
+				ctx.BrowserContextID = ev.TargetInfo.BrowserContextID
 			}
 			ct.mu.Unlock()
 		}
@@ -152,6 +161,24 @@ func (ct *ContextTracker) Get(sessionID string) *SessionContext {
 	ct.mu.RLock()
 	defer ct.mu.RUnlock()
 	return cloneSessionContext(ct.contexts[sessionID])
+}
+
+func (ct *ContextTracker) SessionsForContext(contextID string) []string {
+	ct.mu.RLock()
+	defer ct.mu.RUnlock()
+	var sessions []string
+	for sessionID, ctx := range ct.contexts {
+		if ctx != nil && ctx.BrowserContextID == contextID {
+			sessions = append(sessions, sessionID)
+		}
+	}
+	return sessions
+}
+
+func (ct *ContextTracker) RemoveSession(sessionID string) {
+	ct.mu.Lock()
+	defer ct.mu.Unlock()
+	delete(ct.contexts, sessionID)
 }
 
 // InvalidateExecutionContext forces the next Resolve call for the
