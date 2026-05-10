@@ -29,3 +29,19 @@ func TestAgentStopKillsProcessGroup(t *testing.T) {
 		t.Fatal("stopWithStatus timed out waiting for descendant process exit")
 	}
 }
+
+func TestAgentClosesStdinPipeOnNormalCompletion(t *testing.T) {
+	statusCh := make(chan AgentStatus, 8)
+	agent := newAgent("test-agent", "test-context", statusCh)
+
+	if err := agent.start("/bin/sh", []string{"-c", "exit 0"}); err != nil {
+		t.Fatalf("start agent: %v", err)
+	}
+	agent.Wait()
+
+	agent.mu.Lock()
+	defer agent.mu.Unlock()
+	if agent.stdinPipe != nil {
+		t.Fatal("stdin pipe retained after normal completion")
+	}
+}

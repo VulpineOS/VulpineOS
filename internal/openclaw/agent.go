@@ -244,6 +244,7 @@ func (a *Agent) start(binary string, args []string) error {
 
 		// Wait for the process to exit so we can inspect the exit code
 		waitErr := a.waitProcess()
+		a.closeStdinPipe()
 
 		a.mu.Lock()
 		if a.stopStatus != "" {
@@ -1133,12 +1134,20 @@ func (a *Agent) stopWithStatus(status string) error {
 		a.waitProcess()
 	}
 
-	if pipe != nil {
-		pipe.Close()
-	}
+	a.closeStdinPipe()
 
 	a.emitStatus()
 	return nil
+}
+
+func (a *Agent) closeStdinPipe() {
+	a.mu.Lock()
+	pipe := a.stdinPipe
+	a.stdinPipe = nil
+	a.mu.Unlock()
+	if pipe != nil {
+		_ = pipe.Close()
+	}
 }
 
 // Wait blocks until the agent exits.
