@@ -634,10 +634,31 @@
   }
 
   .logo-copy,
-  .sidebar-runtime,
   .sidebar-section-title,
   .sidebar-footer-note {
     display: none;
+  }
+
+  .sidebar-runtime {
+    padding: 6px 4px;
+    gap: 6px;
+  }
+
+  .sidebar-runtime-row {
+    justify-content: center;
+    gap: 0;
+  }
+
+  .sidebar-runtime-row span {
+    display: none;
+  }
+
+  .sidebar-runtime-row strong {
+    max-width: 54px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 10px;
   }
 
   .sidebar-header {
