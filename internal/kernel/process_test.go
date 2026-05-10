@@ -3,8 +3,12 @@ package kernel
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -249,6 +253,69 @@ func TestKernelStartFailureRemovesTempProfile(t *testing.T) {
 			t.Fatalf("temp profile leaked after failed start: %s", path)
 		}
 	}
+}
+
+func TestKernelStopKillsChildProcesses(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell-script test binary is unix-specific")
+	}
+
+	dir := t.TempDir()
+	childPath := filepath.Join(dir, "child.pid")
+	bin := filepath.Join(dir, "camoufox")
+	mustWriteExecutableContent(t, bin, "#!/bin/sh\nsleep 60 &\necho $! > "+shellQuote(childPath)+"\nwait\n")
+
+	k := New()
+	if err := k.Start(Config{BinaryPath: bin, Headless: true}); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	childPID := waitForKernelPIDFile(t, childPath)
+	if err := k.Stop(); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if !kernelProcessExists(childPID) {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	proc, err := os.FindProcess(childPID)
+	if err == nil {
+		_ = proc.Kill()
+	}
+	t.Fatalf("kernel child process %d survived stop", childPID)
+}
+
+func waitForKernelPIDFile(t *testing.T, path string) int {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		data, err := os.ReadFile(path)
+		if err == nil {
+			pidText := strings.TrimSpace(string(data))
+			var pid int
+			if _, scanErr := fmt.Sscanf(pidText, "%d", &pid); scanErr == nil && pid > 0 {
+				return pid
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("child pid file was not written")
+	return 0
+}
+
+func shellQuote(path string) string {
+	return "'" + strings.ReplaceAll(path, "'", "'\\''") + "'"
+}
+
+func kernelProcessExists(pid int) bool {
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		return false
+	}
+	return proc.Signal(syscall.Signal(0)) == nil
 }
 
 func tempProfileDirs(t *testing.T) map[string]bool {

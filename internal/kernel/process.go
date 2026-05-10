@@ -163,6 +163,7 @@ func (k *Kernel) Start(cfg Config) error {
 	}
 
 	cmd := exec.Command(binary, args...)
+	configureKernelProcess(cmd)
 	// Redirect Firefox stdout/stderr to a log file to keep the TUI clean.
 	// If the log file can't be created, fall back to /dev/null.
 	logPath := filepath.Join(os.TempDir(), "vulpineos-kernel.log")
@@ -214,12 +215,12 @@ func (k *Kernel) Start(cfg Config) error {
 	k.exitErr = nil
 	k.waitDone = make(chan struct{})
 	k.headless = cfg.Headless
-	go k.waitForExit(cmd, k.waitDone)
-
-	// Create window controller for non-headless mode
 	if !cfg.Headless {
 		k.window = NewWindowController(cmd.Process.Pid)
+	} else {
+		k.window = nil
 	}
+	go k.waitForExit(cmd, k.waitDone)
 
 	return nil
 }
@@ -241,6 +242,7 @@ func (k *Kernel) waitForExit(cmd *exec.Cmd, done chan struct{}) {
 		k.transport = nil
 		k.logFile = nil
 		k.profileDir = ""
+		k.window = nil
 		k.waited = true
 		k.exitErr = err
 	}
@@ -621,11 +623,11 @@ func (k *Kernel) Stop() error {
 			select {
 			case <-waitDone:
 			case <-time.After(5 * time.Second):
-				_ = cmd.Process.Kill()
+				_ = killKernelProcess(cmd)
 				<-waitDone
 			}
 		} else {
-			_ = cmd.Process.Kill()
+			_ = killKernelProcess(cmd)
 		}
 	}
 
