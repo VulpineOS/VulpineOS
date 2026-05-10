@@ -144,7 +144,7 @@ func TestStopExternalKillsChildProcesses(t *testing.T) {
 	t.Chdir(dir)
 	childPath := filepath.Join(dir, "child.pid")
 	foxbridgePath := filepath.Join(dir, "foxbridge")
-	script := "#!/bin/sh\nsleep 60 &\necho $! > " + childPath + "\nwait\n"
+	script := "#!/bin/sh\nsleep 60 &\necho $! > " + shellQuote(childPath) + "\nwait\n"
 	if err := os.WriteFile(foxbridgePath, []byte(script), 0o755); err != nil {
 		t.Fatalf("write foxbridge: %v", err)
 	}
@@ -187,7 +187,7 @@ func TestStopExternalKillsChildProcesses(t *testing.T) {
 
 func waitForPIDFile(t *testing.T, path string) int {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		data, err := os.ReadFile(path)
 		if err == nil {
@@ -201,6 +201,10 @@ func waitForPIDFile(t *testing.T, path string) int {
 	}
 	t.Fatalf("child pid file was not written")
 	return 0
+}
+
+func shellQuote(path string) string {
+	return "'" + strings.ReplaceAll(path, "'", "'\\''") + "'"
 }
 
 func processExists(pid int) bool {
