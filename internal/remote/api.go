@@ -1801,7 +1801,7 @@ func hasStartupIssue(issues []StartupIssue, component string) bool {
 
 func (api *PanelAPI) browserRoute() (string, string) {
 	switch {
-	case api.Kernel == nil:
+	case api.Kernel == nil || !api.Kernel.Running():
 		return "disabled", "server"
 	case api.activeFoxbridgeCDPURL() != "":
 		return "camoufox", "runtime"

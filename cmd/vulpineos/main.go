@@ -987,6 +987,9 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 
 	// Create the TUI after startup subsystems are fully initialized.
 	app := tui.NewApp(k, client, orch, v, cfg, audit)
+	if fb != nil {
+		app.SetFoxbridgeRunning(fb.Running)
+	}
 
 	if client != nil {
 		// Wire the live juggler client into any build-tagged extension

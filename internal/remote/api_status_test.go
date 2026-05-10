@@ -15,7 +15,7 @@ type stubGateway struct{ running bool }
 
 func (s stubGateway) Running() bool { return s.running }
 
-func TestStatusGetIncludesBrowserRoute(t *testing.T) {
+func TestStatusGetDisablesRouteWhenKernelIsStopped(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
 	api := &PanelAPI{
@@ -39,11 +39,11 @@ func TestStatusGetIncludesBrowserRoute(t *testing.T) {
 		t.Fatalf("Unmarshal: %v", err)
 	}
 
-	if got := result["browser_route"]; got != "camoufox" {
-		t.Fatalf("browser_route = %v, want camoufox", got)
+	if got := result["browser_route"]; got != "disabled" {
+		t.Fatalf("browser_route = %v, want disabled", got)
 	}
-	if got := result["browser_route_source"]; got != "runtime" {
-		t.Fatalf("browser_route_source = %v, want runtime", got)
+	if got := result["browser_route_source"]; got != "server" {
+		t.Fatalf("browser_route_source = %v, want server", got)
 	}
 	if got := result["browser_window"]; got != "unavailable" {
 		t.Fatalf("browser_window = %v, want unavailable", got)
@@ -84,11 +84,11 @@ func TestStatusGetReportsProfileConfiguredWithoutTreatingItAsLiveRoute(t *testin
 		t.Fatalf("Unmarshal: %v", err)
 	}
 
-	if got := result["browser_route"]; got != "direct" {
-		t.Fatalf("browser_route = %v, want direct", got)
+	if got := result["browser_route"]; got != "disabled" {
+		t.Fatalf("browser_route = %v, want disabled", got)
 	}
-	if got := result["browser_route_source"]; got != "kernel" {
-		t.Fatalf("browser_route_source = %v, want kernel", got)
+	if got := result["browser_route_source"]; got != "server" {
+		t.Fatalf("browser_route_source = %v, want server", got)
 	}
 	if got := result["openclaw_profile_configured"]; got != true {
 		t.Fatalf("openclaw_profile_configured = %v, want true", got)
@@ -116,11 +116,11 @@ func TestStatusGetIgnoresStoppedFoxbridgeRuntimeRoute(t *testing.T) {
 		t.Fatalf("Unmarshal: %v", err)
 	}
 
-	if got := result["browser_route"]; got != "direct" {
-		t.Fatalf("browser_route = %v, want direct", got)
+	if got := result["browser_route"]; got != "disabled" {
+		t.Fatalf("browser_route = %v, want disabled", got)
 	}
-	if got := result["browser_route_source"]; got != "kernel" {
-		t.Fatalf("browser_route_source = %v, want kernel", got)
+	if got := result["browser_route_source"]; got != "server" {
+		t.Fatalf("browser_route_source = %v, want server", got)
 	}
 }
 

@@ -110,13 +110,14 @@ type remoteMessagesLoadedMsg struct {
 
 // App is the root Bubbletea model for the 3-column agent workbench.
 type App struct {
-	kernel  *kernel.Kernel
-	client  *juggler.Client
-	orch    *orchestrator.Orchestrator
-	vault   *vault.DB
-	cfg     *config.Config
-	monitor *monitor.Monitor
-	control ControlClient
+	kernel           *kernel.Kernel
+	client           *juggler.Client
+	orch             *orchestrator.Orchestrator
+	vault            *vault.DB
+	cfg              *config.Config
+	monitor          *monitor.Monitor
+	control          ControlClient
+	foxbridgeRunning func() bool
 
 	width, height int
 	leftWidth     int // adjustable left sidebar width
@@ -159,6 +160,12 @@ type App struct {
 // NewApp creates the root TUI model.
 func NewApp(k *kernel.Kernel, client *juggler.Client, orch *orchestrator.Orchestrator, v *vault.DB, cfg *config.Config, audit *runtimeaudit.Manager) App {
 	return NewAppWithControl(k, client, orch, v, cfg, audit, nil)
+}
+
+// SetFoxbridgeRunning wires the local embedded foxbridge liveness check used
+// to avoid displaying or repairing OpenClaw with a stale CDP URL.
+func (a *App) SetFoxbridgeRunning(fn func() bool) {
+	a.foxbridgeRunning = fn
 }
 
 // NewAppWithControl creates the root TUI model with an optional remote control client.
@@ -244,10 +251,10 @@ func NewAppWithControl(k *kernel.Kernel, client *juggler.Client, orch *orchestra
 		if err != nil {
 			log.Printf("tui: failed to load agents from vault: %v", err)
 		} else {
-			// Reconcile status: agents that were "active" or "starting" or "running"
+			// Reconcile status: agents that were live when the previous process exited
 			// are now "paused" since no process is running on startup
 			for i := range agents {
-				if agents[i].Status == "active" || agents[i].Status == "starting" || agents[i].Status == "running" {
+				if isLiveAgentStatus(agents[i].Status) {
 					agents[i].Status = "paused"
 					v.UpdateAgentStatus(agents[i].ID, "paused")
 				}
@@ -2194,7 +2201,10 @@ func (a *App) requestReconfigure() tea.Cmd {
 }
 
 func (a *App) browserRouteLabel() string {
-	if a.cfg != nil && strings.TrimSpace(a.cfg.FoxbridgeCDPURL) != "" {
+	if a.kernel == nil || !a.kernel.Running() {
+		return ""
+	}
+	if a.activeFoxbridgeCDPURL() != "" {
 		return "CAMOUFOX"
 	}
 	if a.kernel != nil && a.kernel.IsHeadless() {
@@ -2204,6 +2214,20 @@ func (a *App) browserRouteLabel() string {
 		return "DIRECT"
 	}
 	return ""
+}
+
+func (a *App) activeFoxbridgeCDPURL() string {
+	if a.cfg == nil {
+		return ""
+	}
+	cdpURL := strings.TrimSpace(a.cfg.FoxbridgeCDPURL)
+	if cdpURL == "" {
+		return ""
+	}
+	if a.foxbridgeRunning != nil && !a.foxbridgeRunning() {
+		return ""
+	}
+	return cdpURL
 }
 
 // updateAgentDetail populates the agent detail panel from an Agent struct.
@@ -2618,7 +2642,7 @@ func (a *App) agentRuntimeConfig(agent *vault.Agent) (string, func(), error) {
 		return "", nil, fmt.Errorf("agent not found")
 	}
 	if a.cfg != nil {
-		if err := config.RepairOpenClawProfile(a.cfg.FoxbridgeCDPURL); err != nil {
+		if err := config.RepairOpenClawProfile(a.activeFoxbridgeCDPURL()); err != nil {
 			return "", nil, fmt.Errorf("repair openclaw profile: %w", err)
 		}
 	}

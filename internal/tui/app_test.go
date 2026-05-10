@@ -90,6 +90,14 @@ func TestNewAppReconcilesNonTerminalAgentsToPaused(t *testing.T) {
 		t.Fatalf("set running status: %v", err)
 	}
 
+	thinking, err := db.CreateAgent("thinking-agent", "task", "{}")
+	if err != nil {
+		t.Fatalf("create thinking agent: %v", err)
+	}
+	if err := db.UpdateAgentStatus(thinking.ID, "thinking"); err != nil {
+		t.Fatalf("set thinking status: %v", err)
+	}
+
 	completed, err := db.CreateAgent("completed-agent", "task", "{}")
 	if err != nil {
 		t.Fatalf("create completed agent: %v", err)
@@ -120,12 +128,56 @@ func TestNewAppReconcilesNonTerminalAgentsToPaused(t *testing.T) {
 		t.Fatalf("running agent status = %q, want paused", runningAgent.Status)
 	}
 
+	thinkingAgent, err := db.GetAgent(thinking.ID)
+	if err != nil {
+		t.Fatalf("get thinking agent: %v", err)
+	}
+	if thinkingAgent.Status != "paused" {
+		t.Fatalf("thinking agent status = %q, want paused", thinkingAgent.Status)
+	}
+
 	completedAgent, err := db.GetAgent(completed.ID)
 	if err != nil {
 		t.Fatalf("get completed agent: %v", err)
 	}
 	if completedAgent.Status != "completed" {
 		t.Fatalf("completed agent status = %q, want completed", completedAgent.Status)
+	}
+}
+
+func TestBrowserRouteLabelIgnoresStoppedFoxbridge(t *testing.T) {
+	app := NewApp(nil, nil, nil, nil, &config.Config{FoxbridgeCDPURL: "ws://127.0.0.1:9222"}, nil)
+	app.SetFoxbridgeRunning(func() bool { return false })
+
+	if got := app.browserRouteLabel(); got != "" {
+		t.Fatalf("browser route = %q, want empty route for stopped kernel/foxbridge", got)
+	}
+}
+
+func TestAgentRuntimeConfigClearsStoppedFoxbridgeURL(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	if err := os.MkdirAll(config.OpenClawProfileDir(), 0700); err != nil {
+		t.Fatalf("mkdir profile dir: %v", err)
+	}
+	if err := os.WriteFile(config.OpenClawConfigPath(), []byte(`{"browser":{"enabled":true,"headless":true,"cdpUrl":"ws://127.0.0.1:9222"}}`), 0600); err != nil {
+		t.Fatalf("write openclaw.json: %v", err)
+	}
+
+	app := NewApp(nil, nil, nil, nil, &config.Config{FoxbridgeCDPURL: "ws://127.0.0.1:9222"}, nil)
+	app.SetFoxbridgeRunning(func() bool { return false })
+	path, cleanup, err := app.agentRuntimeConfig(&vault.Agent{ID: "agent-1", Metadata: "{}"})
+	if err != nil {
+		t.Fatalf("agentRuntimeConfig: %v", err)
+	}
+	defer cleanup()
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read runtime config: %v", err)
+	}
+	if strings.Contains(string(data), "cdpUrl") {
+		t.Fatalf("runtime config kept stale cdpUrl: %s", data)
 	}
 }
 
