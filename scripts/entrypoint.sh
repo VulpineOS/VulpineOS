@@ -1,8 +1,7 @@
 #!/bin/bash
 set -e
 
-# Start virtual display for non-headless mode
-# Some bot-detection systems can detect --headless flag
+# Start virtual display for non-headless mode.
 Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp -ac &
 sleep 1
 
