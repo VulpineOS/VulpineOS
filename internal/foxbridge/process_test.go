@@ -2,10 +2,12 @@ package foxbridge
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -121,6 +123,78 @@ func TestStartExternalReapsExitedProcess(t *testing.T) {
 	if logFile != nil {
 		t.Fatal("exited foxbridge log file was not cleared")
 	}
+}
+
+func TestStopExternalKillsChildProcesses(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell-script test binary is unix-specific")
+	}
+
+	dir := t.TempDir()
+	t.Chdir(dir)
+	childPath := filepath.Join(dir, "child.pid")
+	foxbridgePath := filepath.Join(dir, "foxbridge")
+	script := "#!/bin/sh\nsleep 60 &\necho $! > " + childPath + "\nwait\n"
+	if err := os.WriteFile(foxbridgePath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write foxbridge: %v", err)
+	}
+	if err := os.Chmod(foxbridgePath, 0o755); err != nil {
+		t.Fatalf("chmod foxbridge: %v", err)
+	}
+
+	originalWait := waitForProcessPort
+	waitForProcessPort = func(int, time.Duration) error {
+		return nil
+	}
+	t.Cleanup(func() { waitForProcessPort = originalWait })
+
+	process := New()
+	if err := process.Start(Config{}); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	childPID := waitForPIDFile(t, childPath)
+	process.Stop()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if !processExists(childPID) {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	proc, err := os.FindProcess(childPID)
+	if err == nil {
+		_ = proc.Kill()
+	}
+	t.Fatalf("child process %d survived foxbridge stop", childPID)
+}
+
+func waitForPIDFile(t *testing.T, path string) int {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		data, err := os.ReadFile(path)
+		if err == nil {
+			pidText := strings.TrimSpace(string(data))
+			var pid int
+			if _, scanErr := fmt.Sscanf(pidText, "%d", &pid); scanErr == nil && pid > 0 {
+				return pid
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("child pid file was not written")
+	return 0
+}
+
+func processExists(pid int) bool {
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		return false
+	}
+	err = proc.Signal(syscall.Signal(0))
+	return err == nil
 }
 
 func TestStartEmbeddedModeStopsServerWhenReadinessFails(t *testing.T) {

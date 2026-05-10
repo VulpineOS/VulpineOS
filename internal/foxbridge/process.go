@@ -89,6 +89,7 @@ func (p *Process) Start(cfg Config) error {
 	}
 
 	cmd := exec.Command(bin, args...)
+	configureProcessGroup(cmd)
 
 	// Log foxbridge output
 	logPath := filepath.Join(os.TempDir(), "vulpineos-foxbridge.log")
@@ -246,7 +247,7 @@ func (p *Process) Stop() {
 		return
 	}
 	if cmd != nil && cmd.Process != nil {
-		_ = cmd.Process.Kill()
+		_ = killProcessGroup(cmd)
 		if waitDone != nil {
 			<-waitDone
 		}
