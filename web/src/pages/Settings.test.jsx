@@ -18,6 +18,14 @@ function settingsWS(overrides = {}) {
               models: ["claude-sonnet"],
               needsKey: true,
             },
+            {
+              id: "openai",
+              name: "OpenAI",
+              envVar: "OPENAI_API_KEY",
+              defaultModel: "openai/gpt-5.4",
+              models: ["openai/gpt-5.4"],
+              needsKey: true,
+            },
           ],
         };
       }
@@ -43,6 +51,9 @@ function settingsWS(overrides = {}) {
           openclaw_profile_configured: true,
           ...overrides.status,
         };
+      }
+      if (method === "config.set") {
+        return overrides.configSet || {};
       }
       return {};
     }),
@@ -101,6 +112,43 @@ describe("Settings page", () => {
       expect(ws.call).toHaveBeenCalledWith("config.set", {
         provider: "anthropic",
         model: "claude-sonnet",
+        apiKey: "",
+      });
+    });
+    expect(screen.getByText("No key stored yet.")).toBeInTheDocument();
+  });
+
+  it("does not carry a stored key across provider changes", async () => {
+    const ws = settingsWS({
+      config: { hasKey: true },
+      configSet: {
+        status: "ok",
+        config: {
+          provider: "openai",
+          model: "openai/gpt-5.4",
+          hasKey: false,
+          setupComplete: false,
+        },
+      },
+    });
+
+    render(<Settings ws={ws} />);
+
+    expect(
+      await screen.findByText(
+        "A key is already stored locally. Leave this blank to keep it.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getAllByRole("combobox")[0], {
+      target: { value: "openai" },
+    });
+    expect(screen.getByText("No key stored yet.")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Save Provider"));
+
+    await waitFor(() => {
+      expect(ws.call).toHaveBeenCalledWith("config.set", {
+        provider: "openai",
+        model: "openai/gpt-5.4",
         apiKey: "",
       });
     });

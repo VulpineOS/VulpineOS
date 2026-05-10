@@ -52,15 +52,16 @@ export default function Settings({ ws }) {
   const saveProvider = async () => {
     const submittedKey = (cfg.apiKey || "").trim();
     try {
-      await ws.call("config.set", {
+      const result = await ws.call("config.set", {
         provider: cfg.provider,
         model: cfg.model,
         apiKey: submittedKey,
       });
       setCfg((prev) => ({
         ...prev,
+        ...(result?.config || {}),
         apiKey: "",
-        hasKey: prev.hasKey || submittedKey !== "",
+        hasKey: result?.config?.hasKey ?? (prev.hasKey || submittedKey !== ""),
       }));
       flashSaved("Provider saved");
     } catch (e) {
@@ -113,6 +114,8 @@ export default function Settings({ ws }) {
                     ...prev,
                     provider: e.target.value,
                     model: provider?.defaultModel || prev.model || "",
+                    apiKey: "",
+                    hasKey: e.target.value === prev.provider ? prev.hasKey : false,
                   }));
                 }}
               >

@@ -794,13 +794,14 @@ func (api *PanelAPI) configSet(params json.RawMessage) (json.RawMessage, error) 
 	var p struct {
 		Provider                string   `json:"provider,omitempty"`
 		Model                   string   `json:"model,omitempty"`
-		APIKey                  string   `json:"apiKey,omitempty"`
+		APIKey                  *string  `json:"apiKey,omitempty"`
 		DefaultBudgetMaxCostUSD *float64 `json:"defaultBudgetMaxCostUsd,omitempty"`
 		DefaultBudgetMaxTokens  *int64   `json:"defaultBudgetMaxTokens,omitempty"`
 	}
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
+	previousProvider := api.Config.Provider
 	if provider := strings.TrimSpace(p.Provider); provider != "" {
 		provider, err := safePanelProviderID(provider)
 		if err != nil {
@@ -808,6 +809,7 @@ func (api *PanelAPI) configSet(params json.RawMessage) (json.RawMessage, error) 
 		}
 		api.Config.Provider = provider
 	}
+	providerChanged := api.Config.Provider != "" && api.Config.Provider != previousProvider
 	if model := strings.TrimSpace(p.Model); model != "" {
 		model, err := safePanelModelID(model)
 		if err != nil {
@@ -815,12 +817,18 @@ func (api *PanelAPI) configSet(params json.RawMessage) (json.RawMessage, error) 
 		}
 		api.Config.Model = model
 	}
-	if apiKey := strings.TrimSpace(p.APIKey); apiKey != "" {
-		apiKey, err := safePanelAPIKey(apiKey)
-		if err != nil {
-			return nil, err
+	if p.APIKey != nil {
+		if apiKey := strings.TrimSpace(*p.APIKey); apiKey != "" {
+			apiKey, err := safePanelAPIKey(apiKey)
+			if err != nil {
+				return nil, err
+			}
+			api.Config.APIKey = apiKey
+		} else if providerChanged {
+			api.Config.APIKey = ""
 		}
-		api.Config.APIKey = apiKey
+	} else if providerChanged {
+		api.Config.APIKey = ""
 	}
 	if p.DefaultBudgetMaxCostUSD != nil {
 		if *p.DefaultBudgetMaxCostUSD < 0 {
@@ -853,7 +861,14 @@ func (api *PanelAPI) configSet(params json.RawMessage) (json.RawMessage, error) 
 	if err := api.SyncPersistentState(); err != nil {
 		return nil, fmt.Errorf("sync persistent state: %w", err)
 	}
-	return json.Marshal(map[string]string{"status": "ok"})
+	cfg, err := api.configGet()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(map[string]interface{}{
+		"status": "ok",
+		"config": json.RawMessage(cfg),
+	})
 }
 
 func safePanelProviderID(value string) (string, error) {

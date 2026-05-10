@@ -22,12 +22,23 @@ func TestConfigSetMarksSetupCompleteAndRegeneratesProfile(t *testing.T) {
 		t.Fatalf("HandleMessage: %v", err)
 	}
 
-	var result map[string]string
+	var result struct {
+		Status string `json:"status"`
+		Config struct {
+			Provider      string `json:"provider"`
+			Model         string `json:"model"`
+			HasKey        bool   `json:"hasKey"`
+			SetupComplete bool   `json:"setupComplete"`
+		} `json:"config"`
+	}
 	if err := json.Unmarshal(payload, &result); err != nil {
 		t.Fatalf("Unmarshal result: %v", err)
 	}
-	if result["status"] != "ok" {
-		t.Fatalf("status = %q, want ok", result["status"])
+	if result.Status != "ok" {
+		t.Fatalf("status = %q, want ok", result.Status)
+	}
+	if result.Config.Provider != "zai" || result.Config.Model != "zai/glm-4.7" || !result.Config.HasKey || !result.Config.SetupComplete {
+		t.Fatalf("unexpected returned config: %#v", result.Config)
 	}
 	if !api.Config.SetupComplete {
 		t.Fatal("setupComplete = false, want true")
@@ -46,6 +57,72 @@ func TestConfigSetMarksSetupCompleteAndRegeneratesProfile(t *testing.T) {
 
 	if _, err := os.Stat(config.OpenClawConfigPath()); err != nil {
 		t.Fatalf("expected generated openclaw.json: %v", err)
+	}
+}
+
+func TestConfigSetClearsStoredKeyWhenProviderChangesWithoutNewKey(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	api := &PanelAPI{
+		Config: &config.Config{
+			Provider:      "anthropic",
+			Model:         "anthropic/claude-sonnet-4-6",
+			APIKey:        "anthropic-secret",
+			SetupComplete: true,
+		},
+	}
+
+	payload, err := api.HandleMessage("config.set", json.RawMessage(`{"provider":"openai","model":"openai/gpt-5.4","apiKey":""}`))
+	if err != nil {
+		t.Fatalf("HandleMessage: %v", err)
+	}
+
+	var result struct {
+		Status string `json:"status"`
+		Config struct {
+			Provider      string `json:"provider"`
+			Model         string `json:"model"`
+			HasKey        bool   `json:"hasKey"`
+			SetupComplete bool   `json:"setupComplete"`
+		} `json:"config"`
+	}
+	if err := json.Unmarshal(payload, &result); err != nil {
+		t.Fatalf("Unmarshal result: %v", err)
+	}
+	if result.Status != "ok" {
+		t.Fatalf("status = %q, want ok", result.Status)
+	}
+	if api.Config.APIKey != "" {
+		t.Fatalf("APIKey = %q, want cleared", api.Config.APIKey)
+	}
+	if api.Config.SetupComplete {
+		t.Fatal("setupComplete = true, want false without new provider key")
+	}
+	if result.Config.Provider != "openai" || result.Config.HasKey || result.Config.SetupComplete {
+		t.Fatalf("unexpected returned config: %#v", result.Config)
+	}
+}
+
+func TestConfigSetKeepsStoredKeyWhenProviderDoesNotChange(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	api := &PanelAPI{
+		Config: &config.Config{
+			Provider:      "anthropic",
+			Model:         "anthropic/claude-sonnet-4-6",
+			APIKey:        "anthropic-secret",
+			SetupComplete: true,
+		},
+	}
+
+	if _, err := api.HandleMessage("config.set", json.RawMessage(`{"provider":"anthropic","model":"anthropic/claude-haiku-4-5","apiKey":""}`)); err != nil {
+		t.Fatalf("HandleMessage: %v", err)
+	}
+	if api.Config.APIKey != "anthropic-secret" {
+		t.Fatalf("APIKey = %q, want preserved", api.Config.APIKey)
+	}
+	if !api.Config.SetupComplete {
+		t.Fatal("setupComplete = false, want true")
 	}
 }
 
