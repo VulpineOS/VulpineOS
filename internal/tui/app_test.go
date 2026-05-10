@@ -962,6 +962,24 @@ func TestSettingsViewKeepsRenderedLinesWithinTerminalAfterShrink(t *testing.T) {
 	}
 }
 
+func TestWorkbenchBodyHeightReservesOneStatusRow(t *testing.T) {
+	tests := []struct {
+		terminalHeight int
+		want           int
+	}{
+		{terminalHeight: 24, want: 23},
+		{terminalHeight: 4, want: 3},
+		{terminalHeight: 1, want: 1},
+		{terminalHeight: 0, want: 1},
+	}
+
+	for _, tt := range tests {
+		if got := workbenchBodyHeight(tt.terminalHeight); got != tt.want {
+			t.Fatalf("workbenchBodyHeight(%d) = %d, want %d", tt.terminalHeight, got, tt.want)
+		}
+	}
+}
+
 func TestViewHandlesTinyTerminalWithoutPanic(t *testing.T) {
 	app := NewApp(nil, nil, nil, nil, nil, nil)
 	app.width = 20

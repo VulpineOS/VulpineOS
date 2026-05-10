@@ -1682,15 +1682,20 @@ func compactPanelWidth(terminalWidth int) int {
 }
 
 func compactContentHeight(terminalHeight int) int {
-	bodyHeight := terminalHeight - 1
-	if bodyHeight < 1 {
-		return 1
-	}
+	bodyHeight := workbenchBodyHeight(terminalHeight)
 	contentHeight := bodyHeight - 2
 	if contentHeight < 1 {
 		return 1
 	}
 	return contentHeight
+}
+
+func workbenchBodyHeight(terminalHeight int) int {
+	bodyHeight := terminalHeight - 1
+	if bodyHeight < 1 {
+		return 1
+	}
+	return bodyHeight
 }
 
 type workbenchWidths struct {
@@ -1718,7 +1723,7 @@ func (a App) View() string {
 	centerWidth := widths.center
 	rightWidth := widths.right
 
-	bodyHeight := a.height - 2 // status bar
+	bodyHeight := workbenchBodyHeight(a.height)
 	if a.useCompactWorkbench(widths, bodyHeight) {
 		return a.renderCompactWorkbench()
 	}
@@ -1832,7 +1837,7 @@ func (a App) useCompactWorkbench(widths workbenchWidths, bodyHeight int) bool {
 }
 
 func (a App) renderCompactWorkbench() string {
-	bodyHeight := a.height - 1
+	bodyHeight := workbenchBodyHeight(a.height)
 	if bodyHeight < 1 {
 		return fitTerminalLine(a.renderStatusBar(), a.width)
 	}
@@ -1990,7 +1995,7 @@ func (a *App) updatePanelSizes() {
 	leftWidth := widths.left
 	centerWidth := widths.center
 	rightWidth := widths.right
-	bodyHeight := a.height - 2
+	bodyHeight := workbenchBodyHeight(a.height)
 
 	if a.useCompactWorkbench(widths, bodyHeight) {
 		contentWidth := panelContentWidth(compactPanelWidth(a.width))
