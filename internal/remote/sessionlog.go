@@ -86,7 +86,7 @@ func sanitizeSessionLogLine(line string) string {
 
 	var payload interface{}
 	if err := json.Unmarshal([]byte(line), &payload); err != nil {
-		return line
+		return redactSessionLogString(line)
 	}
 
 	sanitized := sanitizeSessionLogValue(payload)

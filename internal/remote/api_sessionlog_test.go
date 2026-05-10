@@ -199,6 +199,43 @@ func TestAgentsGetSessionLogRedactsOrdinarySecrets(t *testing.T) {
 	}
 }
 
+func TestAgentsGetSessionLogRedactsMalformedLines(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	logPath := filepath.Join(config.OpenClawProfileDir(), "agents", "main", "sessions", "vulpine-agent-1.jsonl")
+	if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
+		t.Fatalf("mkdir log dir: %v", err)
+	}
+	logData := []byte(`not-json Authorization: Bearer inline-token cookie=session-token https://api.example.com/?token=query-token&ok=1` + "\n")
+	if err := os.WriteFile(logPath, logData, 0644); err != nil {
+		t.Fatalf("write log: %v", err)
+	}
+
+	api := &PanelAPI{}
+	payload, err := api.HandleMessage("agents.getSessionLog", json.RawMessage(`{"agentId":"agent-1"}`))
+	if err != nil {
+		t.Fatalf("HandleMessage: %v", err)
+	}
+
+	var result struct {
+		Content string `json:"content"`
+	}
+	if err := json.Unmarshal(payload, &result); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+	for _, leaked := range []string{"inline-token", "session-token", "query-token"} {
+		if strings.Contains(result.Content, leaked) {
+			t.Fatalf("malformed session log leaked %q in %s", leaked, result.Content)
+		}
+	}
+	for _, expected := range []string{"Authorization: [redacted]", "cookie=[redacted]", "token=[redacted]"} {
+		if !strings.Contains(result.Content, expected) {
+			t.Fatalf("malformed session log missing %q in %s", expected, result.Content)
+		}
+	}
+}
+
 func TestAgentsGetSessionLogRejectsPathTraversalAgentID(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
