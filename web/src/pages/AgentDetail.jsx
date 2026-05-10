@@ -114,6 +114,7 @@ export default function AgentDetail({ ws }) {
         totalBytes: Number(result?.totalBytes || 0),
       })
     } catch (e) {
+      if (activeAgentIdRef.current !== agentID || sessionLogRequestRef.current !== requestID) return
       ws.notify?.(e.message)
     }
   }
@@ -145,7 +146,10 @@ export default function AgentDetail({ ws }) {
     const interval = setInterval(() => {
       loadSessionLog()
     }, 2000)
-    return () => clearInterval(interval)
+    return () => {
+      clearInterval(interval)
+      sessionLogRequestRef.current++
+    }
   }, [tab, ws.connected, id])
 
   useEffect(() => {

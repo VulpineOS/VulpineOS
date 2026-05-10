@@ -1,6 +1,6 @@
 import React from 'react'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { Link, MemoryRouter, Route, Routes } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import AgentDetail from './AgentDetail'
 
@@ -282,6 +282,52 @@ describe('AgentDetail page', () => {
     expect(screen.getByText('42 tokens')).toBeInTheDocument()
     expect(call).toHaveBeenCalled()
     expect(screen.getByText('budget: none')).toBeInTheDocument()
+  })
+
+  it('ignores stale raw session log failures after switching agents', async () => {
+    let rejectSessionLog
+    const notify = vi.fn()
+    const call = vi.fn(async (method, params) => {
+      if (method === 'agents.list') {
+        return {
+          agents: [
+            { id: 'agent-1', name: 'Agent One', status: 'paused', contextId: '', totalTokens: 0 },
+            { id: 'agent-2', name: 'Agent Two', status: 'paused', contextId: '', totalTokens: 0 },
+          ],
+        }
+      }
+      if (method === 'agents.getMessages') return { messages: [] }
+      if (method === 'recording.getTimeline') return { actions: [] }
+      if (method === 'fingerprints.get') return {}
+      if (method === 'agents.getSessionLog' && params?.agentId === 'agent-1') {
+        return new Promise((_, reject) => {
+          rejectSessionLog = reject
+        })
+      }
+      if (method === 'agents.getSessionLog') {
+        return { content: '', truncated: false, bytes: 0, totalBytes: 0 }
+      }
+      return { status: 'ok' }
+    })
+
+    render(
+      <MemoryRouter initialEntries={['/agents/agent-1']}>
+        <Link to="/agents/agent-2">Switch Agent</Link>
+        <Routes>
+          <Route path="/agents/:id" element={<AgentDetail ws={{ connected: true, events: [], call, notify }} />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText('Agent agent-1')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Raw'))
+    await waitFor(() => expect(rejectSessionLog).toBeTypeOf('function'))
+    fireEvent.click(screen.getByText('Switch Agent'))
+    expect(await screen.findByText('Agent agent-2')).toBeInTheDocument()
+
+    rejectSessionLog(new Error('old raw log failed'))
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(notify).not.toHaveBeenCalled()
   })
 
   it('uses inline confirmation before killing an agent', async () => {
