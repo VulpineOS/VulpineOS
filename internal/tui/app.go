@@ -899,10 +899,8 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		case "up":
-			maxH := a.height - 2
 			switch a.focus {
 			case FocusConversation:
-				_ = maxH
 				var cmd tea.Cmd
 				a.conversation, cmd = a.conversation.Update(msg)
 				return a, cmd
@@ -935,7 +933,6 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			maxH := a.height - 2
 			switch a.focus {
 			case FocusConversation:
-				_ = maxH
 				var cmd tea.Cmd
 				a.conversation, cmd = a.conversation.Update(msg)
 				return a, cmd
