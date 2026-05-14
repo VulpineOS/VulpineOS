@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 
 	"vulpineos/internal/config"
+	"vulpineos/internal/opencode"
 	"vulpineos/internal/runtimeaudit"
 )
 
@@ -30,6 +31,8 @@ type Manager struct {
 	statusSubs         map[chan AgentStatus]struct{}
 	conversationSubs   map[chan ConversationMsg]struct{}
 	audit              *runtimeaudit.Manager
+
+	opencodeClient *opencode.Client
 }
 
 type managedAgent struct {
@@ -106,6 +109,11 @@ func (m *Manager) SpawnWithSessionIsolated(agentID, task, sessionName, configPat
 		}
 		return "", err
 	}
+
+	if cfg, err := config.Load(); err == nil && cfg.Provider == "opencode-local" {
+		return m.SpawnOpenCode(task)
+	}
+
 	openclawBin := m.findOpenClaw()
 	if openclawBin == "" {
 		if cleanup != nil {
@@ -245,6 +253,56 @@ func (m *Manager) SpawnOpenClaw(task string, agentSkills []config.SkillEntry) (s
 	_ = agentSkills
 
 	return m.startManagedAgent(id, "openclaw", openclawBin, args, "", nil)
+}
+
+// SpawnOpenCode spawns an agent using the local OpenCode server.
+func (m *Manager) SpawnOpenCode(task string) (string, error) {
+	if m.opencodeClient == nil {
+		m.opencodeClient = opencode.NewClient("opencode")
+		if err := m.opencodeClient.Start(); err != nil {
+			return "", fmt.Errorf("failed to start opencode server: %w", err)
+		}
+	}
+
+	id := uuid.New().String()[:8]
+
+	agent := newAgent(id, "opencode-local", m.statusSource)
+
+	m.mu.Lock()
+	m.agents[id] = &managedAgent{agent: agent, cleanup: nil}
+	m.mu.Unlock()
+
+	go func() {
+		response, tokens, err := m.opencodeClient.SendMessage(task)
+		if err != nil {
+			agent.mu.Lock()
+			agent.status.Status = "error"
+			agent.status.Objective = err.Error()
+			agent.mu.Unlock()
+			agent.statusCh <- agent.status
+			return
+		}
+
+		agent.mu.Lock()
+		agent.status.Status = "completed"
+		agent.status.Objective = task
+		agent.status.Tokens = tokens
+		agent.mu.Unlock()
+
+		agent.conversationCh <- ConversationMsg{
+			AgentID: id,
+			Role:    "assistant",
+			Content: response,
+			Tokens:  tokens,
+		}
+		agent.statusCh <- agent.status
+		close(agent.doneCh)
+		close(agent.conversationCh)
+	}()
+
+	go m.forwardConversation(agent)
+
+	return id, nil
 }
 
 // findOpenClaw looks for the OpenClaw binary in common locations.

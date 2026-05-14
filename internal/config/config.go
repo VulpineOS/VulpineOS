@@ -221,6 +221,10 @@ var Providers = []Provider{
 		DefaultModel: "sglang/your-model-id",
 		Models:       []string{"sglang/your-model-id"},
 		NeedsKey:     false},
+	{ID: "opencode-local", Name: "OpenCode (Local)", EnvVar: "",
+		DefaultModel: "opencode/local",
+		Models:       []string{"opencode/local"},
+		NeedsKey:     false},
 }
 
 // GetProvider returns the provider by ID.
@@ -403,7 +407,9 @@ func (c *Config) GenerateOpenClawConfig(vulpineosBinary, camoufoxBinary string) 
 
 	// Build env map
 	env := map[string]interface{}{}
-	if provider.EnvVar != "" && apiKey != "" {
+	if providerID == "opencode-local" {
+		env["OPENCODE_BINARY_PATH"] = "opencode"
+	} else if provider.EnvVar != "" && apiKey != "" {
 		env[provider.EnvVar] = apiKey
 	}
 
