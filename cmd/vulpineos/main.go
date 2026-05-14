@@ -1220,6 +1220,16 @@ func runServe(binaryPath string, headless bool, profileDir string, host string, 
 				Recording: rec,
 				PageCache: pagecache.New(filepath.Join(config.Dir(), "pagecache")),
 			})
+		} else if cfg != nil && cfg.Provider == "opencode-local" {
+			orch = orchestrator.New(nil, nil, v, pool.DefaultConfig(), "openclaw", orchestrator.Opts{
+				AgentBus:  bus,
+				Costs:     costs,
+				Webhooks:  wh,
+				Recording: rec,
+				PageCache: pagecache.New(filepath.Join(config.Dir(), "pagecache")),
+			})
+		}
+		if orch != nil {
 			if audit != nil {
 				orch.Agents.SetRuntimeAudit(audit)
 			}

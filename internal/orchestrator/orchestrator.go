@@ -86,6 +86,12 @@ func New(k *kernel.Kernel, client *juggler.Client, v *vault.DB, poolCfg pool.Con
 		Agents:      openclaw.NewManager(openclawBinary),
 		agentToSlot: make(map[string]*pool.ContextSlot),
 	}
+	if client == nil {
+		o.Pool = nil
+	}
+	if k == nil {
+		o.Kernel = nil
+	}
 	if len(opts) > 0 {
 		o.AgentBus = opts[0].AgentBus
 		o.Costs = opts[0].Costs
@@ -99,8 +105,10 @@ func New(k *kernel.Kernel, client *juggler.Client, v *vault.DB, poolCfg pool.Con
 
 // Start initializes the pool and begins the agent status relay.
 func (o *Orchestrator) Start() error {
-	if err := o.Pool.Start(); err != nil {
-		return fmt.Errorf("start pool: %w", err)
+	if o.Pool != nil {
+		if err := o.Pool.Start(); err != nil {
+			return fmt.Errorf("start pool: %w", err)
+		}
 	}
 	go o.statusRelay()
 	return nil
@@ -297,7 +305,9 @@ func (o *Orchestrator) Status() Status {
 // Note: kernel.Stop() is the caller's responsibility and must be called separately.
 func (o *Orchestrator) Close() {
 	o.Agents.Dispose()
-	o.Pool.Close()
+	if o.Pool != nil {
+		o.Pool.Close()
+	}
 	if o.Client != nil {
 		o.Client.Close()
 	}
