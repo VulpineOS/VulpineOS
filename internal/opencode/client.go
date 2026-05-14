@@ -2,29 +2,18 @@ package opencode
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
-	"os"
 	"os/exec"
+	"strings"
 	"sync"
-	"time"
 )
 
 type Client struct {
 	binaryPath string
-	serverURL  string
-	cmd        *exec.Cmd
+	sessionID  string
 	mu         sync.Mutex
-	started    bool
-	client     *http.Client
-}
-
-type MessageRequest struct {
-	Message   string `json:"message"`
-	SessionID string `json:"sessionId,omitempty"`
 }
 
 type TextPart struct {
@@ -57,109 +46,65 @@ func NewClient(binaryPath string) *Client {
 	}
 	return &Client{
 		binaryPath: binaryPath,
-		client: &http.Client{
-			Timeout: 5 * time.Minute,
-		},
 	}
 }
 
 func (c *Client) Start() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.started {
-		return nil
-	}
-
-	cmd := exec.Command(c.binaryPath, "serve", "--port", "0")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("failed to start opencode server: %w", err)
-	}
-
-	c.cmd = cmd
-
-	if err := c.waitForServer(); err != nil {
-		cmd.Process.Kill()
-		return fmt.Errorf("server failed to start: %w", err)
-	}
-
-	c.started = true
 	return nil
 }
 
-func (c *Client) waitForServer() error {
-	maxAttempts := 30
-	checkInterval := 500 * time.Millisecond
-
-	for i := 0; i < maxAttempts; i++ {
-		time.Sleep(checkInterval)
-
-		if c.cmd.Process == nil {
-			continue
-		}
-
-		resp, err := c.client.Get("http://127.0.0.1:4096/");
-		if err != nil {
-			continue
-		}
-		resp.Body.Close()
-		if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusUnauthorized {
-			c.serverURL = "http://127.0.0.1:4096"
-			return nil
-		}
-
-		ports := []string{"4096", "4097", "4098", "4099", "4100"}
-		for _, port := range ports {
-			resp, err := c.client.Get(fmt.Sprintf("http://127.0.0.1:%s/", port))
-			if err == nil {
-				resp.Body.Close()
-				if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusUnauthorized {
-					c.serverURL = fmt.Sprintf("http://127.0.0.1:%s", port)
-					return nil
-				}
-			}
-		}
-	}
-
-	return fmt.Errorf("server did not become ready in time")
+func (c *Client) SetSession(sessionID string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.sessionID = sessionID
 }
 
 func (c *Client) SendMessage(prompt string) (string, int, error) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
+	sessionID := c.sessionID
+	c.mu.Unlock()
 
-	if !c.started {
-		if err := c.Start(); err != nil {
-			return "", 0, err
-		}
+	args := []string{"run", "--format", "json"}
+	if sessionID != "" {
+		args = append(args, "-s", sessionID, "-c")
 	}
+	args = append(args, prompt)
 
-	reqBody, err := json.Marshal(MessageRequest{Message: prompt})
+	cmd := exec.Command(c.binaryPath, args...)
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+
+	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return "", 0, fmt.Errorf("failed to marshal request: %w", err)
+		return "", 0, fmt.Errorf("create stdout pipe: %w", err)
 	}
 
-	resp, err := c.client.Post(c.serverURL+"/api/message", "application/json", bytes.NewReader(reqBody))
-	if err != nil {
-		return "", 0, fmt.Errorf("request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return "", 0, fmt.Errorf("server returned status %d: %s", resp.StatusCode, string(body))
+	if err := cmd.Start(); err != nil {
+		return "", 0, fmt.Errorf("start opencode: %w", err)
 	}
 
-	return c.parseResponse(resp.Body)
+	defer cmd.Wait()
+
+	response, tokens, parseErr := c.parseResponse(stdout)
+
+	if sessionID == "" {
+		c.mu.Lock()
+		c.sessionID = extractSessionID(stdout)
+		c.mu.Unlock()
+	}
+
+	return response, tokens, parseErr
 }
 
-func (c *Client) parseResponse(body io.Reader) (string, int, error) {
-	scanner := bufio.NewScanner(body)
+func extractSessionID(stdout io.Reader) string {
+	return ""
+}
+
+func (c *Client) parseResponse(stdout io.Reader) (string, int, error) {
+	scanner := bufio.NewScanner(stdout)
 	var fullText string
 	var totalTokens int
+	var foundText bool
 
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -171,6 +116,7 @@ func (c *Client) parseResponse(body io.Reader) (string, int, error) {
 		if err := json.Unmarshal([]byte(line), &textEvent); err == nil {
 			if textEvent.Type == "text" {
 				fullText += textEvent.Part.Text
+				foundText = true
 			}
 			continue
 		}
@@ -187,23 +133,17 @@ func (c *Client) parseResponse(body io.Reader) (string, int, error) {
 		return "", 0, fmt.Errorf("error reading response: %w", err)
 	}
 
-	return fullText, totalTokens, nil
+	if !foundText {
+		return "", 0, fmt.Errorf("no response from opencode")
+	}
+
+	return strings.TrimSpace(fullText), totalTokens, nil
 }
 
 func (c *Client) Close() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.cmd != nil && c.cmd.Process != nil {
-		c.cmd.Process.Kill()
-		c.cmd.Wait()
-	}
-	c.started = false
 	return nil
 }
 
 func (c *Client) IsRunning() bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.started && c.cmd != nil && c.cmd.Process != nil
+	return true
 }

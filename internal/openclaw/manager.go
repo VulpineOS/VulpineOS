@@ -111,7 +111,7 @@ func (m *Manager) SpawnWithSessionIsolated(agentID, task, sessionName, configPat
 	}
 
 	if cfg, err := config.Load(); err == nil && cfg.Provider == "opencode-local" {
-		return m.SpawnOpenCode(task)
+		return m.SpawnOpenCode(task, agentID)
 	}
 
 	openclawBin := m.findOpenClaw()
@@ -256,7 +256,7 @@ func (m *Manager) SpawnOpenClaw(task string, agentSkills []config.SkillEntry) (s
 }
 
 // SpawnOpenCode spawns an agent using the local OpenCode server.
-func (m *Manager) SpawnOpenCode(task string) (string, error) {
+func (m *Manager) SpawnOpenCode(task string, vaultAgentID string) (string, error) {
 	if m.opencodeClient == nil {
 		m.opencodeClient = opencode.NewClient("opencode")
 		if err := m.opencodeClient.Start(); err != nil {
@@ -264,7 +264,12 @@ func (m *Manager) SpawnOpenCode(task string) (string, error) {
 		}
 	}
 
-	id := uuid.New().String()[:8]
+	id := vaultAgentID
+	if id == "" {
+		id = uuid.New().String()[:8]
+	}
+
+	prompt := OpenCodePrompt(id, task)
 
 	agent := newAgent(id, "opencode-local", m.statusSource)
 
@@ -273,7 +278,7 @@ func (m *Manager) SpawnOpenCode(task string) (string, error) {
 	m.mu.Unlock()
 
 	go func() {
-		response, tokens, err := m.opencodeClient.SendMessage(task)
+		response, tokens, err := m.opencodeClient.SendMessage(prompt)
 		if err != nil {
 			agent.mu.Lock()
 			agent.status.Status = "error"
