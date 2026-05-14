@@ -454,6 +454,10 @@ func (o *Orchestrator) spawnScopedAgent(contextID, sopFile string) (string, erro
 
 // PrepareScopedOpenClawConfig builds a per-context OpenClaw config overlay.
 func (o *Orchestrator) PrepareScopedOpenClawConfig(contextID string) (string, func(), error) {
+	if cfg, err := config.Load(); err == nil && cfg.Provider == "opencode-local" {
+		return "", nil, nil
+	}
+
 	if o == nil || o.Client == nil {
 		return "", nil, fmt.Errorf("orchestrator client not available")
 	}
