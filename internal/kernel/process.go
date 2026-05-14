@@ -164,6 +164,7 @@ func (k *Kernel) Start(cfg Config) error {
 
 	cmd := exec.Command(binary, args...)
 	configureKernelProcess(cmd)
+	applyKernelProcessHooks(cmd)
 	// Redirect Firefox stdout/stderr to a log file to keep the TUI clean.
 	// If the log file can't be created, fall back to /dev/null.
 	logPath := filepath.Join(os.TempDir(), "vulpineos-kernel.log")
