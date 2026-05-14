@@ -18,10 +18,11 @@ var runWindowCommand = func(name string, args ...string) (string, error) {
 
 // WindowController manages browser window visibility.
 type WindowController struct {
-	visible   bool
-	pid       int
-	targetPID int
-	mu        sync.Mutex
+	visible        bool
+	pid            int
+	targetPID     int
+	mu             sync.Mutex
+	contextWindows map[string][]int
 }
 
 // NewWindowController creates a window controller for the given browser PID.
@@ -98,6 +99,103 @@ func (w *WindowController) HideWhenReady() {
 			return
 		}
 	}
+}
+
+// RegisterContextWindow registers a window PID for a context.
+func (w *WindowController) RegisterContextWindow(contextID string, pid int) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.contextWindows == nil {
+		w.contextWindows = make(map[string][]int)
+	}
+	for _, p := range w.contextWindows[contextID] {
+		if p == pid {
+			return
+		}
+	}
+	w.contextWindows[contextID] = append(w.contextWindows[contextID], pid)
+}
+
+// GetContextPIDs returns the window PIDs for a context.
+func (w *WindowController) GetContextPIDs(contextID string) []int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.contextWindows[contextID]
+}
+
+// ShowContext shows the window(s) for a specific context.
+func (w *WindowController) ShowContext(contextID string) error {
+	w.mu.Lock()
+	pids := w.contextWindows[contextID]
+	w.mu.Unlock()
+
+	if len(pids) == 0 {
+		return fmt.Errorf("no windows found for context %s", contextID)
+	}
+	var lastErr error
+	for _, pid := range pids {
+		wc := NewWindowController(pid)
+		if err := wc.Show(); err != nil {
+			lastErr = err
+			continue
+		}
+		return nil
+	}
+	return lastErr
+}
+
+// HideContext hides the window(s) for a specific context.
+func (w *WindowController) HideContext(contextID string) error {
+	w.mu.Lock()
+	pids := w.contextWindows[contextID]
+	w.mu.Unlock()
+
+	if len(pids) == 0 {
+		return fmt.Errorf("no windows found for context %s", contextID)
+	}
+	var lastErr error
+	for _, pid := range pids {
+		wc := NewWindowController(pid)
+		if err := wc.Hide(); err != nil {
+			lastErr = err
+			continue
+		}
+		return nil
+	}
+	return lastErr
+}
+
+// HideAll hides all tracked context windows.
+func (w *WindowController) HideAll() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	var lastErr error
+	for contextID, pids := range w.contextWindows {
+		for _, pid := range pids {
+			wc := NewWindowController(pid)
+			if err := wc.Hide(); err != nil {
+				lastErr = err
+			}
+		}
+		_ = contextID
+	}
+	return lastErr
+}
+
+// IsContextVisible checks if any window for a context is visible.
+func (w *WindowController) IsContextVisible(contextID string) bool {
+	w.mu.Lock()
+	pids := w.contextWindows[contextID]
+	w.mu.Unlock()
+
+	for _, pid := range pids {
+		wc := NewWindowController(pid)
+		if visible, _ := wc.Status(); visible {
+			return true
+		}
+	}
+	return false
 }
 
 func (w *WindowController) show() error {
