@@ -294,7 +294,12 @@ func (m Model) View() string {
 	var b strings.Builder
 
 	b.WriteString(shared.TitleStyle.Render("SETTINGS"))
-	b.WriteString(shared.MutedStyle.Render(fmt.Sprintf("%s[Esc] close  [Tab] next", strings.Repeat(" ", max(0, contentWidth-25)))))
+	controls := "[Esc] close  [Tab] next"
+	pad := contentWidth - lipgloss.Width("SETTINGS") - lipgloss.Width(controls)
+	if pad > 0 {
+		b.WriteString(strings.Repeat(" ", pad))
+		b.WriteString(shared.MutedStyle.Render(controls))
+	}
 	b.WriteString("\n\n")
 
 	if m.height > 0 && m.height <= 18 {
@@ -335,7 +340,12 @@ func (m Model) viewFocusedSection(contentWidth int) string {
 	var b strings.Builder
 
 	b.WriteString(shared.TitleStyle.Render("SETTINGS"))
-	b.WriteString(shared.MutedStyle.Render(fmt.Sprintf("%s[Esc] close  [Tab] next", strings.Repeat(" ", max(0, contentWidth-25)))))
+	controls := "[Esc] close  [Tab] next"
+	pad := contentWidth - lipgloss.Width("SETTINGS") - lipgloss.Width(controls)
+	if pad > 0 {
+		b.WriteString(strings.Repeat(" ", pad))
+		b.WriteString(shared.MutedStyle.Render(controls))
+	}
 	b.WriteString("\n\n")
 	switch m.section {
 	case SectionGeneral:
