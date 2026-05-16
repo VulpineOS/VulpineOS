@@ -55,12 +55,12 @@ var (
 
 var startGatewayIfAvailable = func(cfg *config.Config, audit *runtimeaudit.Manager) *nanoclaw.Gateway {
 	mgr := nanoclaw.NewManager("")
-	if !mgr.OpenClawInstalled() {
+	if !mgr.NanoClawInstalled() {
 		return nil
 	}
 	gw := nanoclaw.NewGateway("")
 	if err := gw.Start(); err != nil {
-		log.Printf("Warning: OpenClaw gateway failed to start: %v (browser tools won't work)", err)
+		log.Printf("Warning: NanoClaw gateway failed to start: %v (browser tools won't work)", err)
 		if audit != nil {
 			_, _ = audit.Log("gateway", "error", "start_failed", "OpenClaw gateway failed to start", map[string]string{
 				"error": err.Error(),
@@ -601,7 +601,8 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 
 		// Generate OpenClaw config
 		exe, _ := os.Executable()
-		camoufox := resolvedBinaryPath
+		_, nanoclawPath, _ := nanoclaw.FindBundledNanoClaw()
+		camoufox := nanoclawPath
 		if _, err := tryGenerateOpenClawConfig(cfg, exe, camoufox); err != nil {
 			log.Printf("Warning: could not generate OpenClaw config: %v", err)
 		}
@@ -624,7 +625,8 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 	// Always regenerate nanoclaw.json to ensure it matches current config
 	if cfg.SetupComplete {
 		exe, _ := os.Executable()
-		if _, genErr := tryGenerateOpenClawConfig(cfg, exe, resolvedBinaryPath); genErr != nil {
+		_, nanoclawPath, _ := nanoclaw.FindBundledNanoClaw()
+		if _, genErr := tryGenerateOpenClawConfig(cfg, exe, nanoclawPath); genErr != nil {
 			log.Printf("Warning: could not generate OpenClaw config: %v", genErr)
 		}
 	}
@@ -831,7 +833,7 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 		if gw != nil {
 			defer func() {
 				if audit != nil {
-					_, _ = audit.Log("gateway", "info", "stopped", "OpenClaw gateway stopped", nil)
+					_, _ = audit.Log("gateway", "info", "stopped", "NanoClaw gateway stopped", nil)
 				}
 				gw.Stop()
 			}()
