@@ -77,13 +77,13 @@ type Opts struct {
 }
 
 // New creates an orchestrator with all subsystems.
-func New(k *kernel.Kernel, client *juggler.Client, v *vault.DB, poolCfg pool.Config, openclawBinary string, opts ...Opts) *Orchestrator {
+func New(k *kernel.Kernel, client *juggler.Client, v *vault.DB, poolCfg pool.Config, nanoclawBinary string, opts ...Opts) *Orchestrator {
 	o := &Orchestrator{
 		Kernel:      k,
 		Client:      client,
 		Pool:        pool.New(client, poolCfg),
 		Vault:       v,
-		Agents:      nanoclaw.NewManager(openclawBinary),
+		Agents:      nanoclaw.NewManager(nanoclawBinary),
 		agentToSlot: make(map[string]*pool.ContextSlot),
 	}
 	if client == nil {
@@ -465,7 +465,9 @@ func (o *Orchestrator) spawnScopedAgent(contextID, sopFile string) (string, erro
 
 	agentID, err := o.Agents.SpawnIsolated(contextID, sopFile, scopedConfig, cleanup)
 	if err != nil {
-		cleanup()
+		if cleanup != nil {
+			cleanup()
+		}
 		return "", err
 	}
 
