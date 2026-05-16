@@ -21,7 +21,7 @@ import (
 	"vulpineos/internal/juggler"
 	"vulpineos/internal/kernel"
 	"vulpineos/internal/monitor"
-	"vulpineos/internal/openclaw"
+	"vulpineos/internal/nanoclaw"
 	"vulpineos/internal/orchestrator"
 	"vulpineos/internal/proxy"
 	"vulpineos/internal/runtimeaudit"
@@ -1584,7 +1584,7 @@ func (a *App) createAgent(name, description, contextID string) tea.Cmd {
 		}
 
 		// Spawn first turn — agent introduces itself
-		introMsg := openclaw.IntroMessage(name, description)
+		introMsg := nanoclaw.IntroMessage(name, description)
 		sessionName := "vulpine-" + agent.ID
 		configPath, cleanup, configErr := a.agentRuntimeConfig(agent)
 		if configErr != nil {
@@ -1755,7 +1755,7 @@ func (a *App) agentRuntimeConfig(agent *vault.Agent) (string, func(), error) {
 		return "", nil, fmt.Errorf("parse agent metadata: %w", err)
 	}
 	if meta.ContextID == "" {
-		return openclaw.PrepareRuntimeConfig(config.OpenClawConfigPath())
+		return nanoclaw.PrepareRuntimeConfig(config.OpenClawConfigPath())
 	}
 	if a.orch == nil {
 		return "", nil, fmt.Errorf("orchestrator not available")

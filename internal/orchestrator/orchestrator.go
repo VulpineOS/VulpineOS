@@ -14,7 +14,7 @@ import (
 	"vulpineos/internal/foxbridge"
 	"vulpineos/internal/juggler"
 	"vulpineos/internal/kernel"
-	"vulpineos/internal/openclaw"
+	"vulpineos/internal/nanoclaw"
 	"vulpineos/internal/pagecache"
 	"vulpineos/internal/pool"
 	"vulpineos/internal/recording"
@@ -51,7 +51,7 @@ type Orchestrator struct {
 	Client *juggler.Client
 	Pool   *pool.Pool
 	Vault  *vault.DB
-	Agents *openclaw.Manager
+	Agents *nanoclaw.Manager
 
 	// Optional subsystems (nil-safe)
 	AgentBus        *agentbus.Bus
@@ -83,7 +83,7 @@ func New(k *kernel.Kernel, client *juggler.Client, v *vault.DB, poolCfg pool.Con
 		Client:      client,
 		Pool:        pool.New(client, poolCfg),
 		Vault:       v,
-		Agents:      openclaw.NewManager(openclawBinary),
+		Agents:      nanoclaw.NewManager(openclawBinary),
 		agentToSlot: make(map[string]*pool.ContextSlot),
 	}
 	if client == nil {
@@ -141,7 +141,7 @@ func (o *Orchestrator) SpawnCitizen(citizenID, templateID string) (string, error
 	}
 
 	// Write SOP and spawn agent
-	sopFile, err := openclaw.WriteSOP(tmpl.SOP)
+	sopFile, err := nanoclaw.WriteSOP(tmpl.SOP)
 	if err != nil {
 		o.Pool.Release(slot)
 		return "", fmt.Errorf("write SOP: %w", err)
@@ -149,7 +149,7 @@ func (o *Orchestrator) SpawnCitizen(citizenID, templateID string) (string, error
 
 	agentID, err := o.spawnScopedAgent(slot.ContextID, sopFile)
 	if err != nil {
-		openclaw.CleanupSOP(sopFile)
+		nanoclaw.CleanupSOP(sopFile)
 		o.Pool.Release(slot)
 		return "", fmt.Errorf("spawn agent: %w", err)
 	}
@@ -209,7 +209,7 @@ func (o *Orchestrator) SpawnNomad(templateID string) (string, error) {
 	}
 
 	// Write SOP and spawn agent
-	sopFile, err := openclaw.WriteSOP(tmpl.SOP)
+	sopFile, err := nanoclaw.WriteSOP(tmpl.SOP)
 	if err != nil {
 		o.Pool.Release(slot)
 		return "", fmt.Errorf("write SOP: %w", err)
@@ -217,7 +217,7 @@ func (o *Orchestrator) SpawnNomad(templateID string) (string, error) {
 
 	agentID, err := o.spawnScopedAgent(slot.ContextID, sopFile)
 	if err != nil {
-		openclaw.CleanupSOP(sopFile)
+		nanoclaw.CleanupSOP(sopFile)
 		o.Pool.Release(slot)
 		return "", fmt.Errorf("spawn agent: %w", err)
 	}
@@ -490,7 +490,7 @@ func (o *Orchestrator) PrepareScopedOpenClawConfig(contextID string) (string, fu
 		return "", nil, fmt.Errorf("start scoped foxbridge: %w", err)
 	}
 
-	scopedConfig, cleanupConfig, err := openclaw.PrepareScopedConfig(config.OpenClawConfigPath(), scopedFoxbridge.CDPURL())
+	scopedConfig, cleanupConfig, err := nanoclaw.PrepareScopedConfig(config.OpenClawConfigPath(), scopedFoxbridge.CDPURL())
 	if err != nil {
 		scopedFoxbridge.Stop()
 		return "", nil, fmt.Errorf("prepare scoped OpenClaw config: %w", err)

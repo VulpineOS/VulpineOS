@@ -27,7 +27,7 @@ import (
 	"vulpineos/internal/juggler"
 	"vulpineos/internal/kernel"
 	"vulpineos/internal/mcp"
-	"vulpineos/internal/openclaw"
+	"vulpineos/internal/nanoclaw"
 	"vulpineos/internal/orchestrator"
 	"vulpineos/internal/pagecache"
 	"vulpineos/internal/pool"
@@ -53,12 +53,12 @@ var (
 	stderr io.Writer = os.Stderr
 )
 
-var startGatewayIfAvailable = func(cfg *config.Config, audit *runtimeaudit.Manager) *openclaw.Gateway {
-	mgr := openclaw.NewManager("")
+var startGatewayIfAvailable = func(cfg *config.Config, audit *runtimeaudit.Manager) *nanoclaw.Gateway {
+	mgr := nanoclaw.NewManager("")
 	if !mgr.OpenClawInstalled() {
 		return nil
 	}
-	gw := openclaw.NewGateway("")
+	gw := nanoclaw.NewGateway("")
 	if err := gw.Start(); err != nil {
 		log.Printf("Warning: OpenClaw gateway failed to start: %v (browser tools won't work)", err)
 		if audit != nil {
@@ -621,7 +621,7 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 		cfg.Save()
 	}
 
-	// Always regenerate openclaw.json to ensure it matches current config
+	// Always regenerate nanoclaw.json to ensure it matches current config
 	if cfg.SetupComplete {
 		exe, _ := os.Executable()
 		if _, genErr := tryGenerateOpenClawConfig(cfg, exe, resolvedBinaryPath); genErr != nil {
@@ -634,7 +634,7 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 	var orch *orchestrator.Orchestrator
 	var v *vault.DB
 	var audit *runtimeaudit.Manager
-	var gw *openclaw.Gateway
+	var gw *nanoclaw.Gateway
 	var fb *foxbridge.Process
 	var wd *kernel.Watchdog
 	var browserEnabled bool
