@@ -294,6 +294,7 @@ func (m Model) View() string {
 	var b strings.Builder
 
 	b.WriteString(shared.TitleStyle.Render("SETTINGS"))
+	b.WriteString(shared.MutedStyle.Render(fmt.Sprintf("%s[Esc] close  [Tab] next", strings.Repeat(" ", max(0, contentWidth-25)))))
 	b.WriteString("\n\n")
 
 	if m.height > 0 && m.height <= 18 {
@@ -303,6 +304,8 @@ func (m Model) View() string {
 	// --- General section ---
 	b.WriteString(m.viewGeneral())
 	b.WriteString("\n")
+	b.WriteString(shared.MutedStyle.Render(clipText("[c] reconfigure", contentWidth)))
+	b.WriteString("\n\n")
 
 	// Separator
 	sep := shared.MutedStyle.Render(strings.Repeat("─", max(1, contentWidth-2)))
@@ -319,9 +322,6 @@ func (m Model) View() string {
 	// --- Skills section ---
 	b.WriteString(m.viewSkills())
 
-	b.WriteString("\n\n")
-	b.WriteString(shared.MutedStyle.Render(clipText("[Esc] close settings  [Tab] next section", contentWidth)))
-
 	content := b.String()
 	if m.height > 0 && m.section != SectionGeneral && len(strings.Split(content, "\n")) > m.height {
 		return m.viewFocusedSection(contentWidth)
@@ -333,17 +333,18 @@ func (m Model) viewFocusedSection(contentWidth int) string {
 	var b strings.Builder
 
 	b.WriteString(shared.TitleStyle.Render("SETTINGS"))
+	b.WriteString(shared.MutedStyle.Render(fmt.Sprintf("%s[Esc] close  [Tab] next", strings.Repeat(" ", max(0, contentWidth-25)))))
 	b.WriteString("\n\n")
 	switch m.section {
 	case SectionGeneral:
 		b.WriteString(m.viewGeneral())
+		b.WriteString("\n")
+		b.WriteString(shared.MutedStyle.Render(clipText("[c] reconfigure", contentWidth)))
 	case SectionProxies:
 		b.WriteString(m.viewProxies())
 	case SectionSkills:
 		b.WriteString(m.viewSkills())
 	}
-	b.WriteString("\n\n")
-	b.WriteString(shared.MutedStyle.Render(clipText("[Esc] close settings  [Tab] next section", contentWidth)))
 	return m.fitContent(b.String())
 }
 
@@ -377,15 +378,6 @@ func (m Model) viewGeneral() string {
 	b.WriteString(shared.HeaderStyle.Render("API Key:   "))
 	b.WriteString(lipgloss.NewStyle().Render(strings.Repeat("*", 13) + " "))
 	b.WriteString(keyStatus)
-	b.WriteString("\n\n")
-
-	if m.section == SectionGeneral {
-		b.WriteString(shared.MutedStyle.Render(clipText("[c] reconfigure provider/model", m.contentWidth())))
-	} else {
-		b.WriteString(shared.MutedStyle.Render(clipText("Press 'c' to reconfigure provider/model", m.contentWidth())))
-	}
-	b.WriteString("\n")
-	b.WriteString(shared.MutedStyle.Render(clipText("Press 'm' in the main TUI to switch the current session between navigate and resize mode.", m.contentWidth())))
 
 	return b.String()
 }
