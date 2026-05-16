@@ -304,10 +304,17 @@ Access via `vulpineos panel`, `vulpineos serve`, or through the remote client.
 
 ### Install
 
+One-liner:
+
+```bash
+curl -sL https://raw.githubusercontent.com/VulpineOS/VulpineOS/phase2/install.sh | bash
+```
+
+Or step-by-step:
+
 ```bash
 git clone https://github.com/VulpineOS/VulpineOS.git
 cd VulpineOS
-npm install          # installs OpenClaw
 go build -o vulpineos ./cmd/vulpineos
 ```
 
