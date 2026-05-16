@@ -715,7 +715,7 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 						if cfg != nil {
 							model = cfg.Model
 						}
-						orch = orchestrator.New(k, client, v, pool.DefaultConfig(), "openclaw", orchestrator.Opts{
+						orch = orchestrator.New(k, client, v, pool.DefaultConfig(), "nanoclaw", orchestrator.Opts{
 							AgentBus:  agentbus.New(),
 							Costs:     costtrack.New(model),
 							Webhooks:  webhooks.New(),

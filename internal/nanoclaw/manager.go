@@ -639,8 +639,8 @@ func (m *Manager) logRuntimeEvent(level, event, message string, metadata map[str
 	if audit == nil {
 		return
 	}
-	if _, err := audit.Log("openclaw", level, event, message, metadata); err != nil {
-		log.Printf("runtime audit openclaw %s: %v", event, err)
+	if _, err := audit.Log("nanoclaw", level, event, message, metadata); err != nil {
+		log.Printf("runtime audit nanoclaw %s: %v", event, err)
 	}
 }
 
