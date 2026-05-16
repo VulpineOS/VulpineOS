@@ -201,3 +201,6 @@ type ProxyTestRequestMsg struct {
 	ProxyID string
 	Config  string // JSON ProxyConfig
 }
+
+// ReconfigureProviderMsg requests provider/model reconfiguration.
+type ReconfigureProviderMsg struct{}

@@ -973,6 +973,14 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		a.noticeTTL = 3
 
+	case shared.ReconfigureProviderMsg:
+		if err := config.RequestReconfigure(); err != nil {
+			a.notice = "Failed to queue reconfigure: " + err.Error()
+		} else {
+			a.notice = "Reconfigure queued — restart to run setup wizard"
+		}
+		a.noticeTTL = 5
+
 	case shared.ProxyTestRequestMsg:
 		cmds = append(cmds, a.testProxy(msg.ProxyID, msg.Config))
 

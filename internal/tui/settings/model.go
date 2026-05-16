@@ -231,6 +231,11 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 					return shared.SkillToggleMsg{Name: s.Name, Enabled: s.Enabled}
 				}
 			}
+
+		case "c":
+			if m.section == SectionGeneral {
+				return m, func() tea.Msg { return shared.ReconfigureProviderMsg{} }
+			}
 		}
 
 	case shared.ProxyTestedMsg:
