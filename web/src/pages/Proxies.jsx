@@ -19,6 +19,7 @@ export default function Proxies({ ws }) {
   const [importText, setImportText] = useState('')
   const [showImport, setShowImport] = useState(false)
   const [testedLatency, setTestedLatency] = useState({})
+  const [confirmDelete, setConfirmDelete] = useState(null)
 
   const refreshProxies = async () => {
     try {
@@ -111,6 +112,27 @@ export default function Proxies({ ws }) {
     }
   }
 
+  const requestDelete = (id, label) => setConfirmDelete({ id, label: label?.substring(0, 25) || id.substring(0, 12) })
+  const handleConfirmDelete = async () => {
+    if (!confirmDelete) return
+    try {
+      await ws.call('proxies.delete', { proxyId: confirmDelete.id })
+      setProxies(p => p.filter(p => p.id !== confirmDelete.id))
+      setRotation(current => {
+        const nextPool = current.proxyPool.filter(proxyId => proxyId !== confirmDelete.id)
+        return {
+          ...current,
+          proxyPool: nextPool,
+          currentIndex: nextPool.length === 0 ? 0 : Math.min(current.currentIndex, nextPool.length - 1),
+        }
+      })
+      ws.notify?.('Proxy deleted', 'success')
+    } catch (e) {
+      ws.notify?.('Delete failed: ' + e.message)
+    }
+    setConfirmDelete(null)
+  }
+
   const togglePoolMember = (id) => {
     setRotation(current => {
       const exists = current.proxyPool.includes(id)
@@ -164,6 +186,14 @@ export default function Proxies({ ws }) {
           <button className="btn btn-primary" style={{ marginTop: 12 }} onClick={importProxies}>
             Import {importText.split('\n').filter(l => l.trim()).length} Proxies
           </button>
+        </div>
+      )}
+
+      {confirmDelete && (
+        <div className="panel-banner panel-banner-red" style={{ marginBottom: 16 }}>
+          <strong>Delete proxy?</strong> "{confirmDelete.label}"
+          <button className="btn btn-danger btn-sm" onClick={handleConfirmDelete} style={{ marginLeft: 12 }}>Delete</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => setConfirmDelete(null)} style={{ marginLeft: 8 }}>Cancel</button>
         </div>
       )}
 
@@ -249,7 +279,7 @@ export default function Proxies({ ws }) {
                   <td>{p.country || '—'}</td>
                   <td>
                     <button className="btn btn-ghost btn-sm" onClick={() => testProxy(p.id)} style={{ marginRight: 4 }}>Test</button>
-                    <button className="btn btn-ghost btn-sm" onClick={() => deleteProxy(p.id)}>Delete</button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => requestDelete(p.id, p.url)}>Delete</button>
                   </td>
                 </tr>
               ))}

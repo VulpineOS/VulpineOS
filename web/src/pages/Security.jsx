@@ -34,8 +34,8 @@ export default function Security({ ws }) {
             </span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {(status.protections || []).map(protection => (
-              <div key={protection.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #1e1e2e' }}>
+            {(status.protections || []).map((protection, index) => (
+              <div key={protection.key || protection.name || `protection-${index}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #1e1e2e' }}>
                 <div>
                   <div style={{ fontSize: 14, color: '#e0e0e8' }}>{protection.name}</div>
                   <div style={{ fontSize: 12, color: '#666' }}>{protection.description}</div>

@@ -123,7 +123,7 @@ func Open() (*DB, error) {
 		return nil, fmt.Errorf("get home dir: %w", err)
 	}
 	dir := filepath.Join(home, ".vulpineos")
-	if err := os.MkdirAll(dir, 0700); err != nil {
+	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, fmt.Errorf("create vault dir: %w", err)
 	}
 	return OpenPath(filepath.Join(dir, "vault.db"))

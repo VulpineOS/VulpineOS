@@ -15,6 +15,7 @@ import (
 	"vulpineos/internal/openclaw"
 	"vulpineos/internal/pagecache"
 	"vulpineos/internal/pool"
+	"vulpineos/internal/proxy"
 	"vulpineos/internal/recording"
 	"vulpineos/internal/security"
 	"vulpineos/internal/vault"
@@ -57,6 +58,8 @@ type Orchestrator struct {
 	Recording       *recording.Recorder
 	PageCache       *pagecache.Cache
 	SecurityEnabled bool // when true, inject CSP and sandbox protections on context creation
+	memMonitor      *pool.MemoryMonitor
+	mutationObs     *security.MutationMonitor
 
 	// Track which agent owns which context slot
 	agentToSlot   map[string]*pool.ContextSlot
@@ -71,6 +74,8 @@ type Opts struct {
 	Recording       *recording.Recorder
 	PageCache       *pagecache.Cache
 	SecurityEnabled bool
+	MemoryMonitor   *pool.MemoryMonitor
+	MutationMonitor *security.MutationMonitor
 }
 
 // New creates an orchestrator with all subsystems.
@@ -90,6 +95,8 @@ func New(k *kernel.Kernel, client *juggler.Client, v *vault.DB, poolCfg pool.Con
 		o.Recording = opts[0].Recording
 		o.PageCache = opts[0].PageCache
 		o.SecurityEnabled = opts[0].SecurityEnabled
+		o.memMonitor = opts[0].MemoryMonitor
+		o.mutationObs = opts[0].MutationMonitor
 	}
 	return o
 }
@@ -279,8 +286,12 @@ func (o *Orchestrator) Status() Status {
 // Close shuts down all subsystems.
 // Note: kernel.Stop() is the caller's responsibility and must be called separately.
 func (o *Orchestrator) Close() {
+	o.Agents.KillAll()
 	o.Agents.Dispose()
 	o.Pool.Close()
+	if o.memMonitor != nil {
+		o.memMonitor.Stop()
+	}
 	o.Vault.Close()
 	// Clean up optional subsystems (nil-safe)
 	// AgentBus, Costs, Webhooks, Recording, PageCache have no Close methods
@@ -384,11 +395,31 @@ func (o *Orchestrator) applySecurityToContext(contextID, ownerID string) {
 		log.Printf("orchestrator: warning: CSP injection failed for context %s: %v", contextID, err)
 	}
 
+	// Inject mutation observer if configured
+	if o.mutationObs != nil {
+		if err := security.InjectObserver(o.Client, contextID); err != nil {
+			log.Printf("orchestrator: warning: mutation observer injection failed for context %s: %v", contextID, err)
+		}
+	}
+
 	// Prepare sandbox (the Sandbox wraps JS expressions at call sites;
 	// here we log that it is active so operators know protections are in place)
 	sb := security.NewSandbox()
 	log.Printf("orchestrator: security suite active for context %s (owner=%s, csp=inline-blocked, sandbox=%v)",
 		contextID, ownerID, sb.BlockedAPIs())
+}
+
+// applyProxyToContext applies a proxy configuration to a running browser context.
+func (o *Orchestrator) applyProxyToContext(contextID string, proxyConfigJSON string) error {
+	var pc proxy.ProxyConfig
+	if err := json.Unmarshal([]byte(proxyConfigJSON), &pc); err != nil {
+		return fmt.Errorf("parse proxy config: %w", err)
+	}
+	_, err := o.Client.Call("", "Browser.setContextProxy", map[string]interface{}{
+		"browserContextId": contextID,
+		"proxy":           pc.URL(),
+	})
+	return err
 }
 
 // statusRelay forwards agent status updates (for use by TUI or other consumers).

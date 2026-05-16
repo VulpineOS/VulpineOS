@@ -167,7 +167,7 @@ func (m *Model) RemoveAgent(id string) {
 	for i, a := range m.agents {
 		if a.ID == id {
 			m.agents = append(m.agents[:i], m.agents[i+1:]...)
-			if m.selected >= len(m.agents) && m.selected > 0 {
+			if i <= m.selected && m.selected > 0 {
 				m.selected--
 			}
 			return

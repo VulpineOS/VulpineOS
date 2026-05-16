@@ -151,8 +151,14 @@ func (m Model) View() string {
 	}
 
 	// Line 1: Agent name
+	name := m.agentName
+	maxName := m.width - 8
+	if maxName < 5 {
+		maxName = 5
+	}
+	name = clipCells(name, maxName)
 	b.WriteString(shared.TitleStyle.Render("AGENT: "))
-	b.WriteString(shared.HeaderStyle.Render(m.agentName))
+	b.WriteString(shared.HeaderStyle.Render(name))
 	b.WriteString("\n")
 
 	// Line 2: Status | Tokens | Created

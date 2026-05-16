@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 
 const labelStyle = {
   fontSize: 12,
@@ -14,6 +14,13 @@ export default function Settings({ ws }) {
   const [defaultBudgetCost, setDefaultBudgetCost] = useState("0");
   const [defaultBudgetTokens, setDefaultBudgetTokens] = useState("0");
   const [saved, setSaved] = useState("");
+  const savedTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (savedTimeoutRef.current) clearTimeout(savedTimeoutRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (!ws.connected) return;
@@ -45,8 +52,24 @@ export default function Settings({ ws }) {
     : "DISABLED";
 
   const flashSaved = (message) => {
+    if (savedTimeoutRef.current) clearTimeout(savedTimeoutRef.current);
     setSaved(message);
-    setTimeout(() => setSaved(""), 3000);
+    savedTimeoutRef.current = setTimeout(() => setSaved(""), 3000);
+  };
+
+  const handleProviderChange = (e) => {
+    const provider = providers.find((p) => p.id === e.target.value);
+    setCfg((prev) => ({
+      ...prev,
+      provider: e.target.value,
+      model: provider?.defaultModel || prev.model || "",
+      apiKey: "",
+      hasKey: e.target.value === prev.provider ? prev.hasKey : false,
+    }));
+  };
+
+  const handleModelChange = (e) => {
+    setCfg((prev) => ({ ...prev, model: e.target.value }));
   };
 
   const saveProvider = async () => {
@@ -108,16 +131,7 @@ export default function Settings({ ws }) {
               <select
                 className="input"
                 value={cfg.provider || ""}
-                onChange={(e) => {
-                  const provider = providers.find((p) => p.id === e.target.value);
-                  setCfg((prev) => ({
-                    ...prev,
-                    provider: e.target.value,
-                    model: provider?.defaultModel || prev.model || "",
-                    apiKey: "",
-                    hasKey: e.target.value === prev.provider ? prev.hasKey : false,
-                  }));
-                }}
+                onChange={handleProviderChange}
               >
                 <option value="">Select provider...</option>
                 {providers.map((provider) => (
@@ -133,7 +147,7 @@ export default function Settings({ ws }) {
               <select
                 className="input"
                 value={cfg.model || ""}
-                onChange={(e) => setCfg({ ...cfg, model: e.target.value })}
+                onChange={handleModelChange}
               >
                 <option value="">Select model...</option>
                 {modelOptions.map((model) => (

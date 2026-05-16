@@ -11,7 +11,7 @@ function levelTone(level) {
 function formatRuntimeMeta(event) {
   const parts = []
   if (event?.component) parts.push(event.component)
-  if (event?.event) parts.push(event.event.replaceAll('_', ' '))
+  if (event?.event) parts.push(String(event.event).replaceAll('_', ' '))
   return parts.join(' · ')
 }
 

@@ -27,20 +27,6 @@ type TelemetryMsg struct {
 	ActivePages      int
 }
 
-// ContextInfo describes a browser context.
-type ContextInfo struct {
-	ContextID  string
-	Identity   string
-	PageCount  int
-	TrustState string
-	URLs       []string
-}
-
-// ContextUpdateMsg updates the context list.
-type ContextUpdateMsg struct {
-	Contexts []ContextInfo
-}
-
 // TargetAttachedMsg fires when a new page target appears.
 type TargetAttachedMsg struct {
 	SessionID string
@@ -153,11 +139,6 @@ type RuntimeEventMsg struct {
 // TickMsg is the periodic refresh tick.
 type TickMsg struct{}
 
-// ErrorMsg carries an error to display.
-type ErrorMsg struct {
-	Err error
-}
-
 // ProxyTestedMsg carries the result of a proxy latency test.
 type ProxyTestedMsg struct {
 	ProxyID string
@@ -166,9 +147,9 @@ type ProxyTestedMsg struct {
 	Country string
 }
 
-// ProxyImportedMsg fires after proxies are imported.
-type ProxyImportedMsg struct {
-	Count int
+// SettingsNoticeMsg displays a notice in the settings panel.
+type SettingsNoticeMsg struct {
+	Message string
 }
 
 // SettingsClosedMsg fires when the settings panel is closed.

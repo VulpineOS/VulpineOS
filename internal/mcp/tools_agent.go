@@ -78,7 +78,7 @@ func checkCondition(client *juggler.Client, tracker *ContextTracker, sessionID, 
 		if r.Found && r.Visible {
 			return true, fmt.Sprintf("element %q found: %q", selector, truncate(r.Text, 50)), nil
 		}
-		return false, "", nil
+		return false, "", fmt.Errorf("element %q not found or not visible", selector)
 
 	case "text":
 		// Check if page body contains specific text
@@ -90,7 +90,7 @@ func checkCondition(client *juggler.Client, tracker *ContextTracker, sessionID, 
 		if strings.Contains(result, text) {
 			return true, fmt.Sprintf("text %q found on page", truncate(text, 50)), nil
 		}
-		return false, "", nil
+		return false, "", fmt.Errorf("text %q not found on page", text)
 
 	case "networkIdle":
 		// Check if there are no pending network requests (via performance API)
@@ -110,7 +110,7 @@ func checkCondition(client *juggler.Client, tracker *ContextTracker, sessionID, 
 		if r.Pending == 0 {
 			return true, "network idle", nil
 		}
-		return false, "", nil
+		return false, "", fmt.Errorf("network not idle")
 
 	case "domStable":
 		// Take two snapshots 300ms apart and compare
@@ -127,7 +127,7 @@ func checkCondition(client *juggler.Client, tracker *ContextTracker, sessionID, 
 		if result1 == result2 {
 			return true, "DOM stable", nil
 		}
-		return false, "", nil
+		return false, "", fmt.Errorf("DOM not stable")
 
 	case "urlContains":
 		js := `window.location.href`

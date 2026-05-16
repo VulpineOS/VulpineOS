@@ -163,15 +163,21 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			return m, func() tea.Msg { return shared.SettingsClosedMsg{} }
 
 		case "tab":
-			// Switch section focus
 			if m.section == SectionGeneral {
 				m.section = SectionProxies
 			} else if m.section == SectionProxies {
 				m.section = SectionSkills
 			} else {
-				// Close settings and let app handle Tab cycling
-				m.active = false
-				return m, func() tea.Msg { return shared.SettingsClosedMsg{} }
+				m.section = SectionGeneral
+			}
+
+		case "shift+tab":
+			if m.section == SectionSkills {
+				m.section = SectionProxies
+			} else if m.section == SectionProxies {
+				m.section = SectionGeneral
+			} else {
+				m.section = SectionSkills
 			}
 
 		case "j", "down":

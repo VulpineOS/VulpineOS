@@ -800,9 +800,23 @@ func (api *PanelAPI) configProviders() (json.RawMessage, error) {
 		DefaultModel string   `json:"defaultModel"`
 		Models       []string `json:"models"`
 		NeedsKey     bool     `json:"needsKey"`
+		Runtime      bool     `json:"runtime"`
 	}
-	out := make([]providerInfo, 0, len(config.Providers))
-	for _, provider := range config.Providers {
+	providers := config.MergedProviders()
+
+	runtimeSet := make(map[string]bool)
+	discovered, _ := config.DiscoverModels()
+	if discovered != nil {
+		for _, p := range discovered.Providers {
+			runtimeSet[p.ID] = true
+		}
+		for _, p := range config.Providers {
+			delete(runtimeSet, p.ID)
+		}
+	}
+
+	out := make([]providerInfo, 0, len(providers))
+	for _, provider := range providers {
 		out = append(out, providerInfo{
 			ID:           provider.ID,
 			Name:         provider.Name,
@@ -810,6 +824,7 @@ func (api *PanelAPI) configProviders() (json.RawMessage, error) {
 			DefaultModel: provider.DefaultModel,
 			Models:       provider.Models,
 			NeedsKey:     provider.NeedsKey,
+			Runtime:      runtimeSet[provider.ID],
 		})
 	}
 	return json.Marshal(map[string]interface{}{"providers": out})

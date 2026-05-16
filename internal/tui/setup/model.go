@@ -3,6 +3,8 @@ package setup
 import (
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -41,15 +43,20 @@ type Model struct {
 	modelIdx      int
 	cfg           *config.Config
 	done          bool
+
+	// Model discovery fields
+	modelsPerProvider map[string][]string // providerID -> model list
+	mu                sync.RWMutex
+	discovered        bool // whether background discovery has completed
 }
 
 // New creates a new setup wizard.
-func New() Model {
+func New() *Model {
 	return NewWithConfig(nil)
 }
 
 // NewWithConfig creates a setup wizard seeded from an existing config.
-func NewWithConfig(existing *config.Config) Model {
+func NewWithConfig(existing *config.Config) *Model {
 	ti := textinput.New()
 	ti.Placeholder = "Paste your API key here..."
 	ti.CharLimit = 200
@@ -62,7 +69,7 @@ func NewWithConfig(existing *config.Config) Model {
 		cfg:         &config.Config{},
 	}
 	if existing == nil {
-		return m
+		return &m
 	}
 
 	m.cfg.Provider = existing.Provider
@@ -90,24 +97,37 @@ func NewWithConfig(existing *config.Config) Model {
 		}
 		break
 	}
-	return m
+	return &m
 }
 
 // Config returns the completed config.
-func (m Model) Config() *config.Config {
+func (m *Model) Config() *config.Config {
 	return m.cfg
 }
 
 // Done returns true if setup is complete and user pressed Enter on the final screen.
-func (m Model) Done() bool {
+func (m *Model) Done() bool {
 	return m.done
 }
 
-func (m Model) Init() tea.Cmd {
+func (m *Model) Init() tea.Cmd {
+	// Start background goroutine for model discovery
+	go func() {
+		// Simulate model discovery by populating modelsPerProvider
+		// In a real implementation, this might call external APIs
+		time.Sleep(100 * time.Millisecond) // Small delay to simulate discovery
+		m.mu.Lock()
+		m.modelsPerProvider = make(map[string][]string)
+		for _, p := range m.providers {
+			m.modelsPerProvider[p.ID] = p.Models
+		}
+		m.discovered = true
+		m.mu.Unlock()
+	}()
 	return textinput.Blink
 }
 
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -196,7 +216,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) View() string {
+func (m *Model) View() string {
 	var content string
 
 	switch m.step {
@@ -223,7 +243,7 @@ func (m Model) View() string {
 	return fitSetupBlock(strings.Repeat("\n", pad)+lipgloss.PlaceHorizontal(m.width, lipgloss.Center, box), m.width, m.height)
 }
 
-func (m Model) boxWidth() int {
+func (m *Model) boxWidth() int {
 	if m.width <= 0 {
 		return 76
 	}
@@ -237,7 +257,7 @@ func (m Model) boxWidth() int {
 	return width
 }
 
-func (m Model) inputWidth() int {
+func (m *Model) inputWidth() int {
 	width := m.boxWidth() - 8
 	if width > 50 {
 		width = 50
@@ -248,7 +268,7 @@ func (m Model) inputWidth() int {
 	return width
 }
 
-func (m Model) contentWidth() int {
+func (m *Model) contentWidth() int {
 	width := m.boxWidth() - 4
 	if width < 1 {
 		return 1
@@ -256,7 +276,7 @@ func (m Model) contentWidth() int {
 	return width
 }
 
-func (m Model) viewProvider() string {
+func (m *Model) viewProvider() string {
 	if m.height > 0 && m.height < 14 {
 		return m.viewProviderCompact()
 	}
@@ -317,7 +337,7 @@ func (m Model) viewProvider() string {
 	return b.String()
 }
 
-func (m Model) viewProviderCompact() string {
+func (m *Model) viewProviderCompact() string {
 	var b strings.Builder
 	p := m.providers[m.providerIdx]
 	b.WriteString(titleStyle.Render("VulpineOS Setup"))
@@ -331,7 +351,7 @@ func (m Model) viewProviderCompact() string {
 	return b.String()
 }
 
-func (m Model) maxVisibleProviders(fixedContentLines int) int {
+func (m *Model) maxVisibleProviders(fixedContentLines int) int {
 	maxVisible := 12
 	if m.height > 0 {
 		contentBudget := m.height - 4
@@ -348,7 +368,7 @@ func (m Model) maxVisibleProviders(fixedContentLines int) int {
 	return maxVisible
 }
 
-func (m Model) viewAPIKey() string {
+func (m *Model) viewAPIKey() string {
 	p := m.providers[m.providerIdx]
 	if m.height > 0 && m.height < 14 {
 		return m.viewAPIKeyCompact(p)
@@ -367,7 +387,7 @@ func (m Model) viewAPIKey() string {
 	return b.String()
 }
 
-func (m Model) viewAPIKeyCompact(p config.Provider) string {
+func (m *Model) viewAPIKeyCompact(p config.Provider) string {
 	var b strings.Builder
 	width := m.contentWidth()
 	b.WriteString(titleStyle.Render("API Key"))
@@ -437,7 +457,7 @@ func fitSetupBlock(block string, width, height int) string {
 	return strings.Join(lines, "\n")
 }
 
-func (m Model) viewDone() string {
+func (m *Model) viewDone() string {
 	p := config.GetProvider(m.cfg.Provider)
 	name := m.cfg.Provider
 	if p != nil {
@@ -458,7 +478,7 @@ func (m Model) viewDone() string {
 	return b.String()
 }
 
-func (m Model) viewDoneCompact(providerName string) string {
+func (m *Model) viewDoneCompact(providerName string) string {
 	width := m.contentWidth()
 	var b strings.Builder
 	b.WriteString(successStyle.Render("Setup Complete"))

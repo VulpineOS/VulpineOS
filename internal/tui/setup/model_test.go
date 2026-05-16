@@ -51,7 +51,7 @@ func TestExistingAPIKeyCanBeKeptBlank(t *testing.T) {
 	m.apiKeyInput.SetValue("")
 
 	model, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	updated := model.(Model)
+	updated := model.(*Model)
 
 	if updated.step != stepDone {
 		t.Fatalf("step = %v, want stepDone", updated.step)
@@ -64,25 +64,25 @@ func TestExistingAPIKeyCanBeKeptBlank(t *testing.T) {
 func TestSetupViewFitsNarrowTerminal(t *testing.T) {
 	m := New()
 	model, _ := m.Update(tea.WindowSizeMsg{Width: 50, Height: 20})
-	m = model.(Model)
+	mm := model.(*Model)
 
-	assertSetupViewFits(t, m)
+	assertSetupViewFits(t, mm)
 }
 
 func TestSetupProviderViewFitsShortTerminal(t *testing.T) {
 	m := New()
 	model, _ := m.Update(tea.WindowSizeMsg{Width: 50, Height: 10})
-	m = model.(Model)
+	mm := model.(*Model)
 
-	assertSetupViewFits(t, m)
+	assertSetupViewFits(t, mm)
 }
 
 func TestSetupViewFitsUltraTinyTerminal(t *testing.T) {
 	m := New()
 	model, _ := m.Update(tea.WindowSizeMsg{Width: 4, Height: 4})
-	m = model.(Model)
+	mm := model.(*Model)
 
-	assertSetupViewFits(t, m)
+	assertSetupViewFits(t, mm)
 }
 
 func TestSetupViewFitsVeryNarrowAPIKeyAndDoneSteps(t *testing.T) {
@@ -93,16 +93,16 @@ func TestSetupViewFitsVeryNarrowAPIKeyAndDoneSteps(t *testing.T) {
 	}
 	m := NewWithConfig(cfg)
 	model, _ := m.Update(tea.WindowSizeMsg{Width: 20, Height: 10})
-	m = model.(Model)
+	mm := model.(*Model)
 
-	m.step = stepAPIKey
-	assertSetupViewFits(t, m)
+	mm.step = stepAPIKey
+	assertSetupViewFits(t, mm)
 
-	m.step = stepDone
-	assertSetupViewFits(t, m)
+	mm.step = stepDone
+	assertSetupViewFits(t, mm)
 }
 
-func assertSetupViewFits(t *testing.T, m Model) {
+func assertSetupViewFits(t *testing.T, m *Model) {
 	t.Helper()
 	view := m.View()
 	lines := strings.Split(view, "\n")

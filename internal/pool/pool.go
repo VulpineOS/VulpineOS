@@ -71,16 +71,36 @@ func (p *Pool) Start() error {
 		count = p.config.MaxActive
 	}
 
+	type result struct {
+		slot *ContextSlot
+		err  error
+	}
+	results := make(chan result, count)
+
+	var wg sync.WaitGroup
 	for i := 0; i < count; i++ {
-		slot, err := p.createSlot()
-		if err != nil {
-			log.Printf("pool: failed to pre-warm context %d: %v", i, err)
-			continue
-		}
-		p.available <- slot
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			slot, err := p.createSlot()
+			results <- result{slot: slot, err: err}
+		}(i)
 	}
 
-	log.Printf("pool: pre-warmed %d/%d contexts", len(p.available), count)
+	wg.Wait()
+	close(results)
+
+	var success int
+	for r := range results {
+		if r.err != nil {
+			log.Printf("pool: failed to pre-warm context: %v", r.err)
+			continue
+		}
+		p.available <- r.slot
+		success++
+	}
+
+	log.Printf("pool: pre-warmed %d/%d contexts", success, count)
 	return nil
 }
 
@@ -103,9 +123,8 @@ func (p *Pool) Acquire() (*ContextSlot, error) {
 	}
 
 	// Check if we can create a new one
-	p.mu.Lock()
+p.mu.Lock()
 	if p.total < p.config.MaxActive {
-		// Reserve the slot under the lock to prevent races
 		p.total++
 		p.mu.Unlock()
 		slot, err := p.createSlotNoCount()
@@ -187,10 +206,10 @@ func (p *Pool) Close() {
 		p.mu.Lock()
 		p.closed = true
 		activeSlots = make([]*ContextSlot, 0, len(p.active))
-		for contextID, slot := range p.active {
+		for _, slot := range p.active {
 			activeSlots = append(activeSlots, slot)
-			delete(p.active, contextID)
 		}
+		p.active = make(map[string]*ContextSlot)
 		p.total = 0
 		p.mu.Unlock()
 	})

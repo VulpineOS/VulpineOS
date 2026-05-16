@@ -66,6 +66,7 @@ type Model struct {
 	entries       []Entry
 	agentID       string
 	agentName     string
+	agentStatus   string
 	traceOnly     bool
 	thinking      bool // true while waiting for agent response
 	awake         bool // true after agent has sent its first message
@@ -84,6 +85,10 @@ type Model struct {
 // SetAgentName sets the display name for the agent.
 func (m *Model) SetAgentName(name string) {
 	m.agentName = name
+}
+
+func (m *Model) SetAgentStatus(status string) {
+	m.agentStatus = status
 }
 
 // SetTraceOnly switches the panel between mixed conversation and action-trace mode.
@@ -322,6 +327,11 @@ func (m *Model) TextInput() *textinput.Model {
 	return &m.textInput
 }
 
+// IsInputFocused reports whether the text input is focused.
+func (m *Model) IsInputFocused() bool {
+	return m.textInput.Focused()
+}
+
 // InputValue returns and clears the current input value.
 func (m *Model) InputValue() string {
 	v := strings.TrimSpace(m.textInput.Value())
@@ -506,7 +516,9 @@ func (m Model) View() string {
 
 	// Build the input line
 	var inputArea string
-	if !m.awake && m.thinking {
+	if m.agentStatus == "error" {
+		inputArea = shared.MutedStyle.Render("  > Agent failed — press Enter to retry or x to remove")
+	} else if !m.awake && m.thinking {
 		inputArea = shared.MutedStyle.Render("  Chat available after agent responds")
 	} else if m.textInput.Focused() {
 		inputArea = m.textInput.View()

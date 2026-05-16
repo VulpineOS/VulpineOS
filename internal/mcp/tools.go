@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -480,6 +481,19 @@ func handleNavigate(client *juggler.Client, tracker *ContextTracker, args json.R
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
 		return errorResult(err), nil
+	}
+
+	if p.URL == "" {
+		return errorResult(fmt.Errorf("url is required")), nil
+	}
+	if strings.TrimSpace(p.URL) != p.URL {
+		return errorResult(fmt.Errorf("url must not have leading or trailing whitespace")), nil
+	}
+	if strings.HasPrefix(p.URL, "javascript:") {
+		return errorResult(fmt.Errorf("javascript: URLs are not permitted")), nil
+	}
+	if !strings.Contains(p.URL, "://") && !strings.HasPrefix(p.URL, "/") {
+		return errorResult(fmt.Errorf("url %q is not absolute (missing scheme); prepend https://", p.URL)), nil
 	}
 
 	// Resolve frame ID for this session

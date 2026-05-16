@@ -234,7 +234,7 @@ func formatRuntimeEvent(event sharedRuntimeEvent) string {
 	if len(component) > 4 {
 		component = component[:4]
 	}
-	return fmt.Sprintf("%s %s %s", component, event.event, event.at.Format("15:04"))
+	return fmt.Sprintf("%-4s %s %s", component, event.event, event.at.Format("15:04"))
 }
 
 // formatDuration formats a duration compactly (e.g., "12m", "1h3m").
