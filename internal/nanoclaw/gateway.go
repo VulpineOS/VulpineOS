@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// Gateway manages the OpenClaw gateway daemon process.
+// Gateway manages the NanoClaw gateway daemon process.
 type Gateway struct {
 	cmd           *exec.Cmd
 	binary        string
@@ -26,7 +26,7 @@ func NewGateway(binary string) *Gateway {
 	return &Gateway{binary: binary}
 }
 
-// Start launches the OpenClaw gateway in the background.
+// Start launches the NanoClaw gateway in the background.
 // Stops any stale gateway from a previous session first.
 func (g *Gateway) Start() error {
 	g.mu.Lock()
@@ -36,17 +36,17 @@ func (g *Gateway) Start() error {
 	}
 	g.mu.Unlock()
 
-	openclawBin := g.binary
-	if openclawBin == "" {
+	nanoclawBin := g.binary
+	if nanoclawBin == "" {
 		mgr := NewManager("")
-		openclawBin = mgr.findOpenClaw()
+		nanoclawBin = mgr.findNanoClaw()
 	}
-	if openclawBin == "" {
-		return fmt.Errorf("OpenClaw binary not found")
+	if nanoclawBin == "" {
+		return fmt.Errorf("NanoClaw binary not found")
 	}
 
 	// Kill any stale gateway from a previous VulpineOS session
-	stopCmd := exec.Command(openclawBin, "--profile", "vulpine", "gateway", "stop")
+	stopCmd := exec.Command(nanoclawBin, "gateway", "stop")
 	stopCmd.Run() // ignore errors — may not be running
 	time.Sleep(500 * time.Millisecond)
 
@@ -58,7 +58,7 @@ func (g *Gateway) Start() error {
 		"--allow-unconfigured",
 	}
 
-	cmd := exec.Command(openclawBin, args...)
+	cmd := exec.Command(nanoclawBin, args...)
 
 	logPath := os.TempDir() + "/vulpineos-gateway.log"
 	if logFile, err := os.Create(logPath); err == nil {
@@ -91,12 +91,12 @@ func (g *Gateway) Start() error {
 		close(exitCh)
 	}()
 
-	log.Printf("OpenClaw gateway started (PID %d), log: %s", cmd.Process.Pid, logPath)
+	log.Printf("NanoClaw gateway started (PID %d), log: %s", cmd.Process.Pid, logPath)
 	waitReady := g.waitReady
 	if g.waitReadyFunc != nil {
 		waitReady = g.waitReadyFunc
 	}
-	if err := waitReady(openclawBin); err != nil {
+	if err := waitReady(nanoclawBin); err != nil {
 		g.Stop()
 		return err
 	}
@@ -130,7 +130,7 @@ func (g *Gateway) Stop() {
 		if logFile != nil {
 			_ = logFile.Close()
 		}
-		log.Println("OpenClaw gateway stopped")
+		log.Println("NanoClaw gateway stopped")
 	}
 }
 
@@ -141,7 +141,7 @@ func (g *Gateway) Running() bool {
 	return g.cmd != nil && !g.exited
 }
 
-func (g *Gateway) waitReady(openclawBin string) error {
+func (g *Gateway) waitReady(nanoclawBin string) error {
 	deadline := time.Now().Add(15 * time.Second)
 	var lastErr error
 
@@ -150,7 +150,7 @@ func (g *Gateway) waitReady(openclawBin string) error {
 		// even when the gateway probe itself reports "OK (0ms)". Give the probe
 		// enough headroom so Gateway.Start does not fail on a false timeout.
 		ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
-		cmd := exec.CommandContext(ctx, openclawBin, "--profile", "vulpine", "gateway", "health")
+		cmd := exec.CommandContext(ctx, nanoclawBin, "--profile", "vulpine", "gateway", "health")
 		if err := cmd.Run(); err == nil {
 			cancel()
 			return nil

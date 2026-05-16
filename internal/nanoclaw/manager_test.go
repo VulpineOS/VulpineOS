@@ -25,8 +25,8 @@ func TestNewManager(t *testing.T) {
 
 func TestNewManagerDefaultBinary(t *testing.T) {
 	m := NewManager("")
-	if m.binary != "openclaw" {
-		t.Errorf("binary = %q, want %q (default)", m.binary, "openclaw")
+	if m.binary != "nanoclaw" {
+		t.Errorf("binary = %q, want %q (default)", m.binary, "nanoclaw")
 	}
 }
 
@@ -187,12 +187,12 @@ func TestAgentConversationAfterCloseDoesNotPanic(t *testing.T) {
 	agent.emitConversation(ConversationMsg{AgentID: "agent-1", Role: "system", Content: "late"})
 }
 
-func TestOpenClawInstalledFalseForBogus(t *testing.T) {
-	m := NewManager("/nonexistent/path/to/openclaw-binary-xyz")
+func TestNanoClawInstalledFalseForBogus(t *testing.T) {
+	m := NewManager("/nonexistent/path/to/nanoclaw-binary-xyz")
 	// Should return false since the binary doesn't exist
-	// (may return true if openclaw is globally installed, so this is best-effort)
+	// (may return true if nanoclaw is globally installed, so this is best-effort)
 	// At minimum, verify it doesn't panic
-	_ = m.OpenClawInstalled()
+	_ = m.NanoClawInstalled()
 }
 
 func TestSpawnFailsWithBadBinary(t *testing.T) {
@@ -238,10 +238,7 @@ func TestRuntimeEnvForConfigOmitsMissingGatewayToken(t *testing.T) {
 }
 
 func TestResumeWithSessionIsolatedRunsCleanupOnStartFailure(t *testing.T) {
-	badBin := filepath.Join(t.TempDir(), "broken-openclaw")
-	if err := os.WriteFile(badBin, []byte("not-a-real-binary"), 0755); err != nil {
-		t.Fatalf("write broken binary: %v", err)
-	}
+	badBin := filepath.Join(t.TempDir(), "nonexistent-nanoclaw-bin")
 
 	m := NewManager(badBin)
 	called := false

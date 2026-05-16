@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"vulpineos/internal/config"
-	"vulpineos/internal/openclaw"
+	"vulpineos/internal/nanoclaw"
 )
 
 func TestIntegration_MultiAgentSessionSoak(t *testing.T) {
@@ -28,8 +28,8 @@ func TestIntegration_MultiAgentSessionSoak(t *testing.T) {
 		iterations = n
 	}
 
-	mgr := openclaw.NewManager("")
-	if !mgr.OpenClawInstalled() {
+	mgr := nanoclaw.NewManager("")
+	if !mgr.NanoClawInstalled() {
 		t.Skip("OpenClaw not installed")
 	}
 	defer mgr.Dispose()
@@ -78,7 +78,7 @@ func TestIntegration_MultiAgentSessionSoak(t *testing.T) {
 	}
 }
 
-func waitForAssistantContainsAll(t *testing.T, convCh <-chan openclaw.ConversationMsg, wants map[string]string, timeout time.Duration) {
+func waitForAssistantContainsAll(t *testing.T, convCh <-chan nanoclaw.ConversationMsg, wants map[string]string, timeout time.Duration) {
 	t.Helper()
 
 	pending := make(map[string]string, len(wants))
