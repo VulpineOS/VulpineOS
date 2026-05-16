@@ -115,12 +115,17 @@ func (m *Manager) SpawnWithSessionIsolated(agentID, task, sessionName, configPat
 		return m.SpawnOpenCode(task, agentID)
 	}
 
+	_, socketFound := FindNanoclawSocket()
+	if socketFound {
+		return m.spawnViaSocket(agentID, sessionName, task, configPath, cleanup)
+	}
+
 	nanoclawBin := m.findNanoClaw()
 	if nanoclawBin == "" {
 		if cleanup != nil {
 			cleanup()
 		}
-		return "", fmt.Errorf("NanoClaw not found. Install: git clone https://github.com/nanocoai/nanoclaw.git")
+		return "", fmt.Errorf("NanoClaw not found. Install: git clone https://github.com/qwibitai/nanoclaw.git && cd nanoclaw && pnpm tsx src/index.ts")
 	}
 
 	args := nanoclawArgs(sessionName, task)
@@ -317,6 +322,51 @@ func (m *Manager) SpawnOpenCode(task string, vaultAgentID string) (string, error
 	go m.forwardConversation(agent)
 
 	return id, nil
+}
+
+func (m *Manager) spawnViaSocket(agentID, sessionName, task, configPath string, cleanup func()) (string, error) {
+	socketPath, _ := FindNanoclawSocket()
+	client := NewNanoclawClient(filepath.Dir(filepath.Dir(socketPath)))
+
+	agent := newAgent(agentID, sessionName, m.statusSource)
+	agent.sessionLogPath = ""
+
+	m.mu.Lock()
+	m.agents[agentID] = &managedAgent{agent: agent, cleanup: cleanup}
+	m.mu.Unlock()
+
+	go func() {
+		err := client.SendMessage(sessionName, task, func(chunk string, done bool) {
+			if chunk != "" {
+				agent.conversationCh <- ConversationMsg{
+					AgentID: agentID,
+					Role:    "assistant",
+					Content: chunk,
+					Tokens:  0,
+				}
+			}
+			if done {
+				agent.mu.Lock()
+				agent.status.Status = "completed"
+				agent.status.Tokens = 0
+				agent.mu.Unlock()
+				agent.statusCh <- agent.status
+				close(agent.doneCh)
+				close(agent.conversationCh)
+			}
+		})
+		if err != nil {
+			agent.mu.Lock()
+			agent.status.Status = "error"
+			agent.status.Objective = err.Error()
+			agent.mu.Unlock()
+			agent.statusCh <- agent.status
+		}
+	}()
+
+	go m.forwardConversation(agent)
+
+	return agentID, nil
 }
 
 // findNanoClaw looks for the NanoClaw binary in common locations.
