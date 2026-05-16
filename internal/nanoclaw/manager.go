@@ -19,7 +19,7 @@ import (
 	"vulpineos/internal/runtimeaudit"
 )
 
-// Manager manages multiple OpenClaw agent subprocesses.
+// Manager manages multiple NanoClaw agent subprocesses.
 type Manager struct {
 	agents map[string]*managedAgent
 	mu     sync.RWMutex
@@ -43,7 +43,7 @@ type managedAgent struct {
 // NewManager creates a new agent manager.
 func NewManager(binary string) *Manager {
 	if binary == "" {
-		binary = "openclaw"
+		binary = "nanoclaw"
 	}
 	m := &Manager{
 		agents:             make(map[string]*managedAgent),
@@ -94,7 +94,7 @@ func (m *Manager) ConversationChan() <-chan ConversationMsg {
 }
 
 // SpawnWithSession creates and starts a new agent with a named session for state persistence.
-// Each call spawns a fresh OpenClaw process for one turn of conversation.
+// Each call spawns a fresh NanoClaw process for one turn of conversation.
 // If a previous process for this agentID is still running, it is stopped first.
 func (m *Manager) SpawnWithSession(agentID, task, sessionName, configPath string) (string, error) {
 	return m.SpawnWithSessionIsolated(agentID, task, sessionName, configPath, nil)
@@ -110,23 +110,24 @@ func (m *Manager) SpawnWithSessionIsolated(agentID, task, sessionName, configPat
 		return "", err
 	}
 
-	if cfg, err := config.Load(); err == nil && cfg.Provider == "opencode-local" {
+	if m.binary != "" && m.binary != "nanoclaw" {
+	} else if cfg, err := config.Load(); err == nil && cfg.Provider == "opencode-local" {
 		return m.SpawnOpenCode(task, agentID)
 	}
 
-	openclawBin := m.findOpenClaw()
-	if openclawBin == "" {
+	nanoclawBin := m.findNanoClaw()
+	if nanoclawBin == "" {
 		if cleanup != nil {
 			cleanup()
 		}
-		return "", fmt.Errorf("OpenClaw not found. Run 'npm install' in the VulpineOS directory or install globally: npm install -g openclaw")
+		return "", fmt.Errorf("NanoClaw not found. Install: git clone https://github.com/nanocoai/nanoclaw.git")
 	}
 
-	args := agentTurnArgs(sessionName, task)
-	return m.startManagedAgent(agentID, "openclaw", openclawBin, args, configPath, cleanup)
+	args := []string{sessionName, task}
+	return m.startManagedAgent(agentID, "nanoclaw", nanoclawBin, args, configPath, cleanup)
 }
 
-// SpawnPersistent is a compatibility shim over the current one-turn OpenClaw CLI.
+// SpawnPersistent is a compatibility shim over the current one-turn NanoClaw CLI.
 func (m *Manager) SpawnPersistent(agentID, initialMessage, sessionName string) (string, error) {
 	return m.SpawnWithSession(agentID, initialMessage, sessionName, config.OpenClawConfigPath())
 }
@@ -194,19 +195,19 @@ func (m *Manager) SendMessage(agentID, text string) error {
 	return entry.agent.SendMessage(text)
 }
 
-// Spawn creates and starts a new agent turn using the current OpenClaw session CLI.
+// Spawn creates and starts a new agent turn using the current NanoClaw session CLI.
 // The newer CLI no longer accepts legacy context-id or SOP flags directly, so the
 // template SOP content is sent as the first turn and browser attachment is handled
-// by the generated OpenClaw profile config.
+// by the generated NanoClaw profile config.
 func (m *Manager) Spawn(contextID string, sopFile string, extraArgs ...string) (string, error) {
 	return m.SpawnIsolated(contextID, sopFile, "", nil, extraArgs...)
 }
 
-// SpawnIsolated starts an agent with an optional per-run OpenClaw config and cleanup hook.
+// SpawnIsolated starts an agent with an optional per-run NanoClaw config and cleanup hook.
 func (m *Manager) SpawnIsolated(contextID string, sopFile string, configPath string, cleanup func(), extraArgs ...string) (string, error) {
-	openclawBin := m.findOpenClaw()
-	if openclawBin == "" {
-		return "", fmt.Errorf("OpenClaw not found. Run 'npm install' in the VulpineOS directory or install globally: npm install -g openclaw")
+	nanoclawBin := m.findNanoClaw()
+	if nanoclawBin == "" {
+		return "", fmt.Errorf("NanoClaw not found. Install: git clone https://github.com/nanocoai/nanoclaw.git")
 	}
 
 	id := uuid.New().String()[:8]
@@ -226,33 +227,30 @@ func (m *Manager) SpawnIsolated(contextID string, sopFile string, configPath str
 		message = "Start."
 	}
 
-	args := agentTurnArgs("vulpine-"+id, message)
-	return m.startManagedAgent(id, contextID, openclawBin, args, configPath, cleanup)
+	args := nanoclawArgs("vulpine-"+id, message)
+	return m.startManagedAgent(id, contextID, nanoclawBin, args, configPath, cleanup)
 }
 
-// SpawnOpenClaw spawns a real OpenClaw agent using the VulpineOS-generated config.
-// It sends a task message to OpenClaw's gateway to start an agent run.
-func (m *Manager) SpawnOpenClaw(task string, agentSkills []config.SkillEntry) (string, error) {
-	// Find OpenClaw binary
-	openclawBin := m.findOpenClaw()
-	if openclawBin == "" {
-		return "", fmt.Errorf("OpenClaw not found. Run ./scripts/bundle-openclaw.sh or install globally: npm install -g openclaw")
+// SpawnNanoClaw spawns an agent using NanoClaw.
+// It sends a task message to NanoClaw to start an agent run.
+func (m *Manager) SpawnNanoClaw(task string, agentSkills []config.SkillEntry) (string, error) {
+	// Find NanoClaw binary
+	nanoclawBin := m.findNanoClaw()
+	if nanoclawBin == "" {
+		return "", fmt.Errorf("NanoClaw not found. Install: git clone https://github.com/nanocoai/nanoclaw.git")
 	}
 
 	id := uuid.New().String()[:8]
 
-	// OpenClaw args: run with our config, send a task
+	// NanoClaw args: run with session and task
 	args := []string{
-		"--profile", "vulpine",
-		"agent",
-		"--local",
-		"--session-id", "vulpine-" + id,
-		"-m", task,
-		"--json",
+		"run",
+		"--session", "vulpine-" + id,
+		task,
 	}
 	_ = agentSkills
 
-	return m.startManagedAgent(id, "openclaw", openclawBin, args, "", nil)
+	return m.startManagedAgent(id, "nanoclaw", nanoclawBin, args, "", nil)
 }
 
 // SpawnOpenCode spawns an agent using the local OpenCode server.
@@ -321,11 +319,11 @@ func (m *Manager) SpawnOpenCode(task string, vaultAgentID string) (string, error
 	return id, nil
 }
 
-// findOpenClaw looks for the OpenClaw binary in common locations.
+// findNanoClaw looks for the NanoClaw binary in common locations.
 // Searches: explicit binary path, exe dir, cwd, parent dirs (for monorepo), global PATH.
-func (m *Manager) findOpenClaw() string {
+func (m *Manager) findNanoClaw() string {
 	// If binary was explicitly set, treat it as authoritative.
-	if m.binary != "" && m.binary != "openclaw" {
+	if m.binary != "" && m.binary != "nanoclaw" {
 		if isRunnable(m.binary) {
 			return m.binary
 		}
@@ -356,9 +354,9 @@ func (m *Manager) findOpenClaw() string {
 
 	for _, d := range searchDirs {
 		candidates := []string{
-			filepath.Join(d, "node_modules", ".bin", "openclaw"),
-			filepath.Join(d, "node_modules", "openclaw", "openclaw.mjs"),
-			filepath.Join(d, "openclaw", "start.sh"),
+			filepath.Join(d, "node_modules", ".bin", "nanoclaw"),
+			filepath.Join(d, "node_modules", "nanoclaw", "bin", "nanoclaw"),
+			filepath.Join(d, "nanoclaw", "nanoclaw.sh"),
 		}
 		for _, c := range candidates {
 			if isRunnable(c) {
@@ -368,29 +366,35 @@ func (m *Manager) findOpenClaw() string {
 		}
 	}
 
+	for _, d := range searchDirs {
+		bundledDir := filepath.Join(d, "nanoclaw")
+		bundledMain := filepath.Join(bundledDir, "node_modules", "nanoclaw", "bin", "nanoclaw")
+		if _, err := os.Stat(bundledMain); err == nil {
+			abs, _ := filepath.Abs(bundledMain)
+			return abs
+		}
+	}
+
 	// Check global install
-	if path, err := exec.LookPath("openclaw"); err == nil {
+	if path, err := exec.LookPath("nanoclaw"); err == nil {
 		return path
 	}
 
 	return ""
 }
 
-// OpenClawInstalled returns true if OpenClaw is available.
-func (m *Manager) OpenClawInstalled() bool {
-	return m.findOpenClaw() != ""
+// NanoClawInstalled returns true if NanoClaw is available.
+func (m *Manager) NanoClawInstalled() bool {
+	return m.findNanoClaw() != ""
 }
 
-func agentTurnArgs(sessionName, message string) []string {
+func nanoclawArgs(sessionName, message string) []string {
 	args := []string{
-		"--profile", "vulpine",
-		"agent",
-		"--local",
-		"--session-id", sessionName,
-		"--json",
+		"run",
+		"--session", sessionName,
 	}
 	if message != "" {
-		args = append(args, "-m", message)
+		args = append(args, message)
 	}
 	return args
 }
@@ -485,7 +489,7 @@ func waitAgentDone(agent *Agent, timeout time.Duration) {
 	}
 }
 
-func (m *Manager) startManagedAgent(agentID, contextID, openclawBin string, args []string, configPath string, cleanup func()) (string, error) {
+func (m *Manager) startManagedAgent(agentID, contextID, nanoclawBin string, args []string, configPath string, cleanup func()) (string, error) {
 	var old *managedAgent
 	sessionLogPath := ""
 	if sessionID := sessionIDFromArgs(args); sessionID != "" {
@@ -518,16 +522,15 @@ func (m *Manager) startManagedAgent(agentID, contextID, openclawBin string, args
 	if configPath != "" {
 		agent.env = runtimeEnvForConfig(configPath)
 	}
-	if err := agent.start(openclawBin, args); err != nil {
+if err := agent.start(nanoclawBin, args); err != nil {
 		if cleanup != nil {
 			cleanup()
 		}
-		m.logRuntimeEvent("error", "start_failed", "failed to start OpenClaw agent", map[string]string{
-			"agent_id": agentID,
-			"context":  contextID,
-			"error":    err.Error(),
+		m.logRuntimeEvent("error", "start_failed", "failed to start NanoClaw agent", map[string]string{
+			"binary": nanoclawBin,
+			"error":  err.Error(),
 		})
-		return "", fmt.Errorf("spawn failed (binary=%s): %w", openclawBin, err)
+		return "", fmt.Errorf("spawn failed (binary=%s): %w", nanoclawBin, err)
 	}
 
 	entry := &managedAgent{agent: agent, cleanup: cleanup}
@@ -544,25 +547,25 @@ func (m *Manager) startManagedAgent(agentID, contextID, openclawBin string, args
 			exitCode := agent.ExitCode()
 			if exitCode != 0 && agent.RestartCount < 3 && !agent.StopRequested() {
 				agent.RestartCount++
-				m.logRuntimeEvent("error", "crashed", "OpenClaw agent crashed", map[string]string{
+				m.logRuntimeEvent("error", "crashed", "NanoClaw agent crashed", map[string]string{
 					"agent_id":  agentID,
 					"context":   contextID,
 					"exit_code": fmt.Sprintf("%d", exitCode),
 					"attempt":   fmt.Sprintf("%d", agent.RestartCount),
 				})
-				log.Printf("openclaw: agent %s crashed (exit %d), restarting (attempt %d/3)", agentID, exitCode, agent.RestartCount)
+				log.Printf("nanoclaw: agent %s crashed (exit %d), restarting (attempt %d/3)", agentID, exitCode, agent.RestartCount)
 				time.Sleep(time.Duration(agent.RestartCount) * time.Second)
 				if err := agent.restart(); err != nil {
-					m.logRuntimeEvent("error", "restart_failed", "OpenClaw agent restart failed", map[string]string{
+					m.logRuntimeEvent("error", "restart_failed", "NanoClaw agent restart failed", map[string]string{
 						"agent_id": agentID,
 						"context":  contextID,
 						"attempt":  fmt.Sprintf("%d", agent.RestartCount),
 						"error":    err.Error(),
 					})
-					log.Printf("openclaw: agent %s restart failed: %v", agentID, err)
+					log.Printf("nanoclaw: agent %s restart failed: %v", agentID, err)
 					break
 				}
-				m.logRuntimeEvent("warn", "restarted", "OpenClaw agent restarted", map[string]string{
+				m.logRuntimeEvent("warn", "restarted", "NanoClaw agent restarted", map[string]string{
 					"agent_id": agentID,
 					"context":  contextID,
 					"attempt":  fmt.Sprintf("%d", agent.RestartCount),
