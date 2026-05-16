@@ -87,30 +87,33 @@ func WriteConfig(config *VulpineOSConfig, dir string) (string, error) {
 	return path, nil
 }
 
-// FindBundledOpenClaw checks if OpenClaw is bundled alongside the vulpineos binary.
-func FindBundledOpenClaw() (nodePath, openclawPath string, found bool) {
+// FindBundledNanoClaw checks if NanoClaw is bundled alongside the vulpineos binary.
+func FindBundledNanoClaw() (nodePath, nanoclawPath string, found bool) {
 	exe, err := os.Executable()
 	if err != nil {
 		return "", "", false
 	}
 	dir := filepath.Dir(exe)
 
-	// Check for bundled openclaw directory
-	openclawDir := filepath.Join(dir, "openclaw")
-	nodeBin := filepath.Join(openclawDir, "node")
-	openclawMain := filepath.Join(openclawDir, "node_modules", "openclaw")
+	// Check for bundled nanoclaw directory
+	nanoclawDir := filepath.Join(dir, "nanoclaw")
+	nodeBin := filepath.Join(nanoclawDir, "node")
+	nanoclawMain := filepath.Join(nanoclawDir, "node_modules", "nanoclaw", "bin", "nanoclaw")
 
 	if _, err := os.Stat(nodeBin); err != nil {
-		// Try system node
 		nodeBin = "node"
 	}
 
-	if _, err := os.Stat(openclawMain); err == nil {
-		return nodeBin, openclawMain, true
+	if _, err := os.Stat(nanoclawMain); err == nil {
+		return nodeBin, nanoclawMain, true
 	}
 
-	// Check if openclaw is globally installed
-	if path, err := filepath.Glob("/usr/local/lib/node_modules/openclaw"); err == nil && len(path) > 0 {
+	// Check if nanoclaw is globally installed
+	if path, err := filepath.Glob("/usr/local/lib/node_modules/nanoclaw"); err == nil && len(path) > 0 {
+		nanoclawBin := filepath.Join(path[0], "bin", "nanoclaw")
+		if _, err := os.Stat(nanoclawBin); err == nil {
+			return "node", nanoclawBin, true
+		}
 		return "node", path[0], true
 	}
 
