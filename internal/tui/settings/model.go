@@ -303,8 +303,10 @@ func (m Model) View() string {
 
 	// --- General section ---
 	b.WriteString(m.viewGeneral())
-	b.WriteString("\n")
-	b.WriteString(shared.MutedStyle.Render(clipText("[c] reconfigure", contentWidth)))
+	if m.section == SectionGeneral {
+		b.WriteString("\n")
+		b.WriteString(shared.MutedStyle.Render(clipText("[c] reconfigure", contentWidth)))
+	}
 	b.WriteString("\n\n")
 
 	// Separator
