@@ -123,7 +123,7 @@ func (m *Manager) SpawnWithSessionIsolated(agentID, task, sessionName, configPat
 		return "", fmt.Errorf("NanoClaw not found. Install: git clone https://github.com/nanocoai/nanoclaw.git")
 	}
 
-	args := []string{sessionName, task}
+	args := nanoclawArgs(sessionName, task)
 	return m.startManagedAgent(agentID, "nanoclaw", nanoclawBin, args, configPath, cleanup)
 }
 
