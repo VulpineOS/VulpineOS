@@ -325,8 +325,16 @@ func (m *Manager) SpawnOpenCode(task string, vaultAgentID string) (string, error
 }
 
 func (m *Manager) spawnViaSocket(agentID, sessionName, task, configPath string, cleanup func()) (string, error) {
-	socketPath, _ := FindNanoclawSocket()
-	client := NewNanoclawClient(filepath.Dir(filepath.Dir(socketPath)))
+	nanoclawDir := GetNanoclawDir()
+	if nanoclawDir == "" {
+		return "", fmt.Errorf("nanoclaw directory not found")
+	}
+
+	client := NewNanoclawClient(nanoclawDir)
+
+	if !client.IsRunning() {
+		return "", fmt.Errorf("nanoclaw daemon not running. Start with: cd nanoclaw && pnpm tsx src/index.ts")
+	}
 
 	agent := newAgent(agentID, sessionName, m.statusSource)
 	agent.sessionLogPath = ""
@@ -336,7 +344,7 @@ func (m *Manager) spawnViaSocket(agentID, sessionName, task, configPath string, 
 	m.mu.Unlock()
 
 	go func() {
-		err := client.SendMessage(sessionName, task, func(chunk string, done bool) {
+		err := client.SendMessage(task, func(chunk string, done bool) {
 			if chunk != "" {
 				agent.conversationCh <- ConversationMsg{
 					AgentID: agentID,
