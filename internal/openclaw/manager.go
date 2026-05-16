@@ -277,8 +277,25 @@ func (m *Manager) SpawnOpenCode(task string, vaultAgentID string) (string, error
 	m.agents[id] = &managedAgent{agent: agent, cleanup: nil}
 	m.mu.Unlock()
 
+	var totalTokens int
+
 	go func() {
-		response, tokens, err := m.opencodeClient.SendMessage(prompt)
+		log.Printf("opencode-local: starting agent %s with prompt: %s", id, prompt[:min(50, len(prompt))])
+		_, _, err := m.opencodeClient.SendMessageWithCallback(prompt, func(text string, done bool, tok int) {
+			if text != "" {
+				log.Printf("opencode-local: streaming chunk: %s", text[:min(50, len(text))])
+				agent.conversationCh <- ConversationMsg{
+					AgentID: id,
+					Role:    "assistant",
+					Content: text,
+					Tokens:  0,
+				}
+			}
+			if done {
+				log.Printf("opencode-local: done, tokens: %d", tok)
+				totalTokens = tok
+			}
+		})
 		if err != nil {
 			agent.mu.Lock()
 			agent.status.Status = "error"
@@ -291,15 +308,9 @@ func (m *Manager) SpawnOpenCode(task string, vaultAgentID string) (string, error
 		agent.mu.Lock()
 		agent.status.Status = "completed"
 		agent.status.Objective = task
-		agent.status.Tokens = tokens
+		agent.status.Tokens = totalTokens
 		agent.mu.Unlock()
 
-		agent.conversationCh <- ConversationMsg{
-			AgentID: id,
-			Role:    "assistant",
-			Content: response,
-			Tokens:  tokens,
-		}
 		agent.statusCh <- agent.status
 		close(agent.doneCh)
 		close(agent.conversationCh)

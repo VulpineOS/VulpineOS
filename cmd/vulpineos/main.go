@@ -4,21 +4,17 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"log"
 	"net"
-	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
-	"os/signal"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -31,14 +27,11 @@ import (
 	"vulpineos/internal/juggler"
 	"vulpineos/internal/kernel"
 	"vulpineos/internal/mcp"
-	"vulpineos/internal/monitor"
 	"vulpineos/internal/openclaw"
 	"vulpineos/internal/orchestrator"
 	"vulpineos/internal/pagecache"
 	"vulpineos/internal/pool"
-	"vulpineos/internal/proxy"
 	"vulpineos/internal/recording"
-	"vulpineos/internal/remote"
 	"vulpineos/internal/runtimeaudit"
 	"vulpineos/internal/sentinelcapture"
 	"vulpineos/internal/tui"
@@ -132,40 +125,9 @@ func logSentinelRuntimeStatus(audit *runtimeaudit.Manager) {
 		}
 		return
 	}
-	if audit != nil {
+if audit != nil {
 		_, _ = audit.Log("sentinel", "info", eventName, "Sentinel provider unavailable", metadata)
 	}
-}
-
-func sentinelScopeForAgent(v *vault.DB, contexts *remote.ContextRegistry, agentID string) extensions.SentinelScope {
-	scope := extensions.SentinelScope{AgentID: agentID}
-	if v == nil || agentID == "" {
-		return scope
-	}
-	agent, err := v.GetAgent(agentID)
-	if err != nil {
-		return scope
-	}
-	meta, err := vault.ParseAgentMetadata(agent.Metadata)
-	if err != nil {
-		return scope
-	}
-	scope.ContextID = meta.ContextID
-	if contexts == nil || meta.ContextID == "" {
-		return scope
-	}
-	scope.SessionID = contexts.SessionForContext(meta.ContextID)
-	for _, info := range contexts.List() {
-		if info.ID != meta.ContextID {
-			continue
-		}
-		scope.URL = info.LastURL
-		if parsed, err := url.Parse(info.LastURL); err == nil {
-			scope.Domain = parsed.Hostname()
-		}
-		break
-	}
-	return scope
 }
 
 func startLocalSessionLogging(baseDir string) (restore func(), path string) {
@@ -256,14 +218,7 @@ func Run(args []string) int {
 		binaryPath = fs.String("binary", "", "Path to VulpineOS/Camoufox binary")
 		headless   = fs.Bool("headless", false, "Run in headless mode")
 		profileDir = fs.String("profile", "", "Firefox profile directory")
-		remoteAddr = fs.String("remote", "", "Connect to remote VulpineOS (wss://host:port/ws)")
-		serve      = fs.Bool("serve", false, "Run as remote-accessible server")
-		port       = fs.Int("port", 8443, "Server port (with serve)")
-		apiKey     = fs.String("api-key", "", "API key for remote authentication")
-		tlsCert    = fs.String("tls-cert", "", "TLS certificate file (with serve)")
-		tlsKey     = fs.String("tls-key", "", "TLS key file (with serve)")
-		noTLS      = fs.Bool("no-tls", false, "Disable TLS (plain ws:// instead of wss://)")
-		noBrowser  = fs.Bool("no-browser", false, "Start without launching browser/kernel (demo or panel-only mode)")
+		noBrowser  = fs.Bool("no-browser", false, "Start without launching browser/kernel")
 		mcpServer  = fs.Bool("mcp-server", false, "Run as MCP stdio server (used by OpenClaw)")
 		mcpConnect = fs.String("mcp-connect", "", "WebSocket URL to connect MCP server to remote kernel")
 		listExt    = fs.Bool("list-extensions", false, "Print the status of optional extension providers and exit")
@@ -304,11 +259,7 @@ func Run(args []string) int {
 	var err error
 	switch {
 	case *mcpServer:
-		err = runMCPServer(*binaryPath, *headless, *profileDir, *mcpConnect, *apiKey)
-	case *remoteAddr != "":
-		err = runRemote(*remoteAddr, *apiKey)
-	case *serve:
-		err = runServe(*binaryPath, *headless, *profileDir, "0.0.0.0", *port, *apiKey, *tlsCert, *tlsKey, *noTLS, *noBrowser, false)
+		err = runMCPServer(*binaryPath, *headless, *profileDir, *mcpConnect)
 	default:
 		err = runLocal(*binaryPath, *headless, *profileDir, *noBrowser)
 	}
@@ -324,12 +275,6 @@ func runSubcommand(program string, args []string) int {
 	switch args[0] {
 	case "tui":
 		return runTUISubcommand(args[1:])
-	case "panel":
-		return runPanelSubcommand(args[1:])
-	case "serve":
-		return runServeSubcommand(args[1:])
-	case "remote":
-		return runRemoteSubcommand(args[1:])
 	case "mcp":
 		return runMCPSubcommand(args[1:])
 	default:
@@ -358,107 +303,6 @@ func runTUISubcommand(args []string) int {
 	return 0
 }
 
-func runPanelSubcommand(args []string) int {
-	fs := flag.NewFlagSet("vulpineos panel", flag.ContinueOnError)
-	fs.SetOutput(stderr)
-	binaryPath := fs.String("binary", "", "Path to VulpineOS/Camoufox binary")
-	headless := fs.Bool("headless", false, "Run in headless mode")
-	profileDir := fs.String("profile", "", "Firefox profile directory")
-	port := fs.Int("port", 8443, "Panel port")
-	apiKey := fs.String("api-key", "", "Access key for panel auth (auto-generated if omitted)")
-	noBrowser := fs.Bool("no-browser", false, "Start without launching browser/kernel")
-	if err := fs.Parse(args); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return 0
-		}
-		return 2
-	}
-	if err := runServe(*binaryPath, *headless, *profileDir, "127.0.0.1", *port, *apiKey, "", "", true, *noBrowser, true); err != nil {
-		fmt.Fprintf(stderr, "error: %v\n", err)
-		return 1
-	}
-	return 0
-}
-
-func runServeSubcommand(args []string) int {
-	fs := flag.NewFlagSet("vulpineos serve", flag.ContinueOnError)
-	fs.SetOutput(stderr)
-	binaryPath := fs.String("binary", "", "Path to VulpineOS/Camoufox binary")
-	headless := fs.Bool("headless", false, "Run in headless mode")
-	profileDir := fs.String("profile", "", "Firefox profile directory")
-	host := fs.String("host", "0.0.0.0", "Host/interface to bind")
-	port := fs.Int("port", 8443, "Server port")
-	apiKey := fs.String("api-key", "", "Access key for panel and remote auth (auto-generated if omitted)")
-	tlsCert := fs.String("tls-cert", "", "TLS certificate file")
-	tlsKey := fs.String("tls-key", "", "TLS key file")
-	noTLS := fs.Bool("no-tls", false, "Disable TLS (plain http/ws)")
-	noBrowser := fs.Bool("no-browser", false, "Start without launching browser/kernel")
-	if err := fs.Parse(args); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return 0
-		}
-		return 2
-	}
-	if err := runServe(*binaryPath, *headless, *profileDir, *host, *port, *apiKey, *tlsCert, *tlsKey, *noTLS, *noBrowser, false); err != nil {
-		fmt.Fprintf(stderr, "error: %v\n", err)
-		return 1
-	}
-	return 0
-}
-
-func runRemoteSubcommand(args []string) int {
-	mode := "panel"
-	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
-		switch args[0] {
-		case "panel", "tui":
-			mode = args[0]
-			args = args[1:]
-		default:
-			if !strings.Contains(args[0], "://") && !strings.Contains(args[0], ".") && !strings.Contains(args[0], ":") && args[0] != "localhost" {
-				fmt.Fprintf(stderr, "error: unknown remote mode %q (expected panel or tui)\n", args[0])
-				return 2
-			}
-		}
-	}
-
-	fs := flag.NewFlagSet("vulpineos remote", flag.ContinueOnError)
-	fs.SetOutput(stderr)
-	rawURL := fs.String("url", "", "Remote panel/server URL")
-	apiKey := fs.String("api-key", "", "Remote access key")
-	if err := fs.Parse(args); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return 0
-		}
-		return 2
-	}
-	if *rawURL == "" && fs.NArg() > 0 {
-		*rawURL = fs.Arg(0)
-	}
-
-	switch mode {
-	case "panel":
-		if err := runRemotePanel(*rawURL, *apiKey); err != nil {
-			fmt.Fprintf(stderr, "error: %v\n", err)
-			return 1
-		}
-		return 0
-	case "tui":
-		wsURL, err := normalizeRemoteTUIURL(*rawURL)
-		if err != nil {
-			fmt.Fprintf(stderr, "error: %v\n", err)
-			return 1
-		}
-		if err := runRemote(wsURL, *apiKey); err != nil {
-			fmt.Fprintf(stderr, "error: %v\n", err)
-			return 1
-		}
-		return 0
-	default:
-		fmt.Fprintf(stderr, "error: unknown remote mode %q (expected panel or tui)\n", mode)
-		return 2
-	}
-}
-
 func runMCPSubcommand(args []string) int {
 	fs := flag.NewFlagSet("vulpineos mcp", flag.ContinueOnError)
 	fs.SetOutput(stderr)
@@ -466,14 +310,13 @@ func runMCPSubcommand(args []string) int {
 	headless := fs.Bool("headless", false, "Run in headless mode")
 	profileDir := fs.String("profile", "", "Firefox profile directory")
 	connect := fs.String("connect", "", "Remote VulpineOS URL for MCP to attach to")
-	apiKey := fs.String("api-key", "", "API key for remote MCP authentication")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
 		}
 		return 2
 	}
-	if err := runMCPServer(*binaryPath, *headless, *profileDir, *connect, *apiKey); err != nil {
+	if err := runMCPServer(*binaryPath, *headless, *profileDir, *connect); err != nil {
 		fmt.Fprintf(stderr, "error: %v\n", err)
 		return 1
 	}
@@ -674,31 +517,7 @@ func runRemotePanel(rawURL string, apiKey string) error {
 
 // runMCPServer runs as an MCP stdio server for OpenClaw integration.
 // It connects to a running VulpineOS kernel and translates MCP tool calls to Juggler protocol.
-func runMCPServer(binaryPath string, headless bool, profileDir string, connectURL string, apiKey string) error {
-	if strings.TrimSpace(connectURL) != "" {
-		wsURL, err := normalizeRemoteTUIURL(connectURL)
-		if err != nil {
-			return err
-		}
-		rc, err := remote.Dial(context.Background(), wsURL, apiKey)
-		if err != nil {
-			return fmt.Errorf("connect remote MCP transport: %w", err)
-		}
-		defer rc.Close()
-
-		client := juggler.NewClient(rc)
-		defer client.Close()
-		extensions.InitWithClient(client)
-		if err := enableBrowser(client, "Browser.enable (remote MCP)"); err != nil {
-			if isRemoteBrowserUnavailable(err) {
-				return fmt.Errorf("remote server was started without a browser; MCP browser tools are unavailable, use `vulpineos remote panel` for panel-only servers")
-			}
-			return err
-		}
-
-		server := mcp.NewServer(client)
-		return server.Run()
-	}
+func runMCPServer(binaryPath string, headless bool, profileDir string, connectURL string) error {
 
 	resolvedBinaryPath, err := kernel.ResolveBinaryPath(strings.TrimSpace(binaryPath))
 	if err != nil {
@@ -1038,465 +857,4 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 	p := tea.NewProgram(app, tea.WithAltScreen())
 	_, runErr := p.Run()
 	return runErr
-}
-
-// runRemote connects to a remote VulpineOS server and launches the TUI.
-func runRemote(addr string, apiKey string) error {
-	ctx := context.Background()
-	rc, err := remote.Dial(ctx, addr, apiKey)
-	if err != nil {
-		return fmt.Errorf("connect to remote: %w", err)
-	}
-	defer rc.Close()
-
-	// Create a Juggler client over the WebSocket transport
-	client := juggler.NewClient(rc)
-	defer client.Close()
-
-	extensions.InitWithClient(client)
-	if err := enableBrowser(client, "Browser.enable (remote)"); err != nil {
-		if isRemoteBrowserUnavailable(err) {
-			return fmt.Errorf("remote server was started without a browser; use `vulpineos remote panel` for panel-only servers")
-		}
-		return err
-	}
-
-	app := tui.NewApp(nil, client, nil, nil, nil, nil)
-	p := tea.NewProgram(app, tea.WithAltScreen())
-	_, err = p.Run()
-	return err
-}
-
-// runServe starts the kernel and exposes it via WebSocket server.
-func runServe(binaryPath string, headless bool, profileDir string, host string, port int, apiKey string, tlsCert, tlsKey string, noTLS bool, noBrowser bool, openPanel bool) error {
-	apiKey, generatedKey, err := ensureAccessKey(apiKey)
-	if err != nil {
-		return fmt.Errorf("generate access key: %w", err)
-	}
-	// Load config
-	cfg, err := config.Load()
-	if err != nil {
-		log.Printf("Warning: could not load config: %v", err)
-		cfg = &config.Config{}
-	}
-	if cfg.HydrateFromOpenClawProfile() {
-		if saveErr := cfg.Save(); saveErr != nil {
-			log.Printf("Warning: could not persist repaired config: %v", saveErr)
-		}
-	}
-	resolvedBinaryPath := strings.TrimSpace(binaryPath)
-	if resolvedBinaryPath == "" && cfg != nil {
-		resolvedBinaryPath = strings.TrimSpace(cfg.BinaryPath)
-	}
-
-	var (
-		audit  *runtimeaudit.Manager
-		k      *kernel.Kernel
-		client *juggler.Client
-		wd     *kernel.Watchdog
-	)
-
-	// Open vault
-	v, _ := vault.Open()
-	if v != nil {
-		if err := v.ReconcileNonTerminalAgents("interrupted"); err != nil {
-			log.Printf("Warning: reconcile agents: %v", err)
-		}
-		audit = runtimeaudit.New(v)
-		defer v.Close()
-		defer audit.Close()
-	}
-
-	if !noBrowser {
-		resolvedBinaryPath, err = kernel.ResolveBinaryPath(resolvedBinaryPath)
-		if err != nil {
-			return err
-		}
-		k = kernel.New()
-		if err := k.Start(kernel.Config{
-			BinaryPath: resolvedBinaryPath,
-			Headless:   headless,
-			ProfileDir: profileDir,
-		}); err != nil {
-			return fmt.Errorf("start kernel: %w", err)
-		}
-		defer func() {
-			if audit != nil {
-				_, _ = audit.Log("kernel", "info", "stopped", "kernel stopped", map[string]string{
-					"pid": fmt.Sprintf("%d", k.PID()),
-				})
-			}
-			_ = k.Stop()
-		}()
-
-		client = k.Client()
-		extensions.InitWithClient(client)
-		logSentinelRuntimeStatus(audit)
-		if err := enableBrowser(client, "Browser.enable"); err != nil {
-			return err
-		}
-
-		if audit != nil {
-			_, _ = audit.Log("kernel", "info", "started", "kernel started", map[string]string{
-				"pid":      fmt.Sprintf("%d", k.PID()),
-				"headless": fmt.Sprintf("%t", headless),
-			})
-		}
-		wd = kernel.NewWatchdog(k, false)
-		wd.SetConfig(kernel.Config{
-			BinaryPath: resolvedBinaryPath,
-			Headless:   headless,
-			ProfileDir: profileDir,
-		})
-		wd.OnEvent(func(event kernel.WatchdogEvent) {
-			if audit == nil {
-				return
-			}
-			level := "warn"
-			message := "kernel event"
-			switch event.Type {
-			case "crashed":
-				level = "error"
-				message = "kernel exited unexpectedly"
-			case "restart_success":
-				message = "kernel restarted"
-			case "restart_failed":
-				level = "error"
-				message = "kernel restart failed"
-			}
-			metadata := map[string]string{}
-			if event.Attempt > 0 {
-				metadata["attempt"] = fmt.Sprintf("%d", event.Attempt)
-			}
-			if event.Err != nil {
-				metadata["error"] = event.Err.Error()
-			}
-			_, _ = audit.Log("kernel", level, event.Type, message, metadata)
-		})
-		wd.Start()
-		defer wd.Stop()
-		if warning := kernel.DetectStaleBinary(resolvedBinaryPath); warning != nil {
-			log.Printf("Warning: %s", warning.Message())
-			if audit != nil {
-				_, _ = audit.Log("kernel", "warn", "stale_binary", "selected browser binary is older than repo-local build", map[string]string{
-					"selected":      warning.SelectedPath,
-					"preferred":     warning.PreferredPath,
-					"selected_mod":  warning.SelectedMod.UTC().Format(time.RFC3339),
-					"preferred_mod": warning.PreferredMod.UTC().Format(time.RFC3339),
-				})
-			}
-		}
-	} else {
-		log.Printf("browser disabled — serving panel/control API without kernel")
-	}
-
-	if resolvedBinaryPath != "" && cfg != nil && cfg.BinaryPath != resolvedBinaryPath {
-		cfg.BinaryPath = resolvedBinaryPath
-		if err := cfg.Save(); err != nil {
-			log.Printf("Warning: could not persist binary path: %v", err)
-		}
-	}
-
-	// Create orchestrator with subsystems
-	var orch *orchestrator.Orchestrator
-	var bus *agentbus.Bus
-	var costs *costtrack.Tracker
-	var wh *webhooks.Manager
-	var rec *recording.Recorder
-	if v != nil {
-		model := ""
-		if cfg != nil {
-			model = cfg.Model
-		}
-		bus = agentbus.New()
-		costs = costtrack.New(model)
-		wh = webhooks.New()
-		rec = recording.NewRecorder()
-		if k != nil && client != nil {
-			orch = orchestrator.New(k, client, v, pool.DefaultConfig(), "openclaw", orchestrator.Opts{
-				AgentBus:  bus,
-				Costs:     costs,
-				Webhooks:  wh,
-				Recording: rec,
-				PageCache: pagecache.New(filepath.Join(config.Dir(), "pagecache")),
-			})
-		} else if cfg != nil && cfg.Provider == "opencode-local" {
-			orch = orchestrator.New(nil, nil, v, pool.DefaultConfig(), "openclaw", orchestrator.Opts{
-				AgentBus:  bus,
-				Costs:     costs,
-				Webhooks:  wh,
-				Recording: rec,
-				PageCache: pagecache.New(filepath.Join(config.Dir(), "pagecache")),
-			})
-		}
-		if orch != nil {
-			if audit != nil {
-				orch.Agents.SetRuntimeAudit(audit)
-			}
-			if startErr := orch.Start(); startErr != nil {
-				log.Printf("Warning: orchestrator start: %v", startErr)
-			} else {
-				defer orch.Close()
-			}
-		}
-	}
-
-	contexts := remote.NewContextRegistry()
-	// Create proxy rotator
-	rotator := proxy.NewRotator()
-	rotator.SetObserver(func(event proxy.RotationEvent) {
-		_ = sentinelcapture.RecordProxyRotationWithScope(context.Background(), event, sentinelScopeForAgent(v, contexts, event.AgentID))
-	})
-
-	addr := fmt.Sprintf("%s:%d", host, port)
-	server := remote.NewServer(addr, apiKey, client)
-
-	// Wire PanelAPI for control message handling
-	panelAPI := &remote.PanelAPI{
-		Orchestrator: orch,
-		Config:       cfg,
-		Vault:        v,
-		AgentBus:     bus,
-		Costs:        costs,
-		Webhooks:     wh,
-		Recorder:     rec,
-		Rotator:      rotator,
-		Kernel:       k,
-		Client:       client,
-		Contexts:     contexts,
-		RuntimeAudit: audit,
-	}
-	if err := panelAPI.SyncPersistentState(); err != nil {
-		log.Printf("Warning: sync persistent state: %v", err)
-	}
-	server.SetPanelAPI(panelAPI)
-
-	// Forward telemetry events to connected clients
-	if client != nil {
-		for _, event := range []string{
-			"Browser.telemetryUpdate",
-			"Browser.injectionAttemptDetected",
-			"Browser.trustWarmingStateChanged",
-			"Browser.attachedToTarget",
-			"Browser.detachedFromTarget",
-			"Page.browserProbeDetected",
-			"Page.navigationCommitted",
-			"Page.eventFired",
-			"Page.frameAttached",
-			"Runtime.executionContextCreated",
-			"Runtime.executionContextDestroyed",
-		} {
-			evt := event
-			client.Subscribe(evt, func(sessionID string, params json.RawMessage) {
-				switch evt {
-				case "Browser.attachedToTarget":
-					var payload struct {
-						SessionID  string `json:"sessionId"`
-						TargetInfo struct {
-							BrowserContextID string `json:"browserContextId"`
-							URL              string `json:"url"`
-						} `json:"targetInfo"`
-					}
-					if err := json.Unmarshal(params, &payload); err == nil {
-						contexts.Attached(payload.SessionID, payload.TargetInfo.BrowserContextID, payload.TargetInfo.URL)
-					}
-				case "Browser.detachedFromTarget":
-					var payload struct {
-						SessionID string `json:"sessionId"`
-					}
-					if err := json.Unmarshal(params, &payload); err == nil {
-						contexts.Detached(payload.SessionID)
-					}
-				case "Page.browserProbeDetected":
-					var payload juggler.BrowserProbe
-					if err := json.Unmarshal(params, &payload); err == nil {
-						_ = sentinelcapture.RecordBrowserProbe(context.Background(), sessionID, payload)
-					}
-				case "Browser.trustWarmingStateChanged":
-					var payload juggler.TrustWarmingState
-					if err := json.Unmarshal(params, &payload); err == nil {
-						_ = sentinelcapture.RecordTrustActivity(context.Background(), payload)
-					}
-				}
-				server.BroadcastEvent(evt, sessionID, params)
-			})
-		}
-	}
-
-	if orch != nil && v != nil {
-		statusCh := orch.Agents.StatusChan()
-		go func() {
-			for status := range statusCh {
-				if err := v.UpdateAgentStatus(status.AgentID, status.Status); err != nil {
-					log.Printf("vault: update agent status %s: %v", status.AgentID, err)
-				}
-				if status.Tokens > 0 {
-					if err := v.UpdateAgentTokens(status.AgentID, status.Tokens); err != nil {
-						log.Printf("vault: update agent tokens %s: %v", status.AgentID, err)
-					}
-				}
-				payload := map[string]interface{}{
-					"agentId":   status.AgentID,
-					"contextId": status.ContextID,
-					"status":    status.Status,
-					"objective": status.Objective,
-					"tokens":    status.Tokens,
-				}
-				if encoded, err := json.Marshal(payload); err == nil {
-					server.BroadcastEvent("Vulpine.agentStatus", "", encoded)
-				}
-			}
-		}()
-
-		conversationCh := orch.Agents.ConversationChan()
-		mon := monitor.New()
-		defer mon.Dispose()
-		go func() {
-			for alert := range mon.AlertChan() {
-				_ = sentinelcapture.RecordMonitorAlert(context.Background(), alert)
-				if audit != nil {
-					_, _ = audit.Log("monitor", "warn", string(alert.Type), alert.Details, map[string]string{
-						"agent_id": alert.AgentID,
-					})
-				}
-			}
-		}()
-		go func() {
-			for msg := range conversationCh {
-				if err := v.AppendMessage(msg.AgentID, msg.Role, msg.Content, msg.Tokens); err != nil {
-					log.Printf("vault: append message %s: %v", msg.AgentID, err)
-				}
-				payload := map[string]interface{}{
-					"agentId": msg.AgentID,
-					"role":    msg.Role,
-					"content": msg.Content,
-					"tokens":  msg.Tokens,
-				}
-				if encoded, err := json.Marshal(payload); err == nil {
-					server.BroadcastEvent("Vulpine.conversation", "", encoded)
-				}
-				if msg.Role == "assistant" || msg.Role == "system" {
-					mon.CheckMessage(msg.AgentID, msg.Content)
-				}
-			}
-		}()
-	}
-
-	if audit != nil {
-		sub := audit.Subscribe()
-		go func() {
-			for event := range sub {
-				if encoded, err := json.Marshal(event); err == nil {
-					server.BroadcastEvent("Vulpine.runtimeEvent", "", encoded)
-				}
-			}
-		}()
-	}
-
-	// Serve the web panel from embedded files
-	if panelFS := PanelFS(); panelFS != nil {
-		remote.ServePanel(server.Mux(), panelFS)
-		log.Println("web panel available at /")
-	}
-
-	if client != nil {
-		// Start embedded foxbridge CDP server
-		fb := foxbridge.New()
-		fb.SetRuntimeAudit(audit)
-		if err := fb.StartEmbeddedMode(client, 9222); err != nil {
-			log.Printf("foxbridge: %v (CDP proxy not available)", err)
-		} else {
-			defer fb.Stop()
-			cfg.FoxbridgeCDPURL = fb.CDPURL()
-			exe, _ := os.Executable()
-			if generated, err := tryGenerateOpenClawConfig(cfg, exe, resolvedBinaryPath); err != nil {
-				log.Printf("Warning: could not generate OpenClaw config: %v", err)
-			} else if generated {
-				if err := config.RepairOpenClawProfile(cfg.FoxbridgeCDPURL); err != nil {
-					log.Printf("Warning: could not repair OpenClaw profile after foxbridge start: %v", err)
-				}
-			}
-			log.Printf("foxbridge CDP on %s", fb.CDPURL())
-		}
-
-		gw := startGatewayIfAvailable(cfg, audit)
-		if gw != nil {
-			panelAPI.Gateway = gw
-			defer func() {
-				if audit != nil {
-					_, _ = audit.Log("gateway", "info", "stopped", "OpenClaw gateway stopped", nil)
-				}
-				gw.Stop()
-			}()
-		}
-
-		log.Printf("VulpineOS kernel running (PID %d)", k.PID())
-	} else {
-		log.Printf("VulpineOS remote server running without kernel/browser")
-	}
-
-	panelURL := printPanelAccess(host, port, !noTLS, apiKey, generatedKey)
-	if openPanel {
-		go func() {
-			time.Sleep(500 * time.Millisecond)
-			if err := openBrowserURL(panelURL); err != nil {
-				log.Printf("warning: could not open browser automatically: %v", err)
-			}
-		}()
-	}
-
-	if noTLS {
-		log.Printf("TLS disabled — serving plain ws:// on port %d", port)
-		return runServerUntilSignal(server.Start, server)
-	}
-
-	// Resolve TLS certificates
-	certFile, keyFile := tlsCert, tlsKey
-	if certFile == "" || keyFile == "" {
-		// Auto-generate self-signed certs
-		auto, autoKey, err := remote.GenerateSelfSignedCert()
-		if err != nil {
-			return fmt.Errorf("auto-generate TLS cert: %w", err)
-		}
-		certFile, keyFile = auto, autoKey
-		log.Printf("Using auto-generated self-signed TLS certificate")
-	}
-
-	fp, err := remote.CertFingerprint(certFile)
-	if err == nil {
-		log.Printf("TLS cert fingerprint: %s", fp)
-	}
-	return runServerUntilSignal(func() error {
-		return server.StartTLS(certFile, keyFile)
-	}, server)
-}
-
-func runServerUntilSignal(start func() error, server *remote.Server) error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- start()
-	}()
-
-	select {
-	case err := <-errCh:
-		if err == nil || errors.Is(err, http.ErrServerClosed) {
-			return nil
-		}
-		return err
-	case <-ctx.Done():
-		stop()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if err := server.Stop(shutdownCtx); err != nil {
-			return fmt.Errorf("shutdown server: %w", err)
-		}
-		err := <-errCh
-		if err == nil || errors.Is(err, http.ErrServerClosed) {
-			return nil
-		}
-		return err
-	}
 }

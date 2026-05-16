@@ -40,6 +40,8 @@ type StepFinishEvent struct {
 	Part StepFinishPart  `json:"part"`
 }
 
+type StreamCallback func(text string, done bool, tokens int)
+
 func NewClient(binaryPath string) *Client {
 	if binaryPath == "" {
 		binaryPath = "opencode"
@@ -60,6 +62,10 @@ func (c *Client) SetSession(sessionID string) {
 }
 
 func (c *Client) SendMessage(prompt string) (string, int, error) {
+	return c.SendMessageWithCallback(prompt, nil)
+}
+
+func (c *Client) SendMessageWithCallback(prompt string, callback StreamCallback) (string, int, error) {
 	c.mu.Lock()
 	sessionID := c.sessionID
 	c.mu.Unlock()
@@ -85,7 +91,7 @@ func (c *Client) SendMessage(prompt string) (string, int, error) {
 
 	defer cmd.Wait()
 
-	response, tokens, parseErr := c.parseResponse(stdout)
+	response, tokens, parseErr := c.parseResponseWithCallback(stdout, callback)
 
 	if sessionID == "" {
 		c.mu.Lock()
@@ -100,7 +106,7 @@ func extractSessionID(stdout io.Reader) string {
 	return ""
 }
 
-func (c *Client) parseResponse(stdout io.Reader) (string, int, error) {
+func (c *Client) parseResponseWithCallback(stdout io.Reader, callback StreamCallback) (string, int, error) {
 	scanner := bufio.NewScanner(stdout)
 	var fullText string
 	var totalTokens int
@@ -117,6 +123,9 @@ func (c *Client) parseResponse(stdout io.Reader) (string, int, error) {
 			if textEvent.Type == "text" {
 				fullText += textEvent.Part.Text
 				foundText = true
+				if callback != nil {
+					callback(textEvent.Part.Text, false, 0)
+				}
 			}
 			continue
 		}
@@ -135,6 +144,10 @@ func (c *Client) parseResponse(stdout io.Reader) (string, int, error) {
 
 	if !foundText {
 		return "", 0, fmt.Errorf("no response from opencode")
+	}
+
+	if callback != nil {
+		callback("", true, totalTokens)
 	}
 
 	return strings.TrimSpace(fullText), totalTokens, nil

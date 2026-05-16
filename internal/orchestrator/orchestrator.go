@@ -272,7 +272,10 @@ func (o *Orchestrator) KillAgent(agentID string) error {
 
 // Status returns the orchestrator's current state.
 func (o *Orchestrator) Status() Status {
-	avail, active, total := o.Pool.Stats()
+	var avail, active, total int
+	if o.Pool != nil {
+		avail, active, total = o.Pool.Stats()
+	}
 
 	citizenCount := 0
 	templateCount := 0
@@ -288,9 +291,16 @@ func (o *Orchestrator) Status() Status {
 		totalCost = o.Costs.TotalCost()
 	}
 
+	kernelRunning := false
+	kernelPID := 0
+	if o.Kernel != nil {
+		kernelRunning = o.Kernel.Running()
+		kernelPID = o.Kernel.PID()
+	}
+
 	return Status{
-		KernelRunning:  o.Kernel.Running(),
-		KernelPID:      o.Kernel.PID(),
+		KernelRunning:  kernelRunning,
+		KernelPID:      kernelPID,
 		PoolAvailable:  avail,
 		PoolActive:     active,
 		PoolTotal:      total,
