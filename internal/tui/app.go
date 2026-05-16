@@ -134,14 +134,15 @@ type App struct {
 	conversation conversation.Model
 	contextList  contextlist.Model
 	settings     settings.Model
-	setupWizard  setup.Model
+	setupWizard  *setup.Model
 	setupActive  bool
 
 	// State
 	selectedAgentID         string
-	inputMode               string // "" | "new-agent-name" | "new-agent-desc" | "chat"
+	inputMode               string // "" | "new-agent-name" | "new-agent-desc" | "chat" | "rename"
 	newAgentName            string // temp storage during agent creation
 	newAgentContext         string
+	renameAgentID           string  // agent ID being renamed
 	notice                  string
 	noticeTTL               int  // number of ticks before notice is cleared
 	confirmDelete           bool // true when waiting for delete confirmation
@@ -151,8 +152,9 @@ type App struct {
 	liveAgentContexts       map[string]string
 
 	// Text inputs
-	nameInput textinput.Model
-	taskInput textinput.Model
+	nameInput   textinput.Model
+	taskInput   textinput.Model
+	renameInput textinput.Model
 
 	eventCh  chan tea.Msg
 	eventIn  chan tea.Msg
@@ -187,6 +189,11 @@ func NewAppWithControl(k *kernel.Kernel, client *juggler.Client, orch *orchestra
 	taskIn.CharLimit = 500
 	taskIn.Width = 60
 
+	renameIn := textinput.New()
+	renameIn.Placeholder = "New agent name..."
+	renameIn.CharLimit = 64
+	renameIn.Width = 40
+
 	mon := monitor.New()
 
 	app := App{
@@ -203,6 +210,7 @@ func NewAppWithControl(k *kernel.Kernel, client *juggler.Client, orch *orchestra
 		rightSplit:        10, // agent detail height in right column
 		nameInput:         nameIn,
 		taskInput:         taskIn,
+		renameInput:       renameIn,
 		systemInfo:        systeminfo.New(),
 		agentList:         agentlist.New(),
 		agentDetail:       agentdetail.New(),
@@ -709,17 +717,16 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a.updateNameInput(msg)
 		case "new-agent-desc":
 			return a.updateDescInput(msg)
+		case "rename":
+			return a.updateRenameInput(msg)
 		case "chat":
-			if a.conversation.Focused() {
-				if a.conversationInputLocked() && isGlobalLifecycleKey(msg) {
-					break
-				}
-				if a.allowFocusedChatShortcut(msg) {
-					break
-				}
-				return a.updateChatInput(msg)
+			if a.conversation.Focused() && a.conversationInputLocked() && isGlobalLifecycleKey(msg) {
+				break
 			}
-			if !a.allowFocusedChatShortcut(msg) {
+			if a.conversation.Focused() && a.allowFocusedChatShortcut(msg) {
+				break
+			}
+			if a.conversation.Focused() || !a.allowFocusedChatShortcut(msg) {
 				if a.conversationInputLocked() && isGlobalLifecycleKey(msg) {
 					break
 				}
@@ -823,6 +830,22 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			a.notice = "No orchestrator available"
 			a.noticeTTL = 3
+		case "rn":
+			if a.selectedAgentID != "" {
+				agent, err := a.vault.GetAgent(a.selectedAgentID)
+				if err != nil {
+					a.notice = "Failed to get agent: " + err.Error()
+					a.noticeTTL = 3
+					return a, nil
+				}
+				a.renameAgentID = a.selectedAgentID
+				a.renameInput.SetValue(agent.Name)
+				a.inputMode = "rename"
+				a.renameInput.Focus()
+				return a, textinput.Blink
+			}
+			a.notice = "No agent selected"
+			a.noticeTTL = 3
 		case "x":
 			// Delete selected agent — ask for confirmation
 			if a.selectedAgentID != "" {
@@ -848,6 +871,8 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "v":
 			a.handleBrowserToggle()
+		case "V":
+			a.handleHideAll()
 		case "o":
 			a.handleOpenSessionLog()
 		case "enter":
@@ -1128,6 +1153,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !isLiveAgentStatus(msg.Status) {
 				a.conversation.SetThinking(false)
 			}
+			a.conversation.SetAgentStatus(msg.Status)
 			if pendingTerminalStatus {
 				a.focus = FocusConversation
 				a.inputMode = "chat"
@@ -1329,11 +1355,10 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.noticeTTL = 3
 
 	case shared.SettingsClosedMsg:
-		a.settings.SetActive(false)
-		if a.focus == FocusSettings {
-			a.focus = FocusAgentList
-		}
-
+		a.focus = FocusAgentList
+	case shared.SettingsNoticeMsg:
+		a.notice = msg.Message
+		a.noticeTTL = 3
 	case shared.ReconfigureRequestedMsg:
 		if a.control != nil {
 			a.notice = "Remote reconfigure is unavailable in TUI; use the web panel"
@@ -1512,6 +1537,39 @@ func (a App) updateDescInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
+func (a App) updateRenameInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c":
+		return a, a.shutdown()
+	case "enter":
+		newName := strings.TrimSpace(a.renameInput.Value())
+		if newName != "" && a.renameAgentID != "" {
+			if err := a.vault.UpdateAgentName(a.renameAgentID, newName); err != nil {
+				a.notice = "Failed to rename agent: " + err.Error()
+				a.noticeTTL = 3
+			} else {
+				a.notice = "Agent renamed to \"" + newName + "\""
+				a.noticeTTL = 3
+			}
+		}
+		a.inputMode = ""
+		a.renameAgentID = ""
+		a.renameInput.Blur()
+		a.renameInput.Reset()
+		return a, nil
+	case "esc":
+		a.inputMode = ""
+		a.renameAgentID = ""
+		a.renameInput.Blur()
+		a.renameInput.Reset()
+		return a, nil
+	default:
+		var cmd tea.Cmd
+		a.renameInput, cmd = a.renameInput.Update(msg)
+		return a, cmd
+	}
+}
+
 // updateChatInput handles keystrokes in "chat" mode.
 func (a App) updateChatInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if a.conversationInputLocked() {
@@ -1601,40 +1659,61 @@ func (a *App) cycleFocus() {
 func (a App) allowFocusedChatShortcut(msg tea.KeyMsg) bool {
 	switch msg.String() {
 	case "v", "t", "o", "m", "S", "c":
-		return strings.TrimSpace(a.conversation.TextInput().Value()) == ""
+		if strings.TrimSpace(a.conversation.TextInput().Value()) == "" || !a.conversation.IsInputFocused() {
+			return true
+		}
+		return false
 	default:
 		return false
 	}
 }
 
 func (a *App) handleBrowserToggle() {
-	if a.kernel != nil && a.kernel.Window() != nil {
-		visible, err := a.kernel.Window().Toggle()
-		if err != nil {
-			a.notice = "Browser toggle failed: " + err.Error()
-		} else if visible {
-			a.notice = "Browser window shown — press v to hide"
-		} else {
-			a.notice = "Browser window hidden"
-		}
+	if a.kernel == nil || a.kernel.Window() == nil {
+		a.notice = "Browser not available"
 		a.noticeTTL = 3
 		return
 	}
-	if a.kernel != nil && a.kernel.IsHeadless() {
-		a.notice = "Cannot show browser in headless mode — run with --headful"
-		a.noticeTTL = 4
+
+	contextID := a.contextList.SelectedContextID()
+	if contextID == "" {
+		a.notice = "Select a context first"
+		a.noticeTTL = 3
 		return
 	}
-	url := a.contextList.SelectedURL()
-	if url != "" && url != "about:blank" {
-		if err := openExternalTarget(url); err != nil {
-			a.notice = "Failed to open URL: " + err.Error()
-			a.noticeTTL = 4
+
+	window := a.kernel.Window()
+	visible := window.IsContextVisible(contextID)
+
+	if visible {
+		if err := window.HideContext(contextID); err != nil {
+			a.notice = "Failed to hide context: " + err.Error()
 		} else {
-			a.notice = "Opened " + contextlist.SafeDisplayURL(url)
-			a.noticeTTL = 3
+			a.notice = "Context hidden"
+		}
+	} else {
+		if err := window.ShowContext(contextID); err != nil {
+			a.notice = "Failed to show context: " + err.Error()
+		} else {
+			a.notice = "Context shown — press v to hide"
 		}
 	}
+	a.noticeTTL = 3
+}
+
+func (a *App) handleHideAll() {
+	if a.kernel == nil || a.kernel.Window() == nil {
+		a.notice = "Browser not available"
+		a.noticeTTL = 3
+		return
+	}
+
+	if err := a.kernel.Window().HideAll(); err != nil {
+		a.notice = "Failed to hide all: " + err.Error()
+	} else {
+		a.notice = "All contexts hidden"
+	}
+	a.noticeTTL = 3
 }
 
 func (a *App) handleOpenSessionLog() {
@@ -1775,9 +1854,10 @@ func (a App) View() string {
 	if a.setupActive {
 		wizard := a.setupWizard
 		model, _ := wizard.Update(tea.WindowSizeMsg{Width: a.width, Height: a.height})
-		if updated, ok := model.(setup.Model); ok {
+		if updated, ok := model.(*setup.Model); ok {
 			wizard = updated
 		}
+		a.setupWizard = wizard
 		return fitTerminalBlock(wizard.View(), a.width, a.height)
 	}
 	if a.height < 4 {
@@ -2198,7 +2278,7 @@ func (a *App) startEmbeddedReconfigure() tea.Cmd {
 	a.focus = FocusSettings
 	if a.width > 0 && a.height > 0 {
 		model, _ := a.setupWizard.Update(tea.WindowSizeMsg{Width: a.width, Height: a.height})
-		if wizard, ok := model.(setup.Model); ok {
+		if wizard, ok := model.(*setup.Model); ok {
 			a.setupWizard = wizard
 		}
 	}
@@ -2220,7 +2300,7 @@ func (a App) updateEmbeddedSetup(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	model, cmd := a.setupWizard.Update(msg)
-	if wizard, ok := model.(setup.Model); ok {
+	if wizard, ok := model.(*setup.Model); ok {
 		a.setupWizard = wizard
 	}
 	if a.setupWizard.Done() {
