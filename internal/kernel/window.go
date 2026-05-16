@@ -130,7 +130,9 @@ func (w *WindowController) ShowContext(contextID string) error {
 	w.mu.Unlock()
 
 	if len(pids) == 0 {
-		return fmt.Errorf("no windows found for context %s", contextID)
+		// Fall back to main window if no context windows registered
+		wc := NewWindowController(w.pid)
+		return wc.Show()
 	}
 	var lastErr error
 	for _, pid := range pids {
@@ -151,7 +153,9 @@ func (w *WindowController) HideContext(contextID string) error {
 	w.mu.Unlock()
 
 	if len(pids) == 0 {
-		return fmt.Errorf("no windows found for context %s", contextID)
+		// Fall back to main window if no context windows registered
+		wc := NewWindowController(w.pid)
+		return wc.Hide()
 	}
 	var lastErr error
 	for _, pid := range pids {
