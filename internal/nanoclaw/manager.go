@@ -789,8 +789,11 @@ func provisionOpenRouterIfNeeded() error {
 		return nil
 	}
 
+	log.Printf("PROVISIONING: OpenRouter provider detected, provisioning NanoClaw...")
+
 	nanoclawDir := GetNanoclawDir()
 	if nanoclawDir == "" {
+		log.Printf("PROVISIONING: NanoClaw dir not found, skipping")
 		return nil
 	}
 
@@ -799,17 +802,21 @@ func provisionOpenRouterIfNeeded() error {
 		return fmt.Errorf("lookup nanoclaw agent group: %w", err)
 	}
 	if agentGroupID == "" {
+		log.Printf("PROVISIONING: No agent group ID found, skipping")
 		return nil
 	}
 
+	log.Printf("PROVISIONING: Setting container config for agent group %s", agentGroupID[:8])
 	if err := SetContainerConfig(nanoclawDir, agentGroupID, "opencode", cfg.Model); err != nil {
 		return fmt.Errorf("set container config: %w", err)
 	}
 
 	secretPath := filepath.Join(nanoclawDir, "data", "secrets.yaml")
+	log.Printf("PROVISIONING: Creating OpenRouter secret at %s", secretPath)
 	if err := CreateOpenRouterSecret(secretPath, cfg.APIKey); err != nil {
 		return fmt.Errorf("create openrouter secret: %w", err)
 	}
 
+	log.Printf("PROVISIONING: Done - provider=opencode, model=%s", cfg.Model)
 	return nil
 }
