@@ -144,17 +144,20 @@ func contextWithTimeout(d time.Duration) (context.Context, context.CancelFunc) {
 }
 
 func findOpenClawBinary() string {
+	if path, err := exec.LookPath("nanoclaw"); err == nil {
+		return path
+	}
 	if path, err := exec.LookPath("openclaw"); err == nil {
 		return path
 	}
 
 	paths := []string{
-		"./node_modules/.bin/openclaw",
-		"node_modules/.bin/openclaw",
-		filepath.Join(os.Getenv("HOME"), ".openclaw-vulpine", "openclaw"),
-		"/opt/homebrew/bin/openclaw",
-		"/usr/local/bin/openclaw",
-		"/usr/bin/openclaw",
+		"./node_modules/.bin/nanoclaw",
+		"node_modules/.bin/nanoclaw",
+		filepath.Join(os.Getenv("HOME"), ".nanoclaw", "nanoclaw"),
+		"/opt/homebrew/bin/nanoclaw",
+		"/usr/local/bin/nanoclaw",
+		"/usr/bin/nanoclaw",
 	}
 	for _, p := range paths {
 		if abs, err := filepath.Abs(p); err == nil {

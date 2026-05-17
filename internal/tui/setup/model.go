@@ -57,7 +57,7 @@ func NewWithConfig(existing *config.Config) Model {
 
 	m := Model{
 		step:        stepProvider,
-		providers:   config.Providers,
+		providers:   config.MergedProviders(),
 		apiKeyInput: ti,
 		cfg:         &config.Config{},
 	}
@@ -66,29 +66,22 @@ func NewWithConfig(existing *config.Config) Model {
 	}
 
 	m.cfg.Provider = existing.Provider
-	m.cfg.APIKey = existing.APIKey
-	m.cfg.Model = existing.Model
-	m.cfg.BinaryPath = existing.BinaryPath
-	m.cfg.ResizePanelsWithArrows = existing.ResizePanelsWithArrows
-	m.cfg.GlobalSkills = append([]config.SkillEntry(nil), existing.GlobalSkills...)
-	if len(existing.AgentSkills) > 0 {
-		m.cfg.AgentSkills = make(map[string][]config.SkillEntry, len(existing.AgentSkills))
-		for agentID, skills := range existing.AgentSkills {
-			m.cfg.AgentSkills[agentID] = append([]config.SkillEntry(nil), skills...)
-		}
-	}
-	for i, p := range m.providers {
-		if p.ID != existing.Provider {
-			continue
-		}
-		m.providerIdx = i
-		for idx, model := range p.Models {
-			if model == existing.Model {
-				m.modelIdx = idx
-				break
+	m.providers = config.MergedProviders()
+
+	if existing.Provider != "" {
+		for i, p := range m.providers {
+			if p.ID != existing.Provider {
+				continue
 			}
+			m.providerIdx = i
+			for idx, model := range p.Models {
+				if model == existing.Model {
+					m.modelIdx = idx
+					break
+				}
+			}
+			break
 		}
-		break
 	}
 	return m
 }
