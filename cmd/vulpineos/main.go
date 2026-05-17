@@ -54,10 +54,21 @@ var (
 )
 
 var startDaemonIfAvailable = func(cfg *config.Config, audit *runtimeaudit.Manager) *nanoclaw.Daemon {
-	mgr := nanoclaw.NewManager("")
-	if !mgr.NanoClawInstalled() {
+	log.Printf("DEBUG: startDaemonIfAvailable called")
+	if _, socketFound := nanoclaw.FindNanoclawSocket(); socketFound {
+		log.Printf("DEBUG: socket found, returning nil")
+		if audit != nil {
+			_, _ = audit.Log("nanoclaw", "info", "daemon_already_running", "NanoClaw daemon already running via socket", nil)
+		}
 		return nil
 	}
+	log.Printf("DEBUG: socket not found, checking NanoClawInstalled")
+	mgr := nanoclaw.NewManager("")
+	if !mgr.NanoClawInstalled() {
+		log.Printf("DEBUG: NanoClaw not installed, returning nil")
+		return nil
+	}
+	log.Printf("DEBUG: starting daemon")
 	daemon := nanoclaw.NewDaemon("")
 	if err := daemon.Start(); err != nil {
 		log.Printf("Warning: NanoClaw daemon failed to start: %v (agents won't work)", err)
@@ -68,6 +79,7 @@ var startDaemonIfAvailable = func(cfg *config.Config, audit *runtimeaudit.Manage
 		}
 		return nil
 	}
+	log.Printf("DEBUG: daemon started successfully")
 	if audit != nil {
 		_, _ = audit.Log("nanoclaw", "info", "daemon_started", "NanoClaw daemon started", nil)
 	}
@@ -670,8 +682,19 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 		loaderProg := tea.NewProgram(loader, tea.WithAltScreen())
 
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("PANIC in startup goroutine: %v", r)
+					startErr = fmt.Errorf("startup panic: %v", r)
+					loaderProg.Send(loading.DoneMsg{})
+				}
+			}()
+
+			log.Printf("DEBUG: startup goroutine started")
+
 			// Open vault
 			v, _ = vault.Open()
+			log.Printf("DEBUG: vault opened, v=%v", v != nil)
 			if v != nil {
 				if err := v.ReconcileNonTerminalAgents("interrupted"); err != nil {
 					log.Printf("Warning: reconcile agents: %v", err)
@@ -774,14 +797,19 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 
 			// Start NanoClaw daemon before gateway
 			if startErr == nil {
+				log.Printf("DEBUG: calling startDaemonIfAvailable")
 				daemon = startDaemonIfAvailable(cfg, audit)
+				log.Printf("DEBUG: startDaemonIfAvailable returned")
 			}
 
 			// Start OpenClaw gateway for browser support
 			if startErr == nil {
+				log.Printf("DEBUG: calling startGatewayIfAvailable")
 				gw = startGatewayIfAvailable(cfg, audit)
+				log.Printf("DEBUG: startGatewayIfAvailable returned")
 			}
 
+			log.Printf("DEBUG: sending DoneMsg")
 			loaderProg.Send(loading.DoneMsg{})
 		}()
 

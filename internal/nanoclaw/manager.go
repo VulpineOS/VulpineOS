@@ -216,11 +216,6 @@ func (m *Manager) Spawn(contextID string, sopFile string, extraArgs ...string) (
 
 // SpawnIsolated starts an agent with an optional per-run NanoClaw config and cleanup hook.
 func (m *Manager) SpawnIsolated(contextID string, sopFile string, configPath string, cleanup func(), extraArgs ...string) (string, error) {
-	nanoclawBin := m.findNanoClaw()
-	if nanoclawBin == "" {
-		return "", fmt.Errorf("NanoClaw not found. Install: git clone https://github.com/nanocoai/nanoclaw.git")
-	}
-
 	id := uuid.New().String()[:8]
 
 	message := ""
@@ -238,7 +233,25 @@ func (m *Manager) SpawnIsolated(contextID string, sopFile string, configPath str
 		message = "Start."
 	}
 
-	args := nanoclawArgs("vulpine-"+id, message)
+	sessionName := "vulpine-" + id
+
+	// Try socket first (daemon mode) when using default binary
+	useDefaultBinary := m.binary == "" || m.binary == "nanoclaw"
+	if useDefaultBinary {
+		if _, socketFound := FindNanoclawSocket(); socketFound {
+			return m.spawnViaSocket(id, sessionName, message, configPath, cleanup)
+		}
+	}
+
+	nanoclawBin := m.findNanoClaw()
+	if nanoclawBin == "" {
+		if cleanup != nil {
+			cleanup()
+		}
+		return "", fmt.Errorf("NanoClaw not found. Install: git clone https://github.com/nanocoai/nanoclaw.git")
+	}
+
+	args := nanoclawArgs(sessionName, message)
 	return m.startManagedAgent(id, contextID, nanoclawBin, args, configPath, cleanup)
 }
 
