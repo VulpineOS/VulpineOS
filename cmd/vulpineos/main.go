@@ -54,21 +54,16 @@ var (
 )
 
 var startDaemonIfAvailable = func(cfg *config.Config, audit *runtimeaudit.Manager) *nanoclaw.Daemon {
-	log.Printf("DEBUG: startDaemonIfAvailable called")
 	if _, socketFound := nanoclaw.FindNanoclawSocket(); socketFound {
-		log.Printf("DEBUG: socket found, returning nil")
 		if audit != nil {
 			_, _ = audit.Log("nanoclaw", "info", "daemon_already_running", "NanoClaw daemon already running via socket", nil)
 		}
 		return nil
 	}
-	log.Printf("DEBUG: socket not found, checking NanoClawInstalled")
 	mgr := nanoclaw.NewManager("")
 	if !mgr.NanoClawInstalled() {
-		log.Printf("DEBUG: NanoClaw not installed, returning nil")
 		return nil
 	}
-	log.Printf("DEBUG: starting daemon")
 	daemon := nanoclaw.NewDaemon("")
 	if err := daemon.Start(); err != nil {
 		log.Printf("Warning: NanoClaw daemon failed to start: %v (agents won't work)", err)
@@ -79,7 +74,6 @@ var startDaemonIfAvailable = func(cfg *config.Config, audit *runtimeaudit.Manage
 		}
 		return nil
 	}
-	log.Printf("DEBUG: daemon started successfully")
 	if audit != nil {
 		_, _ = audit.Log("nanoclaw", "info", "daemon_started", "NanoClaw daemon started", nil)
 	}
@@ -92,28 +86,30 @@ var startGatewayIfAvailable = func(cfg *config.Config, audit *runtimeaudit.Manag
 		return nil
 	}
 	gw := nanoclaw.NewGateway("")
-	if err := gw.Start(); err != nil {
-		log.Printf("Warning: NanoClaw gateway failed to start: %v (browser tools won't work)", err)
-		if audit != nil {
-			_, _ = audit.Log("gateway", "error", "start_failed", "OpenClaw gateway failed to start", map[string]string{
-				"error": err.Error(),
-			})
-		}
-		return nil
-	}
-	if audit != nil {
-		_, _ = audit.Log("gateway", "info", "started", "OpenClaw gateway started", nil)
-	}
-	if cfg != nil {
-		if err := config.RepairOpenClawProfile(cfg.FoxbridgeCDPURL); err != nil {
-			log.Printf("Warning: could not repair OpenClaw profile after gateway start: %v", err)
+	go func() {
+		if err := gw.Start(); err != nil {
+			log.Printf("Warning: NanoClaw gateway failed to start: %v (browser tools won't work)", err)
 			if audit != nil {
-				_, _ = audit.Log("gateway", "warn", "profile_repair_failed", "OpenClaw profile repair failed after gateway start", map[string]string{
+				_, _ = audit.Log("gateway", "error", "start_failed", "OpenClaw gateway failed to start", map[string]string{
 					"error": err.Error(),
 				})
 			}
+			return
 		}
-	}
+		if audit != nil {
+			_, _ = audit.Log("gateway", "info", "started", "OpenClaw gateway started", nil)
+		}
+		if cfg != nil {
+			if err := config.RepairOpenClawProfile(cfg.FoxbridgeCDPURL); err != nil {
+				log.Printf("Warning: could not repair OpenClaw profile after gateway start: %v", err)
+				if audit != nil {
+					_, _ = audit.Log("gateway", "warn", "profile_repair_failed", "OpenClaw profile repair failed after gateway start", map[string]string{
+						"error": err.Error(),
+					})
+				}
+			}
+		}
+	}()
 	return gw
 }
 
@@ -690,11 +686,8 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 				}
 			}()
 
-			log.Printf("DEBUG: startup goroutine started")
-
 			// Open vault
 			v, _ = vault.Open()
-			log.Printf("DEBUG: vault opened, v=%v", v != nil)
 			if v != nil {
 				if err := v.ReconcileNonTerminalAgents("interrupted"); err != nil {
 					log.Printf("Warning: reconcile agents: %v", err)
@@ -797,19 +790,14 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 
 			// Start NanoClaw daemon before gateway
 			if startErr == nil {
-				log.Printf("DEBUG: calling startDaemonIfAvailable")
 				daemon = startDaemonIfAvailable(cfg, audit)
-				log.Printf("DEBUG: startDaemonIfAvailable returned")
 			}
 
 			// Start OpenClaw gateway for browser support
 			if startErr == nil {
-				log.Printf("DEBUG: calling startGatewayIfAvailable")
 				gw = startGatewayIfAvailable(cfg, audit)
-				log.Printf("DEBUG: startGatewayIfAvailable returned")
 			}
 
-			log.Printf("DEBUG: sending DoneMsg")
 			loaderProg.Send(loading.DoneMsg{})
 		}()
 

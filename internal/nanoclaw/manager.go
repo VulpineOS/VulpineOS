@@ -19,6 +19,8 @@ import (
 	"vulpineos/internal/runtimeaudit"
 )
 
+type oneCLICommandRunner func(name string, args []string, env []string) ([]byte, error)
+
 // Manager manages multiple NanoClaw agent subprocesses.
 type Manager struct {
 	agents map[string]*managedAgent
@@ -795,32 +797,22 @@ func (m *Manager) fanOutConversation() {
 }
 
 func provisionOpenRouterIfNeeded() error {
-	logFile, err := os.OpenFile("/tmp/vulpine-provision.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-	if err == nil {
-		defer logFile.Close()
-		logFile.WriteString("=== provisionOpenRouterIfNeeded called ===\n")
-	}
-
 	cfg, err := config.Load()
 	if err != nil {
 		log.Printf("PROVISIONING: config.Load failed: %v", err)
-		if logFile != nil { logFile.WriteString(fmt.Sprintf("config.Load failed: %v\n", err)) }
 		return nil
 	}
 	log.Printf("PROVISIONING: loaded config - provider=%s model=%s", cfg.Provider, cfg.Model)
-	if logFile != nil { logFile.WriteString(fmt.Sprintf("config: provider=%s model=%s\n", cfg.Provider, cfg.Model)) }
 	if cfg.Provider != "openrouter" {
 		log.Printf("PROVISIONING: not openrouter provider (=%s), skipping", cfg.Provider)
 		return nil
 	}
 
 	log.Printf("PROVISIONING: OpenRouter provider detected, provisioning NanoClaw...")
-	if logFile != nil { logFile.WriteString("OpenRouter detected, provisioning...\n") }
 
 	nanoclawDir := GetNanoclawDir()
 	if nanoclawDir == "" {
 		log.Printf("PROVISIONING: NanoClaw dir not found, skipping")
-		if logFile != nil { logFile.WriteString("NanoClaw dir not found\n") }
 		return nil
 	}
 
@@ -830,24 +822,103 @@ func provisionOpenRouterIfNeeded() error {
 	}
 	if agentGroupID == "" {
 		log.Printf("PROVISIONING: No agent group ID found, skipping")
-		if logFile != nil { logFile.WriteString("No agent group ID\n") }
 		return nil
 	}
 
 	log.Printf("PROVISIONING: Setting container config for agent group %s", agentGroupID[:8])
-	if logFile != nil { logFile.WriteString(fmt.Sprintf("Setting container config for %s\n", agentGroupID[:8])) }
 	if err := SetContainerConfig(nanoclawDir, agentGroupID, "opencode", cfg.Model); err != nil {
 		return fmt.Errorf("set container config: %w", err)
 	}
 
-	secretPath := filepath.Join(nanoclawDir, "data", "secrets.yaml")
-	log.Printf("PROVISIONING: Creating OpenRouter secret at %s", secretPath)
-	if logFile != nil { logFile.WriteString(fmt.Sprintf("Creating secret at %s\n", secretPath)) }
-	if err := CreateOpenRouterSecret(secretPath, cfg.APIKey); err != nil {
-		return fmt.Errorf("create openrouter secret: %w", err)
+	if strings.TrimSpace(cfg.APIKey) != "" {
+		log.Printf("PROVISIONING: Ensuring OpenRouter secret in OneCLI")
+		if err := EnsureOpenRouterOneCLISecret(cfg.APIKey); err != nil {
+			return fmt.Errorf("ensure openrouter onecli secret: %w", err)
+		}
 	}
 
 	log.Printf("PROVISIONING: Done - provider=opencode, model=%s", cfg.Model)
-	if logFile != nil { logFile.WriteString(fmt.Sprintf("DONE - provider=opencode model=%s\n", cfg.Model)) }
 	return nil
+}
+
+func EnsureOpenRouterOneCLISecret(apiKey string) error {
+	return provisionOpenRouterOneCLISecret(apiKey, oneCLIAPIHost(), runOneCLICommand)
+}
+
+func provisionOpenRouterOneCLISecret(apiKey, apiHost string, runner oneCLICommandRunner) error {
+	if runner == nil {
+		runner = runOneCLICommand
+	}
+	env := os.Environ()
+	if strings.TrimSpace(apiHost) != "" {
+		env = append(env, "ONECLI_API_HOST="+strings.TrimSpace(apiHost))
+	}
+
+	listOut, err := runner("onecli", []string{"secrets", "list", "--fields", "id,name,hostPattern", "--max", "100"}, env)
+	if err != nil {
+		return fmt.Errorf("list onecli secrets: %w", err)
+	}
+
+	secretID := openRouterOneCLISecretID(listOut)
+	if secretID != "" {
+		_, err = runner("onecli", []string{"secrets", "update", "--id", secretID, "--value", apiKey, "--host-pattern", "openrouter.ai", "--header-name", "Authorization", "--value-format", "Bearer {value}"}, env)
+		if err != nil {
+			return fmt.Errorf("update onecli openrouter secret: %w", err)
+		}
+		return nil
+	}
+
+	_, err = runner("onecli", []string{"secrets", "create", "--name", "OpenRouter", "--type", "generic", "--value", apiKey, "--host-pattern", "openrouter.ai", "--header-name", "Authorization", "--value-format", "Bearer {value}"}, env)
+	if err != nil {
+		return fmt.Errorf("create onecli openrouter secret: %w", err)
+	}
+	return nil
+}
+
+func openRouterOneCLISecretID(data []byte) string {
+	var secrets []struct {
+		ID          string `json:"id"`
+		Name        string `json:"name"`
+		HostPattern string `json:"hostPattern"`
+	}
+	if err := json.Unmarshal(data, &secrets); err != nil {
+		return ""
+	}
+	for _, secret := range secrets {
+		if secret.Name == "OpenRouter" && secret.HostPattern == "openrouter.ai" && strings.TrimSpace(secret.ID) != "" {
+			return secret.ID
+		}
+	}
+	return ""
+}
+
+func oneCLIAPIHost() string {
+	if host := strings.TrimSpace(os.Getenv("ONECLI_API_HOST")); host != "" {
+		return host
+	}
+	if host := strings.TrimSpace(os.Getenv("ONECLI_URL")); host != "" {
+		return host
+	}
+	return "http://127.0.0.1:10254"
+}
+
+func runOneCLICommand(name string, args []string, env []string) ([]byte, error) {
+	bin := name
+	if name == "onecli" {
+		if resolved, err := exec.LookPath("onecli"); err == nil {
+			bin = resolved
+		} else if home, homeErr := os.UserHomeDir(); homeErr == nil {
+			candidate := filepath.Join(home, "go", "bin", "onecli")
+			if isRunnable(candidate) {
+				bin = candidate
+			}
+		}
+	}
+	cmd := exec.Command(bin, args...)
+	cmd.Env = env
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return out, fmt.Errorf("%v: %s", err, strings.TrimSpace(string(out)))
+	}
+	return out, nil
 }

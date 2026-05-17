@@ -289,12 +289,3 @@ func SetContainerConfig(nanoclawDir, agentGroupID, provider, model string) error
 	}
 	return nil
 }
-
-func CreateOpenRouterSecret(secretPath, apiKey string) error {
-	content := fmt.Sprintf(`secrets:
-  - host: openrouter.ai
-    header:
-      Authorization: "Bearer %s"
-`, apiKey)
-	return os.WriteFile(secretPath, []byte(content), 0600)
-}

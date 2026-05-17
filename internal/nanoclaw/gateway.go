@@ -47,9 +47,12 @@ func (g *Gateway) Start() error {
 		return fmt.Errorf("NanoClaw binary not found")
 	}
 
-	// Kill any stale gateway from a previous VulpineOS session
-	stopCmd := exec.Command(nanoclawBin, "gateway", "stop")
-	stopCmd.Run() // ignore errors — may not be running
+	// Kill any stale gateway from a previous VulpineOS session. This CLI can
+	// hang when the gateway state is stale, so keep startup bounded.
+	stopCtx, stopCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	stopCmd := exec.CommandContext(stopCtx, nanoclawBin, "gateway", "stop")
+	_ = stopCmd.Run() // ignore errors - may not be running
+	stopCancel()
 	time.Sleep(500 * time.Millisecond)
 
 	args := []string{

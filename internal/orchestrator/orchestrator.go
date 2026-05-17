@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"path/filepath"
 	"sync"
 
 	"vulpineos/internal/agentbus"
@@ -505,9 +504,10 @@ func (o *Orchestrator) provisionOpenRouterIfNeeded() error {
 		return fmt.Errorf("set container config: %w", err)
 	}
 
-	secretPath := filepath.Join(nanoclawDir, "data", "secrets.yaml")
-	if err := nanoclaw.CreateOpenRouterSecret(secretPath, cfg.APIKey); err != nil {
-		return fmt.Errorf("create openrouter secret: %w", err)
+	if cfg.APIKey != "" {
+		if err := nanoclaw.EnsureOpenRouterOneCLISecret(cfg.APIKey); err != nil {
+			return fmt.Errorf("ensure openrouter onecli secret: %w", err)
+		}
 	}
 
 	return nil

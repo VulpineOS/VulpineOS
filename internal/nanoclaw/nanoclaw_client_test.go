@@ -7,7 +7,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -221,29 +220,5 @@ INSERT INTO agent_groups (id, name, folder, created_at) VALUES ('ag-1', 'vulpine
 	}
 	if model != "openrouter/free" {
 		t.Fatalf("model = %q, want openrouter/free", model)
-	}
-}
-
-func TestCreateOpenRouterSecret(t *testing.T) {
-	secretPath := filepath.Join(t.TempDir(), "secrets.yaml")
-	apiKey := "sk-or-v1-test123"
-
-	if err := CreateOpenRouterSecret(secretPath, apiKey); err != nil {
-		t.Fatalf("CreateOpenRouterSecret: %v", err)
-	}
-
-	data, err := os.ReadFile(secretPath)
-	if err != nil {
-		t.Fatalf("read secret file: %v", err)
-	}
-	content := string(data)
-	if !strings.Contains(content, "openrouter.ai") {
-		t.Fatalf("secret file missing openrouter.ai host")
-	}
-	if !strings.Contains(content, "Authorization") {
-		t.Fatalf("secret file missing Authorization header")
-	}
-	if !strings.Contains(content, "Bearer sk-or-v1-test123") {
-		t.Fatalf("secret file missing Bearer token")
 	}
 }

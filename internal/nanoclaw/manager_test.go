@@ -3,6 +3,7 @@ package nanoclaw
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -302,4 +303,59 @@ func TestSessionLogPathForSessionIDRejectsTraversal(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestProvisionOpenRouterOneCLISecretUpdatesExistingSecret(t *testing.T) {
+	var calls [][]string
+	runner := func(name string, args []string, env []string) ([]byte, error) {
+		calls = append(calls, append([]string{name}, args...))
+		if !contains(env, "ONECLI_API_HOST=http://127.0.0.1:10254") {
+			t.Fatalf("env missing ONECLI_API_HOST: %#v", env)
+		}
+		if len(calls) == 1 {
+			return []byte(`[{"id":"secret-1","name":"OpenRouter","hostPattern":"openrouter.ai"}]`), nil
+		}
+		return []byte(`{"id":"secret-1"}`), nil
+	}
+
+	if err := provisionOpenRouterOneCLISecret("sk-test", "http://127.0.0.1:10254", runner); err != nil {
+		t.Fatalf("provisionOpenRouterOneCLISecret: %v", err)
+	}
+
+	want := [][]string{
+		{"onecli", "secrets", "list", "--fields", "id,name,hostPattern", "--max", "100"},
+		{"onecli", "secrets", "update", "--id", "secret-1", "--value", "sk-test", "--host-pattern", "openrouter.ai", "--header-name", "Authorization", "--value-format", "Bearer {value}"},
+	}
+	if !reflect.DeepEqual(calls, want) {
+		t.Fatalf("calls = %#v, want %#v", calls, want)
+	}
+}
+
+func TestProvisionOpenRouterOneCLISecretCreatesMissingSecret(t *testing.T) {
+	var calls [][]string
+	runner := func(name string, args []string, env []string) ([]byte, error) {
+		calls = append(calls, append([]string{name}, args...))
+		if len(calls) == 1 {
+			return []byte(`[]`), nil
+		}
+		return []byte(`{"id":"secret-1"}`), nil
+	}
+
+	if err := provisionOpenRouterOneCLISecret("sk-test", "http://127.0.0.1:10254", runner); err != nil {
+		t.Fatalf("provisionOpenRouterOneCLISecret: %v", err)
+	}
+
+	want := []string{"onecli", "secrets", "create", "--name", "OpenRouter", "--type", "generic", "--value", "sk-test", "--host-pattern", "openrouter.ai", "--header-name", "Authorization", "--value-format", "Bearer {value}"}
+	if len(calls) != 2 || !reflect.DeepEqual(calls[1], want) {
+		t.Fatalf("create call = %#v, want %#v", calls, want)
+	}
+}
+
+func contains(values []string, value string) bool {
+	for _, candidate := range values {
+		if candidate == value {
+			return true
+		}
+	}
+	return false
 }

@@ -683,20 +683,20 @@ func TestGetProvider(t *testing.T) {
 	}
 }
 
-func TestOpenRouterFreeRouterIsSelectable(t *testing.T) {
+func TestOpenRouterFreeCoderIsSelectable(t *testing.T) {
 	p := GetProvider("openrouter")
 	if p == nil {
 		t.Fatal("expected non-nil provider for 'openrouter'")
 	}
-	if p.DefaultModel != "openrouter/free" {
-		t.Fatalf("default model = %q, want openrouter/free", p.DefaultModel)
+	if p.DefaultModel != "openrouter/qwen/qwen3-coder:free" {
+		t.Fatalf("default model = %q, want openrouter/qwen/qwen3-coder:free", p.DefaultModel)
 	}
 	for _, model := range p.Models {
-		if model == "openrouter/free" {
+		if model == "openrouter/qwen/qwen3-coder:free" {
 			return
 		}
 	}
-	t.Fatalf("openrouter/free not found in selectable OpenRouter models: %#v", p.Models)
+	t.Fatalf("openrouter/qwen/qwen3-coder:free not found in selectable OpenRouter models: %#v", p.Models)
 }
 
 func TestCustomProvider(t *testing.T) {
