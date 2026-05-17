@@ -22,6 +22,7 @@ type ContextTracker struct {
 	mu       sync.RWMutex
 	contexts map[string]*SessionContext // sessionID → context
 	client   *juggler.Client
+	closed   bool
 }
 
 func cloneSessionContext(ctx *SessionContext) *SessionContext {
@@ -40,6 +41,13 @@ func NewContextTracker(client *juggler.Client) *ContextTracker {
 	}
 
 	client.Subscribe("Runtime.executionContextCreated", func(sessionID string, params json.RawMessage) {
+		ct.mu.RLock()
+		if ct.closed {
+			ct.mu.RUnlock()
+			return
+		}
+		ct.mu.RUnlock()
+
 		var ev struct {
 			ExecutionContextID string `json:"executionContextId"`
 			AuxData            struct {
@@ -50,6 +58,9 @@ func NewContextTracker(client *juggler.Client) *ContextTracker {
 
 		ct.mu.Lock()
 		defer ct.mu.Unlock()
+		if ct.closed {
+			return
+		}
 
 		ctx, ok := ct.contexts[sessionID]
 		if !ok {
@@ -65,6 +76,13 @@ func NewContextTracker(client *juggler.Client) *ContextTracker {
 	})
 
 	client.Subscribe("Runtime.executionContextDestroyed", func(sessionID string, params json.RawMessage) {
+		ct.mu.RLock()
+		if ct.closed {
+			ct.mu.RUnlock()
+			return
+		}
+		ct.mu.RUnlock()
+
 		var ev struct {
 			ExecutionContextID string `json:"executionContextId"`
 		}
@@ -72,6 +90,9 @@ func NewContextTracker(client *juggler.Client) *ContextTracker {
 
 		ct.mu.Lock()
 		defer ct.mu.Unlock()
+		if ct.closed {
+			return
+		}
 
 		ctx := ct.contexts[sessionID]
 		if ctx != nil && ctx.ExecutionContextID == ev.ExecutionContextID {
@@ -80,15 +101,25 @@ func NewContextTracker(client *juggler.Client) *ContextTracker {
 	})
 
 	client.Subscribe("Page.frameAttached", func(sessionID string, params json.RawMessage) {
+		ct.mu.RLock()
+		if ct.closed {
+			ct.mu.RUnlock()
+			return
+		}
+		ct.mu.RUnlock()
+
 		var ev struct {
 			FrameID       string `json:"frameId"`
 			ParentFrameID string `json:"parentFrameId"`
 		}
 		json.Unmarshal(params, &ev)
 
-		// Only track main frames (no parent)
 		if ev.ParentFrameID == "" && ev.FrameID != "" {
 			ct.mu.Lock()
+			if ct.closed {
+				ct.mu.Unlock()
+				return
+			}
 			ctx, ok := ct.contexts[sessionID]
 			if !ok {
 				ctx = &SessionContext{}
@@ -99,15 +130,45 @@ func NewContextTracker(client *juggler.Client) *ContextTracker {
 		}
 	})
 
-	client.Subscribe("Browser.attachedToTarget", func(_ string, params json.RawMessage) {
+	client.Subscribe("Browser.detachedFromTarget", func(_ string, params json.RawMessage) {
+		ct.mu.RLock()
+		if ct.closed {
+			ct.mu.RUnlock()
+			return
+		}
+		ct.mu.RUnlock()
+
 		var ev struct {
 			SessionID string `json:"sessionId"`
 		}
 		json.Unmarshal(params, &ev)
 		if ev.SessionID != "" {
 			ct.mu.Lock()
-			if _, ok := ct.contexts[ev.SessionID]; !ok {
-				ct.contexts[ev.SessionID] = &SessionContext{}
+			if !ct.closed && ct.contexts != nil {
+				delete(ct.contexts, ev.SessionID)
+			}
+			ct.mu.Unlock()
+		}
+	})
+
+	client.Subscribe("Browser.attachedToTarget", func(_ string, params json.RawMessage) {
+		ct.mu.RLock()
+		if ct.closed {
+			ct.mu.RUnlock()
+			return
+		}
+		ct.mu.RUnlock()
+
+		var ev struct {
+			SessionID string `json:"sessionId"`
+		}
+		json.Unmarshal(params, &ev)
+		if ev.SessionID != "" {
+			ct.mu.Lock()
+			if !ct.closed && ct.contexts != nil {
+				if _, ok := ct.contexts[ev.SessionID]; !ok {
+					ct.contexts[ev.SessionID] = &SessionContext{}
+				}
 			}
 			ct.mu.Unlock()
 		}
@@ -169,11 +230,14 @@ func mustJSONMap(v interface{}) json.RawMessage {
 	return data
 }
 
-// Close cleans up the context tracker.
+// Close cleans up the context tracker and stops processing events.
 func (ct *ContextTracker) Close() {
 	ct.mu.Lock()
 	defer ct.mu.Unlock()
-	ct.contexts = nil
+	ct.closed = true
+	for k := range ct.contexts {
+		delete(ct.contexts, k)
+	}
 }
 
 // RemoveSession removes a session from tracking.

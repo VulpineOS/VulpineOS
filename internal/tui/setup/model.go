@@ -66,6 +66,8 @@ func NewWithConfig(existing *config.Config) Model {
 	}
 
 	m.cfg.Provider = existing.Provider
+	m.cfg.Model = existing.Model
+	m.cfg.APIKey = existing.APIKey
 	m.providers = config.MergedProviders()
 
 	if existing.Provider != "" {

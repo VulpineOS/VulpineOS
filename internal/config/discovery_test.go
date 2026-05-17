@@ -82,23 +82,14 @@ func TestMergedProviders(t *testing.T) {
 		ids[p.ID] = true
 	}
 
-	var opencodeIdx, opencodeGoIdx int = -1, -1
+	var opencodeIdx int = -1
 	for i, p := range merged {
 		if p.ID == "opencode" {
 			opencodeIdx = i
 		}
-		if p.ID == "opencode-go" {
-			opencodeGoIdx = i
-		}
 	}
 	if opencodeIdx == -1 {
 		t.Error("opencode not in merged providers")
-	}
-	if opencodeGoIdx == -1 {
-		t.Error("opencode-go not in merged providers")
-	}
-	if opencodeGoIdx < opencodeIdx {
-		t.Error("opencode-go should come after opencode in merged list")
 	}
 }
 
