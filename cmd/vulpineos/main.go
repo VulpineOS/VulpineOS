@@ -53,6 +53,27 @@ var (
 	stderr io.Writer = os.Stderr
 )
 
+var startDaemonIfAvailable = func(cfg *config.Config, audit *runtimeaudit.Manager) *nanoclaw.Daemon {
+	mgr := nanoclaw.NewManager("")
+	if !mgr.NanoClawInstalled() {
+		return nil
+	}
+	daemon := nanoclaw.NewDaemon("")
+	if err := daemon.Start(); err != nil {
+		log.Printf("Warning: NanoClaw daemon failed to start: %v (agents won't work)", err)
+		if audit != nil {
+			_, _ = audit.Log("nanoclaw", "error", "daemon_start_failed", "NanoClaw daemon failed to start", map[string]string{
+				"error": err.Error(),
+			})
+		}
+		return nil
+	}
+	if audit != nil {
+		_, _ = audit.Log("nanoclaw", "info", "daemon_started", "NanoClaw daemon started", nil)
+	}
+	return daemon
+}
+
 var startGatewayIfAvailable = func(cfg *config.Config, audit *runtimeaudit.Manager) *nanoclaw.Gateway {
 	mgr := nanoclaw.NewManager("")
 	if !mgr.NanoClawInstalled() {
@@ -636,6 +657,7 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 	var orch *orchestrator.Orchestrator
 	var v *vault.DB
 	var audit *runtimeaudit.Manager
+	var daemon *nanoclaw.Daemon
 	var gw *nanoclaw.Gateway
 	var fb *foxbridge.Process
 	var wd *kernel.Watchdog
@@ -750,6 +772,11 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 				}
 			}
 
+			// Start NanoClaw daemon before gateway
+			if startErr == nil {
+				daemon = startDaemonIfAvailable(cfg, audit)
+			}
+
 			// Start OpenClaw gateway for browser support
 			if startErr == nil {
 				gw = startGatewayIfAvailable(cfg, audit)
@@ -775,6 +802,9 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 		if startErr != nil {
 			if wd != nil {
 				wd.Stop()
+			}
+			if daemon != nil {
+				daemon.Stop()
 			}
 			if gw != nil {
 				gw.Stop()
@@ -829,6 +859,14 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 		}
 		if orch != nil {
 			defer orch.Close()
+		}
+		if daemon != nil {
+			defer func() {
+				if audit != nil {
+					_, _ = audit.Log("nanoclaw", "info", "daemon_stopped", "NanoClaw daemon stopped", nil)
+				}
+				daemon.Stop()
+			}()
 		}
 		if gw != nil {
 			defer func() {
