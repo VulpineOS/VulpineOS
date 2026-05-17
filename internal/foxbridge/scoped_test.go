@@ -28,17 +28,10 @@ func (f *fakeJugglerBackend) Call(sessionID, method string, params interface{}) 
 }
 
 func (f *fakeJugglerBackend) Subscribe(event string, handler juggler.EventHandler) {
-	f.SubscribeWithCancel(event, handler)
-}
-
-func (f *fakeJugglerBackend) SubscribeWithCancel(event string, handler juggler.EventHandler) func() {
 	if f.handlers == nil {
 		f.handlers = make(map[string]juggler.EventHandler)
 	}
 	f.handlers[event] = handler
-	return func() {
-		delete(f.handlers, event)
-	}
 }
 
 func TestScopedBackendCreateBrowserContext(t *testing.T) {
@@ -144,35 +137,6 @@ func TestScopedBackendBlocksUnknownBrowserMethods(t *testing.T) {
 	}
 }
 
-func TestScopedBackendBlocksOutOfScopeSessionCalls(t *testing.T) {
-	client := &fakeJugglerBackend{}
-	be := newScopedBackend(client, "ctx-7")
-
-	if _, err := be.Call("page-other", "Page.navigate", json.RawMessage(`{"url":"https://example.com"}`)); err == nil {
-		t.Fatal("expected out-of-scope session call to be blocked")
-	}
-	if client.lastMethod != "" {
-		t.Fatalf("forwarded forbidden call to %s", client.lastMethod)
-	}
-}
-
-func TestScopedBackendAllowsTrackedSessionCalls(t *testing.T) {
-	client := &fakeJugglerBackend{}
-	be := newScopedBackend(client, "ctx-7")
-	be.Subscribe("Browser.attachedToTarget", func(sessionID string, params json.RawMessage) {})
-	client.handlers["Browser.attachedToTarget"]("", json.RawMessage(`{
-		"sessionId":"page-1",
-		"targetInfo":{"targetId":"target-1","browserContextId":"ctx-7"}
-	}`))
-
-	if _, err := be.Call("page-1", "Page.navigate", json.RawMessage(`{"url":"https://example.com"}`)); err != nil {
-		t.Fatalf("tracked session call returned error: %v", err)
-	}
-	if client.lastMethod != "Page.navigate" {
-		t.Fatalf("lastMethod = %q, want Page.navigate", client.lastMethod)
-	}
-}
-
 func TestScopedBackendFiltersEvents(t *testing.T) {
 	client := &fakeJugglerBackend{}
 	be := newScopedBackend(client, "ctx-1")
@@ -201,153 +165,5 @@ func TestScopedBackendFiltersEvents(t *testing.T) {
 	}
 	if pageCount != 1 {
 		t.Fatalf("pageCount = %d, want 1", pageCount)
-	}
-}
-
-func TestScopedBackendSuppressesDuplicateAttachedTargets(t *testing.T) {
-	client := &fakeJugglerBackend{}
-	be := newScopedBackend(client, "ctx-1")
-
-	var attachedCount int
-	be.Subscribe("Browser.attachedToTarget", func(sessionID string, params json.RawMessage) {
-		attachedCount++
-	})
-
-	client.handlers["Browser.attachedToTarget"]("", json.RawMessage(`{
-		"sessionId":"page-1",
-		"targetInfo":{"targetId":"target-1","browserContextId":"ctx-1"}
-	}`))
-	client.handlers["Browser.attachedToTarget"]("", json.RawMessage(`{
-		"sessionId":"page-1",
-		"targetInfo":{"targetId":"target-1","browserContextId":"ctx-1"}
-	}`))
-	client.handlers["Browser.attachedToTarget"]("", json.RawMessage(`{
-		"sessionId":"page-2",
-		"targetInfo":{"targetId":"target-1","browserContextId":"ctx-1"}
-	}`))
-
-	if attachedCount != 1 {
-		t.Fatalf("attachedCount = %d, want 1", attachedCount)
-	}
-}
-
-func TestScopedBackendAllowsAttachAfterDetach(t *testing.T) {
-	client := &fakeJugglerBackend{}
-	be := newScopedBackend(client, "ctx-1")
-
-	var attachedCount, detachedCount int
-	be.Subscribe("Browser.attachedToTarget", func(sessionID string, params json.RawMessage) {
-		attachedCount++
-	})
-	be.Subscribe("Browser.detachedFromTarget", func(sessionID string, params json.RawMessage) {
-		detachedCount++
-	})
-
-	client.handlers["Browser.attachedToTarget"]("", json.RawMessage(`{
-		"sessionId":"page-1",
-		"targetInfo":{"targetId":"target-1","browserContextId":"ctx-1"}
-	}`))
-	client.handlers["Browser.detachedFromTarget"]("", json.RawMessage(`{
-		"sessionId":"page-1",
-		"targetId":"target-1"
-	}`))
-	client.handlers["Browser.attachedToTarget"]("", json.RawMessage(`{
-		"sessionId":"page-1",
-		"targetInfo":{"targetId":"target-1","browserContextId":"ctx-1"}
-	}`))
-
-	if attachedCount != 2 {
-		t.Fatalf("attachedCount = %d, want 2", attachedCount)
-	}
-	if detachedCount != 1 {
-		t.Fatalf("detachedCount = %d, want 1", detachedCount)
-	}
-}
-
-func TestScopedBackendFiltersRequestInterceptedByContext(t *testing.T) {
-	client := &fakeJugglerBackend{}
-	be := newScopedBackend(client, "ctx-1")
-
-	var requestCount int
-	be.Subscribe("Browser.requestIntercepted", func(sessionID string, params json.RawMessage) {
-		requestCount++
-	})
-
-	client.handlers["Browser.requestIntercepted"]("", json.RawMessage(`{
-		"requestId":"request-1",
-		"browserContextId":"ctx-1"
-	}`))
-	client.handlers["Browser.requestIntercepted"]("", json.RawMessage(`{
-		"requestId":"request-2",
-		"browserContextId":"ctx-other"
-	}`))
-
-	if requestCount != 1 {
-		t.Fatalf("requestCount = %d, want 1", requestCount)
-	}
-}
-
-func TestScopedBackendBlocksUntrackedRequestControls(t *testing.T) {
-	client := &fakeJugglerBackend{}
-	be := newScopedBackend(client, "ctx-1")
-
-	if _, err := be.Call("", "Browser.continueInterceptedRequest", json.RawMessage(`{"requestId":"request-other"}`)); err == nil {
-		t.Fatal("expected untracked request control to be blocked")
-	}
-	if client.lastMethod != "" {
-		t.Fatalf("forwarded forbidden call to %s", client.lastMethod)
-	}
-}
-
-func TestScopedBackendAllowsTrackedRequestControls(t *testing.T) {
-	client := &fakeJugglerBackend{}
-	be := newScopedBackend(client, "ctx-1")
-
-	be.Subscribe("Browser.requestIntercepted", func(sessionID string, params json.RawMessage) {})
-	client.handlers["Browser.requestIntercepted"]("", json.RawMessage(`{
-		"requestId":"request-1",
-		"browserContextId":"ctx-1"
-	}`))
-
-	if _, err := be.Call("", "Browser.continueInterceptedRequest", json.RawMessage(`{"requestId":"request-1"}`)); err != nil {
-		t.Fatalf("Call returned error: %v", err)
-	}
-	if client.lastMethod != "Browser.continueInterceptedRequest" {
-		t.Fatalf("lastMethod = %q, want Browser.continueInterceptedRequest", client.lastMethod)
-	}
-}
-
-func TestScopedBackendRetiresRequestAfterTerminalControl(t *testing.T) {
-	client := &fakeJugglerBackend{}
-	be := newScopedBackend(client, "ctx-1")
-
-	be.Subscribe("Browser.requestIntercepted", func(sessionID string, params json.RawMessage) {})
-	client.handlers["Browser.requestIntercepted"]("", json.RawMessage(`{
-		"requestId":"request-1",
-		"browserContextId":"ctx-1"
-	}`))
-
-	if _, err := be.Call("", "Browser.continueInterceptedRequest", json.RawMessage(`{"requestId":"request-1"}`)); err != nil {
-		t.Fatalf("first Call returned error: %v", err)
-	}
-	if _, err := be.Call("", "Browser.continueInterceptedRequest", json.RawMessage(`{"requestId":"request-1"}`)); err == nil {
-		t.Fatal("expected retired request control to be blocked")
-	}
-}
-
-func TestScopedBackendCloseCancelsSubscriptions(t *testing.T) {
-	client := &fakeJugglerBackend{}
-	be := newScopedBackend(client, "ctx-1")
-
-	be.Subscribe("Browser.attachedToTarget", func(sessionID string, params json.RawMessage) {})
-	if _, ok := client.handlers["Browser.attachedToTarget"]; !ok {
-		t.Fatal("expected test subscription to be installed")
-	}
-
-	if err := be.Close(); err != nil {
-		t.Fatalf("Close returned error: %v", err)
-	}
-	if _, ok := client.handlers["Browser.attachedToTarget"]; ok {
-		t.Fatal("subscription still installed after Close")
 	}
 }

@@ -121,18 +121,8 @@ func (db *DB) UpdateAgentStatus(id, status string) error {
 	return err
 }
 
-// UpdateAgentName updates the name of an agent.
-func (db *DB) UpdateAgentName(id, name string) error {
-	_, err := db.conn.Exec(
-		`UPDATE agents SET name = ?, last_active = ? WHERE id = ?`,
-		name, time.Now().Unix(), id,
-	)
-	return err
-}
-
-// ReconcileNonTerminalAgents marks persisted agents left in an in-flight
-// state as interrupted after a process restart. Paused agents are resumable and
-// must survive restart unchanged.
+// ReconcileNonTerminalAgents marks persisted agents left in a non-terminal
+// state as interrupted after a process restart.
 func (db *DB) ReconcileNonTerminalAgents(status string) error {
 	if status == "" {
 		status = "interrupted"
@@ -140,7 +130,7 @@ func (db *DB) ReconcileNonTerminalAgents(status string) error {
 	_, err := db.conn.Exec(
 		`UPDATE agents
 		 SET status = ?, last_active = ?
-		 WHERE status NOT IN ('paused', 'completed', 'error', 'failed', 'interrupted')`,
+		 WHERE status NOT IN ('completed', 'error', 'failed', 'interrupted')`,
 		status, time.Now().Unix(),
 	)
 	return err

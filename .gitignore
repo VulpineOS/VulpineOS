@@ -10,10 +10,6 @@ launch.exe
 
 # Internal testing
 /extra-docs
-docs/superpowers/
-/.public-boundary-repos.local
-/.public-boundary-denylist.local
-/benchmarks/token-optimization/results/*.json
 pythonlib/test*
 jsonvv/test*
 /.vscode
@@ -51,7 +47,7 @@ closedsrc
 
 .venv
 *.pem
-.DS_Store
+.DS_store
 
 # Build outputs
 *.so
@@ -101,3 +97,4 @@ go.work.sum
 /go.local.sum
 /internal/extensions/local_*.go
 /patches/local_*.patch
+/.worktrees/

@@ -1,7 +1,6 @@
 package kernel
 
 import (
-	"fmt"
 	"sync"
 	"time"
 )
@@ -13,11 +12,9 @@ type Watchdog struct {
 	config      Config
 	onCrash     func()
 	onEvent     func(WatchdogEvent)
-	onRestart   func(*Kernel) error
 	autoRestart bool
 	maxRestarts int
 	restarts    int
-	attempts    int
 	down        bool
 	mu          sync.Mutex
 	done        chan struct{}
@@ -32,9 +29,8 @@ type WatchdogEvent struct {
 }
 
 // NewWatchdog creates a watchdog for the given kernel.
-// If autoRestart is true, the watchdog will attempt to restart the kernel on
-// crash only after OnRestart has been configured. Restarting creates a new
-// Juggler client, so callers must rewire dependent services in that callback.
+// If autoRestart is true, the watchdog will attempt to restart the kernel
+// on crash up to 3 times.
 func NewWatchdog(k *Kernel, autoRestart bool) *Watchdog {
 	return &Watchdog{
 		kernel:      k,
@@ -72,15 +68,6 @@ func (w *Watchdog) OnEvent(fn func(WatchdogEvent)) {
 	w.onEvent = fn
 }
 
-// OnRestart registers the callback invoked after a restarted kernel has been
-// launched. Use this to re-enable Browser and rewire services that hold the old
-// Juggler client. Without this callback, auto-restart is skipped.
-func (w *Watchdog) OnRestart(fn func(*Kernel) error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	w.onRestart = fn
-}
-
 // Restarts returns the number of auto-restarts performed so far.
 func (w *Watchdog) Restarts() int {
 	w.mu.Lock()
@@ -110,74 +97,52 @@ func (w *Watchdog) monitor() {
 		case <-w.done:
 			return
 		case <-ticker.C:
-			w.check()
-		}
-	}
-}
-
-func (w *Watchdog) check() {
-	if w.kernel.Running() {
-		w.mu.Lock()
-		w.down = false
-		w.mu.Unlock()
-		return
-	}
-
-	w.mu.Lock()
-	if w.down {
-		w.mu.Unlock()
-		return
-	}
-	w.down = true
-	cb := w.onCrash
-	eventCb := w.onEvent
-	w.mu.Unlock()
-
-	// Kernel is not running — fire crash callback
-	if cb != nil {
-		cb()
-	}
-	if eventCb != nil {
-		eventCb(WatchdogEvent{Type: "crashed"})
-	}
-
-	// Attempt auto-restart if enabled
-	w.mu.Lock()
-	canRestart := w.autoRestart && w.onRestart != nil && w.attempts < w.maxRestarts
-	skipRestart := w.autoRestart && w.onRestart == nil
-	cfg := w.config
-	attempt := w.attempts + 1
-	eventCb = w.onEvent
-	restartCb := w.onRestart
-	if canRestart {
-		w.attempts++
-	}
-	w.mu.Unlock()
-
-	if skipRestart {
-		if eventCb != nil {
-			eventCb(WatchdogEvent{Type: "restart_skipped", Attempt: attempt, Err: fmt.Errorf("restart handler not configured")})
-		}
-	} else if canRestart {
-		err := w.kernel.Start(cfg)
-		if err == nil && restartCb != nil {
-			err = restartCb(w.kernel)
-		}
-		if err == nil {
-			w.mu.Lock()
-			w.restarts++
-			w.down = false
-			w.mu.Unlock()
-			if eventCb != nil {
-				eventCb(WatchdogEvent{Type: "restart_success", Attempt: attempt})
+			if w.kernel.Running() {
+				w.mu.Lock()
+				w.down = false
+				w.mu.Unlock()
+				continue
 			}
-		} else {
-			_ = w.kernel.Stop()
+
 			w.mu.Lock()
-			w.down = false
+			if w.down {
+				w.mu.Unlock()
+				continue
+			}
+			w.down = true
+			cb := w.onCrash
+			eventCb := w.onEvent
 			w.mu.Unlock()
+
+			// Kernel is not running — fire crash callback
+			if cb != nil {
+				cb()
+			}
 			if eventCb != nil {
-				eventCb(WatchdogEvent{Type: "restart_failed", Attempt: attempt, Err: err})
+				eventCb(WatchdogEvent{Type: "crashed"})
+			}
+
+			// Attempt auto-restart if enabled
+			w.mu.Lock()
+			canRestart := w.autoRestart && w.restarts < w.maxRestarts
+			cfg := w.config
+			attempt := w.restarts + 1
+			eventCb = w.onEvent
+			w.mu.Unlock()
+
+			if canRestart {
+				err := w.kernel.Start(cfg)
+				if err == nil {
+					w.mu.Lock()
+					w.restarts++
+					w.down = false
+					w.mu.Unlock()
+					if eventCb != nil {
+						eventCb(WatchdogEvent{Type: "restart_success", Attempt: attempt})
+					}
+				} else if eventCb != nil {
+					eventCb(WatchdogEvent{Type: "restart_failed", Attempt: attempt, Err: err})
+				}
 			}
 		}
 	}

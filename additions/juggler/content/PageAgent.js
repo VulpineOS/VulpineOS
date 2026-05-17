@@ -11,6 +11,11 @@ const Cu = Components.utils;
 const {Helper} = ChromeUtils.importESModule('chrome://juggler/content/Helper.js');
 const {NetUtil} = ChromeUtils.importESModule('resource://gre/modules/NetUtil.sys.mjs');
 const {setTimeout, clearTimeout} = ChromeUtils.importESModule('resource://gre/modules/Timer.sys.mjs');
+const {
+  SENTINEL_PROBE_BINDING_NAME,
+  SENTINEL_PROBE_BINDING_SCRIPT,
+  SENTINEL_PROBE_INIT_SCRIPT,
+} = ChromeUtils.importESModule('chrome://juggler/content/SentinelProbe.js');
 
 const dragService = Cc["@mozilla.org/widget/dragservice;1"].getService(
   Ci.nsIDragService
@@ -207,8 +212,6 @@ export class PageAgent {
     this._runtime = frameTree.runtime();
 
     this._workerData = new Map();
-    this._refGeneration = 0;
-    this._refMap = new Map();
 
     const docShell = frameTree.mainFrame().docShell();
     this._docShell = docShell;
@@ -243,6 +246,8 @@ export class PageAgent {
       if (mainFrame.url() === 'about:blank' && readyState === 'complete')
         this._emitAllEvents(this._frameTree.mainFrame());
     }
+
+    this._installSentinelProbeHooks();
 
     this._eventListeners = [
       helper.addObserver(this._linkClicked.bind(this, false), 'juggler-link-click'),
@@ -439,7 +444,6 @@ export class PageAgent {
   }
 
   _onNavigationStarted(frame) {
-    this._clearRefMapForFrame(frame);
     this._browserPage.emit('pageNavigationStarted', {
       frameId: frame.id(),
       navigationId: frame.pendingNavigationId(),
@@ -458,7 +462,6 @@ export class PageAgent {
   }
 
   _onSameDocumentNavigation(frame) {
-    this._clearRefMapForFrame(frame);
     this._browserPage.emit('pageSameDocumentNavigation', {
       frameId: frame.id(),
       url: frame.url(),
@@ -466,7 +469,6 @@ export class PageAgent {
   }
 
   _onNavigationCommitted(frame) {
-    this._clearRefMapForFrame(frame);
     this._browserPage.emit('pageNavigationCommitted', {
       frameId: frame.id(),
       navigationId: frame.lastCommittedNavigationId() || undefined,
@@ -484,23 +486,46 @@ export class PageAgent {
   }
 
   _onFrameDetached(frame) {
-    this._clearRefMapForFrame(frame);
     this._browserPage.emit('pageFrameDetached', {
       frameId: frame.id(),
     });
   }
 
-  _clearRefMapForFrame(frame) {
-    if (frame === this._frameTree.mainFrame())
-      this._refMap = new Map();
-  }
-
   _onBindingCalled({executionContextId, name, payload}) {
+    if (name === SENTINEL_PROBE_BINDING_NAME) {
+      let probe;
+      try {
+        probe = JSON.parse(payload);
+      } catch (e) {
+        return;
+      }
+      let frameId = '';
+      try {
+        frameId = this._runtime.findExecutionContext(executionContextId).auxData().frameId || '';
+      } catch (e) {
+      }
+      this._browserPage.emit('pageBrowserProbeDetected', {
+        frameId,
+        url: probe.url || '',
+        scriptURL: probe.scriptURL || '',
+        probeType: probe.probeType || 'unknown',
+        api: probe.api || 'unknown',
+        detail: probe.detail || '',
+        count: probe.count || 1,
+        timestamp: probe.timestamp || Date.now(),
+      });
+      return;
+    }
     this._browserPage.emit('pageBindingCalled', {
       executionContextId,
       name,
       payload
     });
+  }
+
+  _installSentinelProbeHooks() {
+    this._frameTree.addBinding('', SENTINEL_PROBE_BINDING_NAME, SENTINEL_PROBE_BINDING_SCRIPT);
+    this._frameTree.addInitScript('', SENTINEL_PROBE_INIT_SCRIPT);
   }
 
   dispose() {
@@ -921,8 +946,6 @@ export class PageAgent {
     const vpHeight = viewportOnly ? domWindow.innerHeight : 0;
 
     // VulpineOS: Element reference tracking for ref-based actions
-    this._refGeneration++;
-    const refGeneration = this._refGeneration;
     this._refMap = new Map();
     const refMap = this._refMap;
     let refCounter = 0;
@@ -1171,7 +1194,7 @@ export class PageAgent {
     for (const candidate of selected) {
       let ref = null;
       if (candidate.interactive && candidate.domNode) {
-        ref = '@' + refGeneration + ':' + refCounter++;
+        ref = '@' + refCounter++;
         refMap.set(ref, candidate.domNode);
       }
 
@@ -1205,7 +1228,6 @@ export class PageAgent {
         v: 1,
         title: document.title || '',
         url: domWindow.location.href || '',
-        refGeneration,
         nodes: merged,
       },
       profile: hasCustomLimits ? 'custom' : profileName,
@@ -1215,11 +1237,9 @@ export class PageAgent {
   }
 
   _resolveRef({ ref }) {
-    this._assertCurrentRefGeneration(ref);
     const el = this._refMap?.get(ref);
     if (!el)
       throw new Error('stale ref: ' + ref);
-    this._assertFreshRef(ref, el);
     if (el.scrollIntoViewIfNeeded)
       el.scrollIntoViewIfNeeded();
     else if (el.scrollIntoView)
@@ -1231,11 +1251,9 @@ export class PageAgent {
   }
 
   _focusByRef({ ref }) {
-    this._assertCurrentRefGeneration(ref);
     const el = this._refMap?.get(ref);
     if (!el)
       throw new Error('stale ref: ' + ref);
-    this._assertFreshRef(ref, el);
     if (el.scrollIntoViewIfNeeded)
       el.scrollIntoViewIfNeeded();
     else if (el.scrollIntoView)
@@ -1244,22 +1262,8 @@ export class PageAgent {
     return { focused: true };
   }
 
-  _assertCurrentRefGeneration(ref) {
-    const match = /^@(\d+):\d+$/.exec(ref);
-    if (!match || Number(match[1]) !== this._refGeneration)
-      throw new Error('stale ref: ' + ref);
-  }
-
-  _assertFreshRef(ref, el) {
-    const document = this._frameTree.mainFrame().domWindow().document;
-    if (!el.isConnected || el.ownerDocument !== document) {
-      this._refMap?.delete(ref);
-      throw new Error('stale ref: ' + ref);
-    }
-  }
-
-  // VulpineOS: credential injection uses a privileged value-setting path first,
-  // then falls back to ordinary chrome-privileged input paths when unavailable.
+  // VulpineOS: Secure credential injection — sets input value at C++ level
+  // bypassing JavaScript input events. Page scripts cannot detect the injection.
   _secureSetInputValue({ frameId, objectId, value }) {
     const frame = this._frameTree.frame(frameId);
     if (!frame)

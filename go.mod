@@ -4,11 +4,11 @@ go 1.26.1
 
 require (
 	github.com/VulpineOS/foxbridge v0.1.2-0.20260429081009-86aa95f27df5
+	github.com/VulpineOS/mobilebridge v0.1.0
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
 	github.com/google/uuid v1.6.0
-	github.com/mattn/go-runewidth v0.0.19
 	golang.org/x/net v0.52.0
 	modernc.org/sqlite v1.47.0
 	nhooyr.io/websocket v1.8.17
@@ -30,6 +30,7 @@ require (
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect
+	github.com/mattn/go-runewidth v0.0.19 // indirect
 	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/muesli/termenv v0.16.0 // indirect

@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { chromium } from 'playwright-core'
@@ -103,24 +104,10 @@ function findChrome(explicit) {
   throw new Error('Chrome/Chromium executable not found. Set CHROME_PATH or pass --chrome-path.')
 }
 
-function chromeDisplayName(chromePath) {
-  const normalized = chromePath.replace(/\\/g, '/')
-  const executable = path.basename(normalized).toLowerCase()
-  if (normalized.includes('/Google Chrome.app/') || executable === 'google-chrome' || executable === 'google-chrome-stable')
-    return 'Google Chrome'
-  if (normalized.includes('/Chromium.app/') || executable === 'chromium' || executable === 'chromium-browser')
-    return 'Chromium'
-  return path.basename(normalized) || 'Chrome/Chromium'
-}
-
 function fixtureURL(value) {
   if (/^https?:\/\//.test(value) || value.startsWith('file://')) return value
   const absolute = path.isAbsolute(value) ? value : path.join(__dirname, value)
   return pathToFileURL(absolute).href
-}
-
-function resultURL(fixture, url) {
-  return url.startsWith('file://') ? fixture : url
 }
 
 function tokenCount(value) {
@@ -216,7 +203,7 @@ async function measureFixture(browser, fixture, options) {
 
   return {
     fixture,
-    url: resultURL(fixture, url),
+    url,
     tokens: counts,
     reductions: {
       vsRawHTML: reduction(counts.rawHTML, counts.vulpineOptimized),
@@ -251,11 +238,11 @@ async function main() {
       vulpineOptimized: mean(results.map((result) => result.tokens.vulpineOptimized)),
     }
     const payload = {
-      generatedAt: new Date().toISOString().slice(0, 10),
+      generatedAt: new Date().toISOString(),
       system: {
-        platform: 'local runner',
-        node: 'local runner',
-        chromePath: chromeDisplayName(chromePath),
+        platform: `${os.type()} ${os.release()} ${os.arch()}`,
+        node: process.version,
+        chromePath,
       },
       options: {
         maxDepth: args.maxDepth,

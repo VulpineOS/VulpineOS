@@ -2,7 +2,6 @@ package integration
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
 
 	"vulpineos/internal/juggler"
@@ -14,10 +13,10 @@ import (
 
 type testEnv struct {
 	FakeJuggler *testutil.FakeJugglerTransport
-	Client      *juggler.Client
-	Vault       *vault.DB
-	Pool        *pool.Pool
-	Orch        *orchestrator.Orchestrator
+	Client     *juggler.Client
+	Vault      *vault.DB
+	Pool       *pool.Pool
+	Orch       *orchestrator.Orchestrator
 }
 
 func newTestEnv(t *testing.T) *testEnv {
@@ -43,15 +42,15 @@ func newTestEnv(t *testing.T) *testEnv {
 	}
 	t.Cleanup(func() { p.Close() })
 
-	o := orchestrator.New(nil, client, vdb, pool.Config{PreWarm: 0, MaxActive: 2, MaxUsesPerSlot: 2}, filepath.Join(t.TempDir(), "missing-openclaw"), orchestrator.Opts{})
+	o := orchestrator.New(nil, client, vdb, pool.Config{PreWarm: 0, MaxActive: 2, MaxUsesPerSlot: 2}, "", orchestrator.Opts{})
 	t.Cleanup(func() { o.Close() })
 
 	return &testEnv{
 		FakeJuggler: fake,
-		Client:      client,
-		Vault:       vdb,
-		Pool:        p,
-		Orch:        o,
+		Client:     client,
+		Vault:      vdb,
+		Pool:       p,
+		Orch:       o,
 	}
 }
 

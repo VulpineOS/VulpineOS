@@ -10,7 +10,7 @@ import (
 	"vulpineos/internal/extensions/extensionstest"
 )
 
-// ctxKey is a private test marker type used by
+// ctxKey is a private test sentinel type used by
 // TestHandleAutofillThreadsContext to verify that handleAutofill
 // passes a real per-call context into the credential provider's Fill
 // method instead of dropping it for context.Background().
@@ -114,7 +114,7 @@ func TestAutofillMissRedactsLookupURL(t *testing.T) {
 }
 
 func TestHandleAutofillThreadsContext(t *testing.T) {
-	marker := &ctxKey{name: "autofill-ctx"}
+	sentinel := &ctxKey{name: "autofill-ctx"}
 	var seen context.Context
 	fake := withFakeCredentials(t, &extensionstest.FakeCredentialProvider{
 		AvailableFlag: true,
@@ -132,7 +132,7 @@ func TestHandleAutofillThreadsContext(t *testing.T) {
 	})
 	_ = fake
 
-	ctx := context.WithValue(context.Background(), marker, "present")
+	ctx := context.WithValue(context.Background(), sentinel, "present")
 	args, _ := json.Marshal(map[string]interface{}{
 		"site_url":          "https://example.com",
 		"page_id":           "p1",
@@ -150,8 +150,8 @@ func TestHandleAutofillThreadsContext(t *testing.T) {
 	if seen == nil {
 		t.Fatal("Fill was never called")
 	}
-	if got, _ := seen.Value(marker).(string); got != "present" {
-		t.Errorf("marker not visible inside Fill: got %q", got)
+	if got, _ := seen.Value(sentinel).(string); got != "present" {
+		t.Errorf("sentinel not visible inside Fill: got %q", got)
 	}
 }
 

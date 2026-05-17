@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -16,8 +15,6 @@ var (
 	toolsOnce   sync.Once
 	toolsCached []ToolDefinition
 )
-
-var newContextAttachTimeout = 10 * time.Second
 
 // tools returns the list of VulpineOS browser tools available via MCP.
 // The result is computed exactly once per process and cached. Callers
@@ -49,16 +46,16 @@ func baseTools() []ToolDefinition {
 		},
 		{
 			Name:        "vulpine_snapshot",
-			Description: "Get a token-optimized semantic snapshot of the page content for LLM processing. Default profile is compact. If a target is missing from a truncated snapshot, retry with retry:true or profile:\"expanded\"/\"full\" before giving up.",
+			Description: "Get a token-optimized semantic snapshot of the page content for LLM processing. Default profile is compact (180 nodes, 90 chars). If a target is missing from a truncated snapshot, retry with retry:true or profile:\"expanded\"/\"full\" before giving up.",
 			InputSchema: InputSchema{
 				Type: "object",
 				Properties: map[string]Property{
 					"sessionId":     {Type: "string", Description: "Target page session ID"},
-					"profile":       {Type: "string", Description: "Snapshot profile: compact, expanded, or full. Explicit max* values override this."},
+					"profile":       {Type: "string", Description: "Snapshot profile: compact=180 nodes/90 chars, expanded=360/160, full=800/240. Explicit max* values override this."},
 					"retry":         {Type: "boolean", Description: "Use the next larger profile after a truncated snapshot for this session (compact -> expanded -> full)."},
 					"maxDepth":      {Type: "number", Description: "Max tree depth (default compact: 10)"},
-					"maxNodes":      {Type: "number", Description: "Max nodes to return (defaults to the selected profile)"},
-					"maxTextLength": {Type: "number", Description: "Max text per node (defaults to the selected profile)"},
+					"maxNodes":      {Type: "number", Description: "Max nodes to return (default compact: 180)"},
+					"maxTextLength": {Type: "number", Description: "Max text per node (default compact: 90)"},
 					"viewportOnly":  {Type: "boolean", Description: "Only return elements visible in the viewport (default false)"},
 				},
 				Required: []string{"sessionId"},
@@ -144,12 +141,12 @@ func baseTools() []ToolDefinition {
 		},
 		{
 			Name:        "vulpine_click_ref",
-			Description: "Click an element by its snapshot-scoped ref from the optimized DOM snapshot (e.g. @7:0, @7:1). Use vulpine_snapshot first to get refs.",
+			Description: "Click an element by its ref from the optimized DOM snapshot (e.g. @0, @1). Use vulpine_snapshot first to get refs.",
 			InputSchema: InputSchema{
 				Type: "object",
 				Properties: map[string]Property{
 					"sessionId": {Type: "string", Description: "Target page session ID"},
-					"ref":       {Type: "string", Description: "Snapshot-scoped element reference from snapshot (e.g. \"@7:0\", \"@7:1\")"},
+					"ref":       {Type: "string", Description: "Element reference from snapshot (e.g. \"@0\", \"@1\")"},
 				},
 				Required: []string{"sessionId", "ref"},
 			},
@@ -161,7 +158,7 @@ func baseTools() []ToolDefinition {
 				Type: "object",
 				Properties: map[string]Property{
 					"sessionId": {Type: "string", Description: "Target page session ID"},
-					"ref":       {Type: "string", Description: "Snapshot-scoped element reference from snapshot (e.g. \"@7:0\", \"@7:1\")"},
+					"ref":       {Type: "string", Description: "Element reference from snapshot (e.g. \"@0\", \"@1\")"},
 					"text":      {Type: "string", Description: "Text to type into the element"},
 				},
 				Required: []string{"sessionId", "ref", "text"},
@@ -174,7 +171,7 @@ func baseTools() []ToolDefinition {
 				Type: "object",
 				Properties: map[string]Property{
 					"sessionId": {Type: "string", Description: "Target page session ID"},
-					"ref":       {Type: "string", Description: "Snapshot-scoped element reference from snapshot (e.g. \"@7:0\", \"@7:1\")"},
+					"ref":       {Type: "string", Description: "Element reference from snapshot (e.g. \"@0\", \"@1\")"},
 				},
 				Required: []string{"sessionId", "ref"},
 			},
@@ -324,12 +321,12 @@ func baseTools() []ToolDefinition {
 	}
 }
 
-// humanTools returns tool definitions for varied interaction tools.
+// humanTools returns tool definitions for human-like interactions.
 func humanTools() []ToolDefinition {
 	return []ToolDefinition{
 		{
 			Name:        "vulpine_human_click",
-			Description: "Move the pointer to coordinates with timed variation and click.",
+			Description: "Move mouse naturally to coordinates and click. Generates bezier curve path with overshoot and micro-jitter.",
 			InputSchema: InputSchema{
 				Type: "object",
 				Properties: map[string]Property{
@@ -376,10 +373,9 @@ func HandleToolCallDirect(client *juggler.Client, name string, args json.RawMess
 
 // HandleToolCallDirectCtx dispatches a tool call directly with an
 // explicit context, for tests and callers that want to pass through a
-// per-call deadline or marker value into extension handlers.
+// per-call deadline or sentinel value into extension handlers.
 func HandleToolCallDirectCtx(ctx context.Context, client *juggler.Client, name string, args json.RawMessage) (*ToolCallResult, error) {
 	tracker := NewContextTracker(client)
-	defer tracker.Close()
 	return handleToolCall(ctx, client, tracker, name, args)
 }
 
@@ -409,7 +405,7 @@ func handleToolCallFull(ctx context.Context, client *juggler.Client, tracker *Co
 	case "vulpine_new_context":
 		return handleNewContext(client, args)
 	case "vulpine_close_context":
-		return handleCloseContext(client, tracker, screenshots, args)
+		return handleCloseContext(client, args)
 	case "vulpine_get_ax_tree":
 		return handleGetAXTree(client, args)
 	case "vulpine_click_ref":
@@ -481,19 +477,6 @@ func handleNavigate(client *juggler.Client, tracker *ContextTracker, args json.R
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
 		return errorResult(err), nil
-	}
-
-	if p.URL == "" {
-		return errorResult(fmt.Errorf("url is required")), nil
-	}
-	if strings.TrimSpace(p.URL) != p.URL {
-		return errorResult(fmt.Errorf("url must not have leading or trailing whitespace")), nil
-	}
-	if strings.HasPrefix(p.URL, "javascript:") {
-		return errorResult(fmt.Errorf("javascript: URLs are not permitted")), nil
-	}
-	if !strings.Contains(p.URL, "://") && !strings.HasPrefix(p.URL, "/") {
-		return errorResult(fmt.Errorf("url %q is not absolute (missing scheme); prepend https://", p.URL)), nil
 	}
 
 	// Resolve frame ID for this session
@@ -723,17 +706,11 @@ func handleNewContext(client *juggler.Client, args json.RawMessage) (*ToolCallRe
 	if ctx.BrowserContextID == "" {
 		return errorResult(fmt.Errorf("Browser.createBrowserContext returned empty browserContextId")), nil
 	}
-	cleanupContext := true
-	defer func() {
-		if cleanupContext {
-			cleanupBrowserContext(client, ctx.BrowserContextID)
-		}
-	}()
 
 	// Subscribe to get the sessionID from the attachedToTarget event. Filter by
 	// browserContextId so concurrent target attaches cannot steal this result.
 	sessionCh := make(chan string, 4)
-	cancelAttach := client.SubscribeWithCancel("Browser.attachedToTarget", func(_ string, params json.RawMessage) {
+	client.Subscribe("Browser.attachedToTarget", func(_ string, params json.RawMessage) {
 		var ev struct {
 			SessionID  string `json:"sessionId"`
 			TargetInfo struct {
@@ -748,7 +725,6 @@ func handleNewContext(client *juggler.Client, args json.RawMessage) (*ToolCallRe
 			}
 		}
 	})
-	defer cancelAttach()
 
 	// Create page in context
 	_, err = client.Call("", "Browser.newPage", map[string]interface{}{
@@ -762,26 +738,14 @@ func handleNewContext(client *juggler.Client, args json.RawMessage) (*ToolCallRe
 	var sessionID string
 	select {
 	case sessionID = <-sessionCh:
-	case <-time.After(newContextAttachTimeout):
+	case <-time.After(10 * time.Second):
 		return errorResult(fmt.Errorf("timed out waiting for page session")), nil
 	}
 
-	cleanupContext = false
 	return textResult(fmt.Sprintf(`{"contextId":"%s","sessionId":"%s"}`, ctx.BrowserContextID, sessionID)), nil
 }
 
-func cleanupBrowserContext(client *juggler.Client, contextID string) {
-	if client == nil || contextID == "" {
-		return
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	_, _ = client.CallWithContext(ctx, "", "Browser.removeBrowserContext", map[string]interface{}{
-		"browserContextId": contextID,
-	})
-}
-
-func handleCloseContext(client *juggler.Client, tracker *ContextTracker, screenshots *ScreenshotTracker, args json.RawMessage) (*ToolCallResult, error) {
+func handleCloseContext(client *juggler.Client, args json.RawMessage) (*ToolCallResult, error) {
 	var p struct {
 		ContextID string `json:"contextId"`
 	}
@@ -794,16 +758,6 @@ func handleCloseContext(client *juggler.Client, tracker *ContextTracker, screens
 	})
 	if err != nil {
 		return errorResult(err), nil
-	}
-
-	if tracker != nil {
-		for _, sessionID := range tracker.SessionsForContext(p.ContextID) {
-			tracker.RemoveSession(sessionID)
-			resetSnapshotProfile(sessionID)
-			if screenshots != nil {
-				screenshots.Delete(sessionID)
-			}
-		}
 	}
 
 	return textResult("Context closed"), nil

@@ -163,7 +163,7 @@ func extensionTools() []ToolDefinition {
 // (nil, false) if the name is not recognized so the caller can fall
 // through to other handlers. The ctx argument is threaded through to
 // every provider method so call-scoped deadlines, cancellation, and
-// test markers propagate into extension backends.
+// test sentinels propagate into extension backends.
 func handleExtensionTool(ctx context.Context, client *juggler.Client, name string, args json.RawMessage) (*ToolCallResult, bool) {
 	switch name {
 	case "vulpine_annotated_screenshot":

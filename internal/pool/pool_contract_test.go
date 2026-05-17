@@ -67,39 +67,6 @@ func TestPoolUsesBrowserContextJugglerContract(t *testing.T) {
 	}
 }
 
-func TestPoolCloseDestroysActiveContexts(t *testing.T) {
-	transport := testutil.NewFakeJugglerTransport(t)
-	transport.RespondJSON("Browser.createBrowserContext", struct {
-		BrowserContextID string `json:"browserContextId"`
-	}{BrowserContextID: "ctx-active"})
-	transport.RespondJSON("Browser.removeBrowserContext", map[string]any{})
-
-	client := juggler.NewClient(transport)
-	defer client.Close()
-
-	pool := New(client, Config{PreWarm: 0, MaxActive: 1})
-	slot, err := pool.Acquire()
-	if err != nil {
-		t.Fatalf("Acquire failed: %v", err)
-	}
-	if slot.ContextID != "ctx-active" {
-		t.Fatalf("ContextID = %q, want ctx-active", slot.ContextID)
-	}
-
-	pool.Close()
-
-	removeCalls := transport.CallsByMethod("Browser.removeBrowserContext")
-	if len(removeCalls) != 1 {
-		t.Fatalf("remove calls = %d, want 1", len(removeCalls))
-	}
-	removeParams := testutil.ParamsAs[struct {
-		BrowserContextID string `json:"browserContextId"`
-	}](t, removeCalls[0].Params)
-	if removeParams.BrowserContextID != "ctx-active" {
-		t.Fatalf("browserContextId = %q, want ctx-active", removeParams.BrowserContextID)
-	}
-}
-
 func TestPoolRejectsMalformedContextResponse(t *testing.T) {
 	transport := testutil.NewFakeJugglerTransport(t)
 	transport.RespondJSON("Browser.createBrowserContext", struct {

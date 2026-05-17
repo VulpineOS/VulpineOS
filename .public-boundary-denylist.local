@@ -1,0 +1,3 @@
+# description<TAB>regex
+local plan paths	\.claude/private-docs(?:/|\\)
+local sibling repos	github\.com/VulpineOS/(vulpine-private|vulpine-api)(?:\b|/)

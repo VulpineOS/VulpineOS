@@ -10,21 +10,37 @@ import (
 
 // KernelStatusMsg updates kernel process status.
 type KernelStatusMsg struct {
-	Running       bool
-	PID           int
-	Uptime        time.Duration
-	Headless      bool
-	BrowserRoute  string
-	BrowserWindow string
+	Running           bool
+	PID               int
+	Uptime            time.Duration
+	Headless          bool
+	BrowserRoute      string
+	BrowserWindow     string
+	SentinelAvailable bool
+	SentinelMode      string
 }
 
 // TelemetryMsg carries engine telemetry data.
 type TelemetryMsg struct {
-	MemoryMB         float64
-	EventLoopLagMs   float64
-	RuntimeRiskScore float64
-	ActiveContexts   int
-	ActivePages      int
+	MemoryMB           float64
+	EventLoopLagMs     float64
+	DetectionRiskScore float64
+	ActiveContexts     int
+	ActivePages        int
+}
+
+// ContextInfo describes a browser context.
+type ContextInfo struct {
+	ContextID  string
+	Identity   string
+	PageCount  int
+	TrustState string
+	URLs       []string
+}
+
+// ContextUpdateMsg updates the context list.
+type ContextUpdateMsg struct {
+	Contexts []ContextInfo
 }
 
 // TargetAttachedMsg fires when a new page target appears.
@@ -139,24 +155,25 @@ type RuntimeEventMsg struct {
 // TickMsg is the periodic refresh tick.
 type TickMsg struct{}
 
+// ErrorMsg carries an error to display.
+type ErrorMsg struct {
+	Err error
+}
+
 // ProxyTestedMsg carries the result of a proxy latency test.
 type ProxyTestedMsg struct {
 	ProxyID string
 	Latency string // "45ms" or "error: ..."
 	ExitIP  string
-	Country string
 }
 
-// SettingsNoticeMsg displays a notice in the settings panel.
-type SettingsNoticeMsg struct {
-	Message string
+// ProxyImportedMsg fires after proxies are imported.
+type ProxyImportedMsg struct {
+	Count int
 }
 
 // SettingsClosedMsg fires when the settings panel is closed.
 type SettingsClosedMsg struct{}
-
-// ReconfigureRequestedMsg requests launching the setup wizard inside the TUI.
-type ReconfigureRequestedMsg struct{}
 
 // ProxyAddMsg requests adding a proxy to the vault.
 type ProxyAddMsg struct {
@@ -174,8 +191,16 @@ type SkillToggleMsg struct {
 	Enabled bool
 }
 
+// ResizeModeToggleMsg requests toggling panel-resize mode for arrow keys.
+type ResizeModeToggleMsg struct {
+	Enabled bool
+}
+
 // ProxyTestRequestMsg requests testing a proxy's latency and geo.
 type ProxyTestRequestMsg struct {
 	ProxyID string
 	Config  string // JSON ProxyConfig
 }
+
+// ReconfigureProviderMsg requests provider/model reconfiguration.
+type ReconfigureProviderMsg struct{}

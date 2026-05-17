@@ -116,8 +116,8 @@ var Providers = []Provider{
 
 	// --- Tier 2: Routing/Gateway providers ---
 	{ID: "openrouter", Name: "OpenRouter", EnvVar: "OPENROUTER_API_KEY",
-		DefaultModel: "openrouter/anthropic/claude-sonnet-4-6",
-		Models:       []string{"openrouter/anthropic/claude-sonnet-4-6", "openrouter/openai/gpt-4.1", "openrouter/google/gemini-2.5-pro"},
+		DefaultModel: "openrouter/nvidia/nemotron-3-nano-30b-a3b:free",
+		Models:       []string{"openrouter/nvidia/nemotron-3-nano-30b-a3b:free", "openrouter/anthropic/claude-sonnet-4-6", "openrouter/openai/gpt-4.1", "openrouter/google/gemini-2.5-pro"},
 		NeedsKey:     true},
 	{ID: "groq", Name: "Groq (LPU)", EnvVar: "GROQ_API_KEY",
 		DefaultModel: "groq/llama-3.3-70b-versatile",
@@ -187,10 +187,6 @@ var Providers = []Provider{
 		DefaultModel: "opencode/claude-opus-4-6",
 		Models:       []string{"opencode/claude-opus-4-6", "opencode/claude-sonnet-4-6"},
 		NeedsKey:     true},
-	{ID: "opencode-go", Name: "OpenCode Go", EnvVar: "OPENCODE_API_KEY",
-		DefaultModel: "opencode-go/minimax-m2.5",
-		Models:       []string{"opencode-go/minimax-m2.5", "opencode-go/minimax-m2.1", "opencode-go/minimax-m2"},
-		NeedsKey:     true},
 	{ID: "kilocode", Name: "Kilo Gateway", EnvVar: "KILOCODE_API_KEY",
 		DefaultModel: "kilocode/anthropic/claude-opus-4.6",
 		Models:       []string{"kilocode/anthropic/claude-opus-4.6"},
@@ -224,6 +220,10 @@ var Providers = []Provider{
 	{ID: "sglang", Name: "SGLang (Local)", EnvVar: "",
 		DefaultModel: "sglang/your-model-id",
 		Models:       []string{"sglang/your-model-id"},
+		NeedsKey:     false},
+	{ID: "opencode-local", Name: "OpenCode (Local)", EnvVar: "",
+		DefaultModel: "opencode/local",
+		Models:       []string{"opencode/local"},
 		NeedsKey:     false},
 }
 
@@ -261,7 +261,7 @@ func Path() string {
 	return filepath.Join(Dir(), "config.json")
 }
 
-// ReconfigureFlagPath returns the marker path used to request the setup wizard
+// ReconfigureFlagPath returns the sentinel path used to request the setup wizard
 // on the next launch without mutating the active config first.
 func ReconfigureFlagPath() string {
 	return filepath.Join(Dir(), "reconfigure")
@@ -353,8 +353,8 @@ func (c *Config) HydrateFromOpenClawProfile() bool {
 			changed = true
 		}
 	}
-	if providerID := providerIDFromModel(c.Model); providerID != "" {
-		if strings.TrimSpace(c.Provider) == "" || strings.TrimSpace(c.APIKey) == "" {
+	if strings.TrimSpace(c.Provider) == "" {
+		if providerID := providerIDFromModel(c.Model); providerID != "" {
 			c.Provider = providerID
 			changed = true
 		}
@@ -385,7 +385,7 @@ func ReconfigureRequested() bool {
 	return err == nil
 }
 
-// ClearReconfigureRequest removes the reconfigure marker if present.
+// ClearReconfigureRequest removes the reconfigure sentinel if present.
 func ClearReconfigureRequest() error {
 	if err := os.Remove(ReconfigureFlagPath()); err != nil && !os.IsNotExist(err) {
 		return err
@@ -407,7 +407,9 @@ func (c *Config) GenerateOpenClawConfig(vulpineosBinary, camoufoxBinary string) 
 
 	// Build env map
 	env := map[string]interface{}{}
-	if provider.EnvVar != "" && apiKey != "" {
+	if providerID == "opencode-local" {
+		env["OPENCODE_BINARY_PATH"] = "opencode"
+	} else if provider.EnvVar != "" && apiKey != "" {
 		env[provider.EnvVar] = apiKey
 	}
 
@@ -729,7 +731,7 @@ Use the configured browser path first. If a tool or browser path fails, say exac
 - On a fresh browser session, use ` + "`browser open <url>`" + ` for the first page load.
 - ` + "`browser navigate`" + ` without a target only works when a page already exists.
 - ` + "`browser start`" + ` starts the browser service but does not create a page by itself.
-- VulpineOS snapshots default to a compact profile. If a required target is missing from a truncated snapshot, retry once with expanded limits before concluding it is absent.
+- VulpineOS snapshots default to compact limits (180 nodes, 90 chars). If a required target is missing from a truncated snapshot, retry once with expanded limits before concluding it is absent.
 `,
 	}
 	for name, content := range bootstrap {
@@ -768,7 +770,7 @@ Rules:
 6. On a fresh browser session, use ` + "`browser open <url>`" + ` for the first page load.
 7. ` + "`browser navigate`" + ` without a target assumes a page already exists.
 8. ` + "`browser start`" + ` starts the service but does not create a page.
-9. VulpineOS snapshots default to a compact profile. If a required target is missing from a truncated snapshot, retry with expanded limits before concluding it is absent.
+9. VulpineOS snapshots default to compact limits (180 nodes, 90 chars). If a required target is missing from a truncated snapshot, retry with expanded limits before concluding it is absent.
 `
 	return os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(skill), 0600)
 }

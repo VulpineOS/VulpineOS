@@ -2,25 +2,12 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
-	"errors"
-	"go/ast"
-	"go/parser"
-	"go/token"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
-
-	"vulpineos/internal/juggler"
-	"vulpineos/internal/remote"
-	"vulpineos/internal/testutil"
-	"vulpineos/internal/vault"
 )
-
-var errStopAfterFlagParse = errors.New("stop after flag parse")
 
 // TestRun_VersionFlag verifies the Run wrapper-friendly entrypoint
 // honors --version, writes a version string to the configured stdout,
@@ -80,74 +67,6 @@ func TestRun_HelpFlagsExitZero(t *testing.T) {
 	}
 }
 
-func TestRun_LocalTUIDefaultsHeadlessAndSupportsHeadful(t *testing.T) {
-	tests := []struct {
-		name         string
-		args         []string
-		wantHeadless bool
-	}{
-		{
-			name:         "bare command defaults local TUI to headless",
-			args:         []string{"vulpineos"},
-			wantHeadless: true,
-		},
-		{
-			name:         "bare command headful flag launches visible browser",
-			args:         []string{"vulpineos", "--headful"},
-			wantHeadless: false,
-		},
-		{
-			name:         "tui subcommand defaults to headless",
-			args:         []string{"vulpineos", "tui"},
-			wantHeadless: true,
-		},
-		{
-			name:         "tui subcommand headful flag launches visible browser",
-			args:         []string{"vulpineos", "tui", "--headful"},
-			wantHeadless: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var gotHeadless bool
-			called := false
-
-			prevRunLocal := runLocalSession
-			runLocalSession = func(binaryPath string, headless bool, profileDir string, noBrowser bool) error {
-				called = true
-				gotHeadless = headless
-				return errStopAfterFlagParse
-			}
-			t.Cleanup(func() {
-				runLocalSession = prevRunLocal
-			})
-
-			var outBuf, errBuf bytes.Buffer
-			prevOut, prevErr := stdout, stderr
-			stdout = &outBuf
-			stderr = &errBuf
-			t.Cleanup(func() {
-				stdout = prevOut
-				stderr = prevErr
-			})
-
-			if code := Run(tt.args); code != 1 {
-				t.Fatalf("Run(%v) exit code = %d, want 1 from stub error", tt.args, code)
-			}
-			if !called {
-				t.Fatalf("Run(%v) did not call local TUI startup", tt.args)
-			}
-			if gotHeadless != tt.wantHeadless {
-				t.Fatalf("Run(%v) headless = %v, want %v", tt.args, gotHeadless, tt.wantHeadless)
-			}
-			if !strings.Contains(errBuf.String(), errStopAfterFlagParse.Error()) {
-				t.Fatalf("Run(%v) stderr = %q, want stub error", tt.args, errBuf.String())
-			}
-		})
-	}
-}
-
 func TestStartLocalSessionLoggingWritesToFile(t *testing.T) {
 	restore, path := startLocalSessionLogging(t.TempDir())
 	if path == "" {
@@ -167,70 +86,6 @@ func TestStartLocalSessionLoggingWritesToFile(t *testing.T) {
 	}
 	if !strings.Contains(string(data), "startup log redirected") {
 		t.Fatalf("log file %q missing redirected message: %q", path, string(data))
-	}
-}
-
-func TestOpenServerVaultReportsStartupIssue(t *testing.T) {
-	prevOpenVault := openVault
-	openVault = func() (*vault.DB, error) {
-		return nil, errors.New("permission denied")
-	}
-	t.Cleanup(func() {
-		openVault = prevOpenVault
-	})
-
-	db, audit, issues, cleanup := openServerVault()
-	t.Cleanup(cleanup)
-	if db != nil {
-		t.Fatal("db = non-nil, want nil on open failure")
-	}
-	if audit != nil {
-		t.Fatal("audit = non-nil, want nil on open failure")
-	}
-	if len(issues) != 1 {
-		t.Fatalf("issues = %#v, want one issue", issues)
-	}
-	if issues[0].Component != "vault" || issues[0].Level != "error" || !strings.Contains(issues[0].Message, "permission denied") {
-		t.Fatalf("unexpected startup issue: %#v", issues[0])
-	}
-}
-
-func TestServerContextRegistryReplaysExistingTargetsAfterWiring(t *testing.T) {
-	transport := testutil.NewFakeJugglerTransport(t)
-	transport.RespondFunc("Browser.enable", func(msg *juggler.Message) (json.RawMessage, *juggler.Error) {
-		params := testutil.ParamsAs[struct {
-			AttachToDefaultContext bool `json:"attachToDefaultContext"`
-		}](t, msg.Params)
-		if params.AttachToDefaultContext {
-			transport.InjectEvent("", "Browser.attachedToTarget", map[string]any{
-				"sessionId": "session-1",
-				"targetInfo": map[string]any{
-					"browserContextId": "context-1",
-					"url":              "https://example.com",
-				},
-			})
-		}
-		return json.RawMessage(`{}`), nil
-	})
-	client := juggler.NewClient(transport)
-	t.Cleanup(func() { _ = client.Close() })
-
-	registry := remote.NewContextRegistry()
-	wireServerBrowserEvents(client, registry, func(method string, sessionID string, params json.RawMessage) {})
-	if err := replayServerBrowserTargets(client); err != nil {
-		t.Fatalf("replayServerBrowserTargets: %v", err)
-	}
-
-	deadline := time.Now().Add(500 * time.Millisecond)
-	for {
-		contexts := registry.List()
-		if len(contexts) == 1 && contexts[0].ID == "context-1" && contexts[0].Pages == 1 && contexts[0].LastURL == "https://example.com" {
-			return
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("registry contexts = %+v, want replayed context-1", contexts)
-		}
-		time.Sleep(10 * time.Millisecond)
 	}
 }
 
@@ -365,67 +220,6 @@ func TestPrintPanelAccessExplicitKeyAvoidsTokenURL(t *testing.T) {
 			t.Fatalf("printPanelAccess output %q missing %q", out, want)
 		}
 	}
-}
-
-func TestTUIProgramsEnableMouseCellMotion(t *testing.T) {
-	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, "main.go", nil, 0)
-	if err != nil {
-		t.Fatalf("parse main.go: %v", err)
-	}
-
-	funcs := map[string]*ast.FuncDecl{}
-	for _, decl := range file.Decls {
-		fn, ok := decl.(*ast.FuncDecl)
-		if ok {
-			funcs[fn.Name.Name] = fn
-		}
-	}
-
-	for _, name := range []string{"runLocal", "runRemote"} {
-		fn := funcs[name]
-		if fn == nil {
-			t.Fatalf("missing %s", name)
-		}
-		foundAppProgram := false
-		ast.Inspect(fn.Body, func(n ast.Node) bool {
-			call, ok := n.(*ast.CallExpr)
-			if !ok || !isSelectorCall(call.Fun, "tea", "NewProgram") || len(call.Args) == 0 {
-				return true
-			}
-			first, ok := call.Args[0].(*ast.Ident)
-			if !ok || first.Name != "app" {
-				return true
-			}
-			foundAppProgram = true
-			if !callHasSelectorArg(call, "tea", "WithMouseCellMotion") {
-				t.Errorf("%s app tea.NewProgram missing tea.WithMouseCellMotion()", name)
-			}
-			return true
-		})
-		if !foundAppProgram {
-			t.Fatalf("%s did not create app tea.NewProgram", name)
-		}
-	}
-}
-
-func isSelectorCall(expr ast.Expr, pkg string, name string) bool {
-	sel, ok := expr.(*ast.SelectorExpr)
-	if !ok || sel.Sel.Name != name {
-		return false
-	}
-	ident, ok := sel.X.(*ast.Ident)
-	return ok && ident.Name == pkg
-}
-
-func callHasSelectorArg(call *ast.CallExpr, pkg string, name string) bool {
-	for _, arg := range call.Args {
-		option, ok := arg.(*ast.CallExpr)
-		if ok && isSelectorCall(option.Fun, pkg, name) {
-			return true
-		}
-	}
-	return false
 }
 
 func TestRunRemoteRejectsUnknownMode(t *testing.T) {

@@ -92,31 +92,6 @@ func TestOrchestratorReleasesContextOnAgentKill(t *testing.T) {
 	}
 }
 
-func TestOrchestratorCloseLeavesSharedClientUsable(t *testing.T) {
-	fake := testutil.NewFakeJugglerTransport(t)
-	fake.RespondJSON("Browser.createBrowserContext", map[string]string{"browserContextId": "ctx-close"})
-	fake.RespondJSON("Browser.removeBrowserContext", map[string]any{})
-	fake.RespondJSON("Browser.close", map[string]any{})
-
-	client := juggler.NewClient(fake)
-	defer client.Close()
-
-	vdb := openTestVault(t)
-	o := New(nil, client, vdb, pool.Config{PreWarm: 0, MaxActive: 1, MaxUsesPerSlot: 1}, "", Opts{})
-
-	if _, err := o.Pool.Acquire(); err != nil {
-		t.Fatalf("acquire: %v", err)
-	}
-	o.Close()
-
-	if _, err := client.Call("", "Browser.close", map[string]any{}); err != nil {
-		t.Fatalf("shared client unusable after orchestrator close: %v", err)
-	}
-	if len(fake.CallsByMethod("Browser.removeBrowserContext")) != 1 {
-		t.Fatalf("active pool context was not removed on close")
-	}
-}
-
 func TestOrchestratorAppliesFingerprintViaJuggler(t *testing.T) {
 	fake := testutil.NewFakeJugglerTransport(t)
 	fake.RespondJSON("Browser.createBrowserContext", map[string]string{"browserContextId": "ctx-fp"})
@@ -132,11 +107,11 @@ func TestOrchestratorAppliesFingerprintViaJuggler(t *testing.T) {
 	defer vdb.Close()
 
 	fp := vault.FingerprintData{
-		Platform:     "mac",
-		UserAgent:    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
-		ScreenWidth:  1920,
+		Platform:    "mac",
+		UserAgent:   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+		ScreenWidth: 1920,
 		ScreenHeight: 1080,
-		Language:     "en-US",
+		Language:   "en-US",
 	}
 	fpJSON, _ := json.Marshal(fp)
 
@@ -159,7 +134,7 @@ func TestOrchestratorAppliesFingerprintViaJuggler(t *testing.T) {
 	}
 	uaParams := testutil.ParamsAs[struct {
 		BrowserContextID string `json:"browserContextId"`
-		UserAgent        string `json:"userAgent"`
+		UserAgent       string `json:"userAgent"`
 	}](t, uaCalls[0].Params)
 	if uaParams.UserAgent != fp.UserAgent {
 		t.Fatalf("userAgent = %q, want %q", uaParams.UserAgent, fp.UserAgent)

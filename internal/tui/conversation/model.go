@@ -5,12 +5,10 @@ import (
 	"regexp"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/mattn/go-runewidth"
 
 	"vulpineos/internal/tui/shared"
 	"vulpineos/internal/vault"
@@ -66,7 +64,6 @@ type Model struct {
 	entries       []Entry
 	agentID       string
 	agentName     string
-	agentStatus   string
 	traceOnly     bool
 	thinking      bool // true while waiting for agent response
 	awake         bool // true after agent has sent its first message
@@ -85,10 +82,6 @@ type Model struct {
 // SetAgentName sets the display name for the agent.
 func (m *Model) SetAgentName(name string) {
 	m.agentName = name
-}
-
-func (m *Model) SetAgentStatus(status string) {
-	m.agentStatus = status
 }
 
 // SetTraceOnly switches the panel between mixed conversation and action-trace mode.
@@ -148,19 +141,11 @@ func New() Model {
 
 // SetSize sets the render dimensions.
 func (m *Model) SetSize(w, h int) {
-	oldContentWidth := m.contentWidth()
 	m.width = w
 	m.height = h
 	m.textInput.Width = w - 4
-	if m.textInput.Width < 1 {
-		m.textInput.Width = 1
-	}
-	if newContentWidth := m.contentWidth(); newContentWidth != oldContentWidth {
-		m.rewrapEntries(newContentWidth)
-	}
-	m.clampScroll()
-	if m.autoScroll {
-		m.scrollToBottom()
+	if m.textInput.Width < 10 {
+		m.textInput.Width = 10
 	}
 }
 
@@ -262,7 +247,6 @@ func (m *Model) SetAgentID(id string) {
 	m.scroll = 0
 	m.autoScroll = true
 	m.awake = false
-	m.textInput.Reset()
 }
 
 // AgentID returns the current agent ID.
@@ -272,7 +256,10 @@ func (m Model) AgentID() string {
 
 // LoadMessages loads conversation history from vault messages.
 func (m *Model) LoadMessages(msgs []vault.AgentMessage) {
-	maxWidth := m.contentWidth()
+	maxWidth := m.width - 8
+	if maxWidth < 10 {
+		maxWidth = 10
+	}
 	m.entries = make([]Entry, 0, len(msgs))
 	m.awake = false
 	for _, msg := range msgs {
@@ -290,7 +277,10 @@ func (m *Model) LoadMessages(msgs []vault.AgentMessage) {
 
 // AddEntry adds a new conversation entry.
 func (m *Model) AddEntry(role, content string) {
-	maxWidth := m.contentWidth()
+	maxWidth := m.width - 8
+	if maxWidth < 10 {
+		maxWidth = 10
+	}
 	m.entries = append(m.entries, Entry{
 		Role:          role,
 		Content:       content,
@@ -302,34 +292,9 @@ func (m *Model) AddEntry(role, content string) {
 	m.scrollToBottom()
 }
 
-// ForceScrollToBottom re-enables auto-scroll and moves to the latest entry.
-func (m *Model) ForceScrollToBottom() {
-	m.autoScroll = true
-	m.scrollToBottom()
-}
-
-func (m Model) contentWidth() int {
-	maxWidth := m.width - 8
-	if maxWidth < 1 {
-		return 1
-	}
-	return maxWidth
-}
-
-func (m *Model) rewrapEntries(maxWidth int) {
-	for i := range m.entries {
-		m.entries[i].renderedLines = renderMarkdown(m.entries[i].Content, maxWidth)
-	}
-}
-
 // TextInput returns a pointer to the text input for external update.
 func (m *Model) TextInput() *textinput.Model {
 	return &m.textInput
-}
-
-// IsInputFocused reports whether the text input is focused.
-func (m *Model) IsInputFocused() bool {
-	return m.textInput.Focused()
 }
 
 // InputValue returns and clears the current input value.
@@ -470,21 +435,6 @@ func (m *Model) scrollToBottom() {
 	}
 }
 
-func (m *Model) clampScroll() {
-	total := len(m.renderLines())
-	visible := m.visibleLines()
-	maxScroll := total - visible
-	if maxScroll < 0 {
-		maxScroll = 0
-	}
-	if m.scroll > maxScroll {
-		m.scroll = maxScroll
-	}
-	if m.scroll < 0 {
-		m.scroll = 0
-	}
-}
-
 // View renders the conversation panel.
 // Messages are bottom-aligned: empty space at top, messages grow upward from the input box.
 // Input box is framed by dividers above and below.
@@ -516,9 +466,7 @@ func (m Model) View() string {
 
 	// Build the input line
 	var inputArea string
-	if m.agentStatus == "error" {
-		inputArea = shared.MutedStyle.Render("  > Agent failed — press Enter to retry or x to remove")
-	} else if !m.awake && m.thinking {
+	if !m.awake && m.thinking {
 		inputArea = shared.MutedStyle.Render("  Chat available after agent responds")
 	} else if m.textInput.Focused() {
 		inputArea = m.textInput.View()
@@ -676,22 +624,23 @@ func renderMarkdown(text string, maxWidth int) []string {
 	for _, para := range paragraphs {
 		para = strings.TrimRight(para, " ")
 
-		for _, line := range wordWrap(para, maxWidth) {
-			// Apply inline styles after wrapping so ANSI spans are not split.
-			styled := reBold.ReplaceAllStringFunc(line, func(m string) string {
-				inner := m[2 : len(m)-2]
-				return boldStyle.Render(inner)
-			})
-			styled = reCode.ReplaceAllStringFunc(styled, func(m string) string {
-				inner := m[1 : len(m)-1]
-				return codeStyle.Render(inner)
-			})
-			styled = reItalic.ReplaceAllStringFunc(styled, func(m string) string {
-				inner := m[1 : len(m)-1]
-				return italicStyle.Render(inner)
-			})
-			allLines = append(allLines, styled)
-		}
+		// Apply inline styles (order matters: bold before italic to handle ** vs *)
+		styled := reBold.ReplaceAllStringFunc(para, func(m string) string {
+			inner := m[2 : len(m)-2]
+			return boldStyle.Render(inner)
+		})
+		styled = reCode.ReplaceAllStringFunc(styled, func(m string) string {
+			inner := m[1 : len(m)-1]
+			return codeStyle.Render(inner)
+		})
+		styled = reItalic.ReplaceAllStringFunc(styled, func(m string) string {
+			inner := m[1 : len(m)-1]
+			return italicStyle.Render(inner)
+		})
+
+		// Word wrap the styled text
+		wrapped := wordWrap(styled, maxWidth)
+		allLines = append(allLines, wrapped...)
 	}
 
 	if len(allLines) == 0 {
@@ -715,7 +664,7 @@ func ansiVisualWidth(s string) int {
 			inEscape = true
 			continue
 		}
-		width += runewidth.RuneWidth(r)
+		width++
 	}
 	return width
 }
@@ -756,12 +705,8 @@ func wordWrap(text string, maxWidth int) []string {
 				bytePos = i + len(string(r))
 				continue
 			}
-			runeWidth := runewidth.RuneWidth(r)
-			if visualW+runeWidth > maxWidth && bytePos > 0 {
-				break
-			}
-			visualW += runeWidth
-			bytePos = i + utf8.RuneLen(r)
+			visualW++
+			bytePos = i + len(string(r))
 			if visualW >= maxWidth {
 				break
 			}

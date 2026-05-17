@@ -42,6 +42,7 @@ type registry struct {
 	credentials CredentialProvider
 	audio       AudioCapturer
 	mobile      MobileBridge
+	sentinel    SentinelProvider
 }
 
 // Credentials returns the currently-registered credential provider.
@@ -66,6 +67,14 @@ func (r *registry) Mobile() MobileBridge {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.mobile
+}
+
+// Sentinel returns the currently registered Sentinel provider. Always
+// non-nil; returns the no-op default when nothing is registered.
+func (r *registry) Sentinel() SentinelProvider {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.sentinel
 }
 
 // SetCredentials registers a credential provider. Intended to be called
@@ -102,12 +111,24 @@ func (r *registry) SetMobile(b MobileBridge) {
 	r.mobile = b
 }
 
+// SetSentinel registers a Sentinel provider. Intended to be called
+// from init() in build-tagged extension files.
+func (r *registry) SetSentinel(s SentinelProvider) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if s == nil {
+		s = defaultSentinelProvider
+	}
+	r.sentinel = s
+}
+
 // Registry is the global provider registry. It is a pointer so that
 // alternate builds can mutate it from their own init() functions.
 var Registry = &registry{
 	credentials: defaultCredentialProvider,
 	audio:       defaultAudioCapturer,
 	mobile:      defaultMobileBridge,
+	sentinel:    defaultSentinelProvider,
 }
 
 // privateProviders holds constructors supplied by local build-tagged
@@ -116,9 +137,10 @@ var Registry = &registry{
 // the struct zero-valued so every entry is nil and InitWithClient becomes
 // a no-op.
 var privateProviders = struct {
-	Vault  func(jc JugglerCallable) CredentialProvider
-	Audio  func(jc JugglerCallable) AudioCapturer
-	Mobile func(jc JugglerCallable) MobileBridge
+	Vault    func(jc JugglerCallable) CredentialProvider
+	Audio    func(jc JugglerCallable) AudioCapturer
+	Mobile   func(jc JugglerCallable) MobileBridge
+	Sentinel func(jc JugglerCallable) SentinelProvider
 }{}
 
 // Init is called once at startup before a juggler client is available.
@@ -152,6 +174,11 @@ func InitWithClient(jc JugglerCallable) {
 	if privateProviders.Mobile != nil {
 		if m := privateProviders.Mobile(jc); m != nil {
 			Registry.SetMobile(m)
+		}
+	}
+	if privateProviders.Sentinel != nil {
+		if s := privateProviders.Sentinel(jc); s != nil {
+			Registry.SetSentinel(s)
 		}
 	}
 }

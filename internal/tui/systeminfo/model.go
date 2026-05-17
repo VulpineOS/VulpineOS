@@ -13,23 +13,25 @@ import (
 
 // Model holds compact system metrics for the left sidebar.
 type Model struct {
-	running        bool
-	pid            int
-	uptime         time.Duration
-	headless       bool
-	browserRoute   string
-	browserWindow  string
-	memoryMB       float64
-	eventLoopLag   float64
-	runtimeRisk    float64
-	activeContexts int
-	activePages    int
-	poolAvailable  int
-	poolActive     int
-	poolTotal      int
-	runtimeEvents  []sharedRuntimeEvent
-	width          int
-	height         int
+	running           bool
+	pid               int
+	uptime            time.Duration
+	headless          bool
+	browserRoute      string
+	browserWindow     string
+	sentinelAvailable bool
+	sentinelMode      string
+	memoryMB          float64
+	eventLoopLag      float64
+	detectionRisk     float64
+	activeContexts    int
+	activePages       int
+	poolAvailable     int
+	poolActive        int
+	poolTotal         int
+	runtimeEvents     []sharedRuntimeEvent
+	width             int
+	height            int
 }
 
 type sharedRuntimeEvent struct {
@@ -71,10 +73,12 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.headless = msg.Headless
 		m.browserRoute = msg.BrowserRoute
 		m.browserWindow = msg.BrowserWindow
+		m.sentinelAvailable = msg.SentinelAvailable
+		m.sentinelMode = msg.SentinelMode
 	case shared.TelemetryMsg:
 		m.memoryMB = msg.MemoryMB
 		m.eventLoopLag = msg.EventLoopLagMs
-		m.runtimeRisk = msg.RuntimeRiskScore
+		m.detectionRisk = msg.DetectionRiskScore
 		m.activeContexts = msg.ActiveContexts
 		m.activePages = msg.ActivePages
 	case shared.PoolStatsMsg:
@@ -177,11 +181,22 @@ func (m Model) View() string {
 		b.WriteString(shared.MutedStyle.Render(fmt.Sprintf("Win %s", m.browserWindow)))
 		b.WriteString("\n")
 	}
+	if m.sentinelAvailable {
+		b.WriteString(shared.MutedStyle.Render(fmt.Sprintf("Sent %s", sentinelModeLabel(m.sentinelMode))))
+	} else {
+		b.WriteString(shared.MutedStyle.Render("Sent OFF"))
+	}
+	b.WriteString("\n")
+	b.WriteString("\n")
+
+	b.WriteString(fmt.Sprintf("MEM %s\n", meterBar(m.memoryMB, 1024, fmt.Sprintf("%.0f", m.memoryMB))))
+	b.WriteString(fmt.Sprintf("LAG %s\n", meterBar(m.eventLoopLag, 100, fmt.Sprintf("%.0fms", m.eventLoopLag))))
+	b.WriteString(fmt.Sprintf("RISK %s\n", meterBar(m.detectionRisk, 100, fmt.Sprintf("%.0f", m.detectionRisk))))
+	b.WriteString("\n")
+
 	b.WriteString(shared.MutedStyle.Render(fmt.Sprintf("Pool: %d/%d/%d", m.poolAvailable, m.poolActive, m.poolTotal)))
 	b.WriteString("\n")
 	b.WriteString(shared.MutedStyle.Render(fmt.Sprintf("Ctx: %d Pg: %d", m.activeContexts, m.activePages)))
-	b.WriteString("\n")
-
 	if len(m.runtimeEvents) > 0 {
 		b.WriteString("\n\n")
 		b.WriteString(shared.MutedStyle.Render("Runtime"))
@@ -189,21 +204,10 @@ func (m Model) View() string {
 			b.WriteString("\n")
 			b.WriteString(shared.MutedStyle.Render(formatRuntimeEvent(event)))
 		}
-		b.WriteString("\n")
 	}
-	b.WriteString(fmt.Sprintf("MEM %s\n", meterBar(m.memoryMB, 1024, fmt.Sprintf("%.0f", m.memoryMB))))
-	b.WriteString(fmt.Sprintf("LAG %s\n", meterBar(m.eventLoopLag, 100, fmt.Sprintf("%.0fms", m.eventLoopLag))))
-	b.WriteString(fmt.Sprintf("RISK %s", meterBar(m.runtimeRisk, 100, fmt.Sprintf("%.0f", m.runtimeRisk))))
 
 	// Truncate to allocated height so the panel never overflows
 	result := b.String()
-	if m.width > 0 {
-		lines := strings.Split(result, "\n")
-		for i, line := range lines {
-			lines[i] = fitLine(line, m.width)
-		}
-		result = strings.Join(lines, "\n")
-	}
 	if m.height > 0 {
 		lines := strings.Split(result, "\n")
 		if len(lines) > m.height {
@@ -214,27 +218,12 @@ func (m Model) View() string {
 	return result
 }
 
-func fitLine(line string, width int) string {
-	if width <= 0 {
-		return ""
-	}
-	if lipgloss.Width(line) <= width {
-		return line
-	}
-	fitted := lipgloss.NewStyle().MaxWidth(width).Render(line)
-	lines := strings.Split(fitted, "\n")
-	if len(lines) == 0 {
-		return ""
-	}
-	return lines[0]
-}
-
 func formatRuntimeEvent(event sharedRuntimeEvent) string {
 	component := strings.ToUpper(event.component)
 	if len(component) > 4 {
 		component = component[:4]
 	}
-	return fmt.Sprintf("%-4s %s %s", component, event.event, event.at.Format("15:04"))
+	return fmt.Sprintf("%s %s %s", component, event.event, event.at.Format("15:04"))
 }
 
 // formatDuration formats a duration compactly (e.g., "12m", "1h3m").
@@ -251,4 +240,18 @@ func formatDuration(d time.Duration) string {
 		return fmt.Sprintf("%dh", h)
 	}
 	return fmt.Sprintf("%dh%dm", h, m)
+}
+
+func sentinelModeLabel(mode string) string {
+	value := strings.TrimSpace(strings.ToUpper(mode))
+	if value == "" {
+		return "ON"
+	}
+	if value == strings.ToUpper("private_scaffold") {
+		return "SCFLD"
+	}
+	if len(value) > 6 {
+		value = value[:6]
+	}
+	return value
 }

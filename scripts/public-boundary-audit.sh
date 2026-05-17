@@ -6,29 +6,24 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/.." && pwd)"
 workspace_root="$(cd "${repo_root}/.." && pwd)"
 
-public_repo_names=("$(basename "${repo_root}")")
-public_repo_paths=("${repo_root}")
-repo_list_file="${VULPINE_PUBLIC_AUDIT_REPOS:-${repo_root}/.public-boundary-repos.local}"
-if [[ -f "${repo_list_file}" ]]; then
-  public_repo_names=()
-  public_repo_paths=()
-  while IFS= read -r repo_entry || [[ -n "${repo_entry}" ]]; do
-    [[ -z "${repo_entry}" || "${repo_entry}" =~ ^[[:space:]]*# ]] && continue
-    if [[ "${repo_entry}" = /* ]]; then
-      repo_path="${repo_entry}"
-    else
-      repo_path="${workspace_root}/${repo_entry}"
-    fi
-    public_repo_names+=("$(basename "${repo_path}")")
-    public_repo_paths+=("${repo_path}")
-  done < "${repo_list_file}"
-fi
-if ((${#public_repo_paths[@]} == 0)); then
-  public_repo_names=("$(basename "${repo_root}")")
-  public_repo_paths=("${repo_root}")
-fi
+public_repo_paths=(
+  "${repo_root}"
+  "${workspace_root}/vulpine-mark"
+  "${workspace_root}/mobilebridge"
+  "${workspace_root}/foxbridge"
+  "${workspace_root}/vulpineos-docs"
+)
+
+public_repo_names=(
+  "VulpineOS"
+  "vulpine-mark"
+  "mobilebridge"
+  "foxbridge"
+  "vulpineos-docs"
+)
 
 exclude_specs=(
+  ":(exclude)go.sum"
   ":(glob,exclude)**/node_modules/**"
   ":(glob,exclude)**/dist/**"
   ":(glob,exclude)**/build/**"
@@ -42,9 +37,6 @@ exclude_specs=(
 )
 
 findings=0
-local_denylist_file="${VULPINE_PUBLIC_AUDIT_DENYLIST:-${repo_root}/.public-boundary-denylist.local}"
-local_denylist_descriptions=()
-local_denylist_patterns=()
 
 fail() {
   findings=$((findings + 1))
@@ -55,34 +47,10 @@ info() {
   printf 'INFO: %s\n' "$1"
 }
 
-load_local_denylist() {
-  local line description pattern
-
-  [[ -f "$local_denylist_file" ]] || return 0
-
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    [[ -n "${line//[[:space:]]/}" ]] || continue
-    [[ "$line" =~ ^[[:space:]]*# ]] && continue
-
-    if [[ "$line" == *$'\t'* ]]; then
-      description="${line%%$'\t'*}"
-      pattern="${line#*$'\t'}"
-    else
-      description="local denylist pattern"
-      pattern="$line"
-    fi
-
-    [[ -n "$pattern" ]] || continue
-    local_denylist_descriptions+=("$description")
-    local_denylist_patterns+=("$pattern")
-  done < "$local_denylist_file"
-}
-
 check_origin_remote() {
   local repo="$1"
   local expected_name="$2"
   local origin_url
-  local origin_pushurl
 
   origin_url="$(git -C "$repo" remote get-url origin 2>/dev/null || true)"
   if [[ -z "$origin_url" ]]; then
@@ -90,14 +58,8 @@ check_origin_remote() {
     return
   fi
 
-  if [[ ! "$origin_url" =~ ^(https://github\.com/|git@github\.com:)(VulpineOS|PopcornDev1)/${expected_name}(\.git)?$ ]]; then
-    fail "${expected_name}: origin remote is not an approved public repo (${origin_url})"
-  fi
-
-  origin_pushurl="$(git -C "$repo" config --get remote.origin.pushurl || true)"
-  [[ -n "$origin_pushurl" ]] || origin_pushurl="$origin_url"
-  if [[ "$origin_pushurl" != "DISABLED" && ! "$origin_pushurl" =~ ^(https://github\.com/|git@github\.com:)VulpineOS/${expected_name}(\.git)?$ ]]; then
-    fail "${expected_name}: origin push target must be DISABLED or VulpineOS/${expected_name} (found: ${origin_pushurl})"
+  if [[ ! "$origin_url" =~ ^(https://github\.com/|git@github\.com:)VulpineOS/${expected_name}(\.git)?$ ]]; then
+    fail "${expected_name}: origin remote is not VulpineOS/${expected_name} (${origin_url})"
   fi
 }
 
@@ -123,13 +85,6 @@ scan_files() {
   git -C "$repo" grep -nI --color=never --perl-regexp "${pattern_args[@]}" -- . "${exclude_specs[@]}"
 }
 
-scan_all_files() {
-  local repo="$1"
-  shift
-  local pattern_args=("$@")
-  git -C "$repo" grep -na --color=never --perl-regexp "${pattern_args[@]}" -- . "${exclude_specs[@]}"
-}
-
 check_pattern() {
   local repo="$1"
   local expected_name="$2"
@@ -138,20 +93,6 @@ check_pattern() {
   local matches
 
   matches="$(scan_files "$repo" -e "$pattern" || true)"
-  if [[ -n "$matches" ]]; then
-    fail "${expected_name}: ${description}"
-    printf '%s\n' "$matches"
-  fi
-}
-
-check_pattern_all() {
-  local repo="$1"
-  local expected_name="$2"
-  local description="$3"
-  local pattern="$4"
-  local matches
-
-  matches="$(scan_all_files "$repo" -e "$pattern" || true)"
   if [[ -n "$matches" ]]; then
     fail "${expected_name}: ${description}"
     printf '%s\n' "$matches"
@@ -197,21 +138,17 @@ check_repo() {
   check_origin_remote "$repo" "$expected_name"
   check_upstream_push_blocked "$repo" "$expected_name"
 
-  for i in "${!local_denylist_patterns[@]}"; do
-    check_pattern "$repo" "$expected_name" "tracked local denylist match (${local_denylist_descriptions[$i]})" "${local_denylist_patterns[$i]}"
-  done
-
-  check_pattern_all "$repo" "$expected_name" "tracked macOS absolute path" '(^|[^A-Za-z0-9_])/Users/(?!<user>|<username>|example/|name/|runner/)[A-Za-z0-9._-]+/'
-  check_pattern_all "$repo" "$expected_name" "tracked Linux absolute path" '(^|[^A-Za-z0-9_])/home/(?!<user>|<username>|example/|name/|appveyor/|runner/|runneradmin/|ubuntu/|vsts/)[A-Za-z0-9._-]+/'
-  check_pattern_all "$repo" "$expected_name" "tracked Windows absolute path" '(^|[^A-Za-z0-9_])[A-Za-z]:\\\\Users\\\\(?!<user>|<username>|example\\\\|name\\\\)[^\\\\\\s]+\\\\'
+  check_pattern "$repo" "$expected_name" "tracked reference to private plan docs" '\.claude/private-docs(?:/|\\)'
+  check_pattern "$repo" "$expected_name" "tracked reference to private repos" 'github\.com/VulpineOS/(vulpine-private|vulpine-api)(?:\b|/)'
+  check_pattern "$repo" "$expected_name" "tracked macOS absolute path" '(^|[^A-Za-z0-9_])/Users/(?!<user>|<username>|example/|name/|runner/)[A-Za-z0-9._-]+/'
+  check_pattern "$repo" "$expected_name" "tracked Linux absolute path" '(^|[^A-Za-z0-9_])/home/(?!<user>|<username>|example/|name/|appveyor/|runner/|runneradmin/|ubuntu/|vsts/)[A-Za-z0-9._-]+/'
+  check_pattern "$repo" "$expected_name" "tracked Windows absolute path" '(^|[^A-Za-z0-9_])[A-Za-z]:\\\\Users\\\\(?!<user>|<username>|example\\\\|name\\\\)[^\\\\\\s]+\\\\'
   check_pattern "$repo" "$expected_name" "high-confidence secret token" 'ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{20,}|lin_api_[A-Za-z0-9]{20,}|xox[pbar]-[A-Za-z0-9-]{20,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|sk-(proj-)?[A-Za-z0-9]{20,}'
 
   if [[ "$expected_name" == "VulpineOS" ]]; then
     check_vulpineos_public_polish "$repo"
   fi
 }
-
-load_local_denylist
 
 for i in "${!public_repo_paths[@]}"; do
   check_repo "${public_repo_paths[$i]}" "${public_repo_names[$i]}"

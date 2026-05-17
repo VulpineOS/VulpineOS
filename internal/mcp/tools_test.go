@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sync"
 	"testing"
-	"time"
 
 	"vulpineos/internal/juggler"
 )
@@ -295,110 +294,6 @@ func TestHandleNewContextFiltersAttachEventsByBrowserContext(t *testing.T) {
 	}
 	if payload.SessionID != "session-new" {
 		t.Fatalf("sessionId = %q, want session-new", payload.SessionID)
-	}
-}
-
-func TestHandleNewContextRemovesContextOnNewPageFailure(t *testing.T) {
-	transport := newScriptedJugglerTransport()
-	client := juggler.NewClient(transport)
-	defer client.Close()
-
-	removed := make(chan string, 1)
-	go func() {
-		for {
-			select {
-			case <-transport.closed:
-				return
-			case req := <-transport.outgoing:
-				switch req.Method {
-				case "Browser.createBrowserContext":
-					transport.incoming <- &juggler.Message{ID: req.ID, Result: json.RawMessage(`{"browserContextId":"ctx-leak"}`)}
-				case "Browser.newPage":
-					transport.incoming <- &juggler.Message{ID: req.ID, Error: &juggler.Error{Message: "new page failed"}}
-				case "Browser.removeBrowserContext":
-					var params struct {
-						BrowserContextID string `json:"browserContextId"`
-					}
-					_ = json.Unmarshal(req.Params, &params)
-					removed <- params.BrowserContextID
-					transport.incoming <- &juggler.Message{ID: req.ID, Result: json.RawMessage(`{}`)}
-				default:
-					transport.incoming <- &juggler.Message{ID: req.ID, Result: json.RawMessage(`{}`)}
-				}
-			}
-		}
-	}()
-
-	result, err := handleNewContext(client, nil)
-	if err != nil {
-		t.Fatalf("handleNewContext returned error: %v", err)
-	}
-	if result == nil || !result.IsError {
-		t.Fatalf("handleNewContext result = %#v, want tool error", result)
-	}
-
-	select {
-	case contextID := <-removed:
-		if contextID != "ctx-leak" {
-			t.Fatalf("removed context = %q, want ctx-leak", contextID)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("Browser.removeBrowserContext was not called")
-	}
-}
-
-func TestHandleNewContextRemovesContextOnAttachTimeout(t *testing.T) {
-	previousTimeout := newContextAttachTimeout
-	newContextAttachTimeout = 20 * time.Millisecond
-	t.Cleanup(func() {
-		newContextAttachTimeout = previousTimeout
-	})
-
-	transport := newScriptedJugglerTransport()
-	client := juggler.NewClient(transport)
-	defer client.Close()
-
-	removed := make(chan string, 1)
-	go func() {
-		for {
-			select {
-			case <-transport.closed:
-				return
-			case req := <-transport.outgoing:
-				switch req.Method {
-				case "Browser.createBrowserContext":
-					transport.incoming <- &juggler.Message{ID: req.ID, Result: json.RawMessage(`{"browserContextId":"ctx-timeout"}`)}
-				case "Browser.newPage":
-					transport.incoming <- &juggler.Message{ID: req.ID, Result: json.RawMessage(`{"targetId":"target-timeout"}`)}
-				case "Browser.removeBrowserContext":
-					var params struct {
-						BrowserContextID string `json:"browserContextId"`
-					}
-					_ = json.Unmarshal(req.Params, &params)
-					removed <- params.BrowserContextID
-					transport.incoming <- &juggler.Message{ID: req.ID, Result: json.RawMessage(`{}`)}
-				default:
-					transport.incoming <- &juggler.Message{ID: req.ID, Result: json.RawMessage(`{}`)}
-				}
-			}
-		}
-	}()
-
-	result, err := handleNewContext(client, nil)
-	if err != nil {
-		t.Fatalf("handleNewContext returned error: %v", err)
-	}
-	if result == nil || !result.IsError {
-		t.Fatalf("handleNewContext result = %#v, want tool error", result)
-	}
-
-	select {
-	case contextID := <-removed:
-		if contextID != "ctx-timeout" {
-			t.Fatalf("removed context = %q, want ctx-timeout", contextID)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("Browser.removeBrowserContext was not called")
 	}
 }
 

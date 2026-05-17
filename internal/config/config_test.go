@@ -812,60 +812,6 @@ func TestLoadHydratesFromOpenClawProfile(t *testing.T) {
 	}
 }
 
-func TestLoadHydratesProviderFromOpenClawProfileWhenLocalProviderIsStale(t *testing.T) {
-	withTempHome(t)
-
-	if err := os.MkdirAll(Dir(), 0700); err != nil {
-		t.Fatalf("mkdir config dir: %v", err)
-	}
-	if err := os.WriteFile(Path(), []byte(`{"provider":"openai","apiKey":"","model":"","setupComplete":false}`), 0600); err != nil {
-		t.Fatalf("write stale config: %v", err)
-	}
-
-	if err := os.MkdirAll(OpenClawProfileDir(), 0700); err != nil {
-		t.Fatalf("mkdir openclaw dir: %v", err)
-	}
-	profile := map[string]interface{}{
-		"env": map[string]interface{}{
-			"ZAI_API_KEY": "zai-test-key",
-		},
-		"agents": map[string]interface{}{
-			"defaults": map[string]interface{}{
-				"model": map[string]interface{}{
-					"primary": "zai/glm-4.7",
-				},
-			},
-		},
-		"browser": map[string]interface{}{
-			"enabled": true,
-		},
-	}
-	data, err := json.Marshal(profile)
-	if err != nil {
-		t.Fatalf("marshal profile: %v", err)
-	}
-	if err := os.WriteFile(OpenClawConfigPath(), data, 0600); err != nil {
-		t.Fatalf("write openclaw profile: %v", err)
-	}
-
-	cfg, err := Load()
-	if err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-	if cfg.Provider != "zai" {
-		t.Fatalf("provider = %q, want zai", cfg.Provider)
-	}
-	if cfg.Model != "zai/glm-4.7" {
-		t.Fatalf("model = %q, want zai/glm-4.7", cfg.Model)
-	}
-	if cfg.APIKey != "zai-test-key" {
-		t.Fatalf("apiKey = %q, want zai-test-key", cfg.APIKey)
-	}
-	if !cfg.SetupComplete {
-		t.Fatal("setupComplete = false, want true")
-	}
-}
-
 func TestOpenClawProfileBrowserRoute(t *testing.T) {
 	withTempHome(t)
 

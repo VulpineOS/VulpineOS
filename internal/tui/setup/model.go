@@ -3,8 +3,6 @@ package setup
 import (
 	"fmt"
 	"strings"
-	"sync"
-	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -43,20 +41,15 @@ type Model struct {
 	modelIdx      int
 	cfg           *config.Config
 	done          bool
-
-	// Model discovery fields
-	modelsPerProvider map[string][]string // providerID -> model list
-	mu                sync.RWMutex
-	discovered        bool // whether background discovery has completed
 }
 
 // New creates a new setup wizard.
-func New() *Model {
+func New() Model {
 	return NewWithConfig(nil)
 }
 
 // NewWithConfig creates a setup wizard seeded from an existing config.
-func NewWithConfig(existing *config.Config) *Model {
+func NewWithConfig(existing *config.Config) Model {
 	ti := textinput.New()
 	ti.Placeholder = "Paste your API key here..."
 	ti.CharLimit = 200
@@ -69,7 +62,7 @@ func NewWithConfig(existing *config.Config) *Model {
 		cfg:         &config.Config{},
 	}
 	if existing == nil {
-		return &m
+		return m
 	}
 
 	m.cfg.Provider = existing.Provider
@@ -97,42 +90,28 @@ func NewWithConfig(existing *config.Config) *Model {
 		}
 		break
 	}
-	return &m
+	return m
 }
 
 // Config returns the completed config.
-func (m *Model) Config() *config.Config {
+func (m Model) Config() *config.Config {
 	return m.cfg
 }
 
 // Done returns true if setup is complete and user pressed Enter on the final screen.
-func (m *Model) Done() bool {
+func (m Model) Done() bool {
 	return m.done
 }
 
-func (m *Model) Init() tea.Cmd {
-	// Start background goroutine for model discovery
-	go func() {
-		// Simulate model discovery by populating modelsPerProvider
-		// In a real implementation, this might call external APIs
-		time.Sleep(100 * time.Millisecond) // Small delay to simulate discovery
-		m.mu.Lock()
-		m.modelsPerProvider = make(map[string][]string)
-		for _, p := range m.providers {
-			m.modelsPerProvider[p.ID] = p.Models
-		}
-		m.discovered = true
-		m.mu.Unlock()
-	}()
+func (m Model) Init() tea.Cmd {
 	return textinput.Blink
 }
 
-func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.apiKeyInput.Width = m.inputWidth()
 
 	case tea.KeyMsg:
 		switch m.step {
@@ -216,7 +195,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *Model) View() string {
+func (m Model) View() string {
 	var content string
 
 	switch m.step {
@@ -228,11 +207,7 @@ func (m *Model) View() string {
 		content = m.viewDone()
 	}
 
-	if m.width > 0 && m.width < 8 {
-		return fitSetupBlock(content, m.width, m.height)
-	}
-
-	box := boxStyle.Width(m.boxWidth()).Render(content)
+	box := boxStyle.Render(content)
 
 	// Center vertically
 	pad := (m.height - lipgloss.Height(box)) / 2
@@ -240,54 +215,17 @@ func (m *Model) View() string {
 		pad = 0
 	}
 
-	return fitSetupBlock(strings.Repeat("\n", pad)+lipgloss.PlaceHorizontal(m.width, lipgloss.Center, box), m.width, m.height)
+	return strings.Repeat("\n", pad) + lipgloss.PlaceHorizontal(m.width, lipgloss.Center, box)
 }
 
-func (m *Model) boxWidth() int {
-	if m.width <= 0 {
-		return 76
-	}
-	width := m.width - 2
-	if width > 76 {
-		width = 76
-	}
-	if width < 12 {
-		width = max(1, m.width-2)
-	}
-	return width
-}
-
-func (m *Model) inputWidth() int {
-	width := m.boxWidth() - 8
-	if width > 50 {
-		width = 50
-	}
-	if width < 10 {
-		width = 10
-	}
-	return width
-}
-
-func (m *Model) contentWidth() int {
-	width := m.boxWidth() - 4
-	if width < 1 {
-		return 1
-	}
-	return width
-}
-
-func (m *Model) viewProvider() string {
-	if m.height > 0 && m.height < 14 {
-		return m.viewProviderCompact()
-	}
-
+func (m Model) viewProvider() string {
 	var b strings.Builder
 	b.WriteString(titleStyle.Render("VulpineOS — First Time Setup"))
 	b.WriteString("\n\n")
 	b.WriteString("Select your AI provider:\n\n")
 
 	// Show a scrollable window of providers (max 12 visible)
-	maxVisible := m.maxVisibleProviders(7)
+	maxVisible := 12
 	start := 0
 	if m.providerIdx >= maxVisible {
 		start = m.providerIdx - maxVisible + 1
@@ -299,24 +237,16 @@ func (m *Model) viewProvider() string {
 
 	for i := start; i < end; i++ {
 		p := m.providers[i]
-		envText := p.EnvVar
+		envHint := mutedStyle.Render(p.EnvVar)
 		if !p.NeedsKey {
-			envText = "No key needed"
+			envHint = mutedStyle.Render("No key needed")
 		}
-		envHint := mutedStyle.Render(envText)
-		rowWidth := m.contentWidth()
-		nameWidth := rowWidth - 4 - lipgloss.Width(envText)
-		if nameWidth < 8 {
-			nameWidth = 8
-		}
-		name := padSetupText(fitSetupText(p.Name, nameWidth), nameWidth)
-		var line string
+		name := fmt.Sprintf("%-28s", p.Name)
 		if i == m.providerIdx {
-			line = activeStyle.Render("▸ ") + lipgloss.NewStyle().Bold(true).Render(name) + "  " + envHint
+			b.WriteString(activeStyle.Render("▸ ") + lipgloss.NewStyle().Bold(true).Render(name) + "  " + envHint + "\n")
 		} else {
-			line = "  " + mutedStyle.Render(name) + "  " + envHint
+			b.WriteString("  " + mutedStyle.Render(name) + "  " + envHint + "\n")
 		}
-		b.WriteString(fitSetupLine(line, rowWidth) + "\n")
 	}
 
 	// Scroll indicators
@@ -333,46 +263,12 @@ func (m *Model) viewProvider() string {
 	}
 
 	b.WriteString("\n")
-	b.WriteString(fitSetupLine(mutedStyle.Render(fmt.Sprintf("[j/k] navigate  [Enter] select  [q] quit  (%d providers)", len(m.providers))), m.contentWidth()))
+	b.WriteString(mutedStyle.Render(fmt.Sprintf("[j/k] navigate  [Enter] select  [q] quit  (%d providers)", len(m.providers))))
 	return b.String()
 }
 
-func (m *Model) viewProviderCompact() string {
-	var b strings.Builder
+func (m Model) viewAPIKey() string {
 	p := m.providers[m.providerIdx]
-	b.WriteString(titleStyle.Render("VulpineOS Setup"))
-	b.WriteString("\n")
-	b.WriteString("Provider:\n")
-	row := fmt.Sprintf("%d/%d  %s", m.providerIdx+1, len(m.providers), p.Name)
-	b.WriteString(activeStyle.Render(fitSetupText(row, m.contentWidth())))
-	b.WriteString("\n")
-	hint := "[j/k] choose  [Enter] select  [q] quit"
-	b.WriteString(mutedStyle.Render(fitSetupText(hint, m.contentWidth())))
-	return b.String()
-}
-
-func (m *Model) maxVisibleProviders(fixedContentLines int) int {
-	maxVisible := 12
-	if m.height > 0 {
-		contentBudget := m.height - 4
-		if contentBudget < 1 {
-			contentBudget = 1
-		}
-		if byHeight := contentBudget - fixedContentLines; byHeight < maxVisible {
-			maxVisible = byHeight
-		}
-	}
-	if maxVisible < 1 {
-		return 1
-	}
-	return maxVisible
-}
-
-func (m *Model) viewAPIKey() string {
-	p := m.providers[m.providerIdx]
-	if m.height > 0 && m.height < 14 {
-		return m.viewAPIKeyCompact(p)
-	}
 
 	var b strings.Builder
 	b.WriteString(titleStyle.Render(fmt.Sprintf("VulpineOS — %s Setup", p.Name)))
@@ -387,84 +283,11 @@ func (m *Model) viewAPIKey() string {
 	return b.String()
 }
 
-func (m *Model) viewAPIKeyCompact(p config.Provider) string {
-	var b strings.Builder
-	width := m.contentWidth()
-	b.WriteString(titleStyle.Render("API Key"))
-	b.WriteString("\n")
-	b.WriteString(fitSetupText(p.EnvVar, width))
-	b.WriteString("\n")
-	b.WriteString(fitSetupLine(m.apiKeyInput.View(), width))
-	b.WriteString("\n")
-	b.WriteString(activeStyle.Render(fitSetupText(m.cfg.Model, width)))
-	b.WriteString("\n")
-	b.WriteString(mutedStyle.Render(fitSetupText("[Enter] save  [Esc] back", width)))
-	return b.String()
-}
-
-func fitSetupText(text string, width int) string {
-	if width <= 0 {
-		return ""
-	}
-	if lipgloss.Width(text) <= width {
-		return text
-	}
-	if width == 1 {
-		return "…"
-	}
-	var b strings.Builder
-	for _, r := range text {
-		next := b.String() + string(r)
-		if lipgloss.Width(next) > width-1 {
-			break
-		}
-		b.WriteRune(r)
-	}
-	b.WriteString("…")
-	return b.String()
-}
-
-func padSetupText(text string, width int) string {
-	for lipgloss.Width(text) < width {
-		text += " "
-	}
-	return text
-}
-
-func fitSetupLine(line string, width int) string {
-	if width <= 0 {
-		return ""
-	}
-	if lipgloss.Width(line) <= width {
-		return line
-	}
-	fitted := lipgloss.NewStyle().MaxWidth(width).Render(line)
-	lines := strings.Split(fitted, "\n")
-	if len(lines) == 0 {
-		return ""
-	}
-	return lines[0]
-}
-
-func fitSetupBlock(block string, width, height int) string {
-	lines := strings.Split(block, "\n")
-	for i, line := range lines {
-		lines[i] = fitSetupLine(line, width)
-	}
-	if height > 0 && len(lines) > height {
-		lines = lines[:height]
-	}
-	return strings.Join(lines, "\n")
-}
-
-func (m *Model) viewDone() string {
+func (m Model) viewDone() string {
 	p := config.GetProvider(m.cfg.Provider)
 	name := m.cfg.Provider
 	if p != nil {
 		name = p.Name
-	}
-	if m.height > 0 && m.height < 14 {
-		return m.viewDoneCompact(name)
 	}
 
 	var b strings.Builder
@@ -475,18 +298,5 @@ func (m *Model) viewDone() string {
 	b.WriteString(fmt.Sprintf("Config:    %s\n", config.Path()))
 	b.WriteString("\n")
 	b.WriteString(mutedStyle.Render("Press Enter to launch dashboard..."))
-	return b.String()
-}
-
-func (m *Model) viewDoneCompact(providerName string) string {
-	width := m.contentWidth()
-	var b strings.Builder
-	b.WriteString(successStyle.Render("Setup Complete"))
-	b.WriteString("\n")
-	b.WriteString(fitSetupText(providerName, width))
-	b.WriteString("\n")
-	b.WriteString(fitSetupText(m.cfg.Model, width))
-	b.WriteString("\n")
-	b.WriteString(mutedStyle.Render(fitSetupText("Enter to launch", width)))
 	return b.String()
 }

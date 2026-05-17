@@ -18,7 +18,7 @@ import (
 	"vulpineos/internal/config"
 	"vulpineos/internal/foxbridge"
 	"vulpineos/internal/juggler"
-	"vulpineos/internal/openclaw"
+	"vulpineos/internal/nanoclaw"
 )
 
 func TestLiveScopedSessionSoak(t *testing.T) {
@@ -35,9 +35,9 @@ func TestLiveScopedSessionSoak(t *testing.T) {
 		iterations = n
 	}
 
-	mgr := openclaw.NewManager("")
-	if !mgr.OpenClawInstalled() {
-		t.Skip("OpenClaw not installed")
+	mgr := nanoclaw.NewManager("")
+	if !mgr.NanoClawInstalled() {
+		t.Skip("NanoClaw not installed")
 	}
 	defer mgr.Dispose()
 
@@ -96,7 +96,7 @@ func TestLiveScopedSessionSoak(t *testing.T) {
 			}
 			defer scopedFoxbridge.Stop()
 
-			scopedConfig, cleanupConfig, err := openclaw.PrepareScopedConfig(config.OpenClawConfigPath(), scopedFoxbridge.CDPURL())
+			scopedConfig, cleanupConfig, err := nanoclaw.PrepareScopedConfig(config.OpenClawConfigPath(), scopedFoxbridge.CDPURL())
 			if err != nil {
 				t.Fatalf("PrepareScopedConfig: %v", err)
 			}
@@ -339,7 +339,7 @@ func elementCenter(t *testing.T, client *juggler.Client, tracker *ContextTracker
 	return payload.X, payload.Y
 }
 
-func waitForAssistantContains(t *testing.T, convCh <-chan openclaw.ConversationMsg, agentID, want string, timeout time.Duration) {
+func waitForAssistantContains(t *testing.T, convCh <-chan nanoclaw.ConversationMsg, agentID, want string, timeout time.Duration) {
 	t.Helper()
 
 	deadline := time.After(timeout)

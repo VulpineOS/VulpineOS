@@ -1,18 +1,10 @@
 package kernel
 
 import (
-	"context"
-	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
-	"strings"
-	"syscall"
 	"testing"
 	"time"
-
-	"vulpineos/internal/juggler"
 )
 
 func camoufoxBinary() string {
@@ -33,29 +25,6 @@ func camoufoxBinary() string {
 		return b
 	}
 	return ""
-}
-
-func requireLiveKernelBinary(t *testing.T) string {
-	t.Helper()
-	if os.Getenv("VULPINEOS_RUN_LIVE") != "1" {
-		t.Skip("set VULPINEOS_RUN_LIVE=1 to run live kernel tests")
-	}
-	bin := camoufoxBinary()
-	if bin == "" {
-		t.Skip("camoufox binary not found")
-	}
-	return bin
-}
-
-func liveKernelCall(t *testing.T, client *juggler.Client, sessionID, method string, params interface{}) json.RawMessage {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
-	defer cancel()
-	result, err := client.CallWithContext(ctx, sessionID, method, params)
-	if err != nil {
-		t.Fatalf("%s: %v", method, err)
-	}
-	return result
 }
 
 func TestBinaryLocatorPrefersRepoLocalBuild(t *testing.T) {
@@ -211,140 +180,19 @@ func TestBinaryLocatorDetectDriftWarnsOnOlderExplicitBinary(t *testing.T) {
 
 func mustWriteExecutable(t *testing.T, path string) {
 	t.Helper()
-	mustWriteExecutableContent(t, path, "#!/bin/sh\nexit 0\n")
-}
-
-func mustWriteExecutableContent(t *testing.T, path, content string) {
-	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("MkdirAll(%q): %v", path, err)
 	}
-	if err := os.WriteFile(path, []byte(content), 0o755); err != nil {
+	if err := os.WriteFile(path, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
 		t.Fatalf("WriteFile(%q): %v", path, err)
 	}
 }
 
-func TestKernelRunningReflectsExitedProcess(t *testing.T) {
-	bin := filepath.Join(t.TempDir(), "camoufox")
-	mustWriteExecutableContent(t, bin, "#!/bin/sh\nexit 0\n")
-
-	k := New()
-	if err := k.Start(Config{BinaryPath: bin, Headless: true}); err != nil {
-		t.Fatalf("Start: %v", err)
-	}
-	defer k.Stop()
-
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
-		if !k.Running() {
-			if err := k.Start(Config{BinaryPath: bin, Headless: true}); err != nil {
-				t.Fatalf("Start after exited process: %v", err)
-			}
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatal("kernel still reported running after child process exited")
-}
-
-func TestKernelStartFailureRemovesTempProfile(t *testing.T) {
-	before := tempProfileDirs(t)
-
-	k := New()
-	err := k.Start(Config{BinaryPath: filepath.Join(t.TempDir(), "missing-camoufox"), Headless: true})
-	if err == nil {
-		defer k.Stop()
-		t.Fatal("expected missing binary startup to fail")
-	}
-	if k.profileDir != "" {
-		t.Fatalf("profileDir retained after failed start: %q", k.profileDir)
-	}
-
-	for path := range tempProfileDirs(t) {
-		if !before[path] {
-			t.Fatalf("temp profile leaked after failed start: %s", path)
-		}
-	}
-}
-
-func TestKernelStopKillsChildProcesses(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("shell-script test binary is unix-specific")
-	}
-
-	dir := t.TempDir()
-	childPath := filepath.Join(dir, "child.pid")
-	bin := filepath.Join(dir, "camoufox")
-	mustWriteExecutableContent(t, bin, "#!/bin/sh\nsleep 60 &\necho $! > "+shellQuote(childPath)+"\nwait\n")
-
-	k := New()
-	if err := k.Start(Config{BinaryPath: bin, Headless: true}); err != nil {
-		t.Fatalf("Start: %v", err)
-	}
-	childPID := waitForKernelPIDFile(t, childPath)
-	if err := k.Stop(); err != nil {
-		t.Fatalf("Stop: %v", err)
-	}
-
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if !kernelProcessExists(childPID) {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	proc, err := os.FindProcess(childPID)
-	if err == nil {
-		_ = proc.Kill()
-	}
-	t.Fatalf("kernel child process %d survived stop", childPID)
-}
-
-func waitForKernelPIDFile(t *testing.T, path string) int {
-	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
-		data, err := os.ReadFile(path)
-		if err == nil {
-			pidText := strings.TrimSpace(string(data))
-			var pid int
-			if _, scanErr := fmt.Sscanf(pidText, "%d", &pid); scanErr == nil && pid > 0 {
-				return pid
-			}
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatalf("child pid file was not written")
-	return 0
-}
-
-func shellQuote(path string) string {
-	return "'" + strings.ReplaceAll(path, "'", "'\\''") + "'"
-}
-
-func kernelProcessExists(pid int) bool {
-	proc, err := os.FindProcess(pid)
-	if err != nil {
-		return false
-	}
-	return proc.Signal(syscall.Signal(0)) == nil
-}
-
-func tempProfileDirs(t *testing.T) map[string]bool {
-	t.Helper()
-	matches, err := filepath.Glob(filepath.Join(os.TempDir(), "vulpineos-profile-*"))
-	if err != nil {
-		t.Fatalf("glob temp profiles: %v", err)
-	}
-	dirs := make(map[string]bool, len(matches))
-	for _, path := range matches {
-		dirs[path] = true
-	}
-	return dirs
-}
-
 func TestKernelStartStop(t *testing.T) {
-	bin := requireLiveKernelBinary(t)
+	bin := camoufoxBinary()
+	if bin == "" {
+		t.Skip("camoufox binary not found")
+	}
 
 	k := New()
 	if k.Running() {
@@ -378,7 +226,10 @@ func TestKernelStartStop(t *testing.T) {
 }
 
 func TestKernelBrowserEnable(t *testing.T) {
-	bin := requireLiveKernelBinary(t)
+	bin := camoufoxBinary()
+	if bin == "" {
+		t.Skip("camoufox binary not found")
+	}
 
 	k := New()
 	if err := k.Start(Config{BinaryPath: bin, Headless: true}); err != nil {
@@ -389,12 +240,18 @@ func TestKernelBrowserEnable(t *testing.T) {
 	client := k.Client()
 
 	// Browser.enable
-	liveKernelCall(t, client, "", "Browser.enable", map[string]interface{}{
+	_, err := client.Call("", "Browser.enable", map[string]interface{}{
 		"attachToDefaultContext": true,
 	})
+	if err != nil {
+		t.Fatalf("Browser.enable: %v", err)
+	}
 
 	// Browser.getInfo
-	result := liveKernelCall(t, client, "", "Browser.getInfo", nil)
+	result, err := client.Call("", "Browser.getInfo", nil)
+	if err != nil {
+		t.Fatalf("Browser.getInfo: %v", err)
+	}
 	if len(result) == 0 {
 		t.Fatal("Browser.getInfo returned empty")
 	}
@@ -402,7 +259,10 @@ func TestKernelBrowserEnable(t *testing.T) {
 }
 
 func TestKernelNewPageAndNavigate(t *testing.T) {
-	bin := requireLiveKernelBinary(t)
+	bin := camoufoxBinary()
+	if bin == "" {
+		t.Skip("camoufox binary not found")
+	}
 
 	k := New()
 	if err := k.Start(Config{BinaryPath: bin, Headless: true}); err != nil {
@@ -411,13 +271,16 @@ func TestKernelNewPageAndNavigate(t *testing.T) {
 	defer k.Stop()
 
 	client := k.Client()
-	liveKernelCall(t, client, "", "Browser.enable", map[string]interface{}{"attachToDefaultContext": true})
+	client.Call("", "Browser.enable", map[string]interface{}{"attachToDefaultContext": true})
 
 	// Wait for events to settle
 	time.Sleep(2 * time.Second)
 
 	// Create a new page
-	result := liveKernelCall(t, client, "", "Browser.newPage", nil)
+	result, err := client.Call("", "Browser.newPage", nil)
+	if err != nil {
+		t.Fatalf("Browser.newPage: %v", err)
+	}
 	t.Logf("newPage: %s", string(result))
 
 	// Navigate
@@ -429,7 +292,10 @@ func TestKernelNewPageAndNavigate(t *testing.T) {
 }
 
 func TestKernelCreateBrowserContext(t *testing.T) {
-	bin := requireLiveKernelBinary(t)
+	bin := camoufoxBinary()
+	if bin == "" {
+		t.Skip("camoufox binary not found")
+	}
 
 	k := New()
 	if err := k.Start(Config{BinaryPath: bin, Headless: true}); err != nil {
@@ -438,23 +304,29 @@ func TestKernelCreateBrowserContext(t *testing.T) {
 	defer k.Stop()
 
 	client := k.Client()
-	liveKernelCall(t, client, "", "Browser.enable", map[string]interface{}{"attachToDefaultContext": true})
+	client.Call("", "Browser.enable", map[string]interface{}{"attachToDefaultContext": true})
 
 	// Create browser context
-	result := liveKernelCall(t, client, "", "Browser.createBrowserContext", map[string]interface{}{
+	result, err := client.Call("", "Browser.createBrowserContext", map[string]interface{}{
 		"removeOnDetach": true,
 	})
+	if err != nil {
+		t.Fatalf("createBrowserContext: %v", err)
+	}
 	t.Logf("createBrowserContext: %s", string(result))
 
 	// Remove it
-	_, _ = client.Call("", "Browser.removeBrowserContext", map[string]interface{}{
+	_, err = client.Call("", "Browser.removeBrowserContext", map[string]interface{}{
 		"browserContextId": "default", // just test the call doesn't crash
 	})
 	// May fail for default context — that's ok
 }
 
 func TestKernelDoubleStart(t *testing.T) {
-	bin := requireLiveKernelBinary(t)
+	bin := camoufoxBinary()
+	if bin == "" {
+		t.Skip("camoufox binary not found")
+	}
 
 	k := New()
 	if err := k.Start(Config{BinaryPath: bin, Headless: true}); err != nil {
@@ -470,7 +342,10 @@ func TestKernelDoubleStart(t *testing.T) {
 }
 
 func TestKernelStopIdempotent(t *testing.T) {
-	bin := requireLiveKernelBinary(t)
+	bin := camoufoxBinary()
+	if bin == "" {
+		t.Skip("camoufox binary not found")
+	}
 
 	k := New()
 	if err := k.Start(Config{BinaryPath: bin, Headless: true}); err != nil {

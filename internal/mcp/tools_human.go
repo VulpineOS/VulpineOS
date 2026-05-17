@@ -7,14 +7,14 @@ import (
 	"math/rand"
 	"time"
 
-	"vulpineos/internal/humaninput"
 	"vulpineos/internal/juggler"
 )
 
 // --- Human-like interaction tools ---
 
-// handleHumanClick moves the mouse through timed intermediate points before
-// performing a click.
+// handleHumanClick moves the mouse along a realistic bezier curve path to the
+// target coordinates, then performs a click. The path includes overshoot and
+// micro-jitter to simulate organic human mouse movement.
 func handleHumanClick(client *juggler.Client, args json.RawMessage) (*ToolCallResult, error) {
 	var p struct {
 		SessionID string  `json:"sessionId"`
@@ -81,11 +81,12 @@ type pathPoint struct {
 	DelayMs int
 }
 
-// generateHumanPath creates a varied path from (fromX, fromY) to (toX, toY).
+// generateHumanPath creates a bezier curve path from (fromX, fromY) to (toX, toY)
+// with realistic overshoot, micro-jitter, and bell-shaped velocity profile.
 func generateHumanPath(fromX, fromY, toX, toY float64, speed string) []pathPoint {
 	dist := math.Hypot(toX-fromX, toY-fromY)
 
-	// Choose point count and duration based on speed and movement length.
+	// Choose point count and duration based on speed + Fitts' law adjustment
 	var minDuration, maxDuration int
 	var minPoints, maxPoints int
 
@@ -101,12 +102,13 @@ func generateHumanPath(fromX, fromY, toX, toY float64, speed string) []pathPoint
 		minPoints, maxPoints = 15, 25
 	}
 
-	// Longer movements take more time.
+	// Fitts' law: longer movements take more time
 	fittsScale := 1.0 + math.Log2(1+dist/100)*0.15
 	totalDuration := float64(minDuration+rand.Intn(maxDuration-minDuration)) * fittsScale
 	numPoints := minPoints + rand.Intn(maxPoints-minPoints+1)
 
-	// Generate randomized control points offset from the movement direction.
+	// Generate random bezier control points for curvature
+	// Control points are offset perpendicular to the movement direction
 	dx := toX - fromX
 	dy := toY - fromY
 
@@ -124,20 +126,20 @@ func generateHumanPath(fromX, fromY, toX, toY float64, speed string) []pathPoint
 	cp1Offset := (rand.Float64()*2 - 1) * curveAmount
 	cp2Offset := (rand.Float64()*2 - 1) * curveAmount
 
-	// Two control points for the main curve.
+	// Two control points for cubic bezier
 	cp1X := fromX + dx*0.33 + perpX*cp1Offset
 	cp1Y := fromY + dy*0.33 + perpY*cp1Offset
 	cp2X := fromX + dx*0.66 + perpX*cp2Offset
 	cp2Y := fromY + dy*0.66 + perpY*cp2Offset
 
-	// Add a short correction segment before landing on the target.
-	correctionDist := 5.0 + rand.Float64()*10.0
-	correctionAngle := math.Atan2(toY-fromY, toX-fromX)
-	correctionX := toX + math.Cos(correctionAngle)*correctionDist
-	correctionY := toY + math.Sin(correctionAngle)*correctionDist
+	// Add overshoot: extend past target by 5-15px then correct back
+	overshootDist := 5.0 + rand.Float64()*10.0
+	overshootAngle := math.Atan2(toY-fromY, toX-fromX)
+	overshootX := toX + math.Cos(overshootAngle)*overshootDist
+	overshootY := toY + math.Sin(overshootAngle)*overshootDist
 
-	// Sample points along the main curve.
-	mainPoints := numPoints - 3
+	// Sample points along the cubic bezier
+	mainPoints := numPoints - 3 // Reserve 3 points for overshoot correction
 	if mainPoints < 5 {
 		mainPoints = 5
 	}
@@ -147,19 +149,21 @@ func generateHumanPath(fromX, fromY, toX, toY float64, speed string) []pathPoint
 	for i := 0; i < mainPoints; i++ {
 		t := float64(i) / float64(mainPoints-1)
 
-		// End at the correction point before returning to the final target.
-		endX := correctionX
-		endY := correctionY
+		// Cubic bezier: B(t) = (1-t)^3*P0 + 3(1-t)^2*t*P1 + 3(1-t)*t^2*P2 + t^3*P3
+		// But end at overshoot point instead of target
+		endX := overshootX
+		endY := overshootY
 		if i == mainPoints-1 {
-			endX = correctionX
-			endY = correctionY
+			// Last main point is the overshoot position
+			endX = overshootX
+			endY = overshootY
 		}
 
 		mt := 1 - t
 		x := mt*mt*mt*fromX + 3*mt*mt*t*cp1X + 3*mt*t*t*cp2X + t*t*t*endX
 		y := mt*mt*mt*fromY + 3*mt*mt*t*cp1Y + 3*mt*t*t*cp2Y + t*t*t*endY
 
-		// Add small positional variation.
+		// Add micro-jitter (Gaussian, +/- 1-2px)
 		x += rand.NormFloat64() * 1.5
 		y += rand.NormFloat64() * 1.5
 
@@ -184,12 +188,12 @@ func generateHumanPath(fromX, fromY, toX, toY float64, speed string) []pathPoint
 		})
 	}
 
-	// Move from the correction point to the actual target.
+	// Overshoot correction: move back from overshoot to actual target
 	correctionSteps := 3
 	for i := 1; i <= correctionSteps; i++ {
 		t := float64(i) / float64(correctionSteps)
-		x := correctionX + (toX-correctionX)*t + rand.NormFloat64()*0.5
-		y := correctionY + (toY-correctionY)*t + rand.NormFloat64()*0.5
+		x := overshootX + (toX-overshootX)*t + rand.NormFloat64()*0.5
+		y := overshootY + (toY-overshootY)*t + rand.NormFloat64()*0.5
 		delay := 20 + rand.Intn(30) // Quick correction movements
 
 		points = append(points, pathPoint{
@@ -218,16 +222,30 @@ func handleHumanType(client *juggler.Client, tracker *ContextTracker, args json.
 		p.WPM = 60
 	}
 
-	keystrokes := humaninput.GenerateKeystrokes(p.Text, p.WPM)
+	keystrokes := humanTypeDelays(p.Text, p.WPM)
 	typed := 0
 
 	for _, ks := range keystrokes {
-		time.Sleep(ks.Delay)
+		// Pre-key delay
+		time.Sleep(time.Duration(ks.DelayMs) * time.Millisecond)
 
 		key := string(ks.Char)
 
 		if ks.IsCorrection {
-			result, err := evalJS(client, tracker, p.SessionID, humaninput.BackspaceExpression())
+			// Remove the previous character from the active editable field.
+			result, err := evalJS(client, tracker, p.SessionID, `(() => {
+				const el = document.activeElement;
+				if (!el || !('value' in el)) return "not_input";
+				const start = typeof el.selectionStart === 'number' ? el.selectionStart : el.value.length;
+				const end = typeof el.selectionEnd === 'number' ? el.selectionEnd : el.value.length;
+				if (start === 0 && end === 0) return "ok";
+				const from = start === end ? Math.max(0, start - 1) : start;
+				el.value = el.value.slice(0, from) + el.value.slice(end);
+				if (typeof el.setSelectionRange === 'function') el.setSelectionRange(from, from);
+				el.dispatchEvent(new Event('input', {bubbles: true}));
+				el.dispatchEvent(new Event('change', {bubbles: true}));
+				return "ok";
+			})()`)
 			if err != nil {
 				return errorResult(err), nil
 			}
@@ -240,7 +258,19 @@ func handleHumanType(client *juggler.Client, tracker *ContextTracker, args json.
 			continue
 		}
 
-		result, err := evalJS(client, tracker, p.SessionID, humaninput.InsertTextExpression(key))
+		result, err := evalJS(client, tracker, p.SessionID, fmt.Sprintf(`(() => {
+			const el = document.activeElement;
+			if (!el || !('value' in el)) return "not_input";
+			const start = typeof el.selectionStart === 'number' ? el.selectionStart : el.value.length;
+			const end = typeof el.selectionEnd === 'number' ? el.selectionEnd : el.value.length;
+			const text = %q;
+			el.value = el.value.slice(0, start) + text + el.value.slice(end);
+			const pos = start + text.length;
+			if (typeof el.setSelectionRange === 'function') el.setSelectionRange(pos, pos);
+			el.dispatchEvent(new Event('input', {bubbles: true}));
+			el.dispatchEvent(new Event('change', {bubbles: true}));
+			return "ok";
+		})()`, key))
 		if err != nil {
 			return errorResult(err), nil
 		}
@@ -252,6 +282,92 @@ func handleHumanType(client *juggler.Client, tracker *ContextTracker, args json.
 	}
 
 	return textResult(fmt.Sprintf("Human-typed %d characters at ~%d WPM", len(p.Text), p.WPM)), nil
+}
+
+// keystroke represents a single key event in a human typing sequence.
+type keystroke struct {
+	Char         rune
+	DelayMs      int
+	IsCorrection bool // true = this is a Backspace to fix a typo
+}
+
+// humanTypeDelays generates realistic inter-key delays with occasional pauses
+// and typo corrections for the given text and typing speed.
+func humanTypeDelays(text string, wpm int) []keystroke {
+	// Average 5 characters per word
+	baseDelay := 60000 / (wpm * 5) // ms per character
+
+	var result []keystroke
+	pauseCounter := 5 + rand.Intn(8) // chars until next pause
+	charsSincePause := 0
+
+	for _, ch := range text {
+		delay := baseDelay + int(rand.NormFloat64()*float64(baseDelay)*0.3)
+		if delay < 30 {
+			delay = 30
+		}
+
+		// Occasional longer pause (simulates thinking or re-reading)
+		charsSincePause++
+		if charsSincePause >= pauseCounter {
+			delay *= 2
+			charsSincePause = 0
+			pauseCounter = 5 + rand.Intn(8)
+		}
+
+		// 5% chance of typo + correction (skip for spaces and special chars)
+		if ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' {
+			if rand.Float64() < 0.05 {
+				// Type a wrong character first
+				wrongChar := typoNeighbor(ch)
+				result = append(result, keystroke{
+					Char:    wrongChar,
+					DelayMs: delay,
+				})
+				// Then backspace to correct
+				result = append(result, keystroke{
+					IsCorrection: true,
+					DelayMs:      150 + rand.Intn(100),
+				})
+				// The correct character follows with a slightly longer delay
+				delay = baseDelay + rand.Intn(baseDelay/2)
+			}
+		}
+
+		result = append(result, keystroke{
+			Char:    ch,
+			DelayMs: delay,
+		})
+	}
+
+	return result
+}
+
+// typoNeighbor returns a plausible typo character (adjacent key on QWERTY layout).
+func typoNeighbor(ch rune) rune {
+	neighbors := map[rune]string{
+		'a': "sqwz", 'b': "vngh", 'c': "xvdf", 'd': "sfce", 'e': "wrd",
+		'f': "dgcv", 'g': "fhtb", 'h': "gjyn", 'i': "uok", 'j': "hkum",
+		'k': "jlio", 'l': "kop", 'm': "njk", 'n': "bmhj", 'o': "iplk",
+		'p': "ol", 'q': "wa", 'r': "etf", 's': "adwx", 't': "rgy",
+		'u': "yij", 'v': "cfgb", 'w': "qeas", 'x': "zscd", 'y': "tuh",
+		'z': "xas",
+	}
+
+	lower := ch
+	isUpper := ch >= 'A' && ch <= 'Z'
+	if isUpper {
+		lower = ch + 32
+	}
+
+	if adj, ok := neighbors[lower]; ok && len(adj) > 0 {
+		picked := rune(adj[rand.Intn(len(adj))])
+		if isUpper {
+			picked -= 32
+		}
+		return picked
+	}
+	return ch
 }
 
 // handleHumanScroll scrolls the page with realistic inertial decay: an initial

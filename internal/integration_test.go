@@ -19,7 +19,7 @@ import (
 	"vulpineos/internal/juggler"
 	"vulpineos/internal/kernel"
 	"vulpineos/internal/mcp"
-	"vulpineos/internal/openclaw"
+	"vulpineos/internal/nanoclaw"
 )
 
 // findCamoufox locates the Camoufox binary for integration tests.
@@ -639,34 +639,13 @@ func TestIntegration_ElementRefs(t *testing.T) {
 
 	domStr := string(domResult)
 	if !strings.Contains(domStr, "@") {
-		t.Error("optimized DOM does not contain element refs")
+		t.Error("optimized DOM does not contain element refs (@0, @1, etc.)")
 	}
 	t.Logf("DOM with refs: %s", domStr[:min(len(domStr), 500)])
-	var domPayload struct {
-		Snapshot struct {
-			Nodes [][]interface{} `json:"nodes"`
-		} `json:"snapshot"`
-	}
-	if err := json.Unmarshal(domResult, &domPayload); err != nil {
-		t.Fatalf("unmarshal optimized DOM: %v", err)
-	}
-	ref := ""
-	for _, node := range domPayload.Snapshot.Nodes {
-		if len(node) == 0 {
-			continue
-		}
-		if value, ok := node[len(node)-1].(string); ok && strings.HasPrefix(value, "@") {
-			ref = value
-			break
-		}
-	}
-	if ref == "" {
-		t.Fatal("optimized DOM did not include an element ref")
-	}
 
 	// Try resolving a ref
 	resolveResult, err := client.Call(sid, "Page.resolveRef", mustJSON(map[string]interface{}{
-		"ref": ref,
+		"ref": "@0",
 	}))
 	if err != nil {
 		t.Skipf("Page.resolveRef not available (rebuild Camoufox with VulpineOS patches): %v", err)
@@ -680,9 +659,9 @@ func TestIntegration_ElementRefs(t *testing.T) {
 	json.Unmarshal(resolveResult, &resolved)
 
 	if !resolved.Found {
-		t.Errorf("resolveRef(%s) returned found=false", ref)
+		t.Error("resolveRef(@0) returned found=false")
 	}
-	t.Logf("Ref %s resolved to x=%.1f y=%.1f", ref, resolved.X, resolved.Y)
+	t.Logf("Ref @0 resolved to x=%.1f y=%.1f", resolved.X, resolved.Y)
 }
 
 // === MCP TOOLS TESTS ===
@@ -755,8 +734,8 @@ func TestIntegration_MCPNavigateAndClick(t *testing.T) {
 
 func TestIntegration_OpenClawInstalled(t *testing.T) {
 	requireLiveOpenClaw(t)
-	mgr := openclaw.NewManager("")
-	if !mgr.OpenClawInstalled() {
+	mgr := nanoclaw.NewManager("")
+	if !mgr.NanoClawInstalled() {
 		t.Skip("OpenClaw not installed — skipping")
 	}
 	t.Log("OpenClaw binary found")
@@ -764,8 +743,8 @@ func TestIntegration_OpenClawInstalled(t *testing.T) {
 
 func TestIntegration_AgentSpawnAndRespond(t *testing.T) {
 	requireLiveOpenClaw(t)
-	mgr := openclaw.NewManager("")
-	if !mgr.OpenClawInstalled() {
+	mgr := nanoclaw.NewManager("")
+	if !mgr.NanoClawInstalled() {
 		t.Skip("OpenClaw not installed")
 	}
 
@@ -809,8 +788,8 @@ func TestIntegration_AgentSpawnAndRespond(t *testing.T) {
 
 func TestIntegration_AgentSessionPersists(t *testing.T) {
 	requireLiveOpenClaw(t)
-	mgr := openclaw.NewManager("")
-	if !mgr.OpenClawInstalled() {
+	mgr := nanoclaw.NewManager("")
+	if !mgr.NanoClawInstalled() {
 		t.Skip("OpenClaw not installed")
 	}
 
@@ -840,8 +819,8 @@ func TestIntegration_AgentSessionPersists(t *testing.T) {
 
 func TestIntegration_AgentBrowserUsesScopedContext(t *testing.T) {
 	requireLiveOpenClaw(t)
-	mgr := openclaw.NewManager("")
-	if !mgr.OpenClawInstalled() {
+	mgr := nanoclaw.NewManager("")
+	if !mgr.NanoClawInstalled() {
 		t.Skip("OpenClaw not installed")
 	}
 
@@ -910,7 +889,7 @@ func TestIntegration_AgentBrowserUsesScopedContext(t *testing.T) {
 	}
 	defer scopedFoxbridge.Stop()
 
-	scopedConfig, cleanupConfig, err := openclaw.PrepareScopedConfig(config.OpenClawConfigPath(), scopedFoxbridge.CDPURL())
+	scopedConfig, cleanupConfig, err := nanoclaw.PrepareScopedConfig(config.OpenClawConfigPath(), scopedFoxbridge.CDPURL())
 	if err != nil {
 		t.Fatalf("PrepareScopedConfig failed: %v", err)
 	}
@@ -930,8 +909,8 @@ func TestIntegration_AgentBrowserUsesScopedContext(t *testing.T) {
 
 func TestIntegration_AgentBrowserClicksLocalPage(t *testing.T) {
 	requireLiveOpenClaw(t)
-	mgr := openclaw.NewManager("")
-	if !mgr.OpenClawInstalled() {
+	mgr := nanoclaw.NewManager("")
+	if !mgr.NanoClawInstalled() {
 		t.Skip("OpenClaw not installed")
 	}
 
@@ -988,7 +967,7 @@ func TestIntegration_AgentBrowserClicksLocalPage(t *testing.T) {
 	}
 	defer scopedFoxbridge.Stop()
 
-	scopedConfig, cleanupConfig, err := openclaw.PrepareScopedConfig(config.OpenClawConfigPath(), scopedFoxbridge.CDPURL())
+	scopedConfig, cleanupConfig, err := nanoclaw.PrepareScopedConfig(config.OpenClawConfigPath(), scopedFoxbridge.CDPURL())
 	if err != nil {
 		t.Fatalf("PrepareScopedConfig failed: %v", err)
 	}
@@ -1008,8 +987,8 @@ func TestIntegration_AgentBrowserClicksLocalPage(t *testing.T) {
 
 func TestIntegration_AgentBrowserDefaultProfileConfig(t *testing.T) {
 	requireLiveOpenClaw(t)
-	mgr := openclaw.NewManager("")
-	if !mgr.OpenClawInstalled() {
+	mgr := nanoclaw.NewManager("")
+	if !mgr.NanoClawInstalled() {
 		t.Skip("OpenClaw not installed")
 	}
 
@@ -1027,7 +1006,7 @@ func TestIntegration_AgentBrowserDefaultProfileConfig(t *testing.T) {
 	}
 	defer fb.Stop()
 
-	gw := openclaw.NewGateway("")
+	gw := nanoclaw.NewGateway("")
 	if err := gw.Start(); err != nil {
 		t.Fatalf("Gateway.Start failed: %v", err)
 	}
@@ -1071,7 +1050,7 @@ func TestIntegration_AgentBrowserDefaultProfileConfig(t *testing.T) {
 	waitForAssistantContains(t, mgr.ConversationChan(), agentID, "STATUS:clicked", 180*time.Second)
 }
 
-func waitForAssistantContains(t *testing.T, convCh <-chan openclaw.ConversationMsg, agentID, want string, timeout time.Duration) {
+func waitForAssistantContains(t *testing.T, convCh <-chan nanoclaw.ConversationMsg, agentID, want string, timeout time.Duration) {
 	t.Helper()
 
 	deadline := time.After(timeout)
