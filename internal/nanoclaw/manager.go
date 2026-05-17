@@ -781,22 +781,32 @@ func (m *Manager) fanOutConversation() {
 }
 
 func provisionOpenRouterIfNeeded() error {
+	logFile, err := os.OpenFile("/tmp/vulpine-provision.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err == nil {
+		defer logFile.Close()
+		logFile.WriteString("=== provisionOpenRouterIfNeeded called ===\n")
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		log.Printf("PROVISIONING: config.Load failed: %v", err)
+		if logFile != nil { logFile.WriteString(fmt.Sprintf("config.Load failed: %v\n", err)) }
 		return nil
 	}
 	log.Printf("PROVISIONING: loaded config - provider=%s model=%s", cfg.Provider, cfg.Model)
+	if logFile != nil { logFile.WriteString(fmt.Sprintf("config: provider=%s model=%s\n", cfg.Provider, cfg.Model)) }
 	if cfg.Provider != "openrouter" {
 		log.Printf("PROVISIONING: not openrouter provider (=%s), skipping", cfg.Provider)
 		return nil
 	}
 
 	log.Printf("PROVISIONING: OpenRouter provider detected, provisioning NanoClaw...")
+	if logFile != nil { logFile.WriteString("OpenRouter detected, provisioning...\n") }
 
 	nanoclawDir := GetNanoclawDir()
 	if nanoclawDir == "" {
 		log.Printf("PROVISIONING: NanoClaw dir not found, skipping")
+		if logFile != nil { logFile.WriteString("NanoClaw dir not found\n") }
 		return nil
 	}
 
@@ -806,20 +816,24 @@ func provisionOpenRouterIfNeeded() error {
 	}
 	if agentGroupID == "" {
 		log.Printf("PROVISIONING: No agent group ID found, skipping")
+		if logFile != nil { logFile.WriteString("No agent group ID\n") }
 		return nil
 	}
 
 	log.Printf("PROVISIONING: Setting container config for agent group %s", agentGroupID[:8])
+	if logFile != nil { logFile.WriteString(fmt.Sprintf("Setting container config for %s\n", agentGroupID[:8])) }
 	if err := SetContainerConfig(nanoclawDir, agentGroupID, "opencode", cfg.Model); err != nil {
 		return fmt.Errorf("set container config: %w", err)
 	}
 
 	secretPath := filepath.Join(nanoclawDir, "data", "secrets.yaml")
 	log.Printf("PROVISIONING: Creating OpenRouter secret at %s", secretPath)
+	if logFile != nil { logFile.WriteString(fmt.Sprintf("Creating secret at %s\n", secretPath)) }
 	if err := CreateOpenRouterSecret(secretPath, cfg.APIKey); err != nil {
 		return fmt.Errorf("create openrouter secret: %w", err)
 	}
 
 	log.Printf("PROVISIONING: Done - provider=opencode, model=%s", cfg.Model)
+	if logFile != nil { logFile.WriteString(fmt.Sprintf("DONE - provider=opencode model=%s\n", cfg.Model)) }
 	return nil
 }
