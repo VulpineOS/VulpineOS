@@ -230,16 +230,6 @@ func shortHash(value string) string {
 	return hex.EncodeToString(sum[:])[:16]
 }
 
-func LookupNanoclawAgentGroupID(nanoclawDir string) (string, error) {
-	dbPath := filepath.Join(nanoclawDir, "data", "v2.db")
-	db, err := sql.Open("sqlite", dbPath)
-	if err != nil {
-		return "", fmt.Errorf("open nanoclaw database: %w", err)
-	}
-	defer db.Close()
-	return selectedNanoClawAgentGroupID(db)
-}
-
 func findNanoclawDir() string {
 	cwd, _ := os.Getwd()
 	dir := cwd
@@ -271,30 +261,4 @@ func FindNanoclawSocket() (string, bool) {
 
 func GetNanoclawDir() string {
 	return findNanoclawDir()
-}
-
-func SetContainerConfig(nanoclawDir, agentGroupID, provider, model string) error {
-	dbPath := filepath.Join(nanoclawDir, "data", "v2.db")
-	db, err := sql.Open("sqlite", dbPath)
-	if err != nil {
-		return fmt.Errorf("open nanoclaw database: %w", err)
-	}
-	defer db.Close()
-
-	if _, err := db.Exec(`
-		INSERT OR REPLACE INTO container_configs (agent_group_id, provider, model, updated_at)
-		VALUES (?, ?, ?, datetime('now'))
-	`, agentGroupID, provider, model); err != nil {
-		return fmt.Errorf("set container config: %w", err)
-	}
-	return nil
-}
-
-func CreateOpenRouterSecret(secretPath, apiKey string) error {
-	content := fmt.Sprintf(`secrets:
-  - host: openrouter.ai
-    header:
-      Authorization: "Bearer %s"
-`, apiKey)
-	return os.WriteFile(secretPath, []byte(content), 0600)
 }
