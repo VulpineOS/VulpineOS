@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -183,5 +184,66 @@ INSERT INTO agent_groups (id, name, folder, created_at) VALUES ('ag-1', 'vulpine
 	}
 	if agentGroupID != "ag-1" || sessionMode != "shared" || engageMode != "pattern" || engagePattern != "." {
 		t.Fatalf("wiring = %q %q %q %q, want ag-1 shared pattern .", agentGroupID, sessionMode, engageMode, engagePattern)
+	}
+}
+
+func TestSetContainerConfig(t *testing.T) {
+	nanoclawDir := t.TempDir()
+	dataDir := filepath.Join(nanoclawDir, "data")
+	if err := os.MkdirAll(dataDir, 0700); err != nil {
+		t.Fatalf("mkdir data: %v", err)
+	}
+	dbPath := filepath.Join(dataDir, "v2.db")
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	defer db.Close()
+	_, err = db.Exec(`
+CREATE TABLE agent_groups (id TEXT PRIMARY KEY, name TEXT NOT NULL, folder TEXT NOT NULL UNIQUE, agent_provider TEXT, created_at TEXT NOT NULL);
+CREATE TABLE container_configs (agent_group_id TEXT PRIMARY KEY REFERENCES agent_groups(id) ON DELETE CASCADE, provider TEXT, model TEXT, updated_at TEXT NOT NULL);
+INSERT INTO agent_groups (id, name, folder, created_at) VALUES ('ag-1', 'vulpine-openrouter', 'vulpine-openrouter', '2026-01-01T00:00:00Z');
+`)
+	if err != nil {
+		t.Fatalf("create schema: %v", err)
+	}
+
+	if err := SetContainerConfig(nanoclawDir, "ag-1", "opencode", "openrouter/free"); err != nil {
+		t.Fatalf("SetContainerConfig: %v", err)
+	}
+
+	var provider, model string
+	if err := db.QueryRow(`SELECT provider, model FROM container_configs WHERE agent_group_id = 'ag-1'`).Scan(&provider, &model); err != nil {
+		t.Fatalf("query container config: %v", err)
+	}
+	if provider != "opencode" {
+		t.Fatalf("provider = %q, want opencode", provider)
+	}
+	if model != "openrouter/free" {
+		t.Fatalf("model = %q, want openrouter/free", model)
+	}
+}
+
+func TestCreateOpenRouterSecret(t *testing.T) {
+	secretPath := filepath.Join(t.TempDir(), "secrets.yaml")
+	apiKey := "sk-or-v1-test123"
+
+	if err := CreateOpenRouterSecret(secretPath, apiKey); err != nil {
+		t.Fatalf("CreateOpenRouterSecret: %v", err)
+	}
+
+	data, err := os.ReadFile(secretPath)
+	if err != nil {
+		t.Fatalf("read secret file: %v", err)
+	}
+	content := string(data)
+	if !strings.Contains(content, "openrouter.ai") {
+		t.Fatalf("secret file missing openrouter.ai host")
+	}
+	if !strings.Contains(content, "Authorization") {
+		t.Fatalf("secret file missing Authorization header")
+	}
+	if !strings.Contains(content, "Bearer sk-or-v1-test123") {
+		t.Fatalf("secret file missing Bearer token")
 	}
 }
