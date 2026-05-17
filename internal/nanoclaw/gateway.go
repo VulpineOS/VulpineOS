@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"sync"
 	"time"
+
+	"vulpineos/internal/config"
 )
 
 // Gateway manages the NanoClaw gateway daemon process.
@@ -59,6 +61,13 @@ func (g *Gateway) Start() error {
 	}
 
 	cmd := exec.Command(nanoclawBin, args...)
+
+	if cfg, err := config.Load(); err == nil && cfg.Provider == "openrouter" {
+		cmd.Env = append(os.Environ(),
+			"OPENCODE_PROVIDER=openrouter",
+			"OPENCODE_MODEL="+cfg.Model,
+		)
+	}
 
 	logPath := os.TempDir() + "/vulpineos-gateway.log"
 	if logFile, err := os.Create(logPath); err == nil {
