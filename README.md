@@ -236,6 +236,32 @@ Pressing `c` now queues the setup wizard for the next launch without clearing th
 OpenClaw session log streaming is used as a fallback conversation source, so final assistant replies still reach the TUI and tests even when the CLI omits the final `--json` payload on stdout.
 New agents now start by working on the assigned task immediately instead of spending the first turn on a canned self-introduction, and exact-output tasks are passed through as direct task instructions.
 
+### Phase 2 NanoClaw Integration Notes
+
+The `phase2` branch is wired to NanoClaw through its Unix socket at `data/cli.sock`. During local bring-up we found several NanoClaw/runtime issues that are worth preserving because some are general integration bugs rather than machine-specific setup problems.
+
+General NanoClaw issues fixed locally:
+
+- Provider config must use NanoClaw runner provider names. A group configured with `provider: "anthropic"` makes the container exit with `Unknown provider: anthropic`; the current NanoClaw runner registers `claude`, `mock`, and `codex`. Fix: use `claude` for the Claude SDK path or `codex` for the Codex path.
+- OneCLI CA files were mounted from macOS temp paths under `/var/folders/...`. With Colima/virtiofs those bind mounts appeared inside the container as empty directories, causing `Self-signed certificate detected`. Fix: copy the OneCLI CA files into a project-shared path such as `nanoclaw/data/onecli-ca/` before adding the Docker `-v` mounts.
+- CLI/socket sessions had default `session_routing` but no model-visible destination row. The agent produced replies like `<message to="unknown:cli:local">...`, which were dropped as unknown destinations. Fix: write a `reply` destination into the session inbound DB from the current session routing so agents can send `<message to="reply">...</message>` back to the socket caller.
+- The Codex provider ignored the configured `model` option and only read `CODEX_MODEL`. Fix: prefer `options.model`, then `CODEX_MODEL`, then the provider default.
+
+Local environment issues encountered on this machine:
+
+- Docker BuildKit was enabled but `docker-buildx` was missing. Fix: install `docker-buildx` and add `/opt/homebrew/lib/docker/cli-plugins` to Docker's CLI plugin dirs.
+- Docker needed Colima's socket: `DOCKER_HOST=unix:///Users/rowan/.colima/default/docker.sock`.
+- Colima was running with `2GiB` RAM, which killed the Codex-enabled image build with `cannot allocate memory`. Fix: restart Colima with more memory, e.g. `colima stop && colima start --memory 6 --cpu 4`.
+- The default Homebrew Node 25 binary was broken due to a missing `libsimdjson.30.dylib`. Fix: run NanoClaw and test scripts with Node 22 via `/opt/homebrew/opt/node@22/bin/node` or put `/opt/homebrew/opt/node@22/bin` first on `PATH`.
+- This machine had Codex auth in `~/.codex/auth.json` but no usable Anthropic key, so the working path was NanoClaw `provider: "codex"` with a per-group image including `@openai/codex`.
+
+Current verified local path:
+
+- NanoClaw directory: `/Users/rowan/Documents/nanoclaw`
+- NanoClaw socket: `/Users/rowan/Documents/nanoclaw/data/cli.sock`
+- Docker socket: `unix:///Users/rowan/.colima/default/docker.sock`
+- Verified socket response: sending `Reply with exactly: verified` returned `{"text":"verified"}`.
+
 The live operator path is covered by env-gated soak tests in `internal/agent_soak_integration_test.go` and `internal/remote/panel_agent_soak_test.go`, including persisted-session resume plus panel-driven pause and kill flows.
 
 Live browser, OpenClaw, and MCP-browser integration tests in `internal/integration_test.go` and `internal/mcp/live_integration_test.go` are gated behind `VULPINEOS_RUN_LIVE=1` so the default `go test` and CI path stay hermetic even on machines that already have Camoufox installed. The scoped MCP soak harness requires both `VULPINEOS_RUN_SOAK=1` and `VULPINEOS_RUN_LIVE=1`; `./scripts/run-soak.sh` sets both before running it.

@@ -116,8 +116,8 @@ var Providers = []Provider{
 
 	// --- Tier 2: Routing/Gateway providers ---
 	{ID: "openrouter", Name: "OpenRouter", EnvVar: "OPENROUTER_API_KEY",
-		DefaultModel: "openrouter/nvidia/nemotron-3-nano-30b-a3b:free",
-		Models:       []string{"openrouter/nvidia/nemotron-3-nano-30b-a3b:free", "openrouter/anthropic/claude-sonnet-4-6", "openrouter/openai/gpt-4.1", "openrouter/google/gemini-2.5-pro"},
+		DefaultModel: "openrouter/free",
+		Models:       []string{"openrouter/free", "openrouter/nvidia/nemotron-3-nano-30b-a3b:free", "openrouter/anthropic/claude-sonnet-4-6", "openrouter/openai/gpt-4.1", "openrouter/google/gemini-2.5-pro"},
 		NeedsKey:     true},
 	{ID: "groq", Name: "Groq (LPU)", EnvVar: "GROQ_API_KEY",
 		DefaultModel: "groq/llama-3.3-70b-versatile",

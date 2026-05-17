@@ -1091,6 +1091,11 @@ func (a App) updateChatInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.handleTraceToggle()
 		return a, nil
 	case "enter":
+		if a.conversation.IsThinking() {
+			a.notice = "Agent is still responding — wait for the current turn to finish"
+			a.noticeTTL = 3
+			return a, nil
+		}
 		text := a.conversation.InputValue()
 		if text != "" && a.selectedAgentID != "" {
 			// Add to conversation view + show thinking with animation

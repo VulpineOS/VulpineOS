@@ -430,6 +430,7 @@ func (m *Manager) findNanoClaw() string {
 			filepath.Join(d, "node_modules", ".bin", "nanoclaw"),
 			filepath.Join(d, "node_modules", "nanoclaw", "bin", "nanoclaw"),
 			filepath.Join(d, "nanoclaw", "nanoclaw.sh"),
+			filepath.Join(d, "nanoclaw", "nanoclaw"),
 		}
 		for _, c := range candidates {
 			if isRunnable(c) {

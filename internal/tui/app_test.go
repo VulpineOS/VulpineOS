@@ -1082,6 +1082,33 @@ func TestBulkAgentStatusMsgMarksAgentsInterrupted(t *testing.T) {
 	}
 }
 
+func TestChatEnterWhileThinkingDoesNotSubmit(t *testing.T) {
+	db := openTestVault(t)
+	agent, err := db.CreateAgent("busy-agent", "task", "{}")
+	if err != nil {
+		t.Fatalf("create agent: %v", err)
+	}
+
+	app := NewApp(nil, nil, nil, db, nil, nil)
+	app.selectedAgentID = agent.ID
+	app.focus = FocusConversation
+	app.inputMode = "chat"
+	app.conversation.SetAgentID(agent.ID)
+	app.conversation.SetAwake(true)
+	app.conversation.SetThinking(true)
+	ti := app.conversation.TextInput()
+	ti.SetValue("hello")
+
+	model, cmd := app.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	app = model.(App)
+	if cmd != nil {
+		t.Fatal("expected no command while agent is already thinking")
+	}
+	if got := app.conversation.TextInput().Value(); got != "hello" {
+		t.Fatalf("input value = %q, want preserved text", got)
+	}
+}
+
 func TestBulkAgentStatusMsgMarksAgentsPaused(t *testing.T) {
 	db := openTestVault(t)
 
