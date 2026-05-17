@@ -783,9 +783,12 @@ func (m *Manager) fanOutConversation() {
 func provisionOpenRouterIfNeeded() error {
 	cfg, err := config.Load()
 	if err != nil {
+		log.Printf("PROVISIONING: config.Load failed: %v", err)
 		return nil
 	}
+	log.Printf("PROVISIONING: loaded config - provider=%s model=%s", cfg.Provider, cfg.Model)
 	if cfg.Provider != "openrouter" {
+		log.Printf("PROVISIONING: not openrouter provider (=%s), skipping", cfg.Provider)
 		return nil
 	}
 
