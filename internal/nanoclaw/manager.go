@@ -110,14 +110,16 @@ func (m *Manager) SpawnWithSessionIsolated(agentID, task, sessionName, configPat
 		return "", err
 	}
 
-	if m.binary != "" && m.binary != "nanoclaw" {
-	} else if cfg, err := config.Load(); err == nil && cfg.Provider == "opencode-local" {
-		return m.SpawnOpenCode(task, agentID)
-	}
+	useDefaultBinary := m.binary == "" || m.binary == "nanoclaw"
+	if useDefaultBinary {
+		if cfg, err := config.Load(); err == nil && cfg.Provider == "opencode-local" {
+			return m.SpawnOpenCode(task, agentID)
+		}
 
-	_, socketFound := FindNanoclawSocket()
-	if socketFound {
-		return m.spawnViaSocket(agentID, sessionName, task, configPath, cleanup)
+		_, socketFound := FindNanoclawSocket()
+		if socketFound {
+			return m.spawnViaSocket(agentID, sessionName, task, configPath, cleanup)
+		}
 	}
 
 	nanoclawBin := m.findNanoClaw()
@@ -335,6 +337,12 @@ func (m *Manager) spawnViaSocket(agentID, sessionName, task, configPath string, 
 	if !client.IsRunning() {
 		return "", fmt.Errorf("nanoclaw daemon not running. Start with: cd nanoclaw && pnpm tsx src/index.ts")
 	}
+	if err := ensureVulpineAgentRoute(nanoclawDir, agentID); err != nil {
+		if cleanup != nil {
+			cleanup()
+		}
+		return "", err
+	}
 
 	agent := newAgent(agentID, sessionName, m.statusSource)
 	agent.sessionLogPath = ""
@@ -344,7 +352,10 @@ func (m *Manager) spawnViaSocket(agentID, sessionName, task, configPath string, 
 	m.mu.Unlock()
 
 	go func() {
-		err := client.SendMessage(task, func(chunk string, done bool) {
+		err := client.SendAgentMessage(agentID, task, func(chunk string, done bool) {
+			if chunk == "[superseded by a newer client]" {
+				return
+			}
 			if chunk != "" {
 				agent.conversationCh <- ConversationMsg{
 					AgentID: agentID,
@@ -580,7 +591,7 @@ func (m *Manager) startManagedAgent(agentID, contextID, nanoclawBin string, args
 	if configPath != "" {
 		agent.env = runtimeEnvForConfig(configPath)
 	}
-if err := agent.start(nanoclawBin, args); err != nil {
+	if err := agent.start(nanoclawBin, args); err != nil {
 		if cleanup != nil {
 			cleanup()
 		}
