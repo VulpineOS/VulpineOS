@@ -110,6 +110,10 @@ func (m *Manager) SpawnWithSessionIsolated(agentID, task, sessionName, configPat
 		return "", err
 	}
 
+	if err := provisionOpenRouterIfNeeded(); err != nil {
+		log.Printf("Warning: provision OpenRouter: %v", err)
+	}
+
 	useDefaultBinary := m.binary == "" || m.binary == "nanoclaw"
 	if useDefaultBinary {
 		if cfg, err := config.Load(); err == nil && cfg.Provider == "opencode-local" {
@@ -774,4 +778,38 @@ func (m *Manager) fanOutConversation() {
 		}
 		m.mu.RUnlock()
 	}
+}
+
+func provisionOpenRouterIfNeeded() error {
+	cfg, err := config.Load()
+	if err != nil {
+		return nil
+	}
+	if cfg.Provider != "openrouter" {
+		return nil
+	}
+
+	nanoclawDir := GetNanoclawDir()
+	if nanoclawDir == "" {
+		return nil
+	}
+
+	agentGroupID, err := LookupNanoclawAgentGroupID(nanoclawDir)
+	if err != nil {
+		return fmt.Errorf("lookup nanoclaw agent group: %w", err)
+	}
+	if agentGroupID == "" {
+		return nil
+	}
+
+	if err := SetContainerConfig(nanoclawDir, agentGroupID, "opencode", cfg.Model); err != nil {
+		return fmt.Errorf("set container config: %w", err)
+	}
+
+	secretPath := filepath.Join(nanoclawDir, "data", "secrets.yaml")
+	if err := CreateOpenRouterSecret(secretPath, cfg.APIKey); err != nil {
+		return fmt.Errorf("create openrouter secret: %w", err)
+	}
+
+	return nil
 }
