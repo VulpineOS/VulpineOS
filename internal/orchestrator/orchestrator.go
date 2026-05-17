@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"path/filepath"
 	"sync"
 
 	"vulpineos/internal/agentbus"
@@ -463,6 +464,10 @@ func (o *Orchestrator) spawnScopedAgent(contextID, sopFile string) (string, erro
 		return "", err
 	}
 
+	if err := o.provisionOpenRouterIfNeeded(); err != nil {
+		log.Printf("Warning: provision OpenRouter: %v", err)
+	}
+
 	agentID, err := o.Agents.SpawnIsolated(contextID, sopFile, scopedConfig, cleanup)
 	if err != nil {
 		if cleanup != nil {
@@ -472,6 +477,40 @@ func (o *Orchestrator) spawnScopedAgent(contextID, sopFile string) (string, erro
 	}
 
 	return agentID, nil
+}
+
+func (o *Orchestrator) provisionOpenRouterIfNeeded() error {
+	cfg, err := config.Load()
+	if err != nil {
+		return nil
+	}
+	if cfg.Provider != "openrouter" {
+		return nil
+	}
+
+	nanoclawDir := nanoclaw.GetNanoclawDir()
+	if nanoclawDir == "" {
+		return nil
+	}
+
+	agentGroupID, err := nanoclaw.LookupNanoclawAgentGroupID(nanoclawDir)
+	if err != nil {
+		return fmt.Errorf("lookup nanoclaw agent group: %w", err)
+	}
+	if agentGroupID == "" {
+		return nil
+	}
+
+	if err := nanoclaw.SetContainerConfig(nanoclawDir, agentGroupID, "opencode", cfg.Model); err != nil {
+		return fmt.Errorf("set container config: %w", err)
+	}
+
+	secretPath := filepath.Join(nanoclawDir, "data", "secrets.yaml")
+	if err := nanoclaw.CreateOpenRouterSecret(secretPath, cfg.APIKey); err != nil {
+		return fmt.Errorf("create openrouter secret: %w", err)
+	}
+
+	return nil
 }
 
 // PrepareScopedOpenClawConfig builds a per-context OpenClaw config overlay.
