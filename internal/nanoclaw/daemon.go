@@ -19,6 +19,7 @@ type Daemon struct {
 	socketPath string
 	mu         sync.Mutex
 	exited     bool
+	stopped    bool
 	exitCh     chan error
 }
 
@@ -112,14 +113,14 @@ func (d *Daemon) Start() error {
 // Stop gracefully terminates the daemon.
 func (d *Daemon) Stop() error {
 	d.mu.Lock()
-	cmd := d.cmd
-	exitCh := d.exitCh
-	exited := d.exited
-	d.mu.Unlock()
-
-	if cmd == nil || exited {
+	if d.cmd == nil || d.exited || d.stopped {
+		d.mu.Unlock()
 		return nil
 	}
+	d.stopped = true
+	cmd := d.cmd
+	exitCh := d.exitCh
+	d.mu.Unlock()
 
 	if cmd.Process != nil {
 		if err := cmd.Process.Signal(os.Interrupt); err != nil {
