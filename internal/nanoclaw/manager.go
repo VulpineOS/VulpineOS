@@ -110,14 +110,20 @@ func (m *Manager) SpawnWithSessionIsolated(agentID, task, sessionName, configPat
 		return "", err
 	}
 
-	if m.binary != "" && m.binary != "nanoclaw" {
-	} else if cfg, err := config.Load(); err == nil && cfg.Provider == "opencode-local" {
-		return m.SpawnOpenCode(task, agentID)
+	if err := provisionOpenRouterIfNeeded(); err != nil {
+		log.Printf("Warning: provision OpenRouter: %v", err)
 	}
 
-	_, socketFound := FindNanoclawSocket()
-	if socketFound {
-		return m.spawnViaSocket(agentID, sessionName, task, configPath, cleanup)
+	useDefaultBinary := m.binary == "" || m.binary == "nanoclaw"
+	if useDefaultBinary {
+		if cfg, err := config.Load(); err == nil && cfg.Provider == "opencode-local" {
+			return m.SpawnOpenCode(task, agentID)
+		}
+
+		_, socketFound := FindNanoclawSocket()
+		if socketFound {
+			return m.spawnViaSocket(agentID, sessionName, task, configPath, cleanup)
+		}
 	}
 
 	nanoclawBin := m.findNanoClaw()
@@ -335,6 +341,12 @@ func (m *Manager) spawnViaSocket(agentID, sessionName, task, configPath string, 
 	if !client.IsRunning() {
 		return "", fmt.Errorf("nanoclaw daemon not running. Start with: cd nanoclaw && pnpm tsx src/index.ts")
 	}
+	if err := ensureVulpineAgentRoute(nanoclawDir, agentID); err != nil {
+		if cleanup != nil {
+			cleanup()
+		}
+		return "", err
+	}
 
 	agent := newAgent(agentID, sessionName, m.statusSource)
 	agent.sessionLogPath = ""
@@ -344,7 +356,10 @@ func (m *Manager) spawnViaSocket(agentID, sessionName, task, configPath string, 
 	m.mu.Unlock()
 
 	go func() {
-		err := client.SendMessage(task, func(chunk string, done bool) {
+		err := client.SendAgentMessage(agentID, task, func(chunk string, done bool) {
+			if chunk == "[superseded by a newer client]" {
+				return
+			}
 			if chunk != "" {
 				agent.conversationCh <- ConversationMsg{
 					AgentID: agentID,
@@ -580,7 +595,7 @@ func (m *Manager) startManagedAgent(agentID, contextID, nanoclawBin string, args
 	if configPath != "" {
 		agent.env = runtimeEnvForConfig(configPath)
 	}
-if err := agent.start(nanoclawBin, args); err != nil {
+	if err := agent.start(nanoclawBin, args); err != nil {
 		if cleanup != nil {
 			cleanup()
 		}
@@ -763,4 +778,38 @@ func (m *Manager) fanOutConversation() {
 		}
 		m.mu.RUnlock()
 	}
+}
+
+func provisionOpenRouterIfNeeded() error {
+	cfg, err := config.Load()
+	if err != nil {
+		return nil
+	}
+	if cfg.Provider != "openrouter" {
+		return nil
+	}
+
+	nanoclawDir := GetNanoclawDir()
+	if nanoclawDir == "" {
+		return nil
+	}
+
+	agentGroupID, err := LookupNanoclawAgentGroupID(nanoclawDir)
+	if err != nil {
+		return fmt.Errorf("lookup nanoclaw agent group: %w", err)
+	}
+	if agentGroupID == "" {
+		return nil
+	}
+
+	if err := SetContainerConfig(nanoclawDir, agentGroupID, "opencode", cfg.Model); err != nil {
+		return fmt.Errorf("set container config: %w", err)
+	}
+
+	secretPath := filepath.Join(nanoclawDir, "data", "secrets.yaml")
+	if err := CreateOpenRouterSecret(secretPath, cfg.APIKey); err != nil {
+		return fmt.Errorf("create openrouter secret: %w", err)
+	}
+
+	return nil
 }
