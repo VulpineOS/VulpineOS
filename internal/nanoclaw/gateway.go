@@ -146,7 +146,7 @@ func (g *Gateway) waitReady(nanoclawBin string) error {
 	var lastErr error
 
 	for time.Now().Before(deadline) {
-		// The OpenClaw health CLI regularly takes ~2.5s wall time on this host
+		// The NanoClaw health CLI regularly takes ~2.5s wall time on this host
 		// even when the gateway probe itself reports "OK (0ms)". Give the probe
 		// enough headroom so Gateway.Start does not fail on a false timeout.
 		ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)

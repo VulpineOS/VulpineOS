@@ -4,7 +4,7 @@ import "encoding/json"
 
 // MCP JSON-RPC 2.0 message types (Model Context Protocol spec).
 
-// Request is an incoming JSON-RPC request from the MCP client (OpenClaw).
+// Request is an incoming JSON-RPC request from the MCP client (NanoClaw).
 type Request struct {
 	JSONRPC string          `json:"jsonrpc"`
 	ID      interface{}     `json:"id"` // int or string

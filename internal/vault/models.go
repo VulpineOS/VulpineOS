@@ -6,7 +6,7 @@ import "time"
 type Citizen struct {
 	ID              string    `json:"id"`
 	Label           string    `json:"label"`
-	Fingerprint     string    `json:"fingerprint"`  // JSON blob (BrowserForge config)
+	Fingerprint     string    `json:"fingerprint"`  // JSON blob
 	ProxyConfig     string    `json:"proxy_config"` // JSON blob
 	Locale          string    `json:"locale"`
 	Timezone        string    `json:"timezone"`
@@ -37,7 +37,7 @@ type Template struct {
 	ID              string    `json:"id"`
 	Name            string    `json:"name"`
 	Description     string    `json:"description"`
-	SOP             string    `json:"sop"`              // OpenClaw Standard Operating Procedure
+	SOP             string    `json:"sop"`              // NanoClaw Standard Operating Procedure
 	InteractionMode string    `json:"interaction_mode"` // readonly, form_fill, full
 	AllowedDomains  string    `json:"allowed_domains"`  // JSON array of domain patterns
 	Constraints     string    `json:"constraints"`      // JSON blob

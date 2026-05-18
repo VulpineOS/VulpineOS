@@ -186,7 +186,7 @@ func TestConfigSkillManagement(t *testing.T) {
 	}
 }
 
-func TestGenerateOpenClawConfig(t *testing.T) {
+func TestGenerateNanoClawConfig(t *testing.T) {
 	tmpHome := withTempHome(t)
 	skillDir := filepath.Join(tmpHome, ".vulpineos", "skills")
 	if err := os.MkdirAll(skillDir, 0755); err != nil {
@@ -205,23 +205,23 @@ func TestGenerateOpenClawConfig(t *testing.T) {
 		},
 	}
 
-	// GenerateOpenClawConfig writes to Dir() which we can't easily override,
+	// GenerateNanoClawConfig writes to Dir() which we can't easily override,
 	// so we test the output shape by calling it and checking the file.
-	if err := cfg.GenerateOpenClawConfig("/usr/local/bin/vulpineos", "/usr/local/bin/camoufox"); err != nil {
-		t.Fatalf("GenerateOpenClawConfig: %v", err)
+	if err := cfg.GenerateNanoClawConfig("/usr/local/bin/vulpineos", "/usr/local/bin/camoufox"); err != nil {
+		t.Fatalf("GenerateNanoClawConfig: %v", err)
 	}
 
 	// Read the generated file
-	ocPath := OpenClawConfigPath()
+	ocPath := NanoClawConfigPath()
 	data, err := os.ReadFile(ocPath)
 	if err != nil {
-		t.Fatalf("read openclaw.json: %v", err)
+		t.Fatalf("read nanoclaw.json: %v", err)
 	}
 	requireFileMode(t, ocPath, 0600)
 
 	var oc map[string]interface{}
 	if err := json.Unmarshal(data, &oc); err != nil {
-		t.Fatalf("openclaw.json not valid JSON: %v", err)
+		t.Fatalf("nanoclaw.json not valid JSON: %v", err)
 	}
 
 	// Verify browser.enabled is false
@@ -277,35 +277,35 @@ func TestGenerateOpenClawConfig(t *testing.T) {
 	}
 
 	defaults, _ = agents["defaults"].(map[string]interface{})
-	if defaults["workspace"] != OpenClawWorkspaceDir() {
-		t.Errorf("workspace = %v, want %q", defaults["workspace"], OpenClawWorkspaceDir())
+	if defaults["workspace"] != NanoClawWorkspaceDir() {
+		t.Errorf("workspace = %v, want %q", defaults["workspace"], NanoClawWorkspaceDir())
 	}
 
-	if _, err := os.Stat(filepath.Join(OpenClawWorkspaceDir(), "AGENTS.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(NanoClawWorkspaceDir(), "AGENTS.md")); err != nil {
 		t.Fatalf("expected isolated workspace bootstrap files: %v", err)
 	}
-	identityData, err := os.ReadFile(filepath.Join(OpenClawWorkspaceDir(), "IDENTITY.md"))
+	identityData, err := os.ReadFile(filepath.Join(NanoClawWorkspaceDir(), "IDENTITY.md"))
 	if err != nil {
 		t.Fatalf("expected isolated workspace identity file: %v", err)
 	}
 	if !strings.Contains(string(identityData), "Use the name assigned by the current user message") {
 		t.Fatalf("unexpected IDENTITY.md contents:\n%s", string(identityData))
 	}
-	agentsData, err := os.ReadFile(filepath.Join(OpenClawWorkspaceDir(), "AGENTS.md"))
+	agentsData, err := os.ReadFile(filepath.Join(NanoClawWorkspaceDir(), "AGENTS.md"))
 	if err != nil {
 		t.Fatalf("expected isolated workspace agents file: %v", err)
 	}
 	if !strings.Contains(string(agentsData), "Never claim an action succeeded when the tool returned an error") {
 		t.Fatalf("expected AGENTS.md to forbid fake success reporting, got:\n%s", string(agentsData))
 	}
-	bootstrapData, err := os.ReadFile(filepath.Join(OpenClawWorkspaceDir(), "BOOTSTRAP.md"))
+	bootstrapData, err := os.ReadFile(filepath.Join(NanoClawWorkspaceDir(), "BOOTSTRAP.md"))
 	if err != nil {
 		t.Fatalf("expected isolated workspace bootstrap file: %v", err)
 	}
 	if !strings.Contains(string(bootstrapData), "Ignore older persona/bootstrap text from previous sessions") {
 		t.Fatalf("expected BOOTSTRAP.md to suppress stale persona text, got:\n%s", string(bootstrapData))
 	}
-	skillPath := filepath.Join(OpenClawProfileDir(), "skills", "vulpine-browser", "SKILL.md")
+	skillPath := filepath.Join(NanoClawProfileDir(), "skills", "vulpine-browser", "SKILL.md")
 	skillData, err := os.ReadFile(skillPath)
 	if err != nil {
 		t.Fatalf("expected patched vulpine-browser skill: %v", err)
@@ -321,10 +321,10 @@ func TestGenerateOpenClawConfig(t *testing.T) {
 	}
 }
 
-func TestGenerateOpenClawConfigPreservesGatewayAndCommands(t *testing.T) {
+func TestGenerateNanoClawConfigPreservesGatewayAndCommands(t *testing.T) {
 	withTempHome(t)
 
-	profileDir := OpenClawProfileDir()
+	profileDir := NanoClawProfileDir()
 	if err := os.MkdirAll(profileDir, 0700); err != nil {
 		t.Fatalf("mkdir profile dir: %v", err)
 	}
@@ -348,7 +348,7 @@ func TestGenerateOpenClawConfigPreservesGatewayAndCommands(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal existing config: %v", err)
 	}
-	if err := os.WriteFile(OpenClawConfigPath(), data, 0600); err != nil {
+	if err := os.WriteFile(NanoClawConfigPath(), data, 0600); err != nil {
 		t.Fatalf("write existing config: %v", err)
 	}
 
@@ -358,18 +358,18 @@ func TestGenerateOpenClawConfigPreservesGatewayAndCommands(t *testing.T) {
 		Model:         "anthropic/claude-sonnet-4-6",
 		SetupComplete: true,
 	}
-	if err := cfg.GenerateOpenClawConfig("/usr/local/bin/vulpineos", "/usr/local/bin/camoufox"); err != nil {
-		t.Fatalf("GenerateOpenClawConfig: %v", err)
+	if err := cfg.GenerateNanoClawConfig("/usr/local/bin/vulpineos", "/usr/local/bin/camoufox"); err != nil {
+		t.Fatalf("GenerateNanoClawConfig: %v", err)
 	}
 
-	written, err := os.ReadFile(OpenClawConfigPath())
+	written, err := os.ReadFile(NanoClawConfigPath())
 	if err != nil {
-		t.Fatalf("read openclaw.json: %v", err)
+		t.Fatalf("read nanoclaw.json: %v", err)
 	}
 
 	var oc map[string]interface{}
 	if err := json.Unmarshal(written, &oc); err != nil {
-		t.Fatalf("openclaw.json not valid JSON: %v", err)
+		t.Fatalf("nanoclaw.json not valid JSON: %v", err)
 	}
 
 	gateway, ok := oc["gateway"].(map[string]interface{})
@@ -406,10 +406,10 @@ func TestGenerateOpenClawConfigPreservesGatewayAndCommands(t *testing.T) {
 	}
 }
 
-func TestGenerateOpenClawConfigRewritesStaleVulpineBrowserSkill(t *testing.T) {
+func TestGenerateNanoClawConfigRewritesStaleVulpineBrowserSkill(t *testing.T) {
 	withTempHome(t)
 
-	staleSkillDir := filepath.Join(OpenClawProfileDir(), "skills", "vulpine-browser")
+	staleSkillDir := filepath.Join(NanoClawProfileDir(), "skills", "vulpine-browser")
 	if err := os.MkdirAll(staleSkillDir, 0700); err != nil {
 		t.Fatalf("mkdir stale skill dir: %v", err)
 	}
@@ -425,8 +425,8 @@ func TestGenerateOpenClawConfigRewritesStaleVulpineBrowserSkill(t *testing.T) {
 		Model:         "anthropic/claude-sonnet-4-6",
 		SetupComplete: true,
 	}
-	if err := cfg.GenerateOpenClawConfig("/usr/local/bin/vulpineos", "/usr/local/bin/camoufox"); err != nil {
-		t.Fatalf("GenerateOpenClawConfig: %v", err)
+	if err := cfg.GenerateNanoClawConfig("/usr/local/bin/vulpineos", "/usr/local/bin/camoufox"); err != nil {
+		t.Fatalf("GenerateNanoClawConfig: %v", err)
 	}
 
 	skillData, err := os.ReadFile(stalePath)
@@ -448,10 +448,10 @@ func TestGenerateOpenClawConfigRewritesStaleVulpineBrowserSkill(t *testing.T) {
 	}
 }
 
-func TestRepairOpenClawProfileRestoresWorkspaceAndSkill(t *testing.T) {
+func TestRepairNanoClawProfileRestoresWorkspaceAndSkill(t *testing.T) {
 	withTempHome(t)
 
-	if err := os.MkdirAll(OpenClawProfileDir(), 0700); err != nil {
+	if err := os.MkdirAll(NanoClawProfileDir(), 0700); err != nil {
 		t.Fatalf("mkdir profile: %v", err)
 	}
 	stale := map[string]interface{}{
@@ -471,11 +471,11 @@ func TestRepairOpenClawProfileRestoresWorkspaceAndSkill(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal stale config: %v", err)
 	}
-	if err := os.WriteFile(OpenClawConfigPath(), data, 0644); err != nil {
+	if err := os.WriteFile(NanoClawConfigPath(), data, 0644); err != nil {
 		t.Fatalf("write stale config: %v", err)
 	}
 
-	staleSkillDir := filepath.Join(OpenClawProfileDir(), "skills", "vulpine-browser")
+	staleSkillDir := filepath.Join(NanoClawProfileDir(), "skills", "vulpine-browser")
 	if err := os.MkdirAll(staleSkillDir, 0700); err != nil {
 		t.Fatalf("mkdir stale skill dir: %v", err)
 	}
@@ -484,15 +484,15 @@ func TestRepairOpenClawProfileRestoresWorkspaceAndSkill(t *testing.T) {
 		t.Fatalf("write stale skill: %v", err)
 	}
 
-	if err := RepairOpenClawProfile("ws://127.0.0.1:9222"); err != nil {
-		t.Fatalf("RepairOpenClawProfile: %v", err)
+	if err := RepairNanoClawProfile("ws://127.0.0.1:9222"); err != nil {
+		t.Fatalf("RepairNanoClawProfile: %v", err)
 	}
 
-	out, err := os.ReadFile(OpenClawConfigPath())
+	out, err := os.ReadFile(NanoClawConfigPath())
 	if err != nil {
 		t.Fatalf("read repaired config: %v", err)
 	}
-	requireFileMode(t, OpenClawConfigPath(), 0600)
+	requireFileMode(t, NanoClawConfigPath(), 0600)
 	var cfg map[string]interface{}
 	if err := json.Unmarshal(out, &cfg); err != nil {
 		t.Fatalf("parse repaired config: %v", err)
@@ -504,8 +504,8 @@ func TestRepairOpenClawProfileRestoresWorkspaceAndSkill(t *testing.T) {
 	}
 	agents := cfg["agents"].(map[string]interface{})
 	defaults := agents["defaults"].(map[string]interface{})
-	if defaults["workspace"] != OpenClawWorkspaceDir() {
-		t.Fatalf("workspace = %v, want %q", defaults["workspace"], OpenClawWorkspaceDir())
+	if defaults["workspace"] != NanoClawWorkspaceDir() {
+		t.Fatalf("workspace = %v, want %q", defaults["workspace"], NanoClawWorkspaceDir())
 	}
 	gateway := cfg["gateway"].(map[string]interface{})
 	auth := gateway["auth"].(map[string]interface{})
@@ -513,10 +513,10 @@ func TestRepairOpenClawProfileRestoresWorkspaceAndSkill(t *testing.T) {
 		t.Fatalf("gateway auth token = %v, want keep-me", auth["token"])
 	}
 
-	if _, err := os.Stat(filepath.Join(OpenClawWorkspaceDir(), "AGENTS.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(NanoClawWorkspaceDir(), "AGENTS.md")); err != nil {
 		t.Fatalf("expected workspace bootstrap files: %v", err)
 	}
-	bootstrapData, err := os.ReadFile(filepath.Join(OpenClawWorkspaceDir(), "BOOTSTRAP.md"))
+	bootstrapData, err := os.ReadFile(filepath.Join(NanoClawWorkspaceDir(), "BOOTSTRAP.md"))
 	if err != nil {
 		t.Fatalf("expected repaired bootstrap file: %v", err)
 	}
@@ -538,10 +538,10 @@ func TestRepairOpenClawProfileRestoresWorkspaceAndSkill(t *testing.T) {
 	}
 }
 
-func TestRepairOpenClawProfileRemovesStaleCDPURLWhenUnavailable(t *testing.T) {
+func TestRepairNanoClawProfileRemovesStaleCDPURLWhenUnavailable(t *testing.T) {
 	withTempHome(t)
 
-	if err := os.MkdirAll(OpenClawProfileDir(), 0700); err != nil {
+	if err := os.MkdirAll(NanoClawProfileDir(), 0700); err != nil {
 		t.Fatalf("mkdir profile: %v", err)
 	}
 	stale := map[string]interface{}{
@@ -555,15 +555,15 @@ func TestRepairOpenClawProfileRemovesStaleCDPURLWhenUnavailable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal stale config: %v", err)
 	}
-	if err := os.WriteFile(OpenClawConfigPath(), data, 0600); err != nil {
+	if err := os.WriteFile(NanoClawConfigPath(), data, 0600); err != nil {
 		t.Fatalf("write stale config: %v", err)
 	}
 
-	if err := RepairOpenClawProfile(""); err != nil {
-		t.Fatalf("RepairOpenClawProfile: %v", err)
+	if err := RepairNanoClawProfile(""); err != nil {
+		t.Fatalf("RepairNanoClawProfile: %v", err)
 	}
 
-	out, err := os.ReadFile(OpenClawConfigPath())
+	out, err := os.ReadFile(NanoClawConfigPath())
 	if err != nil {
 		t.Fatalf("read repaired config: %v", err)
 	}
@@ -575,15 +575,15 @@ func TestRepairOpenClawProfileRemovesStaleCDPURLWhenUnavailable(t *testing.T) {
 	if _, ok := browser["cdpUrl"]; ok {
 		t.Fatalf("browser.cdpUrl still present after repair without live foxbridge URL: %v", browser["cdpUrl"])
 	}
-	if got := OpenClawProfileBrowserRoute(); got != "headless" {
+	if got := NanoClawProfileBrowserRoute(); got != "headless" {
 		t.Fatalf("route after stale cdpUrl removal = %q, want headless", got)
 	}
 }
 
-func TestGenerateOpenClawConfigPreservesGatewayAuthAndCommands(t *testing.T) {
+func TestGenerateNanoClawConfigPreservesGatewayAuthAndCommands(t *testing.T) {
 	withTempHome(t)
 
-	if err := os.MkdirAll(OpenClawProfileDir(), 0700); err != nil {
+	if err := os.MkdirAll(NanoClawProfileDir(), 0700); err != nil {
 		t.Fatalf("mkdir profile: %v", err)
 	}
 	existing := map[string]interface{}{
@@ -606,7 +606,7 @@ func TestGenerateOpenClawConfigPreservesGatewayAuthAndCommands(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal existing config: %v", err)
 	}
-	if err := os.WriteFile(OpenClawConfigPath(), data, 0600); err != nil {
+	if err := os.WriteFile(NanoClawConfigPath(), data, 0600); err != nil {
 		t.Fatalf("write existing config: %v", err)
 	}
 
@@ -616,11 +616,11 @@ func TestGenerateOpenClawConfigPreservesGatewayAuthAndCommands(t *testing.T) {
 		Model:         "anthropic/claude-sonnet-4-6",
 		SetupComplete: true,
 	}
-	if err := cfg.GenerateOpenClawConfig("/usr/local/bin/vulpineos", "/usr/local/bin/camoufox"); err != nil {
-		t.Fatalf("GenerateOpenClawConfig: %v", err)
+	if err := cfg.GenerateNanoClawConfig("/usr/local/bin/vulpineos", "/usr/local/bin/camoufox"); err != nil {
+		t.Fatalf("GenerateNanoClawConfig: %v", err)
 	}
 
-	out, err := os.ReadFile(OpenClawConfigPath())
+	out, err := os.ReadFile(NanoClawConfigPath())
 	if err != nil {
 		t.Fatalf("read generated config: %v", err)
 	}
@@ -644,13 +644,13 @@ func TestGenerateOpenClawConfigPreservesGatewayAuthAndCommands(t *testing.T) {
 	}
 }
 
-func TestGenerateOpenClawConfig_UnknownProvider(t *testing.T) {
+func TestGenerateNanoClawConfig_UnknownProvider(t *testing.T) {
 	cfg := &Config{
 		Provider: "nonexistent-provider",
 		APIKey:   "key",
 		Model:    "model",
 	}
-	err := cfg.GenerateOpenClawConfig("/bin/vulpineos", "")
+	err := cfg.GenerateNanoClawConfig("/bin/vulpineos", "")
 	if err == nil {
 		t.Fatal("expected error for unknown provider")
 	}
@@ -698,24 +698,24 @@ func TestCustomProvider(t *testing.T) {
 	}
 }
 
-func TestOpenClawConfigReady_BlankConfig(t *testing.T) {
+func TestNanoClawConfigReady_BlankConfig(t *testing.T) {
 	cfg := &Config{}
-	ready, err := cfg.OpenClawConfigReady()
+	ready, err := cfg.NanoClawConfigReady()
 	if err != nil {
-		t.Fatalf("OpenClawConfigReady: %v", err)
+		t.Fatalf("NanoClawConfigReady: %v", err)
 	}
 	if ready {
 		t.Fatal("ready = true, want false")
 	}
 }
 
-func TestOpenClawConfigReady_UnknownProvider(t *testing.T) {
+func TestNanoClawConfigReady_UnknownProvider(t *testing.T) {
 	cfg := &Config{
 		Provider: "nonexistent-provider",
 		Model:    "model",
 		APIKey:   "key",
 	}
-	ready, err := cfg.OpenClawConfigReady()
+	ready, err := cfg.NanoClawConfigReady()
 	if err == nil {
 		t.Fatal("expected error for unknown provider")
 	}
@@ -757,7 +757,7 @@ func TestReconfigureRequestLifecycle(t *testing.T) {
 	}
 }
 
-func TestLoadHydratesFromOpenClawProfile(t *testing.T) {
+func TestLoadHydratesFromNanoClawProfile(t *testing.T) {
 	withTempHome(t)
 
 	if err := os.MkdirAll(Dir(), 0700); err != nil {
@@ -767,8 +767,8 @@ func TestLoadHydratesFromOpenClawProfile(t *testing.T) {
 		t.Fatalf("write blank config: %v", err)
 	}
 
-	if err := os.MkdirAll(OpenClawProfileDir(), 0700); err != nil {
-		t.Fatalf("mkdir openclaw dir: %v", err)
+	if err := os.MkdirAll(NanoClawProfileDir(), 0700); err != nil {
+		t.Fatalf("mkdir nanoclaw dir: %v", err)
 	}
 	profile := map[string]interface{}{
 		"env": map[string]interface{}{
@@ -790,8 +790,8 @@ func TestLoadHydratesFromOpenClawProfile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal profile: %v", err)
 	}
-	if err := os.WriteFile(OpenClawConfigPath(), data, 0600); err != nil {
-		t.Fatalf("write openclaw profile: %v", err)
+	if err := os.WriteFile(NanoClawConfigPath(), data, 0600); err != nil {
+		t.Fatalf("write nanoclaw profile: %v", err)
 	}
 
 	cfg, err := Load()
@@ -812,14 +812,68 @@ func TestLoadHydratesFromOpenClawProfile(t *testing.T) {
 	}
 }
 
-func TestOpenClawProfileBrowserRoute(t *testing.T) {
+func TestLoadHydratesProviderFromNanoClawProfileWhenLocalProviderIsStale(t *testing.T) {
 	withTempHome(t)
 
-	if got := OpenClawProfileBrowserRoute(); got != "" {
+	if err := os.MkdirAll(Dir(), 0700); err != nil {
+		t.Fatalf("mkdir config dir: %v", err)
+	}
+	if err := os.WriteFile(Path(), []byte(`{"provider":"openai","apiKey":"","model":"","setupComplete":false}`), 0600); err != nil {
+		t.Fatalf("write stale config: %v", err)
+	}
+
+	if err := os.MkdirAll(NanoClawProfileDir(), 0700); err != nil {
+		t.Fatalf("mkdir nanoclaw dir: %v", err)
+	}
+	profile := map[string]interface{}{
+		"env": map[string]interface{}{
+			"ZAI_API_KEY": "zai-test-key",
+		},
+		"agents": map[string]interface{}{
+			"defaults": map[string]interface{}{
+				"model": map[string]interface{}{
+					"primary": "zai/glm-4.7",
+				},
+			},
+		},
+		"browser": map[string]interface{}{
+			"enabled": true,
+		},
+	}
+	data, err := json.Marshal(profile)
+	if err != nil {
+		t.Fatalf("marshal profile: %v", err)
+	}
+	if err := os.WriteFile(NanoClawConfigPath(), data, 0600); err != nil {
+		t.Fatalf("write nanoclaw profile: %v", err)
+	}
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Provider != "zai" {
+		t.Fatalf("provider = %q, want zai", cfg.Provider)
+	}
+	if cfg.Model != "zai/glm-4.7" {
+		t.Fatalf("model = %q, want zai/glm-4.7", cfg.Model)
+	}
+	if cfg.APIKey != "zai-test-key" {
+		t.Fatalf("apiKey = %q, want zai-test-key", cfg.APIKey)
+	}
+	if !cfg.SetupComplete {
+		t.Fatal("setupComplete = false, want true")
+	}
+}
+
+func TestNanoClawProfileBrowserRoute(t *testing.T) {
+	withTempHome(t)
+
+	if got := NanoClawProfileBrowserRoute(); got != "" {
 		t.Fatalf("route without profile = %q, want empty", got)
 	}
 
-	if err := os.MkdirAll(OpenClawProfileDir(), 0700); err != nil {
+	if err := os.MkdirAll(NanoClawProfileDir(), 0700); err != nil {
 		t.Fatalf("mkdir profile dir: %v", err)
 	}
 	for name, browser := range map[string]map[string]interface{}{
@@ -831,10 +885,10 @@ func TestOpenClawProfileBrowserRoute(t *testing.T) {
 		if err != nil {
 			t.Fatalf("marshal %s browser config: %v", name, err)
 		}
-		if err := os.WriteFile(OpenClawConfigPath(), data, 0600); err != nil {
+		if err := os.WriteFile(NanoClawConfigPath(), data, 0600); err != nil {
 			t.Fatalf("write %s browser config: %v", name, err)
 		}
-		if got := OpenClawProfileBrowserRoute(); got != name {
+		if got := NanoClawProfileBrowserRoute(); got != name {
 			t.Fatalf("route for %s browser config = %q, want %q", name, got, name)
 		}
 	}

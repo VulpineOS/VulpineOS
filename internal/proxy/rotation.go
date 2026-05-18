@@ -18,8 +18,7 @@ type RotationConfig struct {
 	lastRotation      time.Time     // when last rotation happened
 }
 
-// RotationEvent captures one proxy-rotation transition for Sentinel
-// and other observers.
+// RotationEvent captures one proxy-rotation transition for observers.
 type RotationEvent struct {
 	AgentID       string
 	Reason        string

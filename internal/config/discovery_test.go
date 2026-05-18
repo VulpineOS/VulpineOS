@@ -6,20 +6,20 @@ import (
 	"testing"
 )
 
-func TestFindOpenClawBinary(t *testing.T) {
-	path := findOpenClawBinary()
+func TestFindNanoClawBinary(t *testing.T) {
+	path := findNanoClawBinary()
 	if path == "" {
-		t.Skip("openclaw binary not found")
+		t.Skip("nanoclaw binary not found")
 	}
-	if !strings.Contains(path, "openclaw") {
-		t.Errorf("findOpenClawBinary(): got %q, want to contain 'openclaw'", path)
+	if !strings.Contains(path, "nanoclaw") {
+		t.Errorf("findNanoClawBinary(): got %q, want to contain 'nanoclaw'", path)
 	}
 }
 
 func TestDiscoverModels(t *testing.T) {
-	path := findOpenClawBinary()
+	path := findNanoClawBinary()
 	if path == "" {
-		t.Skip("openclaw binary not found")
+		t.Skip("nanoclaw binary not found")
 	}
 
 	result, err := DiscoverModels()
@@ -82,14 +82,23 @@ func TestMergedProviders(t *testing.T) {
 		ids[p.ID] = true
 	}
 
-	var opencodeIdx int = -1
+	var opencodeIdx, opencodeGoIdx int = -1, -1
 	for i, p := range merged {
 		if p.ID == "opencode" {
 			opencodeIdx = i
 		}
+		if p.ID == "opencode-go" {
+			opencodeGoIdx = i
+		}
 	}
 	if opencodeIdx == -1 {
 		t.Error("opencode not in merged providers")
+	}
+	if opencodeGoIdx == -1 {
+		t.Error("opencode-go not in merged providers")
+	}
+	if opencodeGoIdx < opencodeIdx {
+		t.Error("opencode-go should come after opencode in merged list")
 	}
 }
 
@@ -113,9 +122,9 @@ func TestProviderDisplayName(t *testing.T) {
 }
 
 func TestDiscoveryCache(t *testing.T) {
-	path := findOpenClawBinary()
+	path := findNanoClawBinary()
 	if path == "" {
-		t.Skip("openclaw binary not found")
+		t.Skip("nanoclaw binary not found")
 	}
 
 	first, err := DiscoverModels()
@@ -132,9 +141,9 @@ func TestDiscoveryCache(t *testing.T) {
 }
 
 func TestDiscoverProviderModels(t *testing.T) {
-	path := findOpenClawBinary()
+	path := findNanoClawBinary()
 	if path == "" {
-		t.Skip("openclaw binary not found")
+		t.Skip("nanoclaw binary not found")
 	}
 
 	models, err := DiscoverProviderModels("opencode")
@@ -153,20 +162,20 @@ func TestDiscoverProviderModels(t *testing.T) {
 
 func TestOpenclawBinaryDetection(t *testing.T) {
 	paths := []string{
-		"./node_modules/.bin/openclaw",
-		"node_modules/.bin/openclaw",
-		"openclaw",
+		"./node_modules/.bin/nanoclaw",
+		"node_modules/.bin/nanoclaw",
+		"nanoclaw",
 	}
 	for _, p := range paths {
 		cmd := exec.Command(p, "version")
 		if cmd.Run() != nil {
 			continue
 		}
-		found := findOpenClawBinary()
+		found := findNanoClawBinary()
 		if found == "" {
-			t.Errorf("findOpenClawBinary() returned empty despite %s being runnable", p)
+			t.Errorf("findNanoClawBinary() returned empty despite %s being runnable", p)
 		}
 		return
 	}
-	t.Skip("no openclaw binary available")
+	t.Skip("no nanoclaw binary available")
 }

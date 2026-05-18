@@ -89,8 +89,8 @@ type Provider struct {
 	NeedsKey     bool     // false for ollama
 }
 
-// Providers is the full registry of OpenClaw-supported AI providers.
-// Matches https://docs.openclaw.ai/concepts/model-providers
+// Providers is the full registry of NanoClaw-supported AI providers.
+// Matches https://docs.nanoclaw.ai/concepts/model-providers
 var Providers = []Provider{
 	// --- Tier 1: Major cloud providers ---
 	{ID: "anthropic", Name: "Anthropic (Claude)", EnvVar: "ANTHROPIC_API_KEY",
@@ -116,8 +116,8 @@ var Providers = []Provider{
 
 	// --- Tier 2: Routing/Gateway providers ---
 	{ID: "openrouter", Name: "OpenRouter", EnvVar: "OPENROUTER_API_KEY",
-		DefaultModel: "openrouter/nvidia/nemotron-3-nano-30b-a3b:free",
-		Models:       []string{"openrouter/nvidia/nemotron-3-nano-30b-a3b:free", "openrouter/anthropic/claude-sonnet-4-6", "openrouter/openai/gpt-4.1", "openrouter/google/gemini-2.5-pro"},
+		DefaultModel: "openrouter/anthropic/claude-sonnet-4-6",
+		Models:       []string{"openrouter/anthropic/claude-sonnet-4-6", "openrouter/openai/gpt-4.1", "openrouter/google/gemini-2.5-pro"},
 		NeedsKey:     true},
 	{ID: "groq", Name: "Groq (LPU)", EnvVar: "GROQ_API_KEY",
 		DefaultModel: "groq/llama-3.3-70b-versatile",
@@ -187,6 +187,10 @@ var Providers = []Provider{
 		DefaultModel: "opencode/claude-opus-4-6",
 		Models:       []string{"opencode/claude-opus-4-6", "opencode/claude-sonnet-4-6"},
 		NeedsKey:     true},
+	{ID: "opencode-go", Name: "OpenCode Go", EnvVar: "OPENCODE_API_KEY",
+		DefaultModel: "opencode-go/minimax-m2.5",
+		Models:       []string{"opencode-go/minimax-m2.5", "opencode-go/minimax-m2.1", "opencode-go/minimax-m2"},
+		NeedsKey:     true},
 	{ID: "kilocode", Name: "Kilo Gateway", EnvVar: "KILOCODE_API_KEY",
 		DefaultModel: "kilocode/anthropic/claude-opus-4.6",
 		Models:       []string{"kilocode/anthropic/claude-opus-4.6"},
@@ -221,10 +225,6 @@ var Providers = []Provider{
 		DefaultModel: "sglang/your-model-id",
 		Models:       []string{"sglang/your-model-id"},
 		NeedsKey:     false},
-	{ID: "opencode-local", Name: "OpenCode (Local)", EnvVar: "",
-		DefaultModel: "opencode/local",
-		Models:       []string{"opencode/local"},
-		NeedsKey:     false},
 }
 
 // GetProvider returns the provider by ID.
@@ -238,7 +238,7 @@ func GetProvider(id string) *Provider {
 }
 
 // CustomProvider creates a provider entry for any provider/model string not in the registry.
-// This allows users to use ANY OpenClaw-supported provider even if we don't list it.
+// This allows users to use ANY NanoClaw-supported provider even if we don't list it.
 func CustomProvider(providerID, envVar string) Provider {
 	return Provider{
 		ID:           providerID,
@@ -261,7 +261,7 @@ func Path() string {
 	return filepath.Join(Dir(), "config.json")
 }
 
-// ReconfigureFlagPath returns the sentinel path used to request the setup wizard
+// ReconfigureFlagPath returns the marker path used to request the setup wizard
 // on the next launch without mutating the active config first.
 func ReconfigureFlagPath() string {
 	return filepath.Join(Dir(), "reconfigure")
@@ -273,7 +273,7 @@ func Load() (*Config, error) {
 	if err != nil {
 		if os.IsNotExist(err) {
 			cfg := &Config{}
-			cfg.HydrateFromOpenClawProfile()
+			cfg.HydrateFromNanoClawProfile()
 			return cfg, nil
 		}
 		return nil, fmt.Errorf("read config: %w", err)
@@ -283,7 +283,7 @@ func Load() (*Config, error) {
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
-	cfg.HydrateFromOpenClawProfile()
+	cfg.HydrateFromNanoClawProfile()
 	return &cfg, nil
 }
 
@@ -308,7 +308,7 @@ func (c *Config) Save() error {
 
 // RefreshSetupComplete recomputes whether the config is complete enough to skip setup.
 func (c *Config) RefreshSetupComplete() bool {
-	ready, err := c.OpenClawConfigReady()
+	ready, err := c.NanoClawConfigReady()
 	if err != nil || !ready {
 		c.SetupComplete = false
 		return false
@@ -317,12 +317,12 @@ func (c *Config) RefreshSetupComplete() bool {
 	return true
 }
 
-// OpenClawConfigReady reports whether the config is complete enough to write a
-// usable OpenClaw profile. Missing provider/model/key is treated as "not ready
+// NanoClawConfigReady reports whether the config is complete enough to write a
+// usable NanoClaw profile. Missing provider/model/key is treated as "not ready
 // yet" rather than an error so first-run startup can stay quiet. Unknown
 // providers still return an error because that indicates a stale or invalid
 // config value.
-func (c *Config) OpenClawConfigReady() (bool, error) {
+func (c *Config) NanoClawConfigReady() (bool, error) {
 	providerID := strings.TrimSpace(c.Provider)
 	model := strings.TrimSpace(c.Model)
 	if providerID == "" || model == "" {
@@ -338,10 +338,10 @@ func (c *Config) OpenClawConfigReady() (bool, error) {
 	return true, nil
 }
 
-// HydrateFromOpenClawProfile backfills missing local config values from the
-// generated OpenClaw profile when that profile is already configured.
-func (c *Config) HydrateFromOpenClawProfile() bool {
-	existing, err := readExistingOpenClawConfig()
+// HydrateFromNanoClawProfile backfills missing local config values from the
+// generated NanoClaw profile when that profile is already configured.
+func (c *Config) HydrateFromNanoClawProfile() bool {
+	existing, err := readExistingNanoClawConfig()
 	if err != nil {
 		return false
 	}
@@ -353,8 +353,8 @@ func (c *Config) HydrateFromOpenClawProfile() bool {
 			changed = true
 		}
 	}
-	if strings.TrimSpace(c.Provider) == "" {
-		if providerID := providerIDFromModel(c.Model); providerID != "" {
+	if providerID := providerIDFromModel(c.Model); providerID != "" {
+		if strings.TrimSpace(c.Provider) == "" || strings.TrimSpace(c.APIKey) == "" {
 			c.Provider = providerID
 			changed = true
 		}
@@ -385,7 +385,7 @@ func ReconfigureRequested() bool {
 	return err == nil
 }
 
-// ClearReconfigureRequest removes the reconfigure sentinel if present.
+// ClearReconfigureRequest removes the reconfigure marker if present.
 func ClearReconfigureRequest() error {
 	if err := os.Remove(ReconfigureFlagPath()); err != nil && !os.IsNotExist(err) {
 		return err
@@ -393,8 +393,8 @@ func ClearReconfigureRequest() error {
 	return nil
 }
 
-// GenerateOpenClawConfig writes an openclaw.json that uses VulpineOS as the browser.
-func (c *Config) GenerateOpenClawConfig(vulpineosBinary, camoufoxBinary string) error {
+// GenerateNanoClawConfig writes an nanoclaw.json that uses VulpineOS as the browser.
+func (c *Config) GenerateNanoClawConfig(vulpineosBinary, camoufoxBinary string) error {
 	providerID := strings.TrimSpace(c.Provider)
 	model := strings.TrimSpace(c.Model)
 	apiKey := strings.TrimSpace(c.APIKey)
@@ -403,13 +403,11 @@ func (c *Config) GenerateOpenClawConfig(vulpineosBinary, camoufoxBinary string) 
 		return fmt.Errorf("unknown provider: %s", providerID)
 	}
 
-	existing, _ := readExistingOpenClawConfig()
+	existing, _ := readExistingNanoClawConfig()
 
 	// Build env map
 	env := map[string]interface{}{}
-	if providerID == "opencode-local" {
-		env["OPENCODE_BINARY_PATH"] = "opencode"
-	} else if provider.EnvVar != "" && apiKey != "" {
+	if provider.EnvVar != "" && apiKey != "" {
 		env[provider.EnvVar] = apiKey
 	}
 
@@ -435,7 +433,7 @@ func (c *Config) GenerateOpenClawConfig(vulpineosBinary, camoufoxBinary string) 
 		"env":      env,
 		"agents": map[string]interface{}{
 			"defaults": map[string]interface{}{
-				"workspace": OpenClawWorkspaceDir(),
+				"workspace": NanoClawWorkspaceDir(),
 				"model": map[string]interface{}{
 					"primary": model,
 				},
@@ -446,7 +444,7 @@ func (c *Config) GenerateOpenClawConfig(vulpineosBinary, camoufoxBinary string) 
 		},
 		"gateway": preservedGatewayConfig(existing),
 		// Enable browser — if foxbridge is running, route through Camoufox via CDP proxy.
-		// Otherwise fall back to OpenClaw's built-in Chromium.
+		// Otherwise fall back to NanoClaw's built-in Chromium.
 		"browser": func() map[string]interface{} {
 			browserCfg := map[string]interface{}{
 				"enabled":  true,
@@ -472,52 +470,52 @@ func (c *Config) GenerateOpenClawConfig(vulpineosBinary, camoufoxBinary string) 
 
 	data, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
-		return fmt.Errorf("marshal openclaw config: %w", err)
+		return fmt.Errorf("marshal nanoclaw config: %w", err)
 	}
 
-	// Write to the OpenClaw profile directory (~/.openclaw-vulpine/)
-	// This is where `openclaw --profile vulpine` reads config from
-	profileDir := OpenClawProfileDir()
+	// Write to the NanoClaw profile directory (~/.nanoclaw-vulpine/)
+	// This is where `nanoclaw --profile vulpine` reads config from
+	profileDir := NanoClawProfileDir()
 	if err := os.MkdirAll(profileDir, 0700); err != nil {
-		return fmt.Errorf("create openclaw profile dir: %w", err)
+		return fmt.Errorf("create nanoclaw profile dir: %w", err)
 	}
-	if err := ensureOpenClawWorkspace(); err != nil {
-		return fmt.Errorf("create openclaw workspace: %w", err)
+	if err := ensureNanoClawWorkspace(); err != nil {
+		return fmt.Errorf("create nanoclaw workspace: %w", err)
 	}
-	if err := ensureOpenClawProfileSkills(); err != nil {
-		return fmt.Errorf("create openclaw profile skills: %w", err)
+	if err := ensureNanoClawProfileSkills(); err != nil {
+		return fmt.Errorf("create nanoclaw profile skills: %w", err)
 	}
 
-	path := filepath.Join(profileDir, "openclaw.json")
+	path := filepath.Join(profileDir, "nanoclaw.json")
 	return writePrivateFile(path, data)
 }
 
-// RepairOpenClawProfile restores VulpineOS-required OpenClaw profile fields after
-// OpenClaw rewrites openclaw.json and strips custom settings.
-func RepairOpenClawProfile(cdpURL string) error {
-	profileDir := OpenClawProfileDir()
+// RepairNanoClawProfile restores VulpineOS-required NanoClaw profile fields after
+// NanoClaw rewrites nanoclaw.json and strips custom settings.
+func RepairNanoClawProfile(cdpURL string) error {
+	profileDir := NanoClawProfileDir()
 	if err := os.MkdirAll(profileDir, 0700); err != nil {
-		return fmt.Errorf("create openclaw profile dir: %w", err)
+		return fmt.Errorf("create nanoclaw profile dir: %w", err)
 	}
-	if err := ensureOpenClawWorkspace(); err != nil {
-		return fmt.Errorf("create openclaw workspace: %w", err)
+	if err := ensureNanoClawWorkspace(); err != nil {
+		return fmt.Errorf("create nanoclaw workspace: %w", err)
 	}
-	if err := ensureOpenClawProfileSkills(); err != nil {
-		return fmt.Errorf("create openclaw profile skills: %w", err)
+	if err := ensureNanoClawProfileSkills(); err != nil {
+		return fmt.Errorf("create nanoclaw profile skills: %w", err)
 	}
 
-	existing, err := readExistingOpenClawConfig()
+	existing, err := readExistingNanoClawConfig()
 	if err != nil {
-		return fmt.Errorf("read openclaw config: %w", err)
+		return fmt.Errorf("read nanoclaw config: %w", err)
 	}
-	applyOpenClawProfileDefaults(existing, cdpURL)
+	applyNanoClawProfileDefaults(existing, cdpURL)
 
 	data, err := json.MarshalIndent(existing, "", "  ")
 	if err != nil {
-		return fmt.Errorf("marshal repaired openclaw config: %w", err)
+		return fmt.Errorf("marshal repaired nanoclaw config: %w", err)
 	}
 
-	return writePrivateFile(OpenClawConfigPath(), data)
+	return writePrivateFile(NanoClawConfigPath(), data)
 }
 
 func writePrivateFile(path string, data []byte) error {
@@ -527,26 +525,26 @@ func writePrivateFile(path string, data []byte) error {
 	return os.Chmod(path, 0600)
 }
 
-// OpenClawProfileDir returns the OpenClaw profile directory for VulpineOS.
-func OpenClawProfileDir() string {
+// NanoClawProfileDir returns the NanoClaw profile directory for VulpineOS.
+func NanoClawProfileDir() string {
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".openclaw-vulpine")
+	return filepath.Join(home, ".nanoclaw-vulpine")
 }
 
-// OpenClawConfigPath returns the path to the generated openclaw.json.
-func OpenClawConfigPath() string {
-	return filepath.Join(OpenClawProfileDir(), "openclaw.json")
+// NanoClawConfigPath returns the path to the generated nanoclaw.json.
+func NanoClawConfigPath() string {
+	return filepath.Join(NanoClawProfileDir(), "nanoclaw.json")
 }
 
-// OpenClawWorkspaceDir returns the isolated OpenClaw workspace for VulpineOS.
-func OpenClawWorkspaceDir() string {
-	return filepath.Join(OpenClawProfileDir(), "workspace")
+// NanoClawWorkspaceDir returns the isolated NanoClaw workspace for VulpineOS.
+func NanoClawWorkspaceDir() string {
+	return filepath.Join(NanoClawProfileDir(), "workspace")
 }
 
-// OpenClawProfileBrowserRoute returns the route implied by the generated
-// OpenClaw profile: "camoufox", "headless", "direct", or "" when unavailable.
-func OpenClawProfileBrowserRoute() string {
-	existing, err := readExistingOpenClawConfig()
+// NanoClawProfileBrowserRoute returns the route implied by the generated
+// NanoClaw profile: "camoufox", "headless", "direct", or "" when unavailable.
+func NanoClawProfileBrowserRoute() string {
+	existing, err := readExistingNanoClawConfig()
 	if err != nil {
 		return ""
 	}
@@ -566,8 +564,8 @@ func OpenClawProfileBrowserRoute() string {
 	return ""
 }
 
-func readExistingOpenClawConfig() (map[string]interface{}, error) {
-	data, err := os.ReadFile(OpenClawConfigPath())
+func readExistingNanoClawConfig() (map[string]interface{}, error) {
+	data, err := os.ReadFile(NanoClawConfigPath())
 	if err != nil {
 		return nil, err
 	}
@@ -659,7 +657,7 @@ func preservedCommandsConfig(existing map[string]interface{}) map[string]interfa
 	return commands
 }
 
-func applyOpenClawProfileDefaults(cfg map[string]interface{}, cdpURL string) {
+func applyNanoClawProfileDefaults(cfg map[string]interface{}, cdpURL string) {
 	agents, ok := cfg["agents"].(map[string]interface{})
 	if !ok || agents == nil {
 		agents = make(map[string]interface{})
@@ -670,7 +668,7 @@ func applyOpenClawProfileDefaults(cfg map[string]interface{}, cdpURL string) {
 		defaults = make(map[string]interface{})
 		agents["defaults"] = defaults
 	}
-	defaults["workspace"] = OpenClawWorkspaceDir()
+	defaults["workspace"] = NanoClawWorkspaceDir()
 	if _, ok := defaults["compaction"].(map[string]interface{}); !ok {
 		defaults["compaction"] = map[string]interface{}{"mode": "safeguard"}
 	}
@@ -689,8 +687,8 @@ func applyOpenClawProfileDefaults(cfg map[string]interface{}, cdpURL string) {
 	}
 }
 
-func ensureOpenClawWorkspace() error {
-	workspaceDir := OpenClawWorkspaceDir()
+func ensureNanoClawWorkspace() error {
+	workspaceDir := NanoClawWorkspaceDir()
 	if err := os.MkdirAll(workspaceDir, 0700); err != nil {
 		return err
 	}
@@ -731,7 +729,7 @@ Use the configured browser path first. If a tool or browser path fails, say exac
 - On a fresh browser session, use ` + "`browser open <url>`" + ` for the first page load.
 - ` + "`browser navigate`" + ` without a target only works when a page already exists.
 - ` + "`browser start`" + ` starts the browser service but does not create a page by itself.
-- VulpineOS snapshots default to compact limits (180 nodes, 90 chars). If a required target is missing from a truncated snapshot, retry once with expanded limits before concluding it is absent.
+- VulpineOS snapshots default to a compact profile. If a required target is missing from a truncated snapshot, retry once with expanded limits before concluding it is absent.
 `,
 	}
 	for name, content := range bootstrap {
@@ -743,8 +741,8 @@ Use the configured browser path first. If a tool or browser path fails, say exac
 	return nil
 }
 
-func ensureOpenClawProfileSkills() error {
-	skillDir := filepath.Join(OpenClawProfileDir(), "skills", "vulpine-browser")
+func ensureNanoClawProfileSkills() error {
+	skillDir := filepath.Join(NanoClawProfileDir(), "skills", "vulpine-browser")
 	if err := os.MkdirAll(skillDir, 0700); err != nil {
 		return err
 	}
@@ -758,7 +756,7 @@ tools:
 
 # VulpineOS Browser
 
-VulpineOS already routes OpenClaw's built-in ` + "`browser`" + ` tool through foxbridge into Camoufox.
+VulpineOS already routes NanoClaw's built-in ` + "`browser`" + ` tool through foxbridge into Camoufox.
 
 Rules:
 
@@ -770,7 +768,7 @@ Rules:
 6. On a fresh browser session, use ` + "`browser open <url>`" + ` for the first page load.
 7. ` + "`browser navigate`" + ` without a target assumes a page already exists.
 8. ` + "`browser start`" + ` starts the service but does not create a page.
-9. VulpineOS snapshots default to compact limits (180 nodes, 90 chars). If a required target is missing from a truncated snapshot, retry with expanded limits before concluding it is absent.
+9. VulpineOS snapshots default to a compact profile. If a required target is missing from a truncated snapshot, retry with expanded limits before concluding it is absent.
 `
 	return os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(skill), 0600)
 }

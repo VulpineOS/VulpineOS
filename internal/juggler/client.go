@@ -27,6 +27,8 @@ type Client struct {
 	pendingMu     sync.Mutex
 	handlers      map[string][]eventSubscription
 	handlerMu     sync.RWMutex
+	events        chan *Message
+	droppedEvents atomic.Uint64
 	done          chan struct{}
 	closeOnce     sync.Once
 }
@@ -37,9 +39,11 @@ func NewClient(transport Transport) *Client {
 		transport: transport,
 		pending:   make(map[int]chan *Message),
 		handlers:  make(map[string][]eventSubscription),
+		events:    make(chan *Message, 1024),
 		done:      make(chan struct{}),
 	}
 	go c.readLoop()
+	go c.eventLoop()
 	return c
 }
 
@@ -78,11 +82,24 @@ func (c *Client) CallWithContext(ctx context.Context, sessionID, method string, 
 	c.pending[id] = ch
 	c.pendingMu.Unlock()
 
-	if err := c.transport.Send(msg); err != nil {
-		c.pendingMu.Lock()
-		delete(c.pending, id)
-		c.pendingMu.Unlock()
-		return nil, err
+	sendErr := make(chan error, 1)
+	go func() {
+		sendErr <- c.transport.Send(msg)
+	}()
+
+	select {
+	case err := <-sendErr:
+		if err != nil {
+			c.deletePending(id)
+			return nil, err
+		}
+	case <-ctx.Done():
+		c.deletePending(id)
+		_ = c.Close()
+		return nil, fmt.Errorf("call %s: %w", method, ctx.Err())
+	case <-c.done:
+		c.deletePending(id)
+		return nil, fmt.Errorf("client closed")
 	}
 
 	select {
@@ -92,13 +109,18 @@ func (c *Client) CallWithContext(ctx context.Context, sessionID, method string, 
 		}
 		return resp.Result, nil
 	case <-ctx.Done():
-		c.pendingMu.Lock()
-		delete(c.pending, id)
-		c.pendingMu.Unlock()
+		c.deletePending(id)
 		return nil, fmt.Errorf("call %s: %w", method, ctx.Err())
 	case <-c.done:
+		c.deletePending(id)
 		return nil, fmt.Errorf("client closed")
 	}
+}
+
+func (c *Client) deletePending(id int) {
+	c.pendingMu.Lock()
+	delete(c.pending, id)
+	c.pendingMu.Unlock()
 }
 
 // Subscribe registers a handler for a Juggler event.
@@ -130,6 +152,11 @@ func (c *Client) SubscribeWithCancel(event string, handler EventHandler) func() 
 			}
 		})
 	}
+}
+
+// DroppedEvents returns the number of events dropped because the dispatch queue was full.
+func (c *Client) DroppedEvents() uint64 {
+	return c.droppedEvents.Load()
 }
 
 // Close shuts down the client and transport.
@@ -165,12 +192,36 @@ func (c *Client) readLoop() {
 				ch <- msg
 			}
 		} else if msg.IsEvent() {
-			c.handlerMu.RLock()
-			subs := append([]eventSubscription(nil), c.handlers[msg.Method]...)
-			c.handlerMu.RUnlock()
-			for _, sub := range subs {
-				sub.handler(msg.SessionID, msg.Params)
-			}
+			c.queueEvent(msg)
 		}
+	}
+}
+
+func (c *Client) queueEvent(msg *Message) {
+	select {
+	case c.events <- msg:
+	case <-c.done:
+	default:
+		c.droppedEvents.Add(1)
+	}
+}
+
+func (c *Client) eventLoop() {
+	for {
+		select {
+		case <-c.done:
+			return
+		case msg := <-c.events:
+			c.dispatchEvent(msg)
+		}
+	}
+}
+
+func (c *Client) dispatchEvent(msg *Message) {
+	c.handlerMu.RLock()
+	subs := append([]eventSubscription(nil), c.handlers[msg.Method]...)
+	c.handlerMu.RUnlock()
+	for _, sub := range subs {
+		sub.handler(msg.SessionID, msg.Params)
 	}
 }

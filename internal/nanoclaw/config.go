@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 )
 
-// VulpineOSConfig generates an openclaw.json that routes browser ops through VulpineOS MCP.
+// VulpineOSConfig generates an nanoclaw.json that routes browser ops through VulpineOS MCP.
 type VulpineOSConfig struct {
 	Plugins PluginsConfig `json:"plugins"`
 	Browser BrowserConfig `json:"browser"`
@@ -31,7 +31,7 @@ type BrowserConfig struct {
 	Enabled bool `json:"enabled"`
 }
 
-// GenerateConfig creates an openclaw.json config file that disables the built-in
+// GenerateConfig creates an nanoclaw.json config file that disables the built-in
 // Chromium browser and routes all browser operations through the VulpineOS MCP server.
 func GenerateConfig(vulpineosBinary string, wsURL string) (*VulpineOSConfig, error) {
 	if vulpineosBinary == "" {
@@ -65,13 +65,13 @@ func GenerateConfig(vulpineosBinary string, wsURL string) (*VulpineOSConfig, err
 	}, nil
 }
 
-// WriteConfig writes the OpenClaw config to a file.
+// WriteConfig writes the NanoClaw config to a file.
 func WriteConfig(config *VulpineOSConfig, dir string) (string, error) {
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return "", fmt.Errorf("create config dir: %w", err)
 	}
 
-	path := filepath.Join(dir, "openclaw.json")
+	path := filepath.Join(dir, "nanoclaw.json")
 	data, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
 		return "", fmt.Errorf("marshal config: %w", err)

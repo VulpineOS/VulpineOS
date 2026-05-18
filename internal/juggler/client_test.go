@@ -48,6 +48,39 @@ func (t *memTransport) Close() error {
 	return nil
 }
 
+type blockingSendTransport struct {
+	sendStarted chan struct{}
+	closed      chan struct{}
+	once        sync.Once
+}
+
+func newBlockingSendTransport() *blockingSendTransport {
+	return &blockingSendTransport{
+		sendStarted: make(chan struct{}),
+		closed:      make(chan struct{}),
+	}
+}
+
+func (t *blockingSendTransport) Send(*Message) error {
+	t.once.Do(func() { close(t.sendStarted) })
+	<-t.closed
+	return fmt.Errorf("transport closed")
+}
+
+func (t *blockingSendTransport) Receive() (*Message, error) {
+	<-t.closed
+	return nil, fmt.Errorf("transport closed")
+}
+
+func (t *blockingSendTransport) Close() error {
+	select {
+	case <-t.closed:
+	default:
+		close(t.closed)
+	}
+	return nil
+}
+
 // respondToRequests reads outgoing messages and replies with canned responses.
 func respondToRequests(mt *memTransport) {
 	for {
@@ -140,6 +173,76 @@ func TestClient_SubscribeWithCancel_RemovesHandler(t *testing.T) {
 	}
 }
 
+func TestClient_EventHandlerDoesNotBlockResponses(t *testing.T) {
+	mt := newMemTransport()
+	c := NewClient(mt)
+	defer c.Close()
+
+	handlerStarted := make(chan struct{})
+	releaseHandler := make(chan struct{})
+	c.Subscribe("Page.slowEvent", func(_ string, _ json.RawMessage) {
+		close(handlerStarted)
+		<-releaseHandler
+	})
+
+	mt.incoming <- &Message{
+		Method: "Page.slowEvent",
+		Params: json.RawMessage(`{}`),
+	}
+	select {
+	case <-handlerStarted:
+	case <-time.After(time.Second):
+		t.Fatal("event handler did not start")
+	}
+	defer close(releaseHandler)
+
+	go func() {
+		req := <-mt.outgoing
+		mt.incoming <- &Message{
+			ID:     req.ID,
+			Result: json.RawMessage(`{"ok":true}`),
+		}
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	result, err := c.CallWithContext(ctx, "", "Browser.getInfo", nil)
+	if err != nil {
+		t.Fatalf("CallWithContext while event handler blocked: %v", err)
+	}
+	if string(result) != `{"ok":true}` {
+		t.Fatalf("result = %s, want ok response", result)
+	}
+}
+
+func TestClient_QueueEventDropsWhenBufferFull(t *testing.T) {
+	c := &Client{
+		events:   make(chan *Message, 1),
+		done:     make(chan struct{}),
+		handlers: make(map[string][]eventSubscription),
+	}
+	first := &Message{Method: "Page.first"}
+	c.events <- first
+
+	queued := make(chan struct{})
+	go func() {
+		c.queueEvent(&Message{Method: "Page.second"})
+		close(queued)
+	}()
+	select {
+	case <-queued:
+	case <-time.After(50 * time.Millisecond):
+		t.Fatal("queueEvent blocked while event buffer was full")
+	}
+
+	if c.DroppedEvents() != 1 {
+		t.Fatalf("DroppedEvents() = %d, want 1", c.DroppedEvents())
+	}
+	if got := <-c.events; got != first {
+		t.Fatalf("queued event = %v, want original event preserved", got)
+	}
+}
+
 func TestClient_CallWithContext_TimesOut(t *testing.T) {
 	mt := newMemTransport()
 	// Don't respond — let it hang
@@ -155,6 +258,45 @@ func TestClient_CallWithContext_TimesOut(t *testing.T) {
 	}
 	if !contains(err.Error(), "context deadline exceeded") {
 		t.Errorf("expected context deadline exceeded, got: %v", err)
+	}
+}
+
+func TestClient_CallWithContext_TimesOutWhenSendBlocks(t *testing.T) {
+	bt := newBlockingSendTransport()
+	c := NewClient(bt)
+	defer c.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := c.CallWithContext(ctx, "", "Blocked.method", nil)
+		done <- err
+	}()
+
+	select {
+	case <-bt.sendStarted:
+	case <-time.After(time.Second):
+		t.Fatal("Send was not reached")
+	}
+
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("expected timeout error, got nil")
+		}
+		if !contains(err.Error(), "context deadline exceeded") {
+			t.Fatalf("expected context deadline exceeded, got: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("CallWithContext did not return after context timeout")
+	}
+
+	select {
+	case <-bt.closed:
+	default:
+		t.Fatal("client did not close the blocked transport")
 	}
 }
 

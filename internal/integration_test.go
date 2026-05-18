@@ -51,7 +51,7 @@ func skipIfNoBrowser(t *testing.T) string {
 	return binary
 }
 
-func requireLiveOpenClaw(t *testing.T) {
+func requireLiveNanoClaw(t *testing.T) {
 	t.Helper()
 	if strings.TrimSpace(os.Getenv("VULPINEOS_RUN_LIVE")) == "" {
 		t.Skip("set VULPINEOS_RUN_LIVE=1 to run live VulpineOS integration tests")
@@ -60,7 +60,7 @@ func requireLiveOpenClaw(t *testing.T) {
 
 // startKernel launches Camoufox in headless mode and returns the kernel + client.
 func startKernel(t *testing.T) (*kernel.Kernel, *juggler.Client) {
-	requireLiveOpenClaw(t)
+	requireLiveNanoClaw(t)
 	binary := skipIfNoBrowser(t)
 
 	k := kernel.New()
@@ -639,13 +639,34 @@ func TestIntegration_ElementRefs(t *testing.T) {
 
 	domStr := string(domResult)
 	if !strings.Contains(domStr, "@") {
-		t.Error("optimized DOM does not contain element refs (@0, @1, etc.)")
+		t.Error("optimized DOM does not contain element refs")
 	}
 	t.Logf("DOM with refs: %s", domStr[:min(len(domStr), 500)])
+	var domPayload struct {
+		Snapshot struct {
+			Nodes [][]interface{} `json:"nodes"`
+		} `json:"snapshot"`
+	}
+	if err := json.Unmarshal(domResult, &domPayload); err != nil {
+		t.Fatalf("unmarshal optimized DOM: %v", err)
+	}
+	ref := ""
+	for _, node := range domPayload.Snapshot.Nodes {
+		if len(node) == 0 {
+			continue
+		}
+		if value, ok := node[len(node)-1].(string); ok && strings.HasPrefix(value, "@") {
+			ref = value
+			break
+		}
+	}
+	if ref == "" {
+		t.Fatal("optimized DOM did not include an element ref")
+	}
 
 	// Try resolving a ref
 	resolveResult, err := client.Call(sid, "Page.resolveRef", mustJSON(map[string]interface{}{
-		"ref": "@0",
+		"ref": ref,
 	}))
 	if err != nil {
 		t.Skipf("Page.resolveRef not available (rebuild Camoufox with VulpineOS patches): %v", err)
@@ -659,9 +680,9 @@ func TestIntegration_ElementRefs(t *testing.T) {
 	json.Unmarshal(resolveResult, &resolved)
 
 	if !resolved.Found {
-		t.Error("resolveRef(@0) returned found=false")
+		t.Errorf("resolveRef(%s) returned found=false", ref)
 	}
-	t.Logf("Ref @0 resolved to x=%.1f y=%.1f", resolved.X, resolved.Y)
+	t.Logf("Ref %s resolved to x=%.1f y=%.1f", ref, resolved.X, resolved.Y)
 }
 
 // === MCP TOOLS TESTS ===
@@ -732,20 +753,20 @@ func TestIntegration_MCPNavigateAndClick(t *testing.T) {
 
 // === OPENCLAW AGENT TESTS ===
 
-func TestIntegration_OpenClawInstalled(t *testing.T) {
-	requireLiveOpenClaw(t)
+func TestIntegration_NanoClawInstalled(t *testing.T) {
+	requireLiveNanoClaw(t)
 	mgr := nanoclaw.NewManager("")
 	if !mgr.NanoClawInstalled() {
-		t.Skip("OpenClaw not installed — skipping")
+		t.Skip("NanoClaw not installed — skipping")
 	}
-	t.Log("OpenClaw binary found")
+	t.Log("NanoClaw binary found")
 }
 
 func TestIntegration_AgentSpawnAndRespond(t *testing.T) {
-	requireLiveOpenClaw(t)
+	requireLiveNanoClaw(t)
 	mgr := nanoclaw.NewManager("")
 	if !mgr.NanoClawInstalled() {
-		t.Skip("OpenClaw not installed")
+		t.Skip("NanoClaw not installed")
 	}
 
 	// Check if config exists
@@ -753,14 +774,14 @@ func TestIntegration_AgentSpawnAndRespond(t *testing.T) {
 	if err != nil || !cfg.SetupComplete {
 		t.Skip("VulpineOS not configured — run setup wizard first")
 	}
-	if err := cfg.GenerateOpenClawConfig("", cfg.BinaryPath); err != nil {
-		t.Fatalf("GenerateOpenClawConfig: %v", err)
+	if err := cfg.GenerateNanoClawConfig("", cfg.BinaryPath); err != nil {
+		t.Fatalf("GenerateNanoClawConfig: %v", err)
 	}
 
 	agentID := "test-integration"
 	sessionName := "vulpine-test-integration"
 
-	_, err = mgr.SpawnWithSession(agentID, "Say exactly: INTEGRATION_TEST_OK", sessionName, config.OpenClawConfigPath())
+	_, err = mgr.SpawnWithSession(agentID, "Say exactly: INTEGRATION_TEST_OK", sessionName, config.NanoClawConfigPath())
 	if err != nil {
 		t.Fatalf("SpawnWithSession failed: %v", err)
 	}
@@ -787,30 +808,30 @@ func TestIntegration_AgentSpawnAndRespond(t *testing.T) {
 }
 
 func TestIntegration_AgentSessionPersists(t *testing.T) {
-	requireLiveOpenClaw(t)
+	requireLiveNanoClaw(t)
 	mgr := nanoclaw.NewManager("")
 	if !mgr.NanoClawInstalled() {
-		t.Skip("OpenClaw not installed")
+		t.Skip("NanoClaw not installed")
 	}
 
 	cfg, err := config.Load()
 	if err != nil || !cfg.SetupComplete {
 		t.Skip("VulpineOS not configured — run setup wizard first")
 	}
-	if err := cfg.GenerateOpenClawConfig("", cfg.BinaryPath); err != nil {
-		t.Fatalf("GenerateOpenClawConfig: %v", err)
+	if err := cfg.GenerateNanoClawConfig("", cfg.BinaryPath); err != nil {
+		t.Fatalf("GenerateNanoClawConfig: %v", err)
 	}
 
 	agentID := "test-session"
 	sessionName := "vulpine-test-session"
 
-	_, err = mgr.SpawnWithSession(agentID, "Remember token ALPHA42 and reply exactly TOKEN_SAVED", sessionName, config.OpenClawConfigPath())
+	_, err = mgr.SpawnWithSession(agentID, "Remember token ALPHA42 and reply exactly TOKEN_SAVED", sessionName, config.NanoClawConfigPath())
 	if err != nil {
 		t.Fatalf("first SpawnWithSession failed: %v", err)
 	}
 	waitForAssistantContains(t, mgr.ConversationChan(), agentID, "TOKEN_SAVED", 90*time.Second)
 
-	_, err = mgr.SpawnWithSession(agentID, "What token did I ask you to remember? Reply exactly TOKEN:ALPHA42", sessionName, config.OpenClawConfigPath())
+	_, err = mgr.SpawnWithSession(agentID, "What token did I ask you to remember? Reply exactly TOKEN:ALPHA42", sessionName, config.NanoClawConfigPath())
 	if err != nil {
 		t.Fatalf("second SpawnWithSession failed: %v", err)
 	}
@@ -818,18 +839,18 @@ func TestIntegration_AgentSessionPersists(t *testing.T) {
 }
 
 func TestIntegration_AgentBrowserUsesScopedContext(t *testing.T) {
-	requireLiveOpenClaw(t)
+	requireLiveNanoClaw(t)
 	mgr := nanoclaw.NewManager("")
 	if !mgr.NanoClawInstalled() {
-		t.Skip("OpenClaw not installed")
+		t.Skip("NanoClaw not installed")
 	}
 
 	cfg, err := config.Load()
 	if err != nil || !cfg.SetupComplete {
 		t.Skip("VulpineOS not configured — run setup wizard first")
 	}
-	if err := cfg.GenerateOpenClawConfig("", cfg.BinaryPath); err != nil {
-		t.Fatalf("GenerateOpenClawConfig: %v", err)
+	if err := cfg.GenerateNanoClawConfig("", cfg.BinaryPath); err != nil {
+		t.Fatalf("GenerateNanoClawConfig: %v", err)
 	}
 
 	k, client := startKernel(t)
@@ -889,7 +910,7 @@ func TestIntegration_AgentBrowserUsesScopedContext(t *testing.T) {
 	}
 	defer scopedFoxbridge.Stop()
 
-	scopedConfig, cleanupConfig, err := nanoclaw.PrepareScopedConfig(config.OpenClawConfigPath(), scopedFoxbridge.CDPURL())
+	scopedConfig, cleanupConfig, err := nanoclaw.PrepareScopedConfig(config.NanoClawConfigPath(), scopedFoxbridge.CDPURL())
 	if err != nil {
 		t.Fatalf("PrepareScopedConfig failed: %v", err)
 	}
@@ -908,18 +929,18 @@ func TestIntegration_AgentBrowserUsesScopedContext(t *testing.T) {
 }
 
 func TestIntegration_AgentBrowserClicksLocalPage(t *testing.T) {
-	requireLiveOpenClaw(t)
+	requireLiveNanoClaw(t)
 	mgr := nanoclaw.NewManager("")
 	if !mgr.NanoClawInstalled() {
-		t.Skip("OpenClaw not installed")
+		t.Skip("NanoClaw not installed")
 	}
 
 	cfg, err := config.Load()
 	if err != nil || !cfg.SetupComplete {
 		t.Skip("VulpineOS not configured — run setup wizard first")
 	}
-	if err := cfg.GenerateOpenClawConfig("", cfg.BinaryPath); err != nil {
-		t.Fatalf("GenerateOpenClawConfig: %v", err)
+	if err := cfg.GenerateNanoClawConfig("", cfg.BinaryPath); err != nil {
+		t.Fatalf("GenerateNanoClawConfig: %v", err)
 	}
 
 	k, client := startKernel(t)
@@ -967,7 +988,7 @@ func TestIntegration_AgentBrowserClicksLocalPage(t *testing.T) {
 	}
 	defer scopedFoxbridge.Stop()
 
-	scopedConfig, cleanupConfig, err := nanoclaw.PrepareScopedConfig(config.OpenClawConfigPath(), scopedFoxbridge.CDPURL())
+	scopedConfig, cleanupConfig, err := nanoclaw.PrepareScopedConfig(config.NanoClawConfigPath(), scopedFoxbridge.CDPURL())
 	if err != nil {
 		t.Fatalf("PrepareScopedConfig failed: %v", err)
 	}
@@ -986,10 +1007,10 @@ func TestIntegration_AgentBrowserClicksLocalPage(t *testing.T) {
 }
 
 func TestIntegration_AgentBrowserDefaultProfileConfig(t *testing.T) {
-	requireLiveOpenClaw(t)
+	requireLiveNanoClaw(t)
 	mgr := nanoclaw.NewManager("")
 	if !mgr.NanoClawInstalled() {
-		t.Skip("OpenClaw not installed")
+		t.Skip("NanoClaw not installed")
 	}
 
 	cfg, err := config.Load()
@@ -1013,11 +1034,11 @@ func TestIntegration_AgentBrowserDefaultProfileConfig(t *testing.T) {
 	defer gw.Stop()
 
 	cfg.FoxbridgeCDPURL = fb.CDPURL()
-	if err := cfg.GenerateOpenClawConfig("", cfg.BinaryPath); err != nil {
-		t.Fatalf("GenerateOpenClawConfig: %v", err)
+	if err := cfg.GenerateNanoClawConfig("", cfg.BinaryPath); err != nil {
+		t.Fatalf("GenerateNanoClawConfig: %v", err)
 	}
-	if err := config.RepairOpenClawProfile(fb.CDPURL()); err != nil {
-		t.Fatalf("RepairOpenClawProfile: %v", err)
+	if err := config.RepairNanoClawProfile(fb.CDPURL()); err != nil {
+		t.Fatalf("RepairNanoClawProfile: %v", err)
 	}
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -1042,7 +1063,7 @@ func TestIntegration_AgentBrowserDefaultProfileConfig(t *testing.T) {
 	sessionName := "vulpine-test-browser-default"
 	task := fmt.Sprintf("Use the browser to open %s, click Action Button, and reply exactly STATUS:clicked. Do not explain.", server.URL)
 
-	_, err = mgr.SpawnWithSession(agentID, task, sessionName, config.OpenClawConfigPath())
+	_, err = mgr.SpawnWithSession(agentID, task, sessionName, config.NanoClawConfigPath())
 	if err != nil {
 		t.Fatalf("SpawnWithSession failed: %v", err)
 	}

@@ -45,8 +45,8 @@ func TestLiveScopedSessionSoak(t *testing.T) {
 	if err != nil || !cfg.SetupComplete {
 		t.Skip("VulpineOS not configured — run setup wizard first")
 	}
-	if err := cfg.GenerateOpenClawConfig("", cfg.BinaryPath); err != nil {
-		t.Fatalf("GenerateOpenClawConfig: %v", err)
+	if err := cfg.GenerateNanoClawConfig("", cfg.BinaryPath); err != nil {
+		t.Fatalf("GenerateNanoClawConfig: %v", err)
 	}
 
 	k, client := startLiveKernel(t)
@@ -96,13 +96,13 @@ func TestLiveScopedSessionSoak(t *testing.T) {
 			}
 			defer scopedFoxbridge.Stop()
 
-			scopedConfig, cleanupConfig, err := nanoclaw.PrepareScopedConfig(config.OpenClawConfigPath(), scopedFoxbridge.CDPURL())
+			scopedConfig, cleanupConfig, err := nanoclaw.PrepareScopedConfig(config.NanoClawConfigPath(), scopedFoxbridge.CDPURL())
 			if err != nil {
 				t.Fatalf("PrepareScopedConfig: %v", err)
 			}
 			defer cleanupConfig()
 
-			agentID := fmt.Sprintf("soak-openclaw-%02d", i+1)
+			agentID := fmt.Sprintf("soak-nanoclaw-%02d", i+1)
 			sessionName := fmt.Sprintf("vulpine-soak-%02d", i+1)
 			task := fmt.Sprintf("Use the browser to open %s/cookie?iter=%d and reply exactly COOKIE:%s. Do not explain.", server.URL, i+1, token)
 			if _, err := mgr.SpawnWithSession(agentID, task, sessionName, scopedConfig); err != nil {

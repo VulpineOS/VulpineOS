@@ -145,30 +145,26 @@ func TestSpawnFlow_TrackOwnership(t *testing.T) {
 		t.Fatalf("create citizen: %v", err)
 	}
 
-	availBefore, activeBefore, totalBefore := env.Pool.Stats()
+	availBefore, activeBefore, totalBefore := env.Orch.Pool.Stats()
 
 	_, spawnErr := env.Orch.SpawnCitizen(citizen.ID, tmpl.ID)
-
-	_, activeAfterSpawn, _ := env.Pool.Stats()
-	if spawnErr == nil && activeAfterSpawn != activeBefore+1 {
-		t.Fatalf("pool active = %d, want %d (after spawn)", activeAfterSpawn, activeBefore+1)
+	if spawnErr == nil {
+		t.Fatal("expected spawn to fail in integration harness with missing NanoClaw binary")
 	}
 
-	if spawnErr != nil {
-		t.Logf("spawn failed (expected in test env): %v", spawnErr)
-	}
+	t.Logf("spawn failed (expected in test env): %v", spawnErr)
 
-	_, activeAfterCleanup, _ := env.Pool.Stats()
+	_, activeAfterCleanup, _ := env.Orch.Pool.Stats()
 	if activeAfterCleanup != activeBefore {
 		t.Fatalf("pool active = %d, want %d (after cleanup)", activeAfterCleanup, activeBefore)
 	}
 
-	availAfter, _, totalAfter := env.Pool.Stats()
-	if availAfter < availBefore {
-		t.Errorf("pool available decreased: %d -> %d", availBefore, availAfter)
+	availAfter, _, totalAfter := env.Orch.Pool.Stats()
+	if availAfter != availBefore+1 {
+		t.Errorf("pool available = %d, want %d after failed spawn release", availAfter, availBefore+1)
 	}
-	if totalAfter != totalBefore {
-		t.Fatalf("pool total = %d, want %d (after cleanup)", totalAfter, totalBefore)
+	if totalAfter != totalBefore+1 {
+		t.Fatalf("pool total = %d, want %d after reusable context creation", totalAfter, totalBefore+1)
 	}
 }
 

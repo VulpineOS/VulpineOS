@@ -30,7 +30,7 @@ func TestIntegration_MultiAgentSessionSoak(t *testing.T) {
 
 	mgr := nanoclaw.NewManager("")
 	if !mgr.NanoClawInstalled() {
-		t.Skip("OpenClaw not installed")
+		t.Skip("NanoClaw not installed")
 	}
 	defer mgr.Dispose()
 
@@ -38,8 +38,8 @@ func TestIntegration_MultiAgentSessionSoak(t *testing.T) {
 	if err != nil || !cfg.SetupComplete {
 		t.Skip("VulpineOS not configured — run setup wizard first")
 	}
-	if err := cfg.GenerateOpenClawConfig("", cfg.BinaryPath); err != nil {
-		t.Fatalf("GenerateOpenClawConfig: %v", err)
+	if err := cfg.GenerateNanoClawConfig("", cfg.BinaryPath); err != nil {
+		t.Fatalf("GenerateNanoClawConfig: %v", err)
 	}
 
 	for i := 0; i < iterations; i++ {
@@ -51,10 +51,10 @@ func TestIntegration_MultiAgentSessionSoak(t *testing.T) {
 			sessionA := "vulpine-" + agentA
 			sessionB := "vulpine-" + agentB
 
-			if _, err := mgr.SpawnWithSession(agentA, "Remember token "+aToken+" and reply exactly SAVED:"+aToken, sessionA, config.OpenClawConfigPath()); err != nil {
+			if _, err := mgr.SpawnWithSession(agentA, "Remember token "+aToken+" and reply exactly SAVED:"+aToken, sessionA, config.NanoClawConfigPath()); err != nil {
 				t.Fatalf("spawn agent A: %v", err)
 			}
-			if _, err := mgr.SpawnWithSession(agentB, "Remember token "+bToken+" and reply exactly SAVED:"+bToken, sessionB, config.OpenClawConfigPath()); err != nil {
+			if _, err := mgr.SpawnWithSession(agentB, "Remember token "+bToken+" and reply exactly SAVED:"+bToken, sessionB, config.NanoClawConfigPath()); err != nil {
 				t.Fatalf("spawn agent B: %v", err)
 			}
 
@@ -63,10 +63,10 @@ func TestIntegration_MultiAgentSessionSoak(t *testing.T) {
 				agentB: "SAVED:" + bToken,
 			}, 90*time.Second)
 
-			if _, err := mgr.SpawnWithSession(agentA, "What token did I ask you to remember? Reply exactly TOKEN:"+aToken, sessionA, config.OpenClawConfigPath()); err != nil {
+			if _, err := mgr.SpawnWithSession(agentA, "What token did I ask you to remember? Reply exactly TOKEN:"+aToken, sessionA, config.NanoClawConfigPath()); err != nil {
 				t.Fatalf("resume agent A: %v", err)
 			}
-			if _, err := mgr.SpawnWithSession(agentB, "What token did I ask you to remember? Reply exactly TOKEN:"+bToken, sessionB, config.OpenClawConfigPath()); err != nil {
+			if _, err := mgr.SpawnWithSession(agentB, "What token did I ask you to remember? Reply exactly TOKEN:"+bToken, sessionB, config.NanoClawConfigPath()); err != nil {
 				t.Fatalf("resume agent B: %v", err)
 			}
 

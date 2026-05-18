@@ -46,7 +46,7 @@ type AgentOutput struct {
 	Result    string `json:"result"`    // for type=result
 	Role      string `json:"role"`      // for type=log (user, assistant, etc.)
 
-	// OpenClaw `agent --json` response format
+	// NanoClaw `agent --json` response format
 	Payloads []struct {
 		Text string `json:"text"`
 	} `json:"payloads"`
@@ -65,7 +65,7 @@ type AgentOutput struct {
 	} `json:"meta"`
 }
 
-// Agent manages a single OpenClaw subprocess.
+// Agent manages a single NanoClaw subprocess.
 type Agent struct {
 	ID             string
 	ContextID      string
@@ -214,7 +214,7 @@ func (a *Agent) start(binary string, args []string) error {
 	}
 
 	// Read JSON objects from stdout using a streaming decoder.
-	// OpenClaw outputs pretty-printed multi-line JSON, so a line-based
+	// NanoClaw outputs pretty-printed multi-line JSON, so a line-based
 	// scanner would fail to parse it. json.Decoder handles this correctly.
 	go func() {
 		defer close(a.doneCh)
@@ -289,7 +289,7 @@ func (a *Agent) handleOutput(output AgentOutput) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	// Handle OpenClaw `agent --json` response format (single JSON blob with payloads + meta)
+	// Handle NanoClaw `agent --json` response format (single JSON blob with payloads + meta)
 	if len(output.Payloads) > 0 {
 		for _, p := range output.Payloads {
 			if p.Text != "" {
@@ -1114,7 +1114,7 @@ func (a *Agent) stopWithStatus(status string) error {
 	a.status.Status = status
 	a.mu.Unlock()
 
-	// Try to tell OpenClaw to save state before killing
+	// Try to tell NanoClaw to save state before killing
 	if pipe != nil {
 		fmt.Fprintf(pipe, "/savestate\n")
 		time.Sleep(500 * time.Millisecond)

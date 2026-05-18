@@ -35,11 +35,11 @@ type DiscoveryResult struct {
 var (
 	discoveryCache     *DiscoveryResult
 	discoveryCacheMu   sync.RWMutex
-	openclawBinary     string
+	nanoclawBinary     string
 )
 
-func SetOpenClawBinary(path string) {
-	openclawBinary = path
+func SetNanoClawBinary(path string) {
+	nanoclawBinary = path
 }
 
 func DiscoverModels() (*DiscoveryResult, error) {
@@ -67,12 +67,12 @@ func DiscoverModels() (*DiscoveryResult, error) {
 }
 
 func discoverModelsImpl() (*DiscoveryResult, error) {
-	binary := openclawBinary
+	binary := nanoclawBinary
 	if binary == "" {
-		binary = findOpenClawBinary()
+		binary = findNanoClawBinary()
 	}
 	if binary == "" {
-		return nil, fmt.Errorf("openclaw binary not found")
+		return nil, fmt.Errorf("nanoclaw binary not found")
 	}
 
 	var lastErr error
@@ -136,25 +136,22 @@ func discoverModelsImpl() (*DiscoveryResult, error) {
 			lastErr = err
 		}
 	}
-	return nil, fmt.Errorf("openclaw models list: %w", lastErr)
+	return nil, fmt.Errorf("nanoclaw models list: %w", lastErr)
 }
 
 func contextWithTimeout(d time.Duration) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), d)
 }
 
-func findOpenClawBinary() string {
+func findNanoClawBinary() string {
 	if path, err := exec.LookPath("nanoclaw"); err == nil {
-		return path
-	}
-	if path, err := exec.LookPath("openclaw"); err == nil {
 		return path
 	}
 
 	paths := []string{
 		"./node_modules/.bin/nanoclaw",
 		"node_modules/.bin/nanoclaw",
-		filepath.Join(os.Getenv("HOME"), ".nanoclaw", "nanoclaw"),
+		filepath.Join(os.Getenv("HOME"), ".nanoclaw-vulpine", "nanoclaw"),
 		"/opt/homebrew/bin/nanoclaw",
 		"/usr/local/bin/nanoclaw",
 		"/usr/bin/nanoclaw",

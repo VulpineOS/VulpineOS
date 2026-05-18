@@ -2,17 +2,10 @@ package main
 
 import (
 	"bytes"
-	"log"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
 
-// TestRun_VersionFlag verifies the Run wrapper-friendly entrypoint
-// honors --version, writes a version string to the configured stdout,
-// and returns exit code 0. This is the contract that an alternate
-// front-end binary depends on when delegating to Run(os.Args).
 func TestRun_VersionFlag(t *testing.T) {
 	var outBuf, errBuf bytes.Buffer
 
@@ -41,9 +34,6 @@ func TestRun_HelpFlagsExitZero(t *testing.T) {
 	for _, args := range [][]string{
 		{"vulpineos", "--help"},
 		{"vulpineos", "tui", "--help"},
-		{"vulpineos", "panel", "--help"},
-		{"vulpineos", "serve", "--help"},
-		{"vulpineos", "remote", "--help"},
 		{"vulpineos", "mcp", "--help"},
 	} {
 		t.Run(strings.Join(args[1:], "_"), func(t *testing.T) {
@@ -64,180 +54,5 @@ func TestRun_HelpFlagsExitZero(t *testing.T) {
 				t.Fatalf("Run(%v) should print help text to stderr", args)
 			}
 		})
-	}
-}
-
-func TestStartLocalSessionLoggingWritesToFile(t *testing.T) {
-	restore, path := startLocalSessionLogging(t.TempDir())
-	if path == "" {
-		t.Fatal("startLocalSessionLogging returned empty path")
-	}
-
-	log.Print("startup log redirected")
-	restore()
-
-	if filepath.Base(path) != "local-tui.log" {
-		t.Fatalf("log path = %q, want local-tui.log", path)
-	}
-
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read log file: %v", err)
-	}
-	if !strings.Contains(string(data), "startup log redirected") {
-		t.Fatalf("log file %q missing redirected message: %q", path, string(data))
-	}
-}
-
-func TestNormalizeRemotePanelURL(t *testing.T) {
-	got, err := normalizeRemotePanelURL("wss://example.com:8443/ws", "secret")
-	if err != nil {
-		t.Fatalf("normalizeRemotePanelURL error: %v", err)
-	}
-	want := "https://example.com:8443/?token=secret"
-	if got != want {
-		t.Fatalf("normalizeRemotePanelURL = %q, want %q", got, want)
-	}
-}
-
-func TestNormalizeRemotePanelURL_DefaultLocalURL(t *testing.T) {
-	got, err := normalizeRemotePanelURL("", "secret")
-	if err != nil {
-		t.Fatalf("normalizeRemotePanelURL default error: %v", err)
-	}
-	want := "http://127.0.0.1:8443/?token=secret"
-	if got != want {
-		t.Fatalf("normalizeRemotePanelURL default = %q, want %q", got, want)
-	}
-}
-
-func TestNormalizeRemotePanelDisplayURLStripsToken(t *testing.T) {
-	got, err := normalizeRemotePanelDisplayURL("wss://example.com:8443/ws?token=secret&view=agents")
-	if err != nil {
-		t.Fatalf("normalizeRemotePanelDisplayURL error: %v", err)
-	}
-	want := "https://example.com:8443/?view=agents"
-	if got != want {
-		t.Fatalf("normalizeRemotePanelDisplayURL = %q, want %q", got, want)
-	}
-}
-
-func TestNormalizeRemoteTUIURL(t *testing.T) {
-	got, err := normalizeRemoteTUIURL("https://example.com:8443")
-	if err != nil {
-		t.Fatalf("normalizeRemoteTUIURL error: %v", err)
-	}
-	want := "wss://example.com:8443/ws"
-	if got != want {
-		t.Fatalf("normalizeRemoteTUIURL = %q, want %q", got, want)
-	}
-}
-
-func TestEnsureAccessKeyGeneratesWhenMissing(t *testing.T) {
-	key, generated, err := ensureAccessKey("")
-	if err != nil {
-		t.Fatalf("ensureAccessKey error: %v", err)
-	}
-	if !generated {
-		t.Fatal("expected generated key")
-	}
-	if len(key) != 32 {
-		t.Fatalf("generated key length = %d, want 32", len(key))
-	}
-}
-
-func TestBuildPanelURLRewritesWildcardHost(t *testing.T) {
-	got := buildPanelURL("0.0.0.0", 8443, false, "secret")
-	want := "http://localhost:8443/?token=secret"
-	if got != want {
-		t.Fatalf("buildPanelURL = %q, want %q", got, want)
-	}
-}
-
-func TestBuildPanelURLBracketsIPv6Host(t *testing.T) {
-	for _, host := range []string{"::1", "[::1]"} {
-		got := buildPanelURL(host, 8443, true, "secret")
-		want := "https://[::1]:8443/?token=secret"
-		if got != want {
-			t.Fatalf("buildPanelURL(%q) = %q, want %q", host, got, want)
-		}
-	}
-}
-
-func TestPrintPanelAccessGeneratedKey(t *testing.T) {
-	var outBuf bytes.Buffer
-
-	prevOut := stdout
-	stdout = &outBuf
-	t.Cleanup(func() {
-		stdout = prevOut
-	})
-
-	got := printPanelAccess("0.0.0.0", 8443, true, "secret", true)
-	wantURL := "https://localhost:8443/?token=secret"
-	if got != wantURL {
-		t.Fatalf("printPanelAccess URL = %q, want %q", got, wantURL)
-	}
-
-	out := outBuf.String()
-	for _, want := range []string{
-		"Listening on: 0.0.0.0:8443",
-		"Panel URL: https://localhost:8443/",
-		"API key: secret (generated)",
-	} {
-		if !strings.Contains(out, want) {
-			t.Fatalf("printPanelAccess output %q missing %q", out, want)
-		}
-	}
-	if strings.Contains(out, "?token=secret") {
-		t.Fatalf("generated-key output leaked token URL: %q", out)
-	}
-}
-
-func TestPrintPanelAccessExplicitKeyAvoidsTokenURL(t *testing.T) {
-	var outBuf bytes.Buffer
-
-	prevOut := stdout
-	stdout = &outBuf
-	t.Cleanup(func() {
-		stdout = prevOut
-	})
-
-	got := printPanelAccess("127.0.0.1", 8443, false, "secret", false)
-	if got != "http://127.0.0.1:8443/?token=secret" {
-		t.Fatalf("printPanelAccess URL = %q", got)
-	}
-
-	out := outBuf.String()
-	if strings.Contains(out, "?token=secret") {
-		t.Fatalf("explicit-key output leaked token URL: %q", out)
-	}
-	for _, want := range []string{
-		"Panel URL: http://127.0.0.1:8443/",
-		"API key: secret",
-	} {
-		if !strings.Contains(out, want) {
-			t.Fatalf("printPanelAccess output %q missing %q", out, want)
-		}
-	}
-}
-
-func TestRunRemoteRejectsUnknownMode(t *testing.T) {
-	var outBuf, errBuf bytes.Buffer
-
-	prevOut, prevErr := stdout, stderr
-	stdout = &outBuf
-	stderr = &errBuf
-	t.Cleanup(func() {
-		stdout = prevOut
-		stderr = prevErr
-	})
-
-	code := runRemoteSubcommand([]string{"foo"})
-	if code != 2 {
-		t.Fatalf("runRemoteSubcommand unknown mode code = %d, want 2", code)
-	}
-	if !strings.Contains(errBuf.String(), `unknown remote mode "foo"`) {
-		t.Fatalf("stderr = %q", errBuf.String())
 	}
 }

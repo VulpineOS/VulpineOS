@@ -9,7 +9,7 @@ import (
 
 func TestPrepareScopedConfig(t *testing.T) {
 	tmpDir := t.TempDir()
-	basePath := filepath.Join(tmpDir, "openclaw.json")
+	basePath := filepath.Join(tmpDir, "nanoclaw.json")
 	base := []byte(`{
 		"env":{"ZAI_API_KEY":"test"},
 		"browser":{"enabled":true,"headless":false,"cdpUrl":"ws://127.0.0.1:9222"}
@@ -45,7 +45,7 @@ func TestPrepareScopedConfig(t *testing.T) {
 
 func TestPrepareRuntimeConfigPreservesBrowserEndpoint(t *testing.T) {
 	tmpDir := t.TempDir()
-	basePath := filepath.Join(tmpDir, "openclaw.json")
+	basePath := filepath.Join(tmpDir, "nanoclaw.json")
 	base := []byte(`{
 		"env":{"ZAI_API_KEY":"test"},
 		"browser":{"enabled":true,"headless":false,"cdpUrl":"ws://127.0.0.1:9222"},

@@ -418,10 +418,7 @@ func TestGenerateFingerprintValidJSON(t *testing.T) {
 		t.Error("platform says Linux but UA doesn't")
 	}
 
-	// Note: determinism only guaranteed for fallback generator.
-	// BrowserForge uses its own RNG so results vary.
-
-	// Different seed -> different fingerprint (with very high probability)
+	// Different seed -> different fingerprint.
 	fp3, err := GenerateFingerprint("other-agent-id")
 	if err != nil {
 		t.Fatal(err)
@@ -567,7 +564,7 @@ func TestReconcileNonTerminalAgentsPreservesTerminalStatuses(t *testing.T) {
 		t.Fatalf("reconcile: %v", err)
 	}
 
-	terminalStatuses := []string{"completed", "error", "failed", "interrupted"}
+	terminalStatuses := []string{"paused", "completed", "error", "failed", "interrupted"}
 	for _, status := range terminalStatuses {
 		agent, err := db.GetAgent(agentIDs[status])
 		if err != nil {
@@ -578,7 +575,7 @@ func TestReconcileNonTerminalAgentsPreservesTerminalStatuses(t *testing.T) {
 		}
 	}
 
-	nonTerminalStatuses := []string{"created", "active", "paused"}
+	nonTerminalStatuses := []string{"created", "active"}
 	for _, status := range nonTerminalStatuses {
 		agent, err := db.GetAgent(agentIDs[status])
 		if err != nil {

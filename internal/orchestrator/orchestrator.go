@@ -1,26 +1,23 @@
 package orchestrator
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log"
-	"path/filepath"
 	"sync"
 
 	"vulpineos/internal/agentbus"
 	"vulpineos/internal/config"
 	"vulpineos/internal/costtrack"
-	"vulpineos/internal/extensions"
 	"vulpineos/internal/foxbridge"
 	"vulpineos/internal/juggler"
 	"vulpineos/internal/kernel"
 	"vulpineos/internal/nanoclaw"
 	"vulpineos/internal/pagecache"
 	"vulpineos/internal/pool"
+	"vulpineos/internal/proxy"
 	"vulpineos/internal/recording"
 	"vulpineos/internal/security"
-	"vulpineos/internal/sentinelcapture"
 	"vulpineos/internal/vault"
 	"vulpineos/internal/webhooks"
 )
@@ -46,7 +43,7 @@ type AgentResult struct {
 	Err     error
 }
 
-// Orchestrator ties together kernel, pool, vault, and OpenClaw manager.
+// Orchestrator ties together kernel, pool, vault, and NanoClaw manager.
 type Orchestrator struct {
 	Kernel *kernel.Kernel
 	Client *juggler.Client
@@ -61,6 +58,8 @@ type Orchestrator struct {
 	Recording       *recording.Recorder
 	PageCache       *pagecache.Cache
 	SecurityEnabled bool // when true, inject CSP and sandbox protections on context creation
+	memMonitor      *pool.MemoryMonitor
+	mutationObs     *security.MutationMonitor
 
 	// Track which agent owns which context slot
 	agentToSlot   map[string]*pool.ContextSlot
@@ -75,6 +74,8 @@ type Opts struct {
 	Recording       *recording.Recorder
 	PageCache       *pagecache.Cache
 	SecurityEnabled bool
+	MemoryMonitor   *pool.MemoryMonitor
+	MutationMonitor *security.MutationMonitor
 }
 
 // New creates an orchestrator with all subsystems.
@@ -87,12 +88,6 @@ func New(k *kernel.Kernel, client *juggler.Client, v *vault.DB, poolCfg pool.Con
 		Agents:      nanoclaw.NewManager(nanoclawBinary),
 		agentToSlot: make(map[string]*pool.ContextSlot),
 	}
-	if client == nil {
-		o.Pool = nil
-	}
-	if k == nil {
-		o.Kernel = nil
-	}
 	if len(opts) > 0 {
 		o.AgentBus = opts[0].AgentBus
 		o.Costs = opts[0].Costs
@@ -100,16 +95,16 @@ func New(k *kernel.Kernel, client *juggler.Client, v *vault.DB, poolCfg pool.Con
 		o.Recording = opts[0].Recording
 		o.PageCache = opts[0].PageCache
 		o.SecurityEnabled = opts[0].SecurityEnabled
+		o.memMonitor = opts[0].MemoryMonitor
+		o.mutationObs = opts[0].MutationMonitor
 	}
 	return o
 }
 
 // Start initializes the pool and begins the agent status relay.
 func (o *Orchestrator) Start() error {
-	if o.Pool != nil {
-		if err := o.Pool.Start(); err != nil {
-			return fmt.Errorf("start pool: %w", err)
-		}
+	if err := o.Pool.Start(); err != nil {
+		return fmt.Errorf("start pool: %w", err)
 	}
 	go o.statusRelay()
 	return nil
@@ -158,20 +153,6 @@ func (o *Orchestrator) SpawnCitizen(citizenID, templateID string) (string, error
 	o.agentToSlotMu.Lock()
 	o.agentToSlot[agentID] = slot
 	o.agentToSlotMu.Unlock()
-	if cookies, err := o.Vault.GetCookies(citizen.ID); err == nil {
-		storage, storageErr := o.Vault.GetStorage(citizen.ID)
-		if storageErr == nil {
-			carryForward := *citizen
-			carryForward.TotalSessions++
-			if err := sentinelcapture.RecordTrustAssets(context.Background(), extensions.SentinelScope{
-				CitizenID: citizen.ID,
-				AgentID:   agentID,
-				ContextID: slot.ContextID,
-			}, &carryForward, cookies, storage); err != nil {
-				log.Printf("orchestrator: warning: failed to record trust assets for citizen %s: %v", citizen.ID, err)
-			}
-		}
-	}
 	o.Vault.UpdateCitizenUsage(citizenID)
 
 	// Start recording for this agent
@@ -273,10 +254,7 @@ func (o *Orchestrator) KillAgent(agentID string) error {
 
 // Status returns the orchestrator's current state.
 func (o *Orchestrator) Status() Status {
-	var avail, active, total int
-	if o.Pool != nil {
-		avail, active, total = o.Pool.Stats()
-	}
+	avail, active, total := o.Pool.Stats()
 
 	citizenCount := 0
 	templateCount := 0
@@ -292,16 +270,9 @@ func (o *Orchestrator) Status() Status {
 		totalCost = o.Costs.TotalCost()
 	}
 
-	kernelRunning := false
-	kernelPID := 0
-	if o.Kernel != nil {
-		kernelRunning = o.Kernel.Running()
-		kernelPID = o.Kernel.PID()
-	}
-
 	return Status{
-		KernelRunning:  kernelRunning,
-		KernelPID:      kernelPID,
+		KernelRunning:  o.Kernel.Running(),
+		KernelPID:      o.Kernel.PID(),
 		PoolAvailable:  avail,
 		PoolActive:     active,
 		PoolTotal:      total,
@@ -315,12 +286,11 @@ func (o *Orchestrator) Status() Status {
 // Close shuts down all subsystems.
 // Note: kernel.Stop() is the caller's responsibility and must be called separately.
 func (o *Orchestrator) Close() {
+	o.Agents.KillAll()
 	o.Agents.Dispose()
-	if o.Pool != nil {
-		o.Pool.Close()
-	}
-	if o.Client != nil {
-		o.Client.Close()
+	o.Pool.Close()
+	if o.memMonitor != nil {
+		o.memMonitor.Stop()
 	}
 	o.Vault.Close()
 	// Clean up optional subsystems (nil-safe)
@@ -425,11 +395,31 @@ func (o *Orchestrator) applySecurityToContext(contextID, ownerID string) {
 		log.Printf("orchestrator: warning: CSP injection failed for context %s: %v", contextID, err)
 	}
 
+	// Inject mutation observer if configured
+	if o.mutationObs != nil {
+		if err := security.InjectObserver(o.Client, contextID); err != nil {
+			log.Printf("orchestrator: warning: mutation observer injection failed for context %s: %v", contextID, err)
+		}
+	}
+
 	// Prepare sandbox (the Sandbox wraps JS expressions at call sites;
 	// here we log that it is active so operators know protections are in place)
 	sb := security.NewSandbox()
 	log.Printf("orchestrator: security suite active for context %s (owner=%s, csp=inline-blocked, sandbox=%v)",
 		contextID, ownerID, sb.BlockedAPIs())
+}
+
+// applyProxyToContext applies a proxy configuration to a running browser context.
+func (o *Orchestrator) applyProxyToContext(contextID string, proxyConfigJSON string) error {
+	var pc proxy.ProxyConfig
+	if err := json.Unmarshal([]byte(proxyConfigJSON), &pc); err != nil {
+		return fmt.Errorf("parse proxy config: %w", err)
+	}
+	_, err := o.Client.Call("", "Browser.setContextProxy", map[string]interface{}{
+		"browserContextId": contextID,
+		"proxy":           pc.URL(),
+	})
+	return err
 }
 
 // statusRelay forwards agent status updates (for use by TUI or other consumers).
@@ -459,66 +449,22 @@ func isTerminalAgentStatus(status string) bool {
 }
 
 func (o *Orchestrator) spawnScopedAgent(contextID, sopFile string) (string, error) {
-	scopedConfig, cleanup, err := o.PrepareScopedOpenClawConfig(contextID)
+	scopedConfig, cleanup, err := o.PrepareScopedNanoClawConfig(contextID)
 	if err != nil {
 		return "", err
 	}
 
-	if err := o.provisionOpenRouterIfNeeded(); err != nil {
-		log.Printf("Warning: provision OpenRouter: %v", err)
-	}
-
 	agentID, err := o.Agents.SpawnIsolated(contextID, sopFile, scopedConfig, cleanup)
 	if err != nil {
-		if cleanup != nil {
-			cleanup()
-		}
+		cleanup()
 		return "", err
 	}
 
 	return agentID, nil
 }
 
-func (o *Orchestrator) provisionOpenRouterIfNeeded() error {
-	cfg, err := config.Load()
-	if err != nil {
-		return nil
-	}
-	if cfg.Provider != "openrouter" {
-		return nil
-	}
-
-	nanoclawDir := nanoclaw.GetNanoclawDir()
-	if nanoclawDir == "" {
-		return nil
-	}
-
-	agentGroupID, err := nanoclaw.LookupNanoclawAgentGroupID(nanoclawDir)
-	if err != nil {
-		return fmt.Errorf("lookup nanoclaw agent group: %w", err)
-	}
-	if agentGroupID == "" {
-		return nil
-	}
-
-	if err := nanoclaw.SetContainerConfig(nanoclawDir, agentGroupID, "opencode", cfg.Model); err != nil {
-		return fmt.Errorf("set container config: %w", err)
-	}
-
-	secretPath := filepath.Join(nanoclawDir, "data", "secrets.yaml")
-	if err := nanoclaw.CreateOpenRouterSecret(secretPath, cfg.APIKey); err != nil {
-		return fmt.Errorf("create openrouter secret: %w", err)
-	}
-
-	return nil
-}
-
-// PrepareScopedOpenClawConfig builds a per-context OpenClaw config overlay.
-func (o *Orchestrator) PrepareScopedOpenClawConfig(contextID string) (string, func(), error) {
-	if cfg, err := config.Load(); err == nil && cfg.Provider == "opencode-local" {
-		return "", nil, nil
-	}
-
+// PrepareScopedNanoClawConfig builds a per-context NanoClaw config overlay.
+func (o *Orchestrator) PrepareScopedNanoClawConfig(contextID string) (string, func(), error) {
 	if o == nil || o.Client == nil {
 		return "", nil, fmt.Errorf("orchestrator client not available")
 	}
@@ -531,10 +477,10 @@ func (o *Orchestrator) PrepareScopedOpenClawConfig(contextID string) (string, fu
 		return "", nil, fmt.Errorf("start scoped foxbridge: %w", err)
 	}
 
-	scopedConfig, cleanupConfig, err := nanoclaw.PrepareScopedConfig(config.OpenClawConfigPath(), scopedFoxbridge.CDPURL())
+	scopedConfig, cleanupConfig, err := nanoclaw.PrepareScopedConfig(config.NanoClawConfigPath(), scopedFoxbridge.CDPURL())
 	if err != nil {
 		scopedFoxbridge.Stop()
-		return "", nil, fmt.Errorf("prepare scoped OpenClaw config: %w", err)
+		return "", nil, fmt.Errorf("prepare scoped NanoClaw config: %w", err)
 	}
 
 	cleanup := func() {

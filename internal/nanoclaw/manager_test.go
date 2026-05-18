@@ -207,7 +207,7 @@ func TestSpawnFailsWithBadBinary(t *testing.T) {
 
 func TestRuntimeEnvForConfigIncludesGatewayToken(t *testing.T) {
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "openclaw.json")
+	configPath := filepath.Join(tmpDir, "nanoclaw.json")
 	if err := os.WriteFile(configPath, []byte(`{"gateway":{"auth":{"mode":"token","token":"token-123"}}}`), 0600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
@@ -223,7 +223,7 @@ func TestRuntimeEnvForConfigIncludesGatewayToken(t *testing.T) {
 
 func TestRuntimeEnvForConfigOmitsMissingGatewayToken(t *testing.T) {
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "openclaw.json")
+	configPath := filepath.Join(tmpDir, "nanoclaw.json")
 	if err := os.WriteFile(configPath, []byte(`{"gateway":{"mode":"local"}}`), 0600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
@@ -243,7 +243,7 @@ func TestResumeWithSessionIsolatedRunsCleanupOnStartFailure(t *testing.T) {
 	m := NewManager(badBin)
 	called := false
 
-	_, err := m.ResumeWithSessionIsolated("agent-1", "session-1", config.OpenClawConfigPath(), func() {
+	_, err := m.ResumeWithSessionIsolated("agent-1", "session-1", config.NanoClawConfigPath(), func() {
 		called = true
 	})
 	if err == nil {
@@ -259,7 +259,7 @@ func TestSpawnWithSessionRejectsUnsafeSessionNameAndRunsCleanup(t *testing.T) {
 		t.Run(sessionName, func(t *testing.T) {
 			m := NewManager("/not-needed")
 			called := false
-			_, err := m.SpawnWithSessionIsolated("agent-1", "task", sessionName, config.OpenClawConfigPath(), func() {
+			_, err := m.SpawnWithSessionIsolated("agent-1", "task", sessionName, config.NanoClawConfigPath(), func() {
 				called = true
 			})
 			if err == nil || !strings.Contains(err.Error(), "invalid sessionName") {
@@ -289,7 +289,7 @@ func TestSessionLogPathForSessionIDRejectsTraversal(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sessionLogPathForSessionID: %v", err)
 	}
-	want := filepath.Join(config.OpenClawProfileDir(), "agents", "main", "sessions", "vulpine-agent-1.jsonl")
+	want := filepath.Join(config.NanoClawProfileDir(), "agents", "main", "sessions", "vulpine-agent-1.jsonl")
 	if path != want {
 		t.Fatalf("path = %q, want %q", path, want)
 	}

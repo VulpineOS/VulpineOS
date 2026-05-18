@@ -62,20 +62,20 @@ var startGatewayIfAvailable = func(cfg *config.Config, audit *runtimeaudit.Manag
 	if err := gw.Start(); err != nil {
 		log.Printf("Warning: NanoClaw gateway failed to start: %v (browser tools won't work)", err)
 		if audit != nil {
-			_, _ = audit.Log("gateway", "error", "start_failed", "OpenClaw gateway failed to start", map[string]string{
+			_, _ = audit.Log("gateway", "error", "start_failed", "NanoClaw gateway failed to start", map[string]string{
 				"error": err.Error(),
 			})
 		}
 		return nil
 	}
 	if audit != nil {
-		_, _ = audit.Log("gateway", "info", "started", "OpenClaw gateway started", nil)
+		_, _ = audit.Log("gateway", "info", "started", "NanoClaw gateway started", nil)
 	}
 	if cfg != nil {
-		if err := config.RepairOpenClawProfile(cfg.FoxbridgeCDPURL); err != nil {
-			log.Printf("Warning: could not repair OpenClaw profile after gateway start: %v", err)
+		if err := config.RepairNanoClawProfile(cfg.FoxbridgeCDPURL); err != nil {
+			log.Printf("Warning: could not repair NanoClaw profile after gateway start: %v", err)
 			if audit != nil {
-				_, _ = audit.Log("gateway", "warn", "profile_repair_failed", "OpenClaw profile repair failed after gateway start", map[string]string{
+				_, _ = audit.Log("gateway", "warn", "profile_repair_failed", "NanoClaw profile repair failed after gateway start", map[string]string{
 					"error": err.Error(),
 				})
 			}
@@ -219,7 +219,7 @@ func Run(args []string) int {
 		headless   = fs.Bool("headless", false, "Run in headless mode")
 		profileDir = fs.String("profile", "", "Firefox profile directory")
 		noBrowser  = fs.Bool("no-browser", false, "Start without launching browser/kernel")
-		mcpServer  = fs.Bool("mcp-server", false, "Run as MCP stdio server (used by OpenClaw)")
+		mcpServer  = fs.Bool("mcp-server", false, "Run as MCP stdio server (used by NanoClaw)")
 		mcpConnect = fs.String("mcp-connect", "", "WebSocket URL to connect MCP server to remote kernel")
 		listExt    = fs.Bool("list-extensions", false, "Print the status of optional extension providers and exit")
 		showVer    = fs.Bool("version", false, "Print version and exit")
@@ -464,18 +464,18 @@ func printPanelAccess(host string, port int, useTLS bool, apiKey string, generat
 	return panelURL
 }
 
-func tryGenerateOpenClawConfig(cfg *config.Config, vulpineosBinary, camoufoxBinary string) (bool, error) {
+func tryGenerateNanoClawConfig(cfg *config.Config, vulpineosBinary, camoufoxBinary string) (bool, error) {
 	if cfg == nil {
 		return false, nil
 	}
-	ready, err := cfg.OpenClawConfigReady()
+	ready, err := cfg.NanoClawConfigReady()
 	if err != nil {
 		return false, err
 	}
 	if !ready {
 		return false, nil
 	}
-	return true, cfg.GenerateOpenClawConfig(vulpineosBinary, camoufoxBinary)
+	return true, cfg.GenerateNanoClawConfig(vulpineosBinary, camoufoxBinary)
 }
 
 func openBrowserURL(rawURL string) error {
@@ -515,7 +515,7 @@ func runRemotePanel(rawURL string, apiKey string) error {
 	return nil
 }
 
-// runMCPServer runs as an MCP stdio server for OpenClaw integration.
+// runMCPServer runs as an MCP stdio server for NanoClaw integration.
 // It connects to a running VulpineOS kernel and translates MCP tool calls to Juggler protocol.
 func runMCPServer(binaryPath string, headless bool, profileDir string, connectURL string) error {
 
@@ -569,7 +569,7 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 		log.Printf("Warning: could not load config: %v", err)
 		cfg = &config.Config{}
 	}
-	if cfg.HydrateFromOpenClawProfile() {
+	if cfg.HydrateFromNanoClawProfile() {
 		if saveErr := cfg.Save(); saveErr != nil {
 			log.Printf("Warning: could not persist repaired config: %v", saveErr)
 		}
@@ -588,7 +588,7 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 		if err != nil {
 			return fmt.Errorf("setup wizard: %w", err)
 		}
-		finalModel := result.(setup.Model)
+		finalModel := result.(*setup.Model)
 		if !finalModel.Done() {
 			_ = config.ClearReconfigureRequest()
 			return nil // user quit setup
@@ -599,12 +599,12 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 		}
 		_ = config.ClearReconfigureRequest()
 
-		// Generate OpenClaw config
+		// Generate NanoClaw config
 		exe, _ := os.Executable()
 		_, nanoclawPath, _ := nanoclaw.FindBundledNanoClaw()
 		camoufox := nanoclawPath
-		if _, err := tryGenerateOpenClawConfig(cfg, exe, camoufox); err != nil {
-			log.Printf("Warning: could not generate OpenClaw config: %v", err)
+		if _, err := tryGenerateNanoClawConfig(cfg, exe, camoufox); err != nil {
+			log.Printf("Warning: could not generate NanoClaw config: %v", err)
 		}
 	}
 
@@ -626,8 +626,8 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 	if cfg.SetupComplete {
 		exe, _ := os.Executable()
 		_, nanoclawPath, _ := nanoclaw.FindBundledNanoClaw()
-		if _, genErr := tryGenerateOpenClawConfig(cfg, exe, nanoclawPath); genErr != nil {
-			log.Printf("Warning: could not generate OpenClaw config: %v", genErr)
+		if _, genErr := tryGenerateNanoClawConfig(cfg, exe, nanoclawPath); genErr != nil {
+			log.Printf("Warning: could not generate NanoClaw config: %v", genErr)
 		}
 	}
 
@@ -731,26 +731,26 @@ func runLocal(binaryPath string, headless bool, profileDir string, noBrowser boo
 			}
 
 			// Start foxbridge as an embedded CDP server sharing the kernel's Juggler client.
-			// This avoids launching a second Firefox — OpenClaw connects to the same kernel.
+			// This avoids launching a second Firefox — NanoClaw connects to the same kernel.
 			if startErr == nil && client != nil {
 				fb = foxbridge.New()
 				fb.SetRuntimeAudit(audit)
 				fbErr := fb.StartEmbeddedMode(client, 9222)
 				if fbErr != nil {
-					log.Printf("embedded foxbridge not available: %v (OpenClaw will use built-in Chrome)", fbErr)
+					log.Printf("embedded foxbridge not available: %v (NanoClaw will use built-in Chrome)", fbErr)
 					fb = nil
 				} else {
-					// Set CDP URL in config so OpenClaw routes through foxbridge
+					// Set CDP URL in config so NanoClaw routes through foxbridge
 					cfg.FoxbridgeCDPURL = fb.CDPURL()
 					exe, _ := os.Executable()
-					if _, err := tryGenerateOpenClawConfig(cfg, exe, resolvedBinaryPath); err != nil {
-						log.Printf("Warning: could not generate OpenClaw config: %v", err)
+					if _, err := tryGenerateNanoClawConfig(cfg, exe, resolvedBinaryPath); err != nil {
+						log.Printf("Warning: could not generate NanoClaw config: %v", err)
 					}
-					log.Printf("foxbridge embedded — OpenClaw browser routed through Camoufox at %s", fb.CDPURL())
+					log.Printf("foxbridge embedded — NanoClaw browser routed through Camoufox at %s", fb.CDPURL())
 				}
 			}
 
-			// Start OpenClaw gateway for browser support
+			// Start NanoClaw gateway for browser support
 			if startErr == nil {
 				gw = startGatewayIfAvailable(cfg, audit)
 			}

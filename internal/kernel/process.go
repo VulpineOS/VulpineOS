@@ -24,6 +24,8 @@ type Kernel struct {
 	profileDir string
 	startedAt  time.Time
 	waited     bool // true after cmd.Wait() has been called
+	waitDone   chan struct{}
+	exitErr    error
 	window     *WindowController
 	headless   bool
 	mu         sync.Mutex
@@ -117,13 +119,14 @@ func (k *Kernel) Start(cfg Config) error {
 	}
 
 	profileDir := cfg.ProfileDir
+	tempProfileDir := ""
 	if profileDir == "" {
-		tempProfileDir, err := os.MkdirTemp("", "vulpineos-profile-*")
+		var err error
+		tempProfileDir, err = os.MkdirTemp("", "vulpineos-profile-*")
 		if err != nil {
 			return fmt.Errorf("create temp profile: %w", err)
 		}
 		profileDir = tempProfileDir
-		k.profileDir = tempProfileDir
 	}
 
 	// Build args
@@ -144,27 +147,39 @@ func (k *Kernel) Start(cfg Config) error {
 	// From our perspective: we write to Firefox's FD 3 and read from Firefox's FD 4.
 	toFirefoxRead, toFirefoxWrite, err := os.Pipe()
 	if err != nil {
+		if tempProfileDir != "" {
+			_ = os.RemoveAll(tempProfileDir)
+		}
 		return fmt.Errorf("create pipe to firefox: %w", err)
 	}
 	fromFirefoxRead, fromFirefoxWrite, err := os.Pipe()
 	if err != nil {
 		toFirefoxRead.Close()
 		toFirefoxWrite.Close()
+		if tempProfileDir != "" {
+			_ = os.RemoveAll(tempProfileDir)
+		}
 		return fmt.Errorf("create pipe from firefox: %w", err)
 	}
 
 	cmd := exec.Command(binary, args...)
+	configureKernelProcess(cmd)
+	applyKernelProcessHooks(cmd)
 	// Redirect Firefox stdout/stderr to a log file to keep the TUI clean.
 	// If the log file can't be created, fall back to /dev/null.
 	logPath := filepath.Join(os.TempDir(), "vulpineos-kernel.log")
+	var outputFile *os.File
 	if logFile, err := os.Create(logPath); err == nil {
+		outputFile = logFile
 		cmd.Stdout = logFile
 		cmd.Stderr = logFile
-		k.logFile = logFile
 	} else {
-		devNull, _ := os.Open(os.DevNull)
-		cmd.Stdout = devNull
-		cmd.Stderr = devNull
+		devNull, openErr := os.Open(os.DevNull)
+		if openErr == nil {
+			outputFile = devNull
+			cmd.Stdout = devNull
+			cmd.Stderr = devNull
+		}
 	}
 	// FD 0=stdin, 1=stdout, 2=stderr, 3=juggler-read (from us), 4=juggler-write (to us)
 	cmd.ExtraFiles = []*os.File{toFirefoxRead, fromFirefoxWrite}
@@ -174,9 +189,11 @@ func (k *Kernel) Start(cfg Config) error {
 		toFirefoxWrite.Close()
 		fromFirefoxRead.Close()
 		fromFirefoxWrite.Close()
-		if k.profileDir != "" {
-			_ = os.RemoveAll(k.profileDir)
-			k.profileDir = ""
+		if outputFile != nil {
+			_ = outputFile.Close()
+		}
+		if tempProfileDir != "" {
+			_ = os.RemoveAll(tempProfileDir)
 		}
 		return fmt.Errorf("start firefox: %w", err)
 	}
@@ -192,17 +209,60 @@ func (k *Kernel) Start(cfg Config) error {
 	k.cmd = cmd
 	k.client = client
 	k.transport = transport
+	k.logFile = outputFile
+	k.profileDir = tempProfileDir
 	k.startedAt = time.Now()
+	k.waited = false
+	k.exitErr = nil
+	k.waitDone = make(chan struct{})
 	k.headless = cfg.Headless
-
-	// Create window controller for non-headless mode
 	if !cfg.Headless {
 		k.window = NewWindowController(cmd.Process.Pid)
-		// Wait for the browser window to appear, then hide it
-		go k.window.HideWhenReady()
+		go func() {
+			time.Sleep(2 * time.Second)
+			if k.window != nil {
+				k.window.HideWhenReady()
+			}
+		}()
 	}
+	go k.waitForExit(cmd, k.waitDone)
 
 	return nil
+}
+
+func (k *Kernel) waitForExit(cmd *exec.Cmd, done chan struct{}) {
+	err := cmd.Wait()
+
+	var client *juggler.Client
+	var logFile *os.File
+	var profileDir string
+	k.mu.Lock()
+	if k.cmd == cmd {
+		client = k.client
+		logFile = k.logFile
+		profileDir = k.profileDir
+
+		k.cmd = nil
+		k.client = nil
+		k.transport = nil
+		k.logFile = nil
+		k.profileDir = ""
+		k.window = nil
+		k.waited = true
+		k.exitErr = err
+	}
+	k.mu.Unlock()
+
+	if client != nil {
+		_ = client.Close()
+	}
+	if logFile != nil {
+		_ = logFile.Close()
+	}
+	if profileDir != "" {
+		_ = os.RemoveAll(profileDir)
+	}
+	close(done)
 }
 
 func newBinaryLocator() (binaryLocator, error) {
@@ -532,44 +592,48 @@ func (k *Kernel) Uptime() time.Duration {
 func (k *Kernel) Running() bool {
 	k.mu.Lock()
 	defer k.mu.Unlock()
-	return k.cmd != nil && k.cmd.ProcessState == nil
+	if k.cmd == nil || k.waited {
+		return false
+	}
+	if k.waitDone == nil {
+		return true
+	}
+	select {
+	case <-k.waitDone:
+		return false
+	default:
+		return true
+	}
 }
 
 // Stop gracefully shuts down the Firefox process.
 func (k *Kernel) Stop() error {
 	k.mu.Lock()
-	defer k.mu.Unlock()
+	client := k.client
+	cmd := k.cmd
+	waitDone := k.waitDone
+	k.mu.Unlock()
 
-	if k.client != nil {
+	if client != nil {
 		// Try graceful shutdown via protocol
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		_, _ = k.client.CallWithContext(ctx, "", "Browser.close", nil)
+		_, _ = client.CallWithContext(ctx, "", "Browser.close", nil)
 		cancel()
-		k.client.Close()
-		k.client = nil
+		_ = client.Close()
 	}
 
-	if k.cmd != nil && k.cmd.Process != nil && !k.waited {
+	if cmd != nil && cmd.Process != nil {
 		// Wait briefly for graceful exit, then kill
-		done := make(chan error, 1)
-		go func() { done <- k.cmd.Wait() }()
-		select {
-		case <-done:
-		case <-time.After(5 * time.Second):
-			k.cmd.Process.Kill()
-			<-done
+		if waitDone != nil {
+			select {
+			case <-waitDone:
+			case <-time.After(5 * time.Second):
+				_ = killKernelProcess(cmd)
+				<-waitDone
+			}
+		} else {
+			_ = killKernelProcess(cmd)
 		}
-		k.waited = true
-		k.cmd = nil
-	}
-
-	if k.logFile != nil {
-		k.logFile.Close()
-		k.logFile = nil
-	}
-	if k.profileDir != "" {
-		_ = os.RemoveAll(k.profileDir)
-		k.profileDir = ""
 	}
 
 	return nil
@@ -583,17 +647,18 @@ func (k *Kernel) LogPath() string {
 // Wait blocks until the Firefox process exits.
 func (k *Kernel) Wait() error {
 	k.mu.Lock()
-	cmd := k.cmd
-	if cmd == nil || k.waited {
+	waitDone := k.waitDone
+	if waitDone == nil || k.waited {
+		err := k.exitErr
 		k.mu.Unlock()
-		return nil
+		return err
 	}
 	k.mu.Unlock()
 
-	err := cmd.Wait()
+	<-waitDone
 
 	k.mu.Lock()
-	k.waited = true
+	err := k.exitErr
 	k.mu.Unlock()
 
 	return err

@@ -136,12 +136,12 @@ func (m *Manager) SpawnWithSessionIsolated(agentID, task, sessionName, configPat
 
 // SpawnPersistent is a compatibility shim over the current one-turn NanoClaw CLI.
 func (m *Manager) SpawnPersistent(agentID, initialMessage, sessionName string) (string, error) {
-	return m.SpawnWithSession(agentID, initialMessage, sessionName, config.OpenClawConfigPath())
+	return m.SpawnWithSession(agentID, initialMessage, sessionName, config.NanoClawConfigPath())
 }
 
 // SendMessageOrRespawn sends a one-turn message using the current session id.
 func (m *Manager) SendMessageOrRespawn(agentID, text, sessionName string) error {
-	_, err := m.SpawnWithSession(agentID, text, sessionName, config.OpenClawConfigPath())
+	_, err := m.SpawnWithSession(agentID, text, sessionName, config.NanoClawConfigPath())
 	return err
 }
 
@@ -154,7 +154,7 @@ func (m *Manager) ResumeWithSession(agentID, sessionName, configPath string) (st
 // and ties any scoped runtime cleanup to the managed agent lifecycle.
 func (m *Manager) ResumeWithSessionIsolated(agentID, sessionName, configPath string, cleanup func()) (string, error) {
 	if strings.TrimSpace(configPath) == "" {
-		configPath = config.OpenClawConfigPath()
+		configPath = config.NanoClawConfigPath()
 	}
 	return m.SpawnWithSessionIsolated(agentID, "Continue from the saved session and resume the current task.", sessionName, configPath, cleanup)
 }
@@ -683,7 +683,7 @@ func sessionLogPathForSessionID(sessionID string) (string, error) {
 	if strings.ContainsAny(id, `/\`) || id == "." || id == ".." {
 		return "", fmt.Errorf("invalid sessionName")
 	}
-	sessionsDir := filepath.Join(config.OpenClawProfileDir(), "agents", "main", "sessions")
+	sessionsDir := filepath.Join(config.NanoClawProfileDir(), "agents", "main", "sessions")
 	path := filepath.Join(sessionsDir, id+".jsonl")
 	rel, err := filepath.Rel(sessionsDir, path)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {

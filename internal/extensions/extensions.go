@@ -69,14 +69,6 @@ func (r *registry) Mobile() MobileBridge {
 	return r.mobile
 }
 
-// Sentinel returns the currently registered Sentinel provider. Always
-// non-nil; returns the no-op default when nothing is registered.
-func (r *registry) Sentinel() SentinelProvider {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	return r.sentinel
-}
-
 // SetCredentials registers a credential provider. Intended to be called
 // from init() in build-tagged extension files. Safe to call from tests
 // that swap in a fake provider.
@@ -111,15 +103,22 @@ func (r *registry) SetMobile(b MobileBridge) {
 	r.mobile = b
 }
 
-// SetSentinel registers a Sentinel provider. Intended to be called
-// from init() in build-tagged extension files.
-func (r *registry) SetSentinel(s SentinelProvider) {
+// Sentinel returns the currently-registered sentinel provider.
+// Always non-nil; returns the no-op default when nothing is registered.
+func (r *registry) Sentinel() SentinelProvider {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.sentinel
+}
+
+// SetSentinel registers a sentinel provider.
+func (r *registry) SetSentinel(p SentinelProvider) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if s == nil {
-		s = defaultSentinelProvider
+	if p == nil {
+		p = defaultSentinelProvider
 	}
-	r.sentinel = s
+	r.sentinel = p
 }
 
 // Registry is the global provider registry. It is a pointer so that
@@ -177,8 +176,8 @@ func InitWithClient(jc JugglerCallable) {
 		}
 	}
 	if privateProviders.Sentinel != nil {
-		if s := privateProviders.Sentinel(jc); s != nil {
-			Registry.SetSentinel(s)
+		if p := privateProviders.Sentinel(jc); p != nil {
+			Registry.SetSentinel(p)
 		}
 	}
 }

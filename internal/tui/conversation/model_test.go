@@ -3,7 +3,20 @@ package conversation
 import (
 	"strings"
 	"testing"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 )
+
+func teaKey(key string) tea.KeyMsg {
+	switch key {
+	case "up":
+		return tea.KeyMsg{Type: tea.KeyUp}
+	default:
+		return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(key)}
+	}
+}
 
 func TestTraceOnlyFiltersToSystemMessages(t *testing.T) {
 	m := New()
@@ -46,4 +59,126 @@ func TestTraceOnlyShowsPlaceholderWhenEmpty(t *testing.T) {
 	if !strings.Contains(view, "No action trace yet.") {
 		t.Fatalf("expected empty trace placeholder, got:\n%s", view)
 	}
+}
+
+func TestSetSizeRewrapsRenderedEntries(t *testing.T) {
+	m := New()
+	m.SetSize(80, 20)
+	m.SetAgentID("agent-1")
+	m.AddEntry("assistant", strings.Repeat("wrapped words ", 12))
+
+	wideLineCount := len(m.entries[0].renderedLines)
+	m.SetSize(24, 20)
+
+	narrowLineCount := len(m.entries[0].renderedLines)
+	if narrowLineCount <= wideLineCount {
+		t.Fatalf("narrow line count = %d, want more than wide count %d", narrowLineCount, wideLineCount)
+	}
+	for _, line := range m.entries[0].renderedLines {
+		if got := ansiVisualWidth(line); got > 16 {
+			t.Fatalf("line width = %d, want <= 16 after resize: %q", got, line)
+		}
+	}
+}
+
+func TestSetSizeAllowsVeryNarrowContentWidth(t *testing.T) {
+	m := New()
+	m.SetSize(6, 10)
+	m.SetAgentID("agent-1")
+	m.AddEntry("assistant", "abcdef")
+
+	if m.textInput.Width > 2 {
+		t.Fatalf("text input width = %d, want <= 2", m.textInput.Width)
+	}
+	for _, line := range m.entries[0].renderedLines {
+		if got := ansiVisualWidth(line); got > 1 {
+			t.Fatalf("line width = %d, want <= 1 in narrow view: %q", got, line)
+		}
+	}
+}
+
+func TestSetAgentIDClearsDraftInput(t *testing.T) {
+	m := New()
+	m.SetAgentID("agent-1")
+	m.textInput.SetValue("draft for first agent")
+
+	m.SetAgentID("agent-2")
+
+	if got := m.textInput.Value(); got != "" {
+		t.Fatalf("draft after agent switch = %q, want empty", got)
+	}
+}
+
+func TestForceScrollToBottomOverridesManualScroll(t *testing.T) {
+	m := New()
+	m.SetSize(80, 6)
+	m.SetAgentID("agent-1")
+	for i := 0; i < 12; i++ {
+		m.AddEntry("assistant", "line")
+	}
+
+	updated, _ := m.Update(teaKey("up"))
+	m = updated
+	if m.autoScroll {
+		t.Fatal("manual scroll should disable auto-scroll")
+	}
+
+	m.AddEntry("assistant", "latest")
+	if m.autoScroll {
+		t.Fatal("AddEntry should respect manual scroll state before force")
+	}
+
+	m.ForceScrollToBottom()
+	if !m.autoScroll {
+		t.Fatal("ForceScrollToBottom should re-enable auto-scroll")
+	}
+	if m.scroll == 0 {
+		t.Fatal("ForceScrollToBottom should move to the latest entries")
+	}
+}
+
+func TestWordWrapUsesTerminalCellWidth(t *testing.T) {
+	lines := wordWrap("界界界界界", 4)
+	if len(lines) < 2 {
+		t.Fatalf("wide glyph text did not wrap: %#v", lines)
+	}
+	for _, line := range lines {
+		if got := lipgloss.Width(line); got > 4 {
+			t.Fatalf("line cell width = %d, want <= 4: %q in %#v", got, line, lines)
+		}
+	}
+}
+
+func TestRenderMarkdownDoesNotSplitStyledANSI(t *testing.T) {
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	t.Cleanup(func() { lipgloss.SetColorProfile(termenv.Ascii) })
+
+	lines := renderMarkdown("**"+strings.Repeat("bold ", 8)+"**", 12)
+	for _, line := range lines {
+		if hasUnclosedSGR(line) {
+			t.Fatalf("line has unclosed ANSI style: %q\nall lines: %#v", line, lines)
+		}
+	}
+}
+
+func hasUnclosedSGR(line string) bool {
+	active := false
+	for i := 0; i < len(line); i++ {
+		if line[i] != '\x1b' || i+1 >= len(line) || line[i+1] != '[' {
+			continue
+		}
+		end := i + 2
+		for end < len(line) && (line[end] < 0x40 || line[end] > 0x7e) {
+			end++
+		}
+		if end >= len(line) {
+			return true
+		}
+		seq := line[i : end+1]
+		if strings.HasSuffix(seq, "m") {
+			active = seq != "\x1b[0m" && seq != "\x1b[m"
+		}
+		i = end
+	}
+	return active
 }

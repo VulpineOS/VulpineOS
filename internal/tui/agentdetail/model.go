@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
+
 	"vulpineos/internal/tui/shared"
 )
 
@@ -21,6 +23,7 @@ type Model struct {
 	createdAt      time.Time
 	width          int
 	height         int
+	remote         bool
 }
 
 // New creates a new agent detail panel.
@@ -66,6 +69,11 @@ func (m *Model) SetSize(w, h int) {
 	m.height = h
 }
 
+// SetRemote switches the control hints to remote-safe actions.
+func (m *Model) SetRemote(remote bool) {
+	m.remote = remote
+}
+
 // HasAgent returns whether an agent is loaded.
 func (m Model) HasAgent() bool {
 	return m.agentID != ""
@@ -78,10 +86,14 @@ func statusIndicator(status string) string {
 		return shared.WarmingStyle.Render("● working...")
 	case "thinking":
 		return shared.WarmingStyle.Render("◌ thinking...")
+	case "paused":
+		return shared.MutedStyle.Render("Ⅱ paused")
 	case "completed", "ready", "":
 		return shared.RunningStyle.Render("● ready")
 	case "failed", "error":
 		return shared.StoppedStyle.Render("● error")
+	case "interrupted":
+		return shared.StoppedStyle.Render("× interrupted")
 	case "starting", "created":
 		return shared.WarmingStyle.Render("○ starting...")
 	default:
@@ -139,8 +151,14 @@ func (m Model) View() string {
 	}
 
 	// Line 1: Agent name
+	name := m.agentName
+	maxName := m.width - 8
+	if maxName < 5 {
+		maxName = 5
+	}
+	name = clipCells(name, maxName)
 	b.WriteString(shared.TitleStyle.Render("AGENT: "))
-	b.WriteString(shared.HeaderStyle.Render(m.agentName))
+	b.WriteString(shared.HeaderStyle.Render(name))
 	b.WriteString("\n")
 
 	// Line 2: Status | Tokens | Created
@@ -160,9 +178,7 @@ func (m Model) View() string {
 	if maxTask < 10 {
 		maxTask = 10
 	}
-	if len(task) > maxTask {
-		task = task[:maxTask-1] + "..."
-	}
+	task = clipCells(task, maxTask)
 	b.WriteString("Task: ")
 	b.WriteString(task)
 	b.WriteString("\n")
@@ -194,10 +210,21 @@ func (m Model) View() string {
 
 	// Controls
 	b.WriteString("\n")
-	b.WriteString(shared.MutedStyle.Render("[Enter] chat  [p/r] agent  [o] log  [P/R] all  [x] delete"))
+	controls := "[Enter] chat  [p/r] agent  [o] log  [P/R] all  [x] delete"
+	if m.remote {
+		controls = "[Enter] chat  [p/r] agent  [P/R] all  [x] kill"
+	}
+	b.WriteString(shared.MutedStyle.Render(controls))
 
 	// Truncate to allocated height so the panel never overflows
 	result := b.String()
+	if m.width > 0 {
+		lines := strings.Split(result, "\n")
+		for i, line := range lines {
+			lines[i] = fitLine(line, m.width)
+		}
+		result = strings.Join(lines, "\n")
+	}
 	if m.height > 0 {
 		lines := strings.Split(result, "\n")
 		if len(lines) > m.height {
@@ -206,4 +233,44 @@ func (m Model) View() string {
 		}
 	}
 	return result
+}
+
+func fitLine(line string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	if lipgloss.Width(line) <= width {
+		return line
+	}
+	fitted := lipgloss.NewStyle().MaxWidth(width).Render(line)
+	lines := strings.Split(fitted, "\n")
+	if len(lines) == 0 {
+		return ""
+	}
+	return lines[0]
+}
+
+func clipCells(text string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	if lipgloss.Width(text) <= width {
+		return text
+	}
+	suffix := "..."
+	limit := width - lipgloss.Width(suffix)
+	if limit <= 0 {
+		return fitLine(suffix, width)
+	}
+	var b strings.Builder
+	used := 0
+	for _, r := range text {
+		rWidth := lipgloss.Width(string(r))
+		if used+rWidth > limit {
+			break
+		}
+		b.WriteRune(r)
+		used += rWidth
+	}
+	return b.String() + suffix
 }

@@ -10,7 +10,7 @@ import (
 
 func writeGatewayTestBinary(t *testing.T, body string) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "openclaw-test")
+	path := filepath.Join(t.TempDir(), "nanoclaw-test")
 	if err := os.WriteFile(path, []byte(body), 0700); err != nil {
 		t.Fatalf("write gateway test binary: %v", err)
 	}
